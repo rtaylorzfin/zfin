@@ -95,6 +95,7 @@ services:
       - www_data:/opt/zfin/www_homes/zfin.org
       - catalina_base:/opt/zfin/catalina_bases/zfin.org
       - keystore:/opt/apache/apache-tomcat/conf
+      - ../:/opt/zfin/source_roots/zfin.org
   jenkins:
     container_name: jenkins_container
     build: ./jenkins/
