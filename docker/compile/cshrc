@@ -17,4 +17,7 @@ sudo /bin/chown gradle /run/host-services/ssh-auth.sock
 sudo /bin/chown gradle /var/run/docker.sock
 /opt/zfin/source_roots/zfin.org/docker/compile/generate_base.sh
 cd /opt/zfin/source_roots/zfin.org
-source commons/env/docker-local.env
+# uncomment for doing custom local things in docker (eg. set TARGETROOT and SOURCEROOT to the same)
+#source commons/env/docker-local.env
+#
+source commons/env/docker.env
