@@ -25,6 +25,10 @@ RUN adduser gradle root
 RUN adduser gradle solr
 RUN mkdir -p /var/solr/data/site_index && chgrp -R solr /var/solr && chmod -R g+ws /var/solr
 
+##### <For X11 support in java> #####
+RUN apt install -y libxtst-dev
+##### </For X11 support in java> #####
+
 COPY ./ssh-agent.sudoers /etc/sudoers.d/01-ssh-agent
 RUN chmod 0440 /etc/sudoers.d/01-ssh-agent
 USER gradle

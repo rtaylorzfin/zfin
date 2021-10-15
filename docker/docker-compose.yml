@@ -13,6 +13,10 @@ services:
       SSH_AUTH_SOCK: /run/host-services/ssh-auth.sock
       SSH_USER: ${DOCKER_SSH_USER}
       TZ: ${TZ}
+      ## 10.200.0.1 is arbitrary, but I set it as a loopback alias with: sudo ifconfig lo0 alias 10.200.0.1
+      DISPLAY: 10.200.0.1:0
+    ports:
+      - "127.0.0.1:9876:9876"
     volumes: 
       - www_data:/opt/zfin/www_homes/zfin.org
       - tls_certs:/opt/zfin/tls
@@ -28,6 +32,7 @@ services:
       - ${DOCKER_SSH_AUTH_SOCK}:/run/host-services/ssh-auth.sock
       - ~/.ssh/known_hosts:/home/gradle/.ssh/known_hosts
       - /var/run/docker.sock:/var/run/docker.sock
+      - /tmp/.X11-unix:/tmp/.X11-unix
   db:
     container_name: pg_container
     build: ./postgresql/
@@ -39,8 +44,8 @@ services:
       POSTGRES_DB: zfindb
       POSTGRES_HOST_AUTH_METHOD: trust
     shm_size: 1g
-#    ports:
-#      - "127.0.0.1:5432:5432"
+    ports:
+      - "127.0.0.1:5432:5432"
     volumes:
       - pg_data:/var/lib/postgresql/data/
       - ./pg_pass:/run/secrets/pg_pass:ro
@@ -80,12 +85,12 @@ services:
       CATALINA_BASE: /opt/zfin/catalina_bases/zfin.org
       INSTANCE: docker
       JVM_OPTS: -Xms2048m -Xmx8192m -Xss2m
-#      #UNCOMMENT BELOW TO ENABLE DEBUGGING#
-#      JPDA_ADDRESS: "*:5000"
-#      JPDA_TRANSPORT: dt_socket
-#    entrypoint: ["catalina.sh", "jpda", "run"]
-#    ports:
-#      - "127.0.0.1:5000:5000"
+      #UNCOMMENT BELOW TO ENABLE DEBUGGING#
+      JPDA_ADDRESS: "*:5000"
+      JPDA_TRANSPORT: dt_socket
+    entrypoint: ["catalina.sh", "jpda", "run"]
+    ports:
+      - "127.0.0.1:5000:5000"
     volumes:
       - www_data:/opt/zfin/www_homes/zfin.org
       - catalina_base:/opt/zfin/catalina_bases/zfin.org
