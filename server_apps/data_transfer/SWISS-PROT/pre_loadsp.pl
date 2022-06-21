@@ -286,35 +286,36 @@ $curGetManuallyEnteredUniProtIDsWithMultGenes->finish();
 close(MULTIPLE);
 
 print "\nNumber of manually curated UniProt IDs with multiple genes: $ctManuallyEnteredUniProtIDsWithMultGenes at " . strftime("%Y-%m-%d %H:%M:%S", localtime(time())) . " \n\n";
-
 if ($ctManuallyEnteredUniProtIDsWithMultGenes > 0) {
   my $subject = "Auto from SWISS-PROT: manually curated UniProt IDs with multiple genes";
   ZFINPerlModules->sendMailWithAttachedReport($ENV{'SWISSPROT_EMAIL_REPORT'},"$subject","manuallyCuratedUniProtIDsWithMultipleGenes.txt");
 #  system("cp manuallyCuratedUniProtIDsWithMultipleGenes.txt log/");
 }
 
-my $sqlGetManuallyEnteredUniProtIDs = "select dblink_acc_num from db_link
+my $sqlGetManuallyEnteredUniProtIDs = "select dblink_acc_num, dblink_linked_recid from db_link
                                         where exists(select 'x' from record_attribution
                                                       where dblink_zdb_id = recattrib_data_zdb_id
-                                                        and recattrib_source_zdb_id = 'ZDB-PUB-170131-9');";
-
+                                                        and recattrib_source_zdb_id = 'ZDB-PUB-170131-9') order by dblink_acc_num;";
 my $curGetManuallyEnteredUniProtIDs = $dbh->prepare_cached($sqlGetManuallyEnteredUniProtIDs);
 $curGetManuallyEnteredUniProtIDs->execute();
 my $manuallyEnteredUniProtID;
-$curGetManuallyEnteredUniProtIDs->bind_columns(\$manuallyEnteredUniProtID);
+my $manuallyEnteredUniProtGeneID;
+$curGetManuallyEnteredUniProtIDs->bind_columns(\$manuallyEnteredUniProtID, \$manuallyEnteredUniProtGeneID);
 my @manuallyEnteredUniProtIDs = ();
 my $ctManuallyEnteredUniProtIDs = 0;
 open MCIDS, ">manuallyCuratedUniProtIDs.txt" || die ("Cannot open manuallyCuratedUniProtIDs.txt !");
+open MCID2GENE, ">manuallyCuratedUniProtIDsWithGeneIDs.txt" || die ("Cannot open manuallyCuratedUniProtIDsWithGeneIDs.txt !");
 while ($curGetManuallyEnteredUniProtIDs->fetch()) {
     $manuallyEnteredUniProtIDs[$ctManuallyEnteredUniProtIDs] = $manuallyEnteredUniProtID;
     print MCIDS "$manuallyEnteredUniProtID\n";
+    print MCID2GENE "$manuallyEnteredUniProtID,$manuallyEnteredUniProtGeneID\n";
     $ctManuallyEnteredUniProtIDs++;
 }
 $curGetManuallyEnteredUniProtIDs->finish();
 close(MCIDS);
+close(MCID2GENE);
 
 print "\nNumber of manually curated UniProt IDs: $ctManuallyEnteredUniProtIDs at " . strftime("%Y-%m-%d %H:%M:%S", localtime(time())) . "\n\n";
-
 my $uniprotId;
 my $url;
 my $uniProtURL = "https://www.uniprot.org/uniprot/";
