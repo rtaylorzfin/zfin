@@ -7,8 +7,9 @@
 #
 use strict;
 use POSIX;
-use lib $ENV{'ROOT_PATH'} . "/server_apps/";
-use ZFINPerlModules qw(assert_environment);
+use FindBin;
+use lib "$FindBin::Bin/../../../server_apps/";
+use ZFINPerlModules qw(assert_environment trim);
 
 sub main {
     assert_environment('ROOT_PATH', 'DB_NAME', 'SWISSPROT_EMAIL_REPORT');

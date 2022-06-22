@@ -25,7 +25,8 @@ use Try::Tiny;
 use POSIX;
 
 
-use lib $ENV{'ROOT_PATH'} . "/server_apps/";
+use FindBin;
+use lib "$FindBin::Bin/../../../server_apps/";
 use ZFINPerlModules qw(assert_environment trim);
 assert_environment('ROOT_PATH', 'PGHOST', 'DB_NAME', 'SWISSPROT_EMAIL_ERR', 'SWISSPROT_EMAIL_REPORT');
 

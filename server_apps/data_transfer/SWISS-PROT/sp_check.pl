@@ -17,8 +17,9 @@
 use DBI;
 use POSIX;
 
+use FindBin;
+use lib "$FindBin::Bin/../../../server_apps/";
 
-use lib $ENV{'ROOT_PATH'} . "/server_apps/";
 use ZFINPerlModules qw(assert_environment md5_file);
 assert_environment('PGHOST','ROOT_PATH', 'DB_NAME');
 
