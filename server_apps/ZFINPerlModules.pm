@@ -185,7 +185,7 @@ sub md5_file {
 sub assert_environment {
     my @required_vars = @_;
     foreach my $var (@required_vars) {
-        if (!$var) {
+        if (!$ENV{$var}) {
             print("No $var environment variable defined\n");
             exit(2);
         }
