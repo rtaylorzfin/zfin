@@ -1,11 +1,12 @@
 #!/opt/zfin/bin/perl
+"use strict";
 #
 # NCBI_gene_load.pl
 #
 # This script loads the following db_link records based on mapped gene records between ZFIn and NCBI:
 # 1) NCBI Gene Ids
 # 2) UniGene Ids     ## as of January, 2020, no more UniGene Ids will be loaded or kept at ZFIN.
-# 3) RefSeq accessioons (including RefSeq RNA, RefPept, RefSeq DNA)
+# 3) RefSeq accessions (including RefSeq RNA, RefPept, RefSeq DNA)
 # 4) GenBank accessions (including GenBank RNA, GenPept, GenBank DNA)
 #
 # The script execute the prepareNCBIgeneLoad.sql to generate the delete list and a set of ZFIN genes with RNA.
@@ -27,45 +28,53 @@
 
 use DBI;
 use Cwd;
-
-use lib "<!--|ROOT_PATH|-->/server_apps/";
-use ZFINPerlModules;
-
+use POSIX;
 use Try::Tiny;
+use FindBin;
+
+#relative path to library file(s) (ZFINPerlModules.pm)
+use lib "$FindBin::Bin/../../";
+
+# use lib $libraryPath;
+use ZFINPerlModules qw(assertEnvironment trim getPropertyValue downloadOrUseLocalFile);
+
+assertEnvironment('ROOT_PATH', 'PGHOST', 'DB_NAME', 'SWISSPROT_EMAIL_ERR', 'SWISSPROT_EMAIL_REPORT');
 
 system("/bin/date");
 
 # set environment variables
 
-chdir "<!--|ROOT_PATH|-->/server_apps/data_transfer/NCBIGENE/";
+chdir $ENV{'ROOT_PATH'} . "/server_apps/data_transfer/NCBIGENE/";
 
-$dbname = "<!--|DB_NAME|-->";
-$username = "";
-$password = "";
+my $dbname = $ENV{'DB_NAME'};
+my $username = "";
+my $password = "";
 
 #------------------------------------------------
 # remove old files
 #------------------------------------------------
 
-system("/bin/rm -f prepareLog*");
-system("/bin/rm -f loadLog*");
-system("/bin/rm -f logNCBIgeneLoad");
-system("/bin/rm -f debug*");
-system("/bin/rm -f report*");
-system("/bin/rm -f toDelete.unl");
-system("/bin/rm -f toMap.unl");
-system("/bin/rm -f toLoad.unl");
-system("/bin/rm -f length.unl");
-system("/bin/rm -f noLength.unl");
-system("/bin/rm -f seq.fasta");
-system("/bin/rm -f *.gz");
+if (!$ENV{"SKIP_DOWNLOADS"}) {
+    system("/bin/rm -f prepareLog*");
+    system("/bin/rm -f loadLog*");
+    system("/bin/rm -f logNCBIgeneLoad");
+    system("/bin/rm -f debug*");
+    system("/bin/rm -f report*");
+    system("/bin/rm -f toDelete.unl");
+    system("/bin/rm -f toMap.unl");
+    system("/bin/rm -f toLoad.unl");
+    system("/bin/rm -f length.unl");
+    system("/bin/rm -f noLength.unl");
+    system("/bin/rm -f seq.fasta");
+    system("/bin/rm -f *.gz");
 
-system("/bin/rm -f zf_gene_info");
-system("/bin/rm -f gene2vega");
-##system("/bin/rm -f gene2unigene");
-system("/bin/rm -f gene2accession");
-system("/bin/rm -f RefSeqCatalog");
-system("/bin/rm -f RELEASE_NUMBER");
+    system("/bin/rm -f zf_gene_info.gz");
+    system("/bin/rm -f gene2vega.gz");
+    ##system("/bin/rm -f gene2unigene");
+    system("/bin/rm -f gene2accession.gz");
+    system("/bin/rm -f RefSeqCatalog.gz");
+    system("/bin/rm -f RELEASE_NUMBER");
+}
 
 open LOG, '>', "logNCBIgeneLoad" or die "can not open logNCBIgeneLoad: $! \n";
 
@@ -78,11 +87,12 @@ print LOG "Start ... \n";
 ## only the following RefSeq catalog file may remain unchanged over a period of time
 ## the rest 3 are changing every day
 
-&doSystemCommand("/local/bin/wget --progress=dot -e dotbytes=10M  ftp://ftp.ncbi.nlm.nih.gov/refseq/release/RELEASE_NUMBER");
+downloadOrUseLocalFile("ftp://ftp.ncbi.nlm.nih.gov/refseq/release/RELEASE_NUMBER", "RELEASE_NUMBER");
+#&doSystemCommand("/local/bin/wget --progress=dot -e dotbytes=10M  ftp://ftp.ncbi.nlm.nih.gov/refseq/release/RELEASE_NUMBER");
 
 open (REFSEQRELEASENUM, "RELEASE_NUMBER") ||  die "Cannot open RELEASE_NUMBER : $!\n";
 
-$releaseNum = 0;
+my $releaseNum = 0;
 while (<REFSEQRELEASENUM>) {
    if($_ =~ m/(\d+)/) {
       $releaseNum = $1;
@@ -93,22 +103,24 @@ close REFSEQRELEASENUM;
 
 print LOG "RefSeq Catalog Release Number is $releaseNum.\n\n";
 
-$catlogFolder = "ftp://ftp.ncbi.nlm.nih.gov/refseq/release/release-catalog/";
+my $catlogFolder = "ftp://ftp.ncbi.nlm.nih.gov/refseq/release/release-catalog/";
 
-$catalogFile = "RefSeq-release" . $releaseNum . ".catalog.gz";
+my $catalogFile = "RefSeq-release" . $releaseNum . ".catalog.gz";
 
-$ftpNCBIrefSeqCatalog = $catlogFolder . $catalogFile;
+my $ftpNCBIrefSeqCatalog = $catlogFolder . $catalogFile;
 
 try {
-  &doSystemCommand("/local/bin/wget --progress=dot -e dotbytes=10M -N $ftpNCBIrefSeqCatalog");
-  &doSystemCommand("/local/bin/gunzip -c $catalogFile >RefSeqCatalog");
-  &doSystemCommand("/local/bin/wget --progress=dot -e dotbytes=10M  ftp://ftp.ncbi.nlm.nih.gov/gene/DATA/gene2accession.gz");
-  &doSystemCommand("/local/bin/gunzip gene2accession.gz");
-  &doSystemCommand("/local/bin/wget ftp://ftp.ncbi.nih.gov/gene/DATA/ARCHIVE/gene2vega.gz");
-  &doSystemCommand("/local/bin/gunzip gene2vega.gz");
-##  &doSystemCommand("/local/bin/wget ftp://ftp.ncbi.nlm.nih.gov/gene/DATA/gene2unigene");
-  &doSystemCommand("/local/bin/wget -O zf_gene_info.gz ftp://ftp.ncbi.nlm.nih.gov/gene/DATA/GENE_INFO/Non-mammalian_vertebrates/Danio_rerio.gene_info.gz");
-  &doSystemCommand("/local/bin/gunzip zf_gene_info.gz");
+    downloadOrUseLocalFile($ftpNCBIrefSeqCatalog, "RefSeqCatalog.gz");
+#    &doSystemCommand("/local/bin/gunzip -c $catalogFile >RefSeqCatalog");
+
+    downloadOrUseLocalFile("ftp://ftp.ncbi.nlm.nih.gov/gene/DATA/gene2accession.gz", "gene2accession.gz");
+#    &doSystemCommand("/local/bin/gunzip -f gene2accession.gz");
+
+    downloadOrUseLocalFile("ftp://ftp.ncbi.nih.gov/gene/DATA/ARCHIVE/gene2vega.gz", "gene2vega.gz");
+#    &doSystemCommand("/local/bin/gunzip -f gene2vega.gz");
+
+    downloadOrUseLocalFile("ftp://ftp.ncbi.nlm.nih.gov/gene/DATA/GENE_INFO/Non-mammalian_vertebrates/Danio_rerio.gene_info.gz", "zf_gene_info.gz");
+#    &doSystemCommand("/local/bin/gunzip -f zf_gene_info.gz");
 } catch {
   chomp $_;
   &reportErrAndExit("Auto from $dbname: NCBI_gene_load.pl :: $_");
@@ -123,25 +135,25 @@ print LOG "Done with downloading.\n\n";
 # If not, stop the process and send email to alert.
 #-------------------------------------------------------------------------------------------------
 
-if (!-e "zf_gene_info" || !-e "gene2accession" || !-e "RefSeqCatalog") {
-   $subjectLine = "Auto from $dbname: " . "NCBI_gene_load.pl :: ERROR with download";
+if (!-e "zf_gene_info.gz" || !-e "gene2accession.gz" || !-e "RefSeqCatalog.gz") {
+   my $subjectLine = "Auto from $dbname: NCBI_gene_load.pl :: ERROR with download";
    print LOG "\nMissing one or more downloaded NCBI file(s)\n\n";
    &reportErrAndExit($subjectLine);
 }
 
 # ------------------- global variables, with variable names self-explanatory  ---------------------------------
 
-$pubMappedbasedOnRNA = "ZDB-PUB-020723-3";
-$pubMappedbasedOnVega = "ZDB-PUB-130725-2";
+my $pubMappedbasedOnRNA = "ZDB-PUB-020723-3";
+my $pubMappedbasedOnVega = "ZDB-PUB-130725-2";
 
-$fdcontNCBIgeneId = "ZDB-FDBCONT-040412-1";
+my $fdcontNCBIgeneId = "ZDB-FDBCONT-040412-1";
 ##$fdcontUniGeneId = "ZDB-FDBCONT-040412-44";
-$fdcontGenBankRNA = "ZDB-FDBCONT-040412-37";
-$fdcontGenPept = "ZDB-FDBCONT-040412-42";
-$fdcontGenBankDNA = "ZDB-FDBCONT-040412-36";
-$fdcontRefSeqRNA = "ZDB-FDBCONT-040412-38";
-$fdcontRefPept = "ZDB-FDBCONT-040412-39";
-$fdcontRefSeqDNA = "ZDB-FDBCONT-040527-1";
+my $fdcontGenBankRNA = "ZDB-FDBCONT-040412-37";
+my $fdcontGenPept = "ZDB-FDBCONT-040412-42";
+my $fdcontGenBankDNA = "ZDB-FDBCONT-040412-36";
+my $fdcontRefSeqRNA = "ZDB-FDBCONT-040412-38";
+my $fdcontRefPept = "ZDB-FDBCONT-040412-39";
+my $fdcontRefSeqDNA = "ZDB-FDBCONT-040527-1";
 
 #--------------------------------------------------------------------------------------------------------------------
 # Step 2: execute prepareNCBIgeneLoad.sql to prepare
@@ -150,7 +162,7 @@ $fdcontRefSeqDNA = "ZDB-FDBCONT-040527-1";
 #--------------------------------------------------------------------------------------------------------------------
 
 try {
-  &doSystemCommand("psql -d <!--|DB_NAME|--> -a -f prepareNCBIgeneLoad.sql >prepareLog1 2> prepareLog2");
+  &doSystemCommand("psql -d $ENV{'DB_NAME'} -a -f prepareNCBIgeneLoad.sql >prepareLog1 2> prepareLog2");
 } catch {
   chomp $_;
   &reportErrAndExit("Auto from $dbname: NCBI_gene_load.pl :: faile at prepareNCBIgeneLoad.sql - $_");
@@ -158,26 +170,26 @@ try {
 
 print LOG "Done with preparing the delete list and the list for mapping.\n\n";
 
-$subject = "Auto from $dbname: " . "NCBI_gene_load.pl :: prepareLog1 file";
-ZFINPerlModules->sendMailWithAttachedReport('<!--|SWISSPROT_EMAIL_ERR|-->',"$subject","prepareLog1");
+my $subject = "Auto from $dbname: NCBI_gene_load.pl :: prepareLog1 file";
+ZFINPerlModules->sendMailWithAttachedReport($ENV{'SWISSPROT_EMAIL_ERR'},"$subject","prepareLog1");
 
-$subject = "Auto from $dbname: " . "NCBI_gene_load.pl :: prepareLog2 file";
-ZFINPerlModules->sendMailWithAttachedReport('<!--|SWISSPROT_EMAIL_ERR|-->',"$subject","prepareLog2");
+$subject = "Auto from $dbname: NCBI_gene_load.pl :: prepareLog2 file";
+ZFINPerlModules->sendMailWithAttachedReport($ENV{'SWISSPROT_EMAIL_ERR'},"$subject","prepareLog2");
 
 # This is a hash to store the zdb ids of db_link record to be deleted; used at later step
 # key: dblink zdb id
 # value: 1
 
-%toDelete = ();
+my %toDelete = ();
 
 open (TODELETE, "toDelete.unl") ||  die "Cannot open toDelete.unl : $!\n";
 
-$ctToDelete = 0;
+my $ctToDelete = 0;
 while (<TODELETE>) {
   chomp;
   if ($_) {
     $ctToDelete++;
-    $dblinkIdToBeDeleted = $_;
+    my $dblinkIdToBeDeleted = $_;
     $toDelete{$dblinkIdToBeDeleted} = 1;
   }
 }
@@ -185,7 +197,7 @@ while (<TODELETE>) {
 close TODELETE;
 
 if ($ctToDelete == 0) {
-   $subjectLine = "Auto from $dbname: " . "NCBI_gene_load.pl :: the delete list, toDelete.unl, is empty";
+   my $subjectLine = "Auto from $dbname: " . "NCBI_gene_load.pl :: the delete list, toDelete.unl, is empty";
    print LOG "\nThe delete list, toDelete.unl is empty. Something is wrong.\n\n";
    &reportErrAndExit($subjectLine);
 }
@@ -195,30 +207,31 @@ if ($ctToDelete == 0) {
 #--------------------------------------------------------------------------------------
 
 ### open a handle on the db
-my $dbhost = "<!--|PGHOST|-->";
-$handle = DBI->connect ("DBI:Pg:dbname=$dbname;host=$dbhost", $username, $password)
+my $dbhost = $ENV{"PGHOST"};
+my $handle = DBI->connect ("DBI:Pg:dbname=$dbname;host=$dbhost", $username, $password)
     or die "Cannot connect to database: $DBI::errstr\n";
 
-$sql = "select mrkr_zdb_id, mrkr_abbrev from marker
+my $sql = "select mrkr_zdb_id, mrkr_abbrev from marker
          where (mrkr_zdb_id like 'ZDB-GENE%' or mrkr_zdb_id like '%RNAG%')
            and exists (select 1 from db_link
          where dblink_linked_recid = mrkr_zdb_id
            and dblink_fdbcont_zdb_id in ('ZDB-FDBCONT-040412-38','ZDB-FDBCONT-040412-39','ZDB-FDBCONT-040527-1'));";
 
-$curGenesWithRefSeq = $handle->prepare($sql);
+my $curGenesWithRefSeq = $handle->prepare($sql);
 
 $curGenesWithRefSeq->execute;
 
+my ($geneId, $geneSymbol);
 $curGenesWithRefSeq->bind_columns(\$geneId,\$geneSymbol);
 
-%genesWithRefSeqBeforeLoad = ();
+my %genesWithRefSeqBeforeLoad = ();
 while ($curGenesWithRefSeq->fetch) {
    $genesWithRefSeqBeforeLoad{$geneId} = $geneSymbol;
 }
 
 $curGenesWithRefSeq->finish();
 
-$ctGenesWithRefSeqBefore = scalar(keys %genesWithRefSeqBeforeLoad);
+my $ctGenesWithRefSeqBefore = scalar(keys %genesWithRefSeqBeforeLoad);
 
 # NCBI Gene Id
 $sql = "select distinct dblink_acc_num
@@ -226,7 +239,7 @@ $sql = "select distinct dblink_acc_num
          where dblink_fdbcont_zdb_id = 'ZDB-FDBCONT-040412-1'
            and (dblink_linked_recid like 'ZDB-GENE%' or dblink_linked_recid like '%RNAG%');";
 
-$numNCBIgeneIdBefore = ZFINPerlModules->countData($sql);
+my $numNCBIgeneIdBefore = ZFINPerlModules->countData($sql);
 
 #RefSeq RNA
 $sql = "select distinct dblink_acc_num
@@ -234,7 +247,7 @@ $sql = "select distinct dblink_acc_num
          where dblink_fdbcont_zdb_id = 'ZDB-FDBCONT-040412-38'
            and (dblink_linked_recid like 'ZDB-GENE%' or dblink_linked_recid like '%RNAG%');";
 
-$numRefSeqRNABefore = ZFINPerlModules->countData($sql);
+my $numRefSeqRNABefore = ZFINPerlModules->countData($sql);
 
 # RefPept
 $sql = "select distinct dblink_acc_num
@@ -242,7 +255,7 @@ $sql = "select distinct dblink_acc_num
          where dblink_fdbcont_zdb_id = 'ZDB-FDBCONT-040412-39'
            and (dblink_linked_recid like 'ZDB-GENE%' or dblink_linked_recid like '%RNAG%');";
 
-$numRefPeptBefore = ZFINPerlModules->countData($sql);
+my $numRefPeptBefore = ZFINPerlModules->countData($sql);
 
 #RefSeq DNA
 $sql = "select distinct dblink_acc_num
@@ -250,7 +263,7 @@ $sql = "select distinct dblink_acc_num
          where dblink_fdbcont_zdb_id = 'ZDB-FDBCONT-040527-1'
            and (dblink_linked_recid like 'ZDB-GENE%' or dblink_linked_recid like '%RNAG%');";
 
-$numRefSeqDNABefore = ZFINPerlModules->countData($sql);
+my $numRefSeqDNABefore = ZFINPerlModules->countData($sql);
 
 # GenBank RNA (only those loaded - excluding curated ones)
 $sql = "select distinct dblink_acc_num
@@ -261,7 +274,7 @@ $sql = "select distinct dblink_acc_num
                        where recattrib_data_zdb_id = dblink_zdb_id
                          and recattrib_source_zdb_id in ('ZDB-PUB-020723-3','ZDB-PUB-130725-2'));";
 
-$numGenBankRNABefore = ZFINPerlModules->countData($sql);
+my $numGenBankRNABefore = ZFINPerlModules->countData($sql);
 
 # GenPept (only those loaded - excluding curated ones)
 $sql = "select distinct dblink_acc_num
@@ -272,7 +285,7 @@ $sql = "select distinct dblink_acc_num
                        where recattrib_data_zdb_id = dblink_zdb_id
                          and recattrib_source_zdb_id in ('ZDB-PUB-020723-3','ZDB-PUB-130725-2'));";
 
-$numGenPeptBefore = ZFINPerlModules->countData($sql);
+my $numGenPeptBefore = ZFINPerlModules->countData($sql);
 
 # GenBank DNA (only those loaded - excluding curated ones)
 $sql = "select distinct dblink_acc_num
@@ -283,7 +296,7 @@ $sql = "select distinct dblink_acc_num
                        where recattrib_data_zdb_id = dblink_zdb_id
                          and recattrib_source_zdb_id in ('ZDB-PUB-020723-3','ZDB-PUB-130725-2'));";
 
-$numGenBankDNABefore = ZFINPerlModules->countData($sql);
+my $numGenBankDNABefore = ZFINPerlModules->countData($sql);
 
 # number of genes with RefSeq RNA
 $sql = "select distinct dblink_linked_recid
@@ -292,7 +305,7 @@ $sql = "select distinct dblink_linked_recid
            and dblink_acc_num like 'NM_%'
            and (dblink_linked_recid like 'ZDB-GENE%' or dblink_linked_recid like '%RNAG%');";
 
-$numGenesRefSeqRNABefore = ZFINPerlModules->countData($sql);
+my $numGenesRefSeqRNABefore = ZFINPerlModules->countData($sql);
 
 # number of genes with RefPept
 $sql = "select distinct dblink_linked_recid
@@ -301,7 +314,7 @@ $sql = "select distinct dblink_linked_recid
            and dblink_acc_num like 'NP_%'
            and (dblink_linked_recid like 'ZDB-GENE%' or dblink_linked_recid like '%RNAG%');";
 
-$numGenesRefSeqPeptBefore = ZFINPerlModules->countData($sql);
+my $numGenesRefSeqPeptBefore = ZFINPerlModules->countData($sql);
 
 # number of genes with GenBank
 $sql = "select distinct dblink_linked_recid
@@ -311,7 +324,7 @@ $sql = "select distinct dblink_linked_recid
            and fdb_db_name = 'GenBank'
            and (dblink_linked_recid like 'ZDB-GENE%' or dblink_linked_recid like '%RNAG%');";
 
-$numGenesGenBankBefore = ZFINPerlModules->countData($sql);
+my $numGenesGenBankBefore = ZFINPerlModules->countData($sql);
 
 #--------------------------------------------------------------------------------------------
 # Step 4: Parse zf_gene_info file to get the NCBI records with gene Id, symbol, and Vega Id
@@ -322,29 +335,29 @@ $numGenesGenBankBefore = ZFINPerlModules->countData($sql);
 # key: Vega Gene Id
 # value: NCBI Gene Id
 
-%vegaIdsNCBIids = ();
+my %vegaIdsNCBIids = ();
 
 # a hash to store NCBI Gene Id and the corresponding NCBI gene symbol; will be used in reports
 # key: NCBI Gene Id
 # value: NCBI Gene Symbol
 
-%NCBIidsGeneSymbols = ();
+my %NCBIidsGeneSymbols = ();
 
 # a hash to store Vega Gene Ids and the multiple related NCBI gene Ids
 # key: Vega Gene Id
 # value: reference to an array of NCBI Gene Ids
 
-%vegaIdwithMultipleNCBIids = ();
+my %vegaIdwithMultipleNCBIids = ();
 
 # a hash to store NCBI Gene Ids and the multiple related Vega gene Ids
 # key: NCBI Gene Id
 # value: the parsed field of dbXrefs containing multiple Vega Gene Ids
 
-%NCBIgeneWithMultipleVega = ();
+my %NCBIgeneWithMultipleVega = ();
 
-$ctlines = $ctVegaIdsNCBI = 0;
+my $ctlines = $ctVegaIdsNCBI = 0;
 
-open (ZFGENEINFO, "zf_gene_info") ||  die "Cannot open zf_gene_info : $!\n";
+open(ZFGENEINFO, "cat zf_gene_info.gz | gunzip -c |") || die("Cannot open zf_gene_info : $!\n");
 
 #Format: tax_id GeneID Symbol LocusTag Synonyms dbXrefs chromosome map_location description type_of_gene Symbol_from_nomenclature_authority Full_name_from_nomenclature_authority Nomenclature_status Other_designations Modification_date
 
@@ -438,7 +451,8 @@ print STATS "\nNumber of Vega Gene Id/NCBI Gene Id pairs on Danio_rerio.gene_inf
 
 if ($ctVegaIdsNCBI == 0) {
   $ctlines = $ctVegaIdsNCBI = 0;
-  open (VEGAINFO, "gene2vega") ||  die "Cannot open gene2vega : $!\n";
+
+  open(VEGAINFO, "cat gene2vega.gz | gunzip -c |") || die("Cannot open gene2vega : $!\n");
 
   #Format: #tax_id GeneID  Vega_gene_identifier    RNA_nucleotide_accession.version        Vega_rna_identifier     protein_accession.version       Vega_protein_identifier
 
@@ -838,7 +852,7 @@ print LOG "\nctGenBankSeqLengthAtZFIN = $ctGenBankSeqLengthAtZFIN\n\n";
 
 $ctRefSeqLengthFromCatalog = 0;
 
-open (REFSEQCATALOG, "RefSeqCatalog") ||  die "Cannot open RefSeqCatalog : $!\n";
+open(REFSEQCATALOG, "cat RefSeqCatalog.gz | gunzip -c |") || die("Cannot open RefSeqCatalog.gz : $!\n");
 
 ## Sample record (last column is length of the sequence):
 ## 7955    Danio rerio     NP_001001398.2  89191828        complete|vertebrate_other       PROVISIONAL     205
@@ -925,7 +939,7 @@ $ctNoLength = $ctNoLengthRefSeq = $ctlines = $ctZebrafishGene2accession = 0;
 
 print LOG "\nParsing NCBI gene2accession file ... \n\n";
 
-open (GENE2ACC, "gene2accession") ||  die "Cannot open gene2accession : $!\n";
+open(GENE2ACC, "cat gene2accession.gz | gunzip -c |") || die("Cannot open gene2accession.gz : $!\n");
 
 ##Format: tax_id GeneID status RNA_nucleotide_accession.version RNA_nucleotide_gi protein_accession.version protein_gi genomic_nucleotide_accession.version genomic_nucleotide_gi start_position_on_the_genomic_accession end_position_on_the_genomic_accession orientation assembly mature_peptide_accession.version mature_peptide_gi Symbol
 
@@ -1754,7 +1768,7 @@ print STATS "\nMapping result statistics: number of N:1 (ZFIN to NCBI) - $ctNtoO
 print STATS "\nMapping result statistics: number of N:N (NCBI to ZFIN) - $ctNtoNfromNCBI\n\n";
 
 $subject = "Auto from $dbname: " . "NCBI_gene_load.pl :: List of N to N";
-ZFINPerlModules->sendMailWithAttachedReport('<!--|SWISSPROT_EMAIL_REPORT|-->',"$subject","reportNtoN");
+ZFINPerlModules->sendMailWithAttachedReport($ENV{'SWISSPROT_EMAIL_REPORT'},"$subject","reportNtoN");
 
 #--------------------- report 1:N ---------------------------------------------
 
@@ -1777,7 +1791,7 @@ foreach $zdbId (sort keys %oneToN) {
 close ONETON;
 
 $subject = "Auto from $dbname: " . "NCBI_gene_load.pl :: List of 1 to N";
-ZFINPerlModules->sendMailWithAttachedReport('<!--|SWISSPROT_EMAIL_REPORT|-->',"$subject","reportOneToN");
+ZFINPerlModules->sendMailWithAttachedReport($ENV{'SWISSPROT_EMAIL_REPORT'},"$subject","reportOneToN");
 
 #------------------- report N:1 -------------------------------------------------
 
@@ -1800,7 +1814,7 @@ foreach $ncbiId (sort keys %nToOne) {
 close NTOONE;
 
 $subject = "Auto from $dbname: " . "NCBI_gene_load.pl :: List of N to 1";
-ZFINPerlModules->sendMailWithAttachedReport('<!--|SWISSPROT_EMAIL_REPORT|-->',"$subject","reportNtoOne");
+ZFINPerlModules->sendMailWithAttachedReport($ENV{'SWISSPROT_EMAIL_REPORT'},"$subject","reportNtoOne");
 
 ##-----------------------------------------------------------------------------------
 ## Step 6: map ZFIN gene records to NCBI gene Ids based on common Vega Gene Id
@@ -1977,7 +1991,9 @@ print "\nStart efetching ... \n\n";
 # and output to seq.fasta file. This step is time-consuming.
 
 my $currentDir = cwd;
-$ENV{'JAVA_HOME'} = "<!--|JAVA_HOME|-->" ;
+
+# Set the JAVA_HOME path to override the jenkins one
+$ENV{'JAVA_HOME'} = getPropertyValue("JAVA_HOME");
 
 $cmdEfetch = "cd " . $ENV{'SOURCEROOT'} . " ; " .
              "gradle '-DncbiLoadInput=$currentDir/noLength.unl' " .
@@ -1995,7 +2011,7 @@ print "\nAfter efetching\n\n";
 system("/bin/date");
 
 if (!-e "seq.fasta") {
-   print LOG "\nCannot execute /commons/bin/efetch.r -t fasta -i noLength.unl -o seq.fasta: $! \n\n";
+   print LOG "\nCannot execute efetch for input noLength.unl and output seq.fasta: $! \n\n";
    close STATS;
    $subjectLine = "Auto from $dbname: " . "NCBI_gene_load.pl :: ERROR with efetch.r";
    &reportErrAndExit($subjectLine);
@@ -2386,7 +2402,7 @@ if (!-e "toLoad.unl" || $ctToLoad == 0) {
 }
 
 try {
-  &doSystemCommand("psql -d <!--|DB_NAME|--> -a -f loadNCBIgeneAccs.sql >loadLog1 2> loadLog2");
+  &doSystemCommand("psql -d $ENV{'DB_NAME'} -a -f loadNCBIgeneAccs.sql >loadLog1 2> loadLog2");
 } catch {
   chomp $_;
   &reportErrAndExit("Auto from $dbname: NCBI_gene_load.pl :: failed at loadNCBIgeneAccs.sql");
@@ -2721,15 +2737,15 @@ print STATS "\ntotal: $ctGenesGainRefSeq\n\n\n";
 
 close STATS;
 
-$subject = "Auto from $dbname: " . "NCBI_gene_load.pl :: Statistics";
-ZFINPerlModules->sendMailWithAttachedReport('<!--|SWISSPROT_EMAIL_REPORT|-->',"$subject","reportStatistics");
+$subject = "Auto from $dbname: NCBI_gene_load.pl :: Statistics";
+ZFINPerlModules->sendMailWithAttachedReport($ENV{'SWISSPROT_EMAIL_REPORT'},"$subject","reportStatistics");
 
 print LOG "\n\nAll done! \n\n\n";
 
 close LOG;
 
-$subject = "Auto from $dbname: " . "NCBI_gene_load.pl :: log file";
-ZFINPerlModules->sendMailWithAttachedReport('<!--|SWISSPROT_EMAIL_ERR|-->',"$subject","logNCBIgeneLoad");
+$subject = "Auto from $dbname: NCBI_gene_load.pl :: log file";
+ZFINPerlModules->sendMailWithAttachedReport($ENV{'SWISSPROT_EMAIL_ERR'},"$subject","logNCBIgeneLoad");
 
 system("/bin/date");
 
@@ -2761,14 +2777,14 @@ sub doSystemCommand {
 
 sub reportErrAndExit {
   $subjectError = $_[0];
-  ZFINPerlModules->sendMailWithAttachedReport('<!--|SWISSPROT_EMAIL_ERR|-->',"$subjectError","logNCBIgeneLoad");
+  ZFINPerlModules->sendMailWithAttachedReport($ENV{'SWISSPROT_EMAIL_ERR'},"$subjectError","logNCBIgeneLoad");
   close LOG;
   exit -1;
 }
 
 sub sendLoadLogs {
-  $subject = "Auto from $dbname: " . "NCBI_gene_load.pl :: loadLog1 file";
-  ZFINPerlModules->sendMailWithAttachedReport('<!--|SWISSPROT_EMAIL_ERR|-->',"$subject","loadLog1");
+  $subject = "Auto from $dbname: NCBI_gene_load.pl :: loadLog1 file";
+  ZFINPerlModules->sendMailWithAttachedReport($ENV{'SWISSPROT_EMAIL_ERR'},"$subject","loadLog1");
 }
 
 
