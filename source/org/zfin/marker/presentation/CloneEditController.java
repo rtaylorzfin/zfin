@@ -8,6 +8,7 @@ import org.springframework.stereotype.Controller;
 import org.springframework.ui.Model;
 import org.springframework.web.bind.annotation.PathVariable;
 import org.springframework.web.bind.annotation.RequestMapping;
+import org.zfin.Species;
 import org.zfin.framework.presentation.LookupStrings;
 import org.zfin.marker.Clone;
 import org.zfin.marker.MarkerRelationship;
@@ -16,6 +17,7 @@ import org.zfin.marker.service.MarkerService;
 
 import java.util.List;
 import java.util.Objects;
+import java.util.stream.Collectors;
 
 import static java.util.stream.Collectors.toList;
 
@@ -37,6 +39,7 @@ public class CloneEditController {
             return LookupStrings.RECORD_NOT_FOUND_PAGE;
         }
         model.addAttribute("clone", clone);
+        //model.addAttribute("cloningSiteList", markerRepository.getCloneSites().stream().filter(Objects::nonNull).collect(toList()));
         addJsonAttribute(model, "cloningSiteList", escapeQuote(markerRepository.getCloneSites().stream().filter(Objects::nonNull).collect(toList())));
         addJsonAttribute(model, "libraryList", escapeQuote(markerRepository.getProbeLibraryNames().stream().filter(Objects::nonNull).collect(toList())));
         addJsonAttribute(model, "vectorList", escapeQuote(markerRepository.getVectorNames().stream().filter(Objects::nonNull).collect(toList())));
@@ -52,6 +55,12 @@ public class CloneEditController {
 
     private List<String> escapeQuote(List<String> list) {
         return list.stream().map(s -> s.replace("'", "")).collect(toList());
+    }
+
+    private List<String> mapSpeciesCommonNames(List<Species> speciesList) {
+        return speciesList.stream()
+                .map(Species::getCommonName)
+                .collect(Collectors.toList());
     }
 
     private void addJsonAttribute(Model model, String name, Object value) throws JsonProcessingException {
