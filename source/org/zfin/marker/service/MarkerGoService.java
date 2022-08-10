@@ -207,6 +207,7 @@ public class MarkerGoService {
                     return row;
                 })
                 .filter(row -> row.getRowKey() != null)
+                .distinct()
                 .collect(Collectors.toList());
 
         JsonResultResponse<GeneOntologyAnnotationTableRow> response = new JsonResultResponse<>();

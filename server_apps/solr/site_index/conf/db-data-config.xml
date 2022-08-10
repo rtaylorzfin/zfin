@@ -6050,7 +6050,7 @@ and child.term_ontology = 'disease_ontology';
                        from marker_go_term_evidence
                            inner join term on marker_go_term_evidence.mrkrgoev_term_zdb_id = term.term_zdb_id
                            left outer join (
-                               select infgrmem_mrkrgoev_zdb_id, string_agg(infgrmem_inferred_from, '|') as inferred_from_group
+                               select infgrmem_mrkrgoev_zdb_id, string_agg(infgrmem_inferred_from, '|' order by infgrmem_inferred_from) as inferred_from_group
                                from inference_group_member
                                group by infgrmem_mrkrgoev_zdb_id
                            ) as grouped_inf on grouped_inf.infgrmem_mrkrgoev_zdb_id = mrkrgoev_zdb_id
