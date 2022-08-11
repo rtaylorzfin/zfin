@@ -215,158 +215,9 @@ our %genesZFINwithNoRNAFoundAtNCBI;
 
 &logOneToZeroAssociations();
 
-#--------------------------------------------------------------------------------
-# Step 5-5: get 1:1, 1:N and 1:0 (from NCBI to ZFIN) lists
-#
-# pass 2 of the mapping: one-way mapping of NCBI genes onto ZFIN genes
-#--------------------------------------------------------------------------------
-
-## %oneToNNCBItoZFIN is the hash to store the 1:n one-way mapping result of NCBI gene zdb id onto ZFIN gene zdb id
-## key:    NCBI gene Id
-## value:  referec to the hash of 2 or more ZDB gene Ids that are mapped to NCBI gene id
-## example: $oneToNNCBItoZFIN{$ncbiGeneId1} = \%mappedZDBgeneIdsSet1
-
-%oneToNNCBItoZFIN = ();
-
-## %oneToOneNCBItoZFIN is the hash to store the 1:1 one-way mapping results of NCBI gene zdb id onto ZFIN gene zdb id
-## %oneToOneNCBItoZFIN include those 1:N (NCBI to ZFIN) and N:N (NCBI to ZFIN)
-## key:    NCBI gene Id
-## value:  ZDB gene Id that is mapped to the NCBI gene id and not mapped to another NCBI gene id
-## example: $oneToOneNCBItoZFIN{$zdbGeneId1} = $NCBIgeneId1
-
-%oneToOneNCBItoZFIN = ();
-
-## %genesNCBIwithAllAccsNotFoundAtZFIN is the hash to store the NCBI genes with supporting accessions all of which are not found at ZFIN
-## key:    zdb gene Id
-## value:  reference to the array of accession(s) that support the gene at NCBI but not found at ZFIN
-## example: $genesNCBIwithAllAccsNotFoundAtZFIN{$zdbGeneId1} = {acc1, acc2}
-
-%genesNCBIwithAllAccsNotFoundAtZFIN = ();
-
-## doing the mapping of NCBI Gene Id to ZFIN Gene Id based on the data in the following 3 hashes populated before
-## 1) %supportedGeneNCBI                     -- NCBI genes that are supported by GenBank RNA accessions
-## 2) %geneNCBIwithAccSupportingMoreThan1    -- RNA-supported NCBI genes having at least 1 RNA accession that supports other NCBI gene
-## those in 1) but not in 2) get processed
-## 3) %accZFINsupportingOnly1                -- GenBank accessions/ZDB gene Id pairs
-
-
-$ct1to1NCBItoZFIN = $ct1toNNCBItoZFIN = $ctProcessedNCBIgenes = $ctNCBIgenesSupported = $ctNCBIgenesWithAllAccsNotFoundAtZFIN = 0;
-
-foreach $ncbiGene (keys %supportedGeneNCBI) {
-   $ctNCBIgenesSupported++;
-
-   ## those genes with even just 1 supporting RNA sequence that supports another gene won't be processed
-   if (!exists($geneNCBIwithAccSupportingMoreThan1{$ncbiGene})) {
-
-      $ctProcessedNCBIgenes++;
-
-      ## refence to the array of supporting GenBank RNA accessions
-      $ref_arrayOfAccs = $supportedGeneNCBI{$ncbiGene};
-
-      $ctAccsForGene = 0;
-      $mapped1to1 = 1;
-      $firstMappedZFINgeneIdSaved = "None";
-
-      $ct = 0;
-      foreach $acc (@$ref_arrayOfAccs) {
-        $ct++;
-
-        ## only map NCBI genes to ZFIN genes that are with supporting RNA accessions supporting only 1 ZFIN gene
-        ## may have supporting acc at NCBI that is not found at ZFIN yet or not associated with any gene at ZFIN yet; do nothing in such cases
-        if (exists($accZFINsupportingOnly1{$acc}) && !exists($accZFINsupportingMoreThan1{$acc})) {
-
-          $ctAccsForGene++;
-          $ZDBgeneId = $accZFINsupportingOnly1{$acc};  ## this is the ZDB gene Id that is mapped to NCBI gene Id based on the common RNA acc
-
-          if ($ctAccsForGene == 1) {   # first acc in the supporting acc list for NCBI gene which is also found at ZFIN
-              $firstMappedZFINgeneIdSaved = $ZDBgeneId;
-              $ref_mappedZDBgeneIds = {$firstMappedZFINgeneIdSaved => $acc};  ## anonymous hash to be expanded and saved
-              %ZDBgeneIdsSaved = %$ref_mappedZDBgeneIds;                ## to be looked up to avoid redundant ZDB gene id
-          } else {
-              if (!exists($ZDBgeneIdsSaved{$ZDBgeneId})) {  ## if the gene is not found in the save hash, it means mapped to > 1 ZFIN genes
-                                                              ## do nothing if it is found in the save hash
-                  $mapped1to1 = 0;
-                  $ZDBgeneIdsSaved{$ZDBgeneId} = $acc;         ## add it to the save hash
-                  $ref_mappedZDBgeneIds->{$ZDBgeneId} = $acc;   ## add it to the hash for mapped ZFIN gene ids
-              }
-
-          }
-
-        }
-
-      }  # of foreach $acc (@$ref_arrayOfAccs)
-
-      if ($mapped1to1 == 1 && $firstMappedZFINgeneIdSaved ne "None") {
-        $oneToOneNCBItoZFIN{$ncbiGene} = $firstMappedZFINgeneIdSaved;
-        $ct1to1NCBItoZFIN++;
-      }
-
-      if ($mapped1to1 == 0) {
-        $ct1toNNCBItoZFIN++;
-        $oneToNNCBItoZFIN{$ncbiGene} = $ref_mappedZDBgeneIds;
-      }
-
-      if ($mapped1to1 == 1 && $firstMappedZFINgeneIdSaved eq "None") {
-         $ctNCBIgenesWithAllAccsNotFoundAtZFIN++;
-         $genesNCBIwithAllAccsNotFoundAtZFIN{$ncbiGene} = $ref_arrayOfAccs;
-      }
-   }
-
-}    # end of foreach $ncbiGene (keys %supportedGeneNCBI)
-
-if ($debug) {
-  open (DBG12, ">debug12") ||  die "Cannot open debug12 : $!\n";
-
-  foreach $geneZDBId (sort keys %oneToOneNCBItoZFIN) {
-    $geneZDBId = $oneToOneNCBItoZFIN{$ncbiGeneId};
-    print DBG12 "$ncbiGeneId \t $geneZDBId\n";
-  }
-
-  close DBG12;
-
-  open (DBG13, ">debug13") ||  die "Cannot open debug13 : $!\n";
-
-  foreach $ncbiId (sort keys %oneToNNCBItoZFIN) {
-    $ref_hashZDBgenes = $oneToNNCBItoZFIN{$ncbiId};
-    print DBG13 "$ncbiId\t";
-
-    foreach $zdbId (sort keys %$ref_hashZDBgenes) {
-      print DBG13 "$zdbId ";
-    }
-
-    print DBG13 "\n";
-  }
-
-  close DBG13;
-}
-
-open (DBG14, ">debug14") ||  die "Cannot open debug14 : $!\n" if $debug;
-
-$ctzeroToOne = 0;
-foreach $geneAtNCBI (sort keys %genesNCBIwithAllAccsNotFoundAtZFIN) {
-   $ref_arrayAccsNotFoundAtZFIN = $genesNCBIwithAllAccsNotFoundAtZFIN{$geneAtNCBI} if $debug;
-   print DBG14 "$geneAtNCBI\t@$ref_arrayAccsNotFoundAtZFIN \n" if $debug;
-   $ctzeroToOne++;
-}
-
-close DBG14 if $debug;
-
-print LOG "\nctzeroToOne = $ctzeroToOne\n\n";
-
-print LOG "\nctNCBIgenesSupported = $ctNCBIgenesSupported \nctProcessedNCBIgenes = $ctProcessedNCBIgenes\n\n";
-print LOG "\nct1to1NCBItoZFIN = $ct1to1NCBItoZFIN \n ct1toNNCBItoZFIN = $ct1toNNCBItoZFIN\n\n";
-
-print LOG "\nThe following should add up \nct1to1NCBItoZFIN + ct1toNNCBItoZFIN + ctNCBIgenesWithAllAccsNotFoundAtZFIN = ctProcessedNCBIgenes \nOtherwise there is bug.\n";
-print LOG "$ct1to1NCBItoZFIN + $ct1toNNCBItoZFIN + $ctNCBIgenesWithAllAccsNotFoundAtZFIN = $ctProcessedNCBIgenes\n\n";
-
-## if the numbers don't add up, stop the whole process
-if ($ct1to1NCBItoZFIN + $ct1toNNCBItoZFIN + $ctNCBIgenesWithAllAccsNotFoundAtZFIN != $ctProcessedNCBIgenes) {
-   close STATS;
-   $subjectLine = "Auto from $dbname: " . "NCBI_gene_load.pl :: some numbers don't add up";
-   &reportErrAndExit($subjectLine);
-}
-
-print STATS "\nMapping result statistics: number of 0:1 (ZFIN to NCBI) - $ctzeroToOne\n\n";
+our %oneToOneNCBItoZFIN;
+our %oneToNNCBItoZFIN;
+&oneWayMappingNCBItoZfinGenes();
 
 #------------------------------------------------------------------------------------------------------------------------
 # Step 5-6: compare the 2-way mapping results and get the final 1:1, 1:N, N:1, and N:N lists
@@ -2987,4 +2838,167 @@ sub logOneToZeroAssociations {
     print LOG "\nctOneToZero = $ctOneToZero\n\n";
 
     print STATS "\nMapping result statistics: number of 1:0 (ZFIN to NCBI) - $ctOneToZero\n\n";
+}
+
+sub oneWayMappingNCBItoZfinGenes {
+    #--------------------------------------------------------------------------------
+    # Step 5-5: get 1:1, 1:N and 1:0 (from NCBI to ZFIN) lists
+    #
+    # pass 2 of the mapping: one-way mapping of NCBI genes onto ZFIN genes
+    #--------------------------------------------------------------------------------
+
+    # Global: %oneToOneNCBItoZFIN
+    #         %oneToNNCBItoZFIN
+    #         %supportedGeneNCBI
+
+    ## %oneToNNCBItoZFIN is the hash to store the 1:n one-way mapping result of NCBI gene zdb id onto ZFIN gene zdb id
+    ## key:    NCBI gene Id
+    ## value:  referec to the hash of 2 or more ZDB gene Ids that are mapped to NCBI gene id
+    ## example: $oneToNNCBItoZFIN{$ncbiGeneId1} = \%mappedZDBgeneIdsSet1
+
+    %oneToNNCBItoZFIN = ();
+
+    ## %oneToOneNCBItoZFIN is the hash to store the 1:1 one-way mapping results of NCBI gene zdb id onto ZFIN gene zdb id
+    ## %oneToOneNCBItoZFIN include those 1:N (NCBI to ZFIN) and N:N (NCBI to ZFIN)
+    ## key:    NCBI gene Id
+    ## value:  ZDB gene Id that is mapped to the NCBI gene id and not mapped to another NCBI gene id
+    ## example: $oneToOneNCBItoZFIN{$zdbGeneId1} = $NCBIgeneId1
+
+    %oneToOneNCBItoZFIN = ();
+
+    ## %genesNCBIwithAllAccsNotFoundAtZFIN is the hash to store the NCBI genes with supporting accessions all of which are not found at ZFIN
+    ## key:    zdb gene Id
+    ## value:  reference to the array of accession(s) that support the gene at NCBI but not found at ZFIN
+    ## example: $genesNCBIwithAllAccsNotFoundAtZFIN{$zdbGeneId1} = {acc1, acc2}
+
+    my %genesNCBIwithAllAccsNotFoundAtZFIN = ();
+
+    ## doing the mapping of NCBI Gene Id to ZFIN Gene Id based on the data in the following 3 hashes populated before
+    ## 1) %supportedGeneNCBI                     -- NCBI genes that are supported by GenBank RNA accessions
+    ## 2) %geneNCBIwithAccSupportingMoreThan1    -- RNA-supported NCBI genes having at least 1 RNA accession that supports other NCBI gene
+    ## those in 1) but not in 2) get processed
+    ## 3) %accZFINsupportingOnly1                -- GenBank accessions/ZDB gene Id pairs
+
+
+    my $ct1to1NCBItoZFIN = 0;
+    my $ct1toNNCBItoZFIN = 0;
+    my $ctProcessedNCBIgenes = 0;
+    my $ctNCBIgenesSupported = 0;
+    my $ctNCBIgenesWithAllAccsNotFoundAtZFIN = 0;
+
+    foreach my $ncbiGene (keys %supportedGeneNCBI) {
+        $ctNCBIgenesSupported++;
+
+        ## those genes with even just 1 supporting RNA sequence that supports another gene won't be processed
+        if (!exists($geneNCBIwithAccSupportingMoreThan1{$ncbiGene})) {
+
+            $ctProcessedNCBIgenes++;
+
+            ## refence to the array of supporting GenBank RNA accessions
+            $ref_arrayOfAccs = $supportedGeneNCBI{$ncbiGene};
+
+            $ctAccsForGene = 0;
+            $mapped1to1 = 1;
+            $firstMappedZFINgeneIdSaved = "None";
+
+            $ct = 0;
+            foreach $acc (@$ref_arrayOfAccs) {
+                $ct++;
+
+                ## only map NCBI genes to ZFIN genes that are with supporting RNA accessions supporting only 1 ZFIN gene
+                ## may have supporting acc at NCBI that is not found at ZFIN yet or not associated with any gene at ZFIN yet; do nothing in such cases
+                if (exists($accZFINsupportingOnly1{$acc}) && !exists($accZFINsupportingMoreThan1{$acc})) {
+
+                    $ctAccsForGene++;
+                    $ZDBgeneId = $accZFINsupportingOnly1{$acc};  ## this is the ZDB gene Id that is mapped to NCBI gene Id based on the common RNA acc
+
+                    if ($ctAccsForGene == 1) {   # first acc in the supporting acc list for NCBI gene which is also found at ZFIN
+                        $firstMappedZFINgeneIdSaved = $ZDBgeneId;
+                        $ref_mappedZDBgeneIds = {$firstMappedZFINgeneIdSaved => $acc};  ## anonymous hash to be expanded and saved
+                        %ZDBgeneIdsSaved = %$ref_mappedZDBgeneIds;                ## to be looked up to avoid redundant ZDB gene id
+                    } else {
+                        if (!exists($ZDBgeneIdsSaved{$ZDBgeneId})) {  ## if the gene is not found in the save hash, it means mapped to > 1 ZFIN genes
+                            ## do nothing if it is found in the save hash
+                            $mapped1to1 = 0;
+                            $ZDBgeneIdsSaved{$ZDBgeneId} = $acc;         ## add it to the save hash
+                            $ref_mappedZDBgeneIds->{$ZDBgeneId} = $acc;   ## add it to the hash for mapped ZFIN gene ids
+                        }
+
+                    }
+
+                }
+
+            }  # of foreach $acc (@$ref_arrayOfAccs)
+
+            if ($mapped1to1 == 1 && $firstMappedZFINgeneIdSaved ne "None") {
+                $oneToOneNCBItoZFIN{$ncbiGene} = $firstMappedZFINgeneIdSaved;
+                $ct1to1NCBItoZFIN++;
+            }
+
+            if ($mapped1to1 == 0) {
+                $ct1toNNCBItoZFIN++;
+                $oneToNNCBItoZFIN{$ncbiGene} = $ref_mappedZDBgeneIds;
+            }
+
+            if ($mapped1to1 == 1 && $firstMappedZFINgeneIdSaved eq "None") {
+                $ctNCBIgenesWithAllAccsNotFoundAtZFIN++;
+                $genesNCBIwithAllAccsNotFoundAtZFIN{$ncbiGene} = $ref_arrayOfAccs;
+            }
+        }
+
+    }    # end of foreach $ncbiGene (keys %supportedGeneNCBI)
+
+    if ($debug) {
+        open (DBG12, ">debug12") ||  die "Cannot open debug12 : $!\n";
+
+        foreach $geneZDBId (sort keys %oneToOneNCBItoZFIN) {
+            $geneZDBId = $oneToOneNCBItoZFIN{$ncbiGeneId};
+            print DBG12 "$ncbiGeneId \t $geneZDBId\n";
+        }
+
+        close DBG12;
+
+        open (DBG13, ">debug13") ||  die "Cannot open debug13 : $!\n";
+
+        foreach $ncbiId (sort keys %oneToNNCBItoZFIN) {
+            $ref_hashZDBgenes = $oneToNNCBItoZFIN{$ncbiId};
+            print DBG13 "$ncbiId\t";
+
+            foreach $zdbId (sort keys %$ref_hashZDBgenes) {
+                print DBG13 "$zdbId ";
+            }
+
+            print DBG13 "\n";
+        }
+
+        close DBG13;
+    }
+
+    open (DBG14, ">debug14") ||  die "Cannot open debug14 : $!\n" if $debug;
+
+    $ctzeroToOne = 0;
+    foreach $geneAtNCBI (sort keys %genesNCBIwithAllAccsNotFoundAtZFIN) {
+        $ref_arrayAccsNotFoundAtZFIN = $genesNCBIwithAllAccsNotFoundAtZFIN{$geneAtNCBI} if $debug;
+        print DBG14 "$geneAtNCBI\t@$ref_arrayAccsNotFoundAtZFIN \n" if $debug;
+        $ctzeroToOne++;
+    }
+
+    close DBG14 if $debug;
+
+    print LOG "\nctzeroToOne = $ctzeroToOne\n\n";
+
+    print LOG "\nctNCBIgenesSupported = $ctNCBIgenesSupported \nctProcessedNCBIgenes = $ctProcessedNCBIgenes\n\n";
+    print LOG "\nct1to1NCBItoZFIN = $ct1to1NCBItoZFIN \n ct1toNNCBItoZFIN = $ct1toNNCBItoZFIN\n\n";
+
+    print LOG "\nThe following should add up \nct1to1NCBItoZFIN + ct1toNNCBItoZFIN + ctNCBIgenesWithAllAccsNotFoundAtZFIN = ctProcessedNCBIgenes \nOtherwise there is bug.\n";
+    print LOG "$ct1to1NCBItoZFIN + $ct1toNNCBItoZFIN + $ctNCBIgenesWithAllAccsNotFoundAtZFIN = $ctProcessedNCBIgenes\n\n";
+
+    ## if the numbers don't add up, stop the whole process
+    if ($ct1to1NCBItoZFIN + $ct1toNNCBItoZFIN + $ctNCBIgenesWithAllAccsNotFoundAtZFIN != $ctProcessedNCBIgenes) {
+        close STATS;
+        $subjectLine = "Auto from $dbname: " . "NCBI_gene_load.pl :: some numbers don't add up";
+        &reportErrAndExit($subjectLine);
+    }
+
+    print STATS "\nMapping result statistics: number of 0:1 (ZFIN to NCBI) - $ctzeroToOne\n\n";
 }
