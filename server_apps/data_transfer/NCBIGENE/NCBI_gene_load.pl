@@ -1994,7 +1994,7 @@ $cmdEfetch = "cd " . $ENV{'SOURCEROOT'} . " ; " .
 print "Executing $cmdEfetch\n";
 print LOG "Executing $cmdEfetch\n";
 
-&doSystemCommand($cmdEfetch);
+#DEBUG# &doSystemCommand($cmdEfetch);
 
 print LOG "\nAfter efetching\n\n";
 print "\nAfter efetching\n\n";
