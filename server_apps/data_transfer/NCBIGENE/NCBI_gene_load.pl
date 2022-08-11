@@ -47,25 +47,32 @@ $password = "";
 # remove old files
 #------------------------------------------------
 
-system("/bin/rm -f prepareLog*");
-system("/bin/rm -f loadLog*");
-system("/bin/rm -f logNCBIgeneLoad");
-system("/bin/rm -f debug*");
-system("/bin/rm -f report*");
-system("/bin/rm -f toDelete.unl");
-system("/bin/rm -f toMap.unl");
-system("/bin/rm -f toLoad.unl");
-system("/bin/rm -f length.unl");
-system("/bin/rm -f noLength.unl");
-system("/bin/rm -f seq.fasta");
-system("/bin/rm -f *.gz");
+######### prepareLog* loadLog* logNCBIgeneLoad debug* report* toDelete.unl toMap.unl toLoad.unl length.unl noLength.unl seq.fasta *.gz zf_gene_info gene2vega gene2accession RefSeqCatalog RELEASE_NUMBER
 
-system("/bin/rm -f zf_gene_info");
-system("/bin/rm -f gene2vega");
-##system("/bin/rm -f gene2unigene");
-system("/bin/rm -f gene2accession");
-system("/bin/rm -f RefSeqCatalog");
-system("/bin/rm -f RELEASE_NUMBER");
+# system("/bin/rm -f prepareLog*");
+# system("/bin/rm -f loadLog*");
+# system("/bin/rm -f logNCBIgeneLoad");
+# system("/bin/rm -f debug*");
+# system("/bin/rm -f report*");
+# system("/bin/rm -f toDelete.unl");
+# system("/bin/rm -f toMap.unl");
+# system("/bin/rm -f toLoad.unl");
+# system("/bin/rm -f length.unl");
+# system("/bin/rm -f noLength.unl");
+# system("/bin/rm -f seq.fasta");
+# system("/bin/rm -f *.gz");
+# 
+# system("/bin/rm -f zf_gene_info");
+# system("/bin/rm -f gene2vega");
+# ##system("/bin/rm -f gene2unigene");
+# system("/bin/rm -f gene2accession");
+# system("/bin/rm -f RefSeqCatalog");
+# system("/bin/rm -f RELEASE_NUMBER");
+if ($debug) {
+	print "DEBUGGING\n";
+}else {
+	print "NOT DEBUGGING\n";
+}
 
 open LOG, '>', "logNCBIgeneLoad" or die "can not open logNCBIgeneLoad: $! \n";
 
@@ -78,7 +85,7 @@ print LOG "Start ... \n";
 ## only the following RefSeq catalog file may remain unchanged over a period of time
 ## the rest 3 are changing every day
 
-&doSystemCommand("/local/bin/wget --progress=dot -e dotbytes=10M  ftp://ftp.ncbi.nlm.nih.gov/refseq/release/RELEASE_NUMBER");
+#DEBUG# &doSystemCommand("/local/bin/wget --progress=dot -e dotbytes=10M  ftp://ftp.ncbi.nlm.nih.gov/refseq/release/RELEASE_NUMBER");
 
 open (REFSEQRELEASENUM, "RELEASE_NUMBER") ||  die "Cannot open RELEASE_NUMBER : $!\n";
 
@@ -100,15 +107,15 @@ $catalogFile = "RefSeq-release" . $releaseNum . ".catalog.gz";
 $ftpNCBIrefSeqCatalog = $catlogFolder . $catalogFile;
 
 try {
-  &doSystemCommand("/local/bin/wget --progress=dot -e dotbytes=10M -N $ftpNCBIrefSeqCatalog");
-  &doSystemCommand("/local/bin/gunzip -c $catalogFile >RefSeqCatalog");
-  &doSystemCommand("/local/bin/wget --progress=dot -e dotbytes=10M  ftp://ftp.ncbi.nlm.nih.gov/gene/DATA/gene2accession.gz");
-  &doSystemCommand("/local/bin/gunzip gene2accession.gz");
-  &doSystemCommand("/local/bin/wget ftp://ftp.ncbi.nih.gov/gene/DATA/ARCHIVE/gene2vega.gz");
-  &doSystemCommand("/local/bin/gunzip gene2vega.gz");
-##  &doSystemCommand("/local/bin/wget ftp://ftp.ncbi.nlm.nih.gov/gene/DATA/gene2unigene");
-  &doSystemCommand("/local/bin/wget -O zf_gene_info.gz ftp://ftp.ncbi.nlm.nih.gov/gene/DATA/GENE_INFO/Non-mammalian_vertebrates/Danio_rerio.gene_info.gz");
-  &doSystemCommand("/local/bin/gunzip zf_gene_info.gz");
+  #DEBUG# &doSystemCommand("/local/bin/wget --progress=dot -e dotbytes=10M -N $ftpNCBIrefSeqCatalog");
+  #DEBUG# &doSystemCommand("/local/bin/gunzip -c $catalogFile >RefSeqCatalog");
+  #DEBUG# &doSystemCommand("/local/bin/wget --progress=dot -e dotbytes=10M  ftp://ftp.ncbi.nlm.nih.gov/gene/DATA/gene2accession.gz");
+  #DEBUG# &doSystemCommand("/local/bin/gunzip gene2accession.gz");
+  #DEBUG# &doSystemCommand("/local/bin/wget ftp://ftp.ncbi.nih.gov/gene/DATA/ARCHIVE/gene2vega.gz");
+  #DEBUG# &doSystemCommand("/local/bin/gunzip gene2vega.gz");
+  #DEBUG# &doSystemCommand("/local/bin/wget -O zf_gene_info.gz ftp://ftp.ncbi.nlm.nih.gov/gene/DATA/GENE_INFO/Non-mammalian_vertebrates/Danio_rerio.gene_info.gz");
+  #DEBUG# &doSystemCommand("/local/bin/gunzip zf_gene_info.gz");
+  print "-----\n";
 } catch {
   chomp $_;
   &reportErrAndExit("Auto from $dbname: NCBI_gene_load.pl :: $_");
@@ -123,11 +130,11 @@ print LOG "Done with downloading.\n\n";
 # If not, stop the process and send email to alert.
 #-------------------------------------------------------------------------------------------------
 
-if (!-e "zf_gene_info" || !-e "gene2accession" || !-e "RefSeqCatalog") {
-   $subjectLine = "Auto from $dbname: " . "NCBI_gene_load.pl :: ERROR with download";
-   print LOG "\nMissing one or more downloaded NCBI file(s)\n\n";
-   &reportErrAndExit($subjectLine);
-}
+#DEBUG#   if (!-e "zf_gene_info" || !-e "gene2accession" || !-e "RefSeqCatalog") {
+#DEBUG#      $subjectLine = "Auto from $dbname: " . "NCBI_gene_load.pl :: ERROR with download";
+#DEBUG#      print LOG "\nMissing one or more downloaded NCBI file(s)\n\n";
+#DEBUG#      &reportErrAndExit($subjectLine);
+#DEBUG#   }
 
 # ------------------- global variables, with variable names self-explanatory  ---------------------------------
 
@@ -344,7 +351,7 @@ $numGenesGenBankBefore = ZFINPerlModules->countData($sql);
 
 $ctlines = $ctVegaIdsNCBI = 0;
 
-open (ZFGENEINFO, "zf_gene_info") ||  die "Cannot open zf_gene_info : $!\n";
+open (ZFGENEINFO, "cat zf_gene_info.gz | gunzip -d |") ||  die "Cannot open zf_gene_info : $!\n";
 
 #Format: tax_id GeneID Symbol LocusTag Synonyms dbXrefs chromosome map_location description type_of_gene Symbol_from_nomenclature_authority Full_name_from_nomenclature_authority Nomenclature_status Other_designations Modification_date
 
@@ -438,7 +445,7 @@ print STATS "\nNumber of Vega Gene Id/NCBI Gene Id pairs on Danio_rerio.gene_inf
 
 if ($ctVegaIdsNCBI == 0) {
   $ctlines = $ctVegaIdsNCBI = 0;
-  open (VEGAINFO, "gene2vega") ||  die "Cannot open gene2vega : $!\n";
+  open (VEGAINFO, "cat gene2vega.gz | gunzip -d |") ||  die "Cannot open gene2vega : $!\n";
 
   #Format: #tax_id GeneID  Vega_gene_identifier    RNA_nucleotide_accession.version        Vega_rna_identifier     protein_accession.version       Vega_protein_identifier
 
@@ -838,7 +845,7 @@ print LOG "\nctGenBankSeqLengthAtZFIN = $ctGenBankSeqLengthAtZFIN\n\n";
 
 $ctRefSeqLengthFromCatalog = 0;
 
-open (REFSEQCATALOG, "RefSeqCatalog") ||  die "Cannot open RefSeqCatalog : $!\n";
+open (REFSEQCATALOG, "cat RefSeqCatalog.gz | gunzip -d |") ||  die "Cannot open RefSeqCatalog : $!\n";
 
 ## Sample record (last column is length of the sequence):
 ## 7955    Danio rerio     NP_001001398.2  89191828        complete|vertebrate_other       PROVISIONAL     205
@@ -925,7 +932,7 @@ $ctNoLength = $ctNoLengthRefSeq = $ctlines = $ctZebrafishGene2accession = 0;
 
 print LOG "\nParsing NCBI gene2accession file ... \n\n";
 
-open (GENE2ACC, "gene2accession") ||  die "Cannot open gene2accession : $!\n";
+open (GENE2ACC, "cat gene2accession.gz | gunzip -d |") ||  die "Cannot open gene2accession : $!\n";
 
 ##Format: tax_id GeneID status RNA_nucleotide_accession.version RNA_nucleotide_gi protein_accession.version protein_gi genomic_nucleotide_accession.version genomic_nucleotide_gi start_position_on_the_genomic_accession end_position_on_the_genomic_accession orientation assembly mature_peptide_accession.version mature_peptide_gi Symbol
 
