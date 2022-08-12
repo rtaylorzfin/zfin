@@ -222,54 +222,20 @@ our %oneToOneNCBItoZFIN;
 our %oneToNNCBItoZFIN;
 &oneWayMappingNCBItoZfinGenes();
 
-#------------------------------------------------------------------------------------------------------------------------
-# Step 5-6: compare the 2-way mapping results and get the final 1:1, 1:N, N:1, and N:N lists
-#
-# pass 3 of the mapping: compare the results of both of the one-way mappings and make the final 1:1, 1:N, N:1, N:N lists
-#------------------------------------------------------------------------------------------------------------------------
 
-%mapped = ();  ## the list of 1:1; key: ZDB gene Id; value: NCBI gene Id
-%mappedReversed = ();  ## the list of 1:1; key: NCBI gene Id; value: ZDB gene Id
+our %mapped;  ## the list of 1:1; key: ZDB gene Id; value: NCBI gene Id
+our %mappedReversed;
+our $ctOneToOneNCBI;
+&compare2WayMappingResults();
 
-$ctAllpotentialOneToOneZFIN = $ctOneToOneZFIN = 0;
 
-foreach $zdbid (keys %oneToOneZFINtoNCBI) {
-   $ctAllpotentialOneToOneZFIN++;
-   $ncbiId = $oneToOneZFINtoNCBI{$zdbid};
-   if (exists($oneToOneNCBItoZFIN{$ncbiId})) {
-         $ctOneToOneZFIN++;
-         $mapped{$zdbid} = $ncbiId;
-   }
-}
-
-print LOG "\n ctAllpotentialOneToOneZFIN = $ctAllpotentialOneToOneZFIN \n ctOneToOneZFIN = $ctOneToOneZFIN\n\n";
-
-$ctAllpotentialOneToOneNCBI = $ctOneToOneNCBI = 0;
-foreach $ncbiId (keys %oneToOneNCBItoZFIN) {
-   $ctAllpotentialOneToOneNCBI++;
-   $zdbId = $oneToOneNCBItoZFIN{$ncbiId};
-   if (exists($oneToOneZFINtoNCBI{$zdbId})) {
-         $ctOneToOneNCBI++;    ## this number should be the same as $ctOneToOneZFIN
-         $mappedReversed{$ncbiId} = $zdbId;
-   }
-}
-
-print LOG "\n ctAllpotentialOneToOneNCBI = $ctAllpotentialOneToOneNCBI \n ctOneToOneNCBI = $ctOneToOneNCBI\n\n";
-
-print STATS "\nMapping result statistics: number of 1:1 based on GenBank RNA - $ctOneToOneNCBI\n\n";
 
 #---------------- open a .unl file as the add list -----------------
-
 open (TOLOAD, ">toLoad.unl") ||  die "Cannot open toLoad.unl : $!\n";
 
 # -------- write the NCBI gene Ids mapped based on GenBank RNA accessions on toLoad.unl ------------
-$ctToLoad = 0;
-
-foreach $zdbId (sort keys %mapped) {
-  $mappedNCBIgeneId = $mapped{$zdbId};
-  print TOLOAD "$zdbId|$mappedNCBIgeneId|||$fdcontNCBIgeneId|$pubMappedbasedOnRNA\n";
-  $ctToLoad++;
-}
+our $ctToLoad;
+&writeNCBIgeneIdsMappedBasedOnGenBankRNA();
 
 #------------------------ get 1:N list and N:N from ZFIN to NCBI -----------------------------
 
@@ -3009,4 +2975,62 @@ sub oneWayMappingNCBItoZfinGenes {
     }
 
     print STATS "\nMapping result statistics: number of 0:1 (ZFIN to NCBI) - $ctzeroToOne\n\n";
+}
+
+sub compare2WayMappingResults {
+    #------------------------------------------------------------------------------------------------------------------------
+    # Step 5-6: compare the 2-way mapping results and get the final 1:1, 1:N, N:1, and N:N lists
+    #
+    # pass 3 of the mapping: compare the results of both of the one-way mappings and make the final 1:1, 1:N, N:1, N:N lists
+    #------------------------------------------------------------------------------------------------------------------------
+    # Globals:
+    #   %oneToOneZFINtoNCBI
+    #   %mapped
+    #   %mappedReversed
+    #   $ctOneToOneNCBI
+
+    %mapped = ();  ## the list of 1:1; key: ZDB gene Id; value: NCBI gene Id
+    %mappedReversed = ();  ## the list of 1:1; key: NCBI gene Id; value: ZDB gene Id
+    $ctOneToOneNCBI = 0;
+
+    my $ctAllpotentialOneToOneZFIN = 0;
+    my $ctOneToOneZFIN = 0;
+
+    foreach $zdbid (keys %oneToOneZFINtoNCBI) {
+        $ctAllpotentialOneToOneZFIN++;
+        $ncbiId = $oneToOneZFINtoNCBI{$zdbid};
+        if (exists($oneToOneNCBItoZFIN{$ncbiId})) {
+            $ctOneToOneZFIN++;
+            $mapped{$zdbid} = $ncbiId;
+        }
+    }
+
+    print LOG "\n ctAllpotentialOneToOneZFIN = $ctAllpotentialOneToOneZFIN \n ctOneToOneZFIN = $ctOneToOneZFIN\n\n";
+
+    my $ctAllpotentialOneToOneNCBI = 0;
+    foreach $ncbiId (keys %oneToOneNCBItoZFIN) {
+        $ctAllpotentialOneToOneNCBI++;
+        $zdbId = $oneToOneNCBItoZFIN{$ncbiId};
+        if (exists($oneToOneZFINtoNCBI{$zdbId})) {
+            $ctOneToOneNCBI++;    ## this number should be the same as $ctOneToOneZFIN
+            $mappedReversed{$ncbiId} = $zdbId;
+        }
+    }
+
+    print LOG "\n ctAllpotentialOneToOneNCBI = $ctAllpotentialOneToOneNCBI \n ctOneToOneNCBI = $ctOneToOneNCBI\n\n";
+    print STATS "\nMapping result statistics: number of 1:1 based on GenBank RNA - $ctOneToOneNCBI\n\n";
+}
+
+sub writeNCBIgeneIdsMappedBasedOnGenBankRNA {
+    # -------- write the NCBI gene Ids mapped based on GenBank RNA accessions on toLoad.unl ------------
+    # Globals:
+    #  %mapped
+    #  $ctToLoad
+    $ctToLoad = 0;
+
+    foreach $zdbId (sort keys %mapped) {
+        $mappedNCBIgeneId = $mapped{$zdbId};
+        print TOLOAD "$zdbId|$mappedNCBIgeneId|||$fdcontNCBIgeneId|$pubMappedbasedOnRNA\n";
+        $ctToLoad++;
+    }
 }
