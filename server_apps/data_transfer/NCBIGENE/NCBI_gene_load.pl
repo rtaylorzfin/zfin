@@ -238,224 +238,12 @@ our $ctToLoad;
 &writeNCBIgeneIdsMappedBasedOnGenBankRNA();
 
 #------------------------ get 1:N list and N:N from ZFIN to NCBI -----------------------------
-
-# %nToOne is a hash storing NCBI gene Ids in 1 to N mapping results mapped from NCBI to ZFIN
-# 1 to N from NCBI to ZFIN is equivalent to N to 1 from ZFIN to NCBI
-# key: NCBI gene Id
-# value: reference to hash of mapped ZDB gene Ids
-
-%nToOne = ();
-
-# %oneToN is a hash storing ZDB gene Ids in 1 to N mapping results mapped from ZFIN to NCBI
-# key: ZDB gene Id
-# value: reference to hash of mapped NCBI gene Ids
-
-%oneToN = ();
-
-$ctOneToN = $ctNtoNfromZFIN = 0;
-
-# report N:N
-open (NTON, ">reportNtoN") ||  die "Cannot open reportNtoN : $!\n";
-
-foreach $geneZFINtoMultiNCBI (sort keys %oneToNZFINtoNCBI) {
-
-   # %zdbIdsOfNtoN is a hash storing ZDB gene Ids in N to N mapping results mapped from ZFIN to NCBI and back to ZFIN
-   # key: ZDB gene Id
-   # value: reference to hash of associated NCBI gene Id(s)
-
-   %zdbIdsOfNtoN = ();
-
-   ## set on the flag of 1 to N (ZFIN to NCBI)
-   $oneToNflag = 1;
-
-   # get the reference to the hash of mapped NCBI genes for this ZFIN gene
-   $ref_hashNCBIids = $oneToNZFINtoNCBI{$geneZFINtoMultiNCBI};
-
-   ## for each 1 to N (ZFIN to NCBI), examine if there is 1 to N mapping the other way (NCBI to ZFIN)
-   foreach $ncbiId (sort keys %$ref_hashNCBIids) {
-
-     ## if existing 1 to N the other way (NCBI to ZFIN), indicating N to N
-     if (exists($oneToNNCBItoZFIN{$ncbiId})) {
-
-       ## set off flag 1 to N (ZFIN to NCBI)
-       $oneToNflag = 0;
-
-       $ref_hashZdbIds = $oneToNNCBItoZFIN{$ncbiId};
-       foreach $zdbId (keys %$ref_hashZdbIds) {
-         if (exists($oneToNZFINtoNCBI{$zdbId})) {
-             $zdbIdsOfNtoN{$zdbId} = $oneToNZFINtoNCBI{$zdbId};
-         } elsif (exists($oneToOneZFINtoNCBI{$zdbId})) {
-             $mappedNCBIgene = $oneToOneZFINtoNCBI{$zdbId};
-             $zdbIdsOfNtoN{$zdbId} = {$mappedNCBIgene => 1};
-         } else {                              ## impossible
-             print LOG "\n\nThere is a bug: $zdbId is one of the mapped ZDB Ids of $ncbiId but could not find a mapped NCBI Id?\n\n";
-         }
-       }
-     }
-   }
-
-   # print N to N if it is the case, otherwise, populate the 1 to N (ZFIN to NCBI) list
-   if ($oneToNflag == 0) {  ## 1 to N flag off means N to N
-       $ctNtoNfromZFIN++;
-
-       print NTON "$ctNtoNfromZFIN) -------------------------------------------------------------------------------------------------\n";
-       foreach $zdbIdNtoN (sort keys %zdbIdsOfNtoN) {
-         $refArrayAccs = $supportedGeneZFIN{$zdbIdNtoN};
-         print NTON "$zdbIdNtoN ($geneZDBidsSymbols{$zdbIdNtoN}) [@$refArrayAccs]\n";
-
-         $refAssociatedNCBIgenes = $zdbIdsOfNtoN{$zdbIdNtoN};
-         # for each mapped NCBI gene
-         foreach $ncbiId (sort keys %$refAssociatedNCBIgenes) {
-           $refArrayAccs = $supportedGeneNCBI{$ncbiId};
-           print NTON "	$ncbiId ($NCBIidsGeneSymbols{$ncbiId}) [@$refArrayAccs]\n";
-         }
-       }
-
-       print NTON "~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~\n";
-       foreach $ncbiGene (sort keys %$ref_hashNCBIids) {
-         $refArrayAccs = $supportedGeneNCBI{$ncbiGene};
-         print NTON "$ncbiGene ($NCBIidsGeneSymbols{$ncbiGene}) [@$refArrayAccs]\n";
-
-         # the following print the associated ZFIN records for each of the mapped NCBI gene
-
-         if (exists($oneToNNCBItoZFIN{$ncbiGene})) {
-             $refAssociatedZFINgenes = $oneToNNCBItoZFIN{$ncbiGene};
-
-             # for each of the associated ZFIN gene
-             foreach $zdbId (sort keys %$refAssociatedZFINgenes) {
-               $refArrayAccs = $supportedGeneZFIN{$zdbId};
-               print NTON "	$zdbId ($geneZDBidsSymbols{$zdbId}) [@$refArrayAccs]\n";
-             }
-         } elsif (exists($oneToOneNCBItoZFIN{$ncbiGene})) {
-             $mappedZFINgene = $oneToOneNCBItoZFIN{$ncbiGene};
-             $refArrayAccs = $supportedGeneZFIN{$mappedZFINgene};
-             print NTON "	$mappedZFINgene ($geneZDBidsSymbols{$mappedZFINgene}) [@$refArrayAccs]\n";
-         } else {                              ## impossible
-             print NTON "There is a bug: $ncbiGene is one of the mapped NCBI gene Ids of $geneZFINtoMultiNCBI but could not find a mapped ZDB Id?\n\n";
-         }
-       }
-
-       print NTON "\n";
-
-   } else {                 ## 1 to N (ZFIN to NCBI)
-       $ctOneToN++;
-       $oneToN{$geneZFINtoMultiNCBI} = $ref_hashNCBIids;
-   }
-
-}
-
-print NTON "\n**** the above N to N are derived from mapping ZFIN records to NCBI records and then back to ZFIN records *****\n";
-print NTON "\n**** the following N to N are derived from mapping NCBI records to ZFIN record and then back to NCBI records ****\n";
-print NTON "\n******** redundancy between the two parts of reporting N to N is expected ***********\n\n";
-
-print LOG "\nctOneToN = $ctOneToN\nctNtoNfromZFIN = $ctNtoNfromZFIN\n\n";
-
-print STATS "\nMapping result statistics: number of 1:N (ZFIN to NCBI) - $ctOneToN\n\n";
-print STATS "\nMapping result statistics: number of N:N (ZFIN to NCBI) - $ctNtoNfromZFIN\n\n";
+our %nToOne;
+&getOneToNNCBItoZFINgeneIds();
 
 #------------------------ get N:1 list and N:N from ZFIN to NCBI -----------------------------
-
-$ctNtoOne = $ctNtoNfromNCBI = 0;
-
-# the following hash stores those zdb gene ids that are involved in N:1 and N:N (ZFIN to NCBI)
-%zdbGeneIdsNtoOneAndNtoN = ();
-
-foreach $geneNCBItoMultiZFIN (sort keys %oneToNNCBItoZFIN) {
-   # %ncbiIdsOfNtoN is a hash storing NCBI gene Ids in N to N mapping results mapped from NCBI to ZFIN and back to NCBI
-   # key: NCBI gene Id
-   # value: reference to hash of associated ZDB gene Id(s)
-
-   %ncbiIdsOfNtoN = ();
-
-   ## set on the flag of 1 to N (NCBI to ZFIN)
-   $oneToNflag = 1;
-
-   # get the reference to the hash of mapped ZFIN genes for this NCBI gene
-   $ref_hashZFINids = $oneToNNCBItoZFIN{$geneNCBItoMultiZFIN};
-
-   ## for each 1 to N (NCBI to ZFIN), examine if there is 1 to N mapping the other way (ZFIN to NCBI)
-   foreach $zfinId (sort keys %$ref_hashZFINids) {
-
-     $zdbGeneIdsNtoOneAndNtoN{$zfinId} = $geneNCBItoMultiZFIN;
-
-     ## if existing 1 to N the other way (ZFIN to NCBI), indicating N to N
-     if (exists($oneToNZFINtoNCBI{$zfinId})) {
-
-       ## set off flag 1 to N (NCBI to ZFIN)
-       $oneToNflag = 0;
-
-       $ref_hashNcbiIds = $oneToNZFINtoNCBI{$zfinId};
-       foreach $ncbiId (keys %$ref_hashNcbiIds) {
-         if (exists($oneToNNCBItoZFIN{$ncbiId})) {
-             $ncbiIdsOfNtoN{$ncbiId} = $oneToNNCBItoZFIN{$ncbiId};
-         } elsif (exists($oneToOneNCBItoZFIN{$ncbiId})) {
-             $mappedZFINgene = $oneToOneNCBItoZFIN{$ncbiId};
-             $ncbiIdsOfNtoN{$ncbiId} = {$mappedZFINgene => 1};
-         } else {                              ## impossible
-             print LOG "\n\nThere is a bug: $ncbiId is one of the mapped NCBI Ids of $zfinId but could not find a mapped ZDB Id?\n\n";
-         }
-       }
-     }
-   }
-
-   # print N to N if it is the case, otherwise, populate the 1 to N (ZFIN to NCBI) list, i.e. the N to 1 (ZFIN to NCBI) list
-   if ($oneToNflag == 0) {  ## 1 to N flag off means N to N
-       $ctNtoNfromNCBI++;
-
-       print NTON "$ctNtoNfromNCBI -------------------------------------------------------------------------------------------------\n";
-       foreach $ncbiIdNtoN (sort keys %ncbiIdsOfNtoN) {
-         $refArrayAccs = $supportedGeneNCBI{$ncbiIdNtoN};
-         print NTON "$ncbiIdNtoN ($NCBIidsGeneSymbols{$ncbiIdNtoN}) [@$refArrayAccs]\n";
-
-         $refAssociatedZFINgenes = $ncbiIdsOfNtoN{$ncbiIdNtoN};
-         # for each mapped ZFIN gene
-         foreach $zdbId (sort keys %$refAssociatedZFINgenes) {
-           $refArrayAccs = $supportedGeneZFIN{$zdbId};
-           print NTON "	$zdbId ($geneZDBidsSymbols{$zdbId}) [@$refArrayAccs]\n";
-         }
-       }
-
-       print NTON "~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~\n";
-       foreach $zdbId (sort keys %$ref_hashZFINids) {
-         $refArrayAccs = $supportedGeneZFIN{$zdbId};
-         print NTON "$zdbId ($geneZDBidsSymbols{$zdbId}) [@$refArrayAccs]\n";
-
-         # the following print the associated NCBI records for each of the mapped ZDB gene
-
-         if (exists($oneToNZFINtoNCBI{$zdbId})) {
-             $refAssociatedNCBIgenes = $oneToNZFINtoNCBI{$zdbId};
-
-             # for each of the associated ZFIN gene
-             foreach $ncbiGene (sort keys %$refAssociatedNCBIgenes) {
-               $refArrayAccs = $supportedGeneNCBI{$ncbiGene};
-               print NTON "	$ncbiGene ($NCBIidsGeneSymbols{$ncbiGene}) [@$refArrayAccs]\n";
-             }
-         } elsif (exists($oneToOneZFINtoNCBI{$zdbId})) {
-             $mappedNCBIgene = $oneToOneZFINtoNCBI{$zdbId};
-             $refArrayAccs = $supportedGeneNCBI{$mappedNCBIgene};
-             print NTON "	$mappedNCBIgene ($NCBIidsGeneSymbols{$mappedNCBIgene}) [@$refArrayAccs]\n";
-         } else {                              ## impossible
-             print NTON "There is a bug: $zdbId is one of the mapped ZFIN gene Ids of $geneNCBItoMultiZFIN but could not find a mapped NCBI Id?\n\n";
-         }
-       }
-
-       print NTON "\n";
-
-   } else {                 ## 1 to N (NCBI to ZFIN) i.e. N to 1 from ZFIN to NCBI
-       $ctNtoOne++;
-       $nToOne{$geneNCBItoMultiZFIN} = $ref_hashZFINids;
-   }
-}
-
-close NTON;
-
-print LOG "\nctNtoOne = $ctNtoOne\nctNtoNfromNCBI = $ctNtoNfromNCBI\n\n";
-
-print STATS "\nMapping result statistics: number of N:1 (ZFIN to NCBI) - $ctNtoOne\n\n";
-print STATS "\nMapping result statistics: number of N:N (NCBI to ZFIN) - $ctNtoNfromNCBI\n\n";
-
-$subject = "Auto from $dbname: " . "NCBI_gene_load.pl :: List of N to N";
-ZFINPerlModules->sendMailWithAttachedReport($ENV{'SWISSPROT_EMAIL_REPORT'},"$subject","reportNtoN");
+our %zdbGeneIdsNtoOneAndNtoN;
+&getNtoOneAndNtoNfromZFINtoNCBI();
 
 #--------------------- report 1:N ---------------------------------------------
 
@@ -2391,8 +2179,9 @@ sub parseGene2AccessionFile {
 
             $status = $fields[2];
 
-            if ($fields[7] =~ /^CR847926.7$/) {
-                print LOG "CR847926.7\n";
+            if ($fields[7] =~ /^CR847926$/) {
+                print LOG "DEBUG found: CR847926\n";
+                print "DEBUG found: CR847926\n";
             }
 
             if ($status eq "-") {
@@ -3033,4 +2822,238 @@ sub writeNCBIgeneIdsMappedBasedOnGenBankRNA {
         print TOLOAD "$zdbId|$mappedNCBIgeneId|||$fdcontNCBIgeneId|$pubMappedbasedOnRNA\n";
         $ctToLoad++;
     }
+}
+
+sub getOneToNNCBItoZFINgeneIds {
+    #------------------------ get 1:N list and N:N from ZFIN to NCBI -----------------------------
+    # Globals:
+    #  %nToOne
+    #  %oneToN
+
+
+    # %nToOne is a hash storing NCBI gene Ids in 1 to N mapping results mapped from NCBI to ZFIN
+    # 1 to N from NCBI to ZFIN is equivalent to N to 1 from ZFIN to NCBI
+    # key: NCBI gene Id
+    # value: reference to hash of mapped ZDB gene Ids
+
+    %nToOne = ();
+
+    # %oneToN is a hash storing ZDB gene Ids in 1 to N mapping results mapped from ZFIN to NCBI
+    # key: ZDB gene Id
+    # value: reference to hash of mapped NCBI gene Ids
+
+    %oneToN = ();
+
+    my $ctOneToN = 0;
+    my $ctNtoNfromZFIN = 0;
+
+    # report N:N
+    open (NTON, ">reportNtoN") ||  die "Cannot open reportNtoN : $!\n";
+
+    foreach $geneZFINtoMultiNCBI (sort keys %oneToNZFINtoNCBI) {
+
+        # %zdbIdsOfNtoN is a hash storing ZDB gene Ids in N to N mapping results mapped from ZFIN to NCBI and back to ZFIN
+        # key: ZDB gene Id
+        # value: reference to hash of associated NCBI gene Id(s)
+
+        %zdbIdsOfNtoN = ();
+
+        ## set on the flag of 1 to N (ZFIN to NCBI)
+        $oneToNflag = 1;
+
+        # get the reference to the hash of mapped NCBI genes for this ZFIN gene
+        $ref_hashNCBIids = $oneToNZFINtoNCBI{$geneZFINtoMultiNCBI};
+
+        ## for each 1 to N (ZFIN to NCBI), examine if there is 1 to N mapping the other way (NCBI to ZFIN)
+        foreach $ncbiId (sort keys %$ref_hashNCBIids) {
+
+            ## if existing 1 to N the other way (NCBI to ZFIN), indicating N to N
+            if (exists($oneToNNCBItoZFIN{$ncbiId})) {
+
+                ## set off flag 1 to N (ZFIN to NCBI)
+                $oneToNflag = 0;
+
+                $ref_hashZdbIds = $oneToNNCBItoZFIN{$ncbiId};
+                foreach $zdbId (keys %$ref_hashZdbIds) {
+                    if (exists($oneToNZFINtoNCBI{$zdbId})) {
+                        $zdbIdsOfNtoN{$zdbId} = $oneToNZFINtoNCBI{$zdbId};
+                    } elsif (exists($oneToOneZFINtoNCBI{$zdbId})) {
+                        $mappedNCBIgene = $oneToOneZFINtoNCBI{$zdbId};
+                        $zdbIdsOfNtoN{$zdbId} = {$mappedNCBIgene => 1};
+                    } else {                              ## impossible
+                        print LOG "\n\nThere is a bug: $zdbId is one of the mapped ZDB Ids of $ncbiId but could not find a mapped NCBI Id?\n\n";
+                    }
+                }
+            }
+        }
+
+        # print N to N if it is the case, otherwise, populate the 1 to N (ZFIN to NCBI) list
+        if ($oneToNflag == 0) {  ## 1 to N flag off means N to N
+            $ctNtoNfromZFIN++;
+
+            print NTON "$ctNtoNfromZFIN) -------------------------------------------------------------------------------------------------\n";
+            foreach $zdbIdNtoN (sort keys %zdbIdsOfNtoN) {
+                $refArrayAccs = $supportedGeneZFIN{$zdbIdNtoN};
+                print NTON "$zdbIdNtoN ($geneZDBidsSymbols{$zdbIdNtoN}) [@$refArrayAccs]\n";
+
+                $refAssociatedNCBIgenes = $zdbIdsOfNtoN{$zdbIdNtoN};
+                # for each mapped NCBI gene
+                foreach $ncbiId (sort keys %$refAssociatedNCBIgenes) {
+                    $refArrayAccs = $supportedGeneNCBI{$ncbiId};
+                    print NTON "	$ncbiId ($NCBIidsGeneSymbols{$ncbiId}) [@$refArrayAccs]\n";
+                }
+            }
+
+            print NTON "~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~\n";
+            foreach $ncbiGene (sort keys %$ref_hashNCBIids) {
+                $refArrayAccs = $supportedGeneNCBI{$ncbiGene};
+                print NTON "$ncbiGene ($NCBIidsGeneSymbols{$ncbiGene}) [@$refArrayAccs]\n";
+
+                # the following print the associated ZFIN records for each of the mapped NCBI gene
+
+                if (exists($oneToNNCBItoZFIN{$ncbiGene})) {
+                    $refAssociatedZFINgenes = $oneToNNCBItoZFIN{$ncbiGene};
+
+                    # for each of the associated ZFIN gene
+                    foreach $zdbId (sort keys %$refAssociatedZFINgenes) {
+                        $refArrayAccs = $supportedGeneZFIN{$zdbId};
+                        print NTON "	$zdbId ($geneZDBidsSymbols{$zdbId}) [@$refArrayAccs]\n";
+                    }
+                } elsif (exists($oneToOneNCBItoZFIN{$ncbiGene})) {
+                    $mappedZFINgene = $oneToOneNCBItoZFIN{$ncbiGene};
+                    $refArrayAccs = $supportedGeneZFIN{$mappedZFINgene};
+                    print NTON "	$mappedZFINgene ($geneZDBidsSymbols{$mappedZFINgene}) [@$refArrayAccs]\n";
+                } else {                              ## impossible
+                    print NTON "There is a bug: $ncbiGene is one of the mapped NCBI gene Ids of $geneZFINtoMultiNCBI but could not find a mapped ZDB Id?\n\n";
+                }
+            }
+
+            print NTON "\n";
+
+        } else {                 ## 1 to N (ZFIN to NCBI)
+            $ctOneToN++;
+            $oneToN{$geneZFINtoMultiNCBI} = $ref_hashNCBIids;
+        }
+
+    }
+
+    print NTON "\n**** the above N to N are derived from mapping ZFIN records to NCBI records and then back to ZFIN records *****\n";
+    print NTON "\n**** the following N to N are derived from mapping NCBI records to ZFIN record and then back to NCBI records ****\n";
+    print NTON "\n******** redundancy between the two parts of reporting N to N is expected ***********\n\n";
+
+    print LOG "\nctOneToN = $ctOneToN\nctNtoNfromZFIN = $ctNtoNfromZFIN\n\n";
+
+    print STATS "\nMapping result statistics: number of 1:N (ZFIN to NCBI) - $ctOneToN\n\n";
+    print STATS "\nMapping result statistics: number of N:N (ZFIN to NCBI) - $ctNtoNfromZFIN\n\n";
+}
+
+sub getNtoOneAndNtoNfromZFINtoNCBI {
+    #------------------------ get N:1 list and N:N from ZFIN to NCBI -----------------------------
+    # Globals:
+    #  %oneToNNCBItoZFIN
+    #  %zdbGeneIdsNtoOneAndNtoN
+
+
+    my $ctNtoOne = 0;
+    my $ctNtoNfromNCBI = 0;
+
+    # the following hash stores those zdb gene ids that are involved in N:1 and N:N (ZFIN to NCBI)
+    %zdbGeneIdsNtoOneAndNtoN = ();
+
+    foreach $geneNCBItoMultiZFIN (sort keys %oneToNNCBItoZFIN) {
+        # %ncbiIdsOfNtoN is a hash storing NCBI gene Ids in N to N mapping results mapped from NCBI to ZFIN and back to NCBI
+        # key: NCBI gene Id
+        # value: reference to hash of associated ZDB gene Id(s)
+
+        %ncbiIdsOfNtoN = ();
+
+        ## set on the flag of 1 to N (NCBI to ZFIN)
+        $oneToNflag = 1;
+
+        # get the reference to the hash of mapped ZFIN genes for this NCBI gene
+        $ref_hashZFINids = $oneToNNCBItoZFIN{$geneNCBItoMultiZFIN};
+
+        ## for each 1 to N (NCBI to ZFIN), examine if there is 1 to N mapping the other way (ZFIN to NCBI)
+        foreach $zfinId (sort keys %$ref_hashZFINids) {
+
+            $zdbGeneIdsNtoOneAndNtoN{$zfinId} = $geneNCBItoMultiZFIN;
+
+            ## if existing 1 to N the other way (ZFIN to NCBI), indicating N to N
+            if (exists($oneToNZFINtoNCBI{$zfinId})) {
+
+                ## set off flag 1 to N (NCBI to ZFIN)
+                $oneToNflag = 0;
+
+                $ref_hashNcbiIds = $oneToNZFINtoNCBI{$zfinId};
+                foreach $ncbiId (keys %$ref_hashNcbiIds) {
+                    if (exists($oneToNNCBItoZFIN{$ncbiId})) {
+                        $ncbiIdsOfNtoN{$ncbiId} = $oneToNNCBItoZFIN{$ncbiId};
+                    } elsif (exists($oneToOneNCBItoZFIN{$ncbiId})) {
+                        $mappedZFINgene = $oneToOneNCBItoZFIN{$ncbiId};
+                        $ncbiIdsOfNtoN{$ncbiId} = {$mappedZFINgene => 1};
+                    } else {                              ## impossible
+                        print LOG "\n\nThere is a bug: $ncbiId is one of the mapped NCBI Ids of $zfinId but could not find a mapped ZDB Id?\n\n";
+                    }
+                }
+            }
+        }
+
+        # print N to N if it is the case, otherwise, populate the 1 to N (ZFIN to NCBI) list, i.e. the N to 1 (ZFIN to NCBI) list
+        if ($oneToNflag == 0) {  ## 1 to N flag off means N to N
+            $ctNtoNfromNCBI++;
+
+            print NTON "$ctNtoNfromNCBI -------------------------------------------------------------------------------------------------\n";
+            foreach $ncbiIdNtoN (sort keys %ncbiIdsOfNtoN) {
+                $refArrayAccs = $supportedGeneNCBI{$ncbiIdNtoN};
+                print NTON "$ncbiIdNtoN ($NCBIidsGeneSymbols{$ncbiIdNtoN}) [@$refArrayAccs]\n";
+
+                $refAssociatedZFINgenes = $ncbiIdsOfNtoN{$ncbiIdNtoN};
+                # for each mapped ZFIN gene
+                foreach $zdbId (sort keys %$refAssociatedZFINgenes) {
+                    $refArrayAccs = $supportedGeneZFIN{$zdbId};
+                    print NTON "	$zdbId ($geneZDBidsSymbols{$zdbId}) [@$refArrayAccs]\n";
+                }
+            }
+
+            print NTON "~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~\n";
+            foreach $zdbId (sort keys %$ref_hashZFINids) {
+                $refArrayAccs = $supportedGeneZFIN{$zdbId};
+                print NTON "$zdbId ($geneZDBidsSymbols{$zdbId}) [@$refArrayAccs]\n";
+
+                # the following print the associated NCBI records for each of the mapped ZDB gene
+
+                if (exists($oneToNZFINtoNCBI{$zdbId})) {
+                    $refAssociatedNCBIgenes = $oneToNZFINtoNCBI{$zdbId};
+
+                    # for each of the associated ZFIN gene
+                    foreach $ncbiGene (sort keys %$refAssociatedNCBIgenes) {
+                        $refArrayAccs = $supportedGeneNCBI{$ncbiGene};
+                        print NTON "	$ncbiGene ($NCBIidsGeneSymbols{$ncbiGene}) [@$refArrayAccs]\n";
+                    }
+                } elsif (exists($oneToOneZFINtoNCBI{$zdbId})) {
+                    $mappedNCBIgene = $oneToOneZFINtoNCBI{$zdbId};
+                    $refArrayAccs = $supportedGeneNCBI{$mappedNCBIgene};
+                    print NTON "	$mappedNCBIgene ($NCBIidsGeneSymbols{$mappedNCBIgene}) [@$refArrayAccs]\n";
+                } else {                              ## impossible
+                    print NTON "There is a bug: $zdbId is one of the mapped ZFIN gene Ids of $geneNCBItoMultiZFIN but could not find a mapped NCBI Id?\n\n";
+                }
+            }
+
+            print NTON "\n";
+
+        } else {                 ## 1 to N (NCBI to ZFIN) i.e. N to 1 from ZFIN to NCBI
+            $ctNtoOne++;
+            $nToOne{$geneNCBItoMultiZFIN} = $ref_hashZFINids;
+        }
+    }
+
+    close NTON;
+
+    print LOG "\nctNtoOne = $ctNtoOne\nctNtoNfromNCBI = $ctNtoNfromNCBI\n\n";
+
+    print STATS "\nMapping result statistics: number of N:1 (ZFIN to NCBI) - $ctNtoOne\n\n";
+    print STATS "\nMapping result statistics: number of N:N (NCBI to ZFIN) - $ctNtoNfromNCBI\n\n";
+
+    $subject = "Auto from $dbname: " . "NCBI_gene_load.pl :: List of N to N";
+    ZFINPerlModules->sendMailWithAttachedReport($ENV{'SWISSPROT_EMAIL_REPORT'},"$subject","reportNtoN");
 }
