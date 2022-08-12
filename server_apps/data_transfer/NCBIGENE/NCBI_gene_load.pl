@@ -59,6 +59,10 @@ our $handle = DBI->connect ("DBI:Pg:dbname=$dbname;host=$dbhost", $username, $pa
 #------------------------------------------------
 
 if (!$ENV{"SKIP_DOWNLOADS"}) {
+    print "Removing old files in 5 seconds...\n";
+    sleep(5);
+
+    print "Removing prepareLog* loadLog* logNCBIgeneLoad debug* report* toDelete.unl toMap.unl toLoad.unl length.unl noLength.unl seq.fasta *.gz zf_gene_info.gz gene2vega.gz gene2accession.gz RefSeqCatalog.gz RELEASE_NUMBER\n";
     system("/bin/rm -f prepareLog*");
     system("/bin/rm -f loadLog*");
     system("/bin/rm -f logNCBIgeneLoad");
@@ -74,7 +78,6 @@ if (!$ENV{"SKIP_DOWNLOADS"}) {
 
     system("/bin/rm -f zf_gene_info.gz");
     system("/bin/rm -f gene2vega.gz");
-    ##system("/bin/rm -f gene2unigene");
     system("/bin/rm -f gene2accession.gz");
     system("/bin/rm -f RefSeqCatalog.gz");
     system("/bin/rm -f RELEASE_NUMBER");
@@ -116,9 +119,9 @@ our $fdcontRefSeqDNA = "ZDB-FDBCONT-040527-1";
 
 &prepareNCBIgeneLoadDatabaseQuery();
 
-my %toDelete = ();
-my $ctToDelete = 0;
-&getDbLinksToDelete();
+our %toDelete;
+our $ctToDelete;
+&getMetricsOfDbLinksToDelete();
 
 # Get Record Counts using global variables
 our $curGenesWithRefSeq;
@@ -696,7 +699,7 @@ close NOLENGTH;
 system("/bin/date");
 
 if (!-e "noLength.unl") {
-   print LOG "\nCannot find noLength.unl as input file for efetch.r.\n\n";
+   print LOG "\nCannot find noLength.unl as input file for efetch.\n\n";
    close STATS;
    $subjectLine = "Auto from $dbname: " . "NCBI_gene_load.pl :: no input file for efetch.r";
    &reportErrAndExit($subjectLine);
@@ -705,23 +708,28 @@ if (!-e "noLength.unl") {
 print LOG "\nStart efetching ... \n\n";
 print "\nStart efetching ... \n\n";
 
-# Using the above noLength.unl as input, call efetch.r to get the fasta sequences
+# Using the above noLength.unl as input, call efetch to get the fasta sequences
 # and output to seq.fasta file. This step is time-consuming.
 
-my $currentDir = cwd;
+if ($ENV{"SKIP_DOWNLOADS"}) {
+    print LOG "\nSKIP_DOWNLOADS is set, so skipping the efetch step.\n\n";
+    print "\nSKIP_DOWNLOADS is set, so skipping the efetch step.\n\n";
+} else {
+    my $currentDir = cwd;
 
-# Set the JAVA_HOME path to override the jenkins one
-$ENV{'JAVA_HOME'} = getPropertyValue("JAVA_HOME");
+    # Set the JAVA_HOME path to override the jenkins one
+    $ENV{'JAVA_HOME'} = getPropertyValue("JAVA_HOME");
 
-$cmdEfetch = "cd " . $ENV{'SOURCEROOT'} . " ; " .
-             "gradle '-DncbiLoadInput=$currentDir/noLength.unl' " .
-             "       '-DncbiLoadOutput=$currentDir/seq.fasta' " .
-             "         NCBILoadTask ; " .
-             "cd -";
-print "Executing $cmdEfetch\n";
-print LOG "Executing $cmdEfetch\n";
+    $cmdEfetch = "cd " . $ENV{'SOURCEROOT'} . " ; " .
+                 "gradle '-DncbiLoadInput=$currentDir/noLength.unl' " .
+                 "       '-DncbiLoadOutput=$currentDir/seq.fasta' " .
+                 "         NCBILoadTask ; " .
+                 "cd $currentDir";
+    print "Executing $cmdEfetch\n";
+    print LOG "Executing $cmdEfetch\n";
 
-&doSystemCommand($cmdEfetch);
+    &doSystemCommand($cmdEfetch);
+}
 
 print LOG "\nAfter efetching\n\n";
 print "\nAfter efetching\n\n";
@@ -731,7 +739,7 @@ system("/bin/date");
 if (!-e "seq.fasta") {
    print LOG "\nCannot execute efetch for input noLength.unl and output seq.fasta: $! \n\n";
    close STATS;
-   $subjectLine = "Auto from $dbname: " . "NCBI_gene_load.pl :: ERROR with efetch.r";
+   $subjectLine = "Auto from $dbname: " . "NCBI_gene_load.pl :: ERROR with efetch";
    &reportErrAndExit($subjectLine);
 }
 
@@ -1581,17 +1589,17 @@ sub prepareNCBIgeneLoadDatabaseQuery {
     ZFINPerlModules->sendMailWithAttachedReport($ENV{'SWISSPROT_EMAIL_ERR'},"$subject","prepareLog2");
 }
 
-sub getDbLinksToDelete {
+sub getMetricsOfDbLinksToDelete {
     # This is a hash to store the zdb ids of db_link record to be deleted; used at later step
     # key: dblink zdb id
     # value: 1
     # Global: $ctToDelete
     # Global: %toDelete
     %toDelete = ();
+    $ctToDelete = 0;
 
     open (TODELETE, "toDelete.unl") ||  die "Cannot open toDelete.unl : $!\n";
 
-    my $ctToDelete = 0;
     while (<TODELETE>) {
         chomp;
         if ($_) {
