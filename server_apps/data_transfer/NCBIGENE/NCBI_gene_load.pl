@@ -37,44 +37,8 @@ use lib "$FindBin::Bin/../../";
 # use lib $libraryPath;
 use ZFINPerlModules qw(assertEnvironment trim getPropertyValue downloadOrUseLocalFile);
 
-assertEnvironment('ROOT_PATH', 'PGHOST', 'DB_NAME', 'SWISSPROT_EMAIL_ERR', 'SWISSPROT_EMAIL_REPORT');
-
-system("/bin/date");
-
-our $debug = 1;
-
-# set environment variables
-chdir $ENV{'ROOT_PATH'} . "/server_apps/data_transfer/NCBIGENE/";
-
-our $dbname;
-our $dbhost;
-our $username;
-our $password;
-our $handle;
-&initializeDatabase();
-
-&removeOldFiles();
-
-open LOG, '>', "logNCBIgeneLoad" or die "can not open logNCBIgeneLoad: $! \n";
-open STATS, '>', "reportStatistics" or die "can not open reportStatistics" ;
-
-print LOG "Start ... \n";
-
-#-------------------------------------------------------------------------------------------------
-# Step 1: Download and decompress NCBI data files
-#-------------------------------------------------------------------------------------------------
-
-## only the following RefSeq catalog file may remain unchanged over a period of time
-## the rest 3 are changing every day
-our $releaseNum = &getReleaseNumber();
-print LOG "RefSeq Catalog Release Number is $releaseNum.\n\n";
-
-&downloadNCBIFilesForRelease($releaseNum);
-print LOG "Done with downloading.\n\n";
-
-
-
 # ------------------- global variables, with variable names self-explanatory  ---------------------------------
+our $debug = 1;
 
 our $pubMappedbasedOnRNA = "ZDB-PUB-020723-3";
 our $pubMappedbasedOnVega = "ZDB-PUB-130725-2";
@@ -88,262 +52,278 @@ our $fdcontRefSeqRNA = "ZDB-FDBCONT-040412-38";
 our $fdcontRefPept = "ZDB-FDBCONT-040412-39";
 our $fdcontRefSeqDNA = "ZDB-FDBCONT-040527-1";
 
+sub main {
 
-&prepareNCBIgeneLoadDatabaseQuery();
+    assertEnvironment('ROOT_PATH', 'PGHOST', 'DB_NAME', 'SWISSPROT_EMAIL_ERR', 'SWISSPROT_EMAIL_REPORT');
 
-our %toDelete;
-our $ctToDelete;
-&getMetricsOfDbLinksToDelete();
+    system("/bin/date");
 
-# Get Record Counts using global variables
-our $curGenesWithRefSeq;
-our %genesWithRefSeqBeforeLoad;
-our $ctGenesWithRefSeqBefore;
-our $numNCBIgeneIdBefore;
-our $numRefSeqRNABefore;
-our $numRefPeptBefore;
-our $numRefSeqDNABefore;
-our $numGenBankRNABefore;
-our $numGenPeptBefore;
-our $numGenBankDNABefore;
-our $numGenesRefSeqRNABefore;
-our $numGenesRefSeqPeptBefore;
-our $numGenesGenBankBefore;
-&getRecordCounts();
+    # set environment variables
+    chdir $ENV{'ROOT_PATH'} . "/server_apps/data_transfer/NCBIGENE/";
 
-our $ctVegaIdsNCBI;
-our %NCBIgeneWithMultipleVega;
-our %NCBIidsGeneSymbols;
-our %geneSymbolsNCBIids;
-our %vegaIdsNCBIids;
-our %vegaIdwithMultipleNCBIids;
-&readZfinGeneInfoFile();
+    our $dbname;
+    our $dbhost;
+    our $username;
+    our $password;
+    our $handle;
+    &initializeDatabase();
 
-#----------------------------------------------------------------------------------------------------------------------
-# Step 5: Map ZFIN gene records to NCBI gene records based on GenBank RNA sequences
-#----------------------------------------------------------------------------------------------------------------------
+    &removeOldFiles();
 
-#-----------------------------------------
-# Step 5-1: initial set of ZFIN records
-#-----------------------------------------
-our %supportedGeneZFIN;
-our %supportingAccZFIN;
-our %accZFINsupportingMoreThan1;
-our %geneZFINwithAccSupportingMoreThan1;
-our %accZFINsupportingOnly1;
-&initializeSetsOfZfinRecords();
+    &openLoggingFileHandles();
 
-#--------------------------------------------------------------------------------------------------------------
-# Step 5-2: Get dblink_length values
-#
-# This section continues to deal with dblink_length field
-# There are 3 sources for length:
-# 1) the existing dblink_length for GenBank including GenPept records
-# 2) the length value of RefSeq sequences on NCBI's RefSeq-release#.catalog file
-# 3) calculated length
-# 1) and 2) will be done by the following section and before parsing the gene2accession file.
-# And the length value will be stored in hash %sequenceLength
-# During parsing gene2accession file, accessions still missing length will be stored in a hash named %noLength
-# 3) will be done after parsing gene2accession file.
-#---------------------------------------------------------------------------------------------------------------
-our %sequenceLength;
-&initializeSequenceLengthHash();
+    #-------------------------------------------------------------------------------------------------
+    # Step 1: Download and decompress NCBI data files
+    #-------------------------------------------------------------------------------------------------
+    &downloadNCBIFiles();
 
-#----------------------- 2) parse RefSeq-release#.catalog file to get the length for RefSeq sequences ----------------------
+    &prepareNCBIgeneLoadDatabaseQuery();
 
-# DEBUG COMMENTED OUT (TODO: uncomment)
-# &parseRefSeqCatalogFileForSequenceLength();
-# END DEBUG COMMENTED OUT
+    our %toDelete;
+    our $ctToDelete;
+    &getMetricsOfDbLinksToDelete();
 
-&printSequenceLengthsCount();
+    # Get Record Counts using global variables
+    our $curGenesWithRefSeq;
+    our %genesWithRefSeqBeforeLoad;
+    our $ctGenesWithRefSeqBefore;
+    our $numNCBIgeneIdBefore;
+    our $numRefSeqRNABefore;
+    our $numRefPeptBefore;
+    our $numRefSeqDNABefore;
+    our $numGenBankRNABefore;
+    our $numGenPeptBefore;
+    our $numGenBankDNABefore;
+    our $numGenesRefSeqRNABefore;
+    our $numGenesRefSeqPeptBefore;
+    our $numGenesGenBankBefore;
+    &getRecordCounts();
 
+    our $ctVegaIdsNCBI;
+    our %NCBIgeneWithMultipleVega;
+    our %NCBIidsGeneSymbols;
+    our %geneSymbolsNCBIids;
+    our %vegaIdsNCBIids;
+    our %vegaIdwithMultipleNCBIids;
+    &readZfinGeneInfoFile();
 
-our $ctNoLength;
-our $ctNoLengthRefSeq;
-our $ctZebrafishGene2accession;
-our $ctlines;
-our %GenBankDNAncbiGeneIds;
-our %GenPeptNCBIgeneIds;
-our %RefPeptNCBIgeneIds;
-our %RefSeqDNAncbiGeneIds;
-our %RefSeqRNAncbiGeneIds;
-our %noLength;
-our %supportedGeneNCBI;
-our %supportingAccNCBI;
-&parseGene2AccessionFile();
+    #----------------------------------------------------------------------------------------------------------------------
+    # Step 5: Map ZFIN gene records to NCBI gene records based on GenBank RNA sequences
+    #----------------------------------------------------------------------------------------------------------------------
 
-&countNCBIGenesWithSupportingGenBankRNA();
+    #-----------------------------------------
+    # Step 5-1: initial set of ZFIN records
+    #-----------------------------------------
+    our %supportedGeneZFIN;
+    our %supportingAccZFIN;
+    our %accZFINsupportingMoreThan1;
+    our %geneZFINwithAccSupportingMoreThan1;
+    our %accZFINsupportingOnly1;
+    &initializeSetsOfZfinRecords();
 
-&logGenBankDNAncbiGeneIds();
+    #--------------------------------------------------------------------------------------------------------------
+    # Step 5-2: Get dblink_length values
+    #
+    # This section continues to deal with dblink_length field
+    # There are 3 sources for length:
+    # 1) the existing dblink_length for GenBank including GenPept records
+    # 2) the length value of RefSeq sequences on NCBI's RefSeq-release#.catalog file
+    # 3) calculated length
+    # 1) and 2) will be done by the following section and before parsing the gene2accession file.
+    # And the length value will be stored in hash %sequenceLength
+    # During parsing gene2accession file, accessions still missing length will be stored in a hash named %noLength
+    # 3) will be done after parsing gene2accession file.
+    #---------------------------------------------------------------------------------------------------------------
+    our %sequenceLength;
+    &initializeSequenceLengthHash();
 
-&logSupportingAccNCBI();
+    #----------------------- 2) parse RefSeq-release#.catalog file to get the length for RefSeq sequences ----------------------
 
-our %accNCBIsupportingMoreThan1;
-our %accNCBIsupportingOnly1;
-our %geneNCBIwithAccSupportingMoreThan1;
-&initializeHashOfNCBIAccessionsSupportingMultipleGenes();
+    # DEBUG COMMENTED OUT (TODO: uncomment)
+    # &parseRefSeqCatalogFileForSequenceLength();
+    # END DEBUG COMMENTED OUT
 
-our %oneToNZFINtoNCBI;
-our %oneToOneZFINtoNCBI;
-our %genesZFINwithNoRNAFoundAtNCBI;
-&initializeMapOfZfinToNCBIgeneIds();
+    &printSequenceLengthsCount();
 
-&logOneToZeroAssociations();
+    our $ctNoLength;
+    our $ctNoLengthRefSeq;
+    our $ctZebrafishGene2accession;
+    our $ctlines;
+    our %GenBankDNAncbiGeneIds;
+    our %GenPeptNCBIgeneIds;
+    our %RefPeptNCBIgeneIds;
+    our %RefSeqDNAncbiGeneIds;
+    our %RefSeqRNAncbiGeneIds;
+    our %noLength;
+    our %supportedGeneNCBI;
+    our %supportingAccNCBI;
+    &parseGene2AccessionFile();
 
-our %oneToOneNCBItoZFIN;
-our %oneToNNCBItoZFIN;
-&oneWayMappingNCBItoZfinGenes();
+    &countNCBIGenesWithSupportingGenBankRNA();
 
+    &logGenBankDNAncbiGeneIds();
 
-our %mapped;  ## the list of 1:1; key: ZDB gene Id; value: NCBI gene Id
-our %mappedReversed;
-our $ctOneToOneNCBI;
-&compare2WayMappingResults();
+    &logSupportingAccNCBI();
 
+    our %accNCBIsupportingMoreThan1;
+    our %accNCBIsupportingOnly1;
+    our %geneNCBIwithAccSupportingMoreThan1;
+    &initializeHashOfNCBIAccessionsSupportingMultipleGenes();
 
+    our %oneToNZFINtoNCBI;
+    our %oneToOneZFINtoNCBI;
+    our %genesZFINwithNoRNAFoundAtNCBI;
+    &initializeMapOfZfinToNCBIgeneIds();
 
-#---------------- open a .unl file as the add list -----------------
-open (TOLOAD, ">toLoad.unl") ||  die "Cannot open toLoad.unl : $!\n";
+    &logOneToZeroAssociations();
 
-# -------- write the NCBI gene Ids mapped based on GenBank RNA accessions on toLoad.unl ------------
-our $ctToLoad;
-&writeNCBIgeneIdsMappedBasedOnGenBankRNA();
+    our %oneToOneNCBItoZFIN;
+    our %oneToNNCBItoZFIN;
+    &oneWayMappingNCBItoZfinGenes();
 
-#------------------------ get 1:N list and N:N from ZFIN to NCBI -----------------------------
-our %nToOne;
-&getOneToNNCBItoZFINgeneIds();
-
-#------------------------ get N:1 list and N:N from ZFIN to NCBI -----------------------------
-our %zdbGeneIdsNtoOneAndNtoN;
-&getNtoOneAndNtoNfromZFINtoNCBI();
-
-#--------------------- report 1:N ---------------------------------------------
-&reportOneToN();
-
-
-#------------------- report N:1 -------------------------------------------------
-&reportNtoOne();
-
-##-----------------------------------------------------------------------------------
-## Step 6: map ZFIN gene records to NCBI gene Ids based on common Vega Gene Id
-##-----------------------------------------------------------------------------------
-
-#---------------------------------------------------------------------------
-# prepare the list of ZFIN gene with Vega Ids to be mapped to NCBI records
-#---------------------------------------------------------------------------
-our %ZDBgeneAndVegaGeneIds;
-our %VegaGeneAndZDBgeneIds;
-our %ZDBgeneWithMultipleVegaGeneIds;
-our %vegaGeneIdWithMultipleZFINgenes;
-&buildVegaIDMappings();
+    our %mapped; ## the list of 1:1; key: ZDB gene Id; value: NCBI gene Id
+    our %mappedReversed;
+    our $ctOneToOneNCBI;
+    &compare2WayMappingResults();
 
 
-## ---------------------------------------------------------------------------------------------------------------------
-## doing the mapping based on common Vega Gene Id
-## ---------------------------------------------------------------------------------------------------------------------
-our %oneToOneViaVega;
-&writeCommonVegaGeneIdMappings();
+    #---------------- open a .unl file as the add list -----------------
+    open(TOLOAD, ">toLoad.unl") || die "Cannot open toLoad.unl : $!\n";
 
-#--------------------------------------------------------------------------------------------------------------
-# This section CONTINUES to deal with dblink_length field
-# There are 3 sources for length:
-# 1) the existing dblink_length for GenBank including GenPept records
-# 2) the length value of RefSeq sequences on NCBI's RefSeq-release#.catalog file
-# 3) calculated length
-# The first two have been done before parsing the gene2accession file.
-# During parsing gene2accession file, accessions still missing length are stored in a hash named %noLength
-#---------------------------------------------------------------------------------------------------------------
+    # -------- write the NCBI gene Ids mapped based on GenBank RNA accessions on toLoad.unl ------------
+    our $ctToLoad;
+    &writeNCBIgeneIdsMappedBasedOnGenBankRNA();
 
-#----------------------- 3) calculate the length for the those still with no length ---------------
-&calculateLengthForAccessionsWithoutLength();
+    #------------------------ get 1:N list and N:N from ZFIN to NCBI -----------------------------
+    our %nToOne;
+    &getOneToNNCBItoZFINgeneIds();
 
-#---------------------------------------------------------------------------------------------
-# Step 7: prepare the final add-list for RefSeq and GenBank records
-#---------------------------------------------------------------------------------------------
-our %geneAccFdbcont;
-&getGenBankAndRefSeqsWithZfinGenes();
+    #------------------------ get N:1 list and N:N from ZFIN to NCBI -----------------------------
+    our %zdbGeneIdsNtoOneAndNtoN;
+    &getNtoOneAndNtoNfromZFINtoNCBI();
 
-#---------------------------------------------------------------------------
-#  write GenBank RNA accessions with mapped genes onto toLoad.unl
-#---------------------------------------------------------------------------
-&writeGenBankRNAaccessionsWithMappedGenesToLoad();
+    #--------------------- report 1:N ---------------------------------------------
+    &reportOneToN();
 
 
-#---------------------------------------------------------------------------------------
-#  write GenPept accessions with mapped genes onto toLoad.unl
-#---------------------------------------------------------------------------------------
-our %GenPeptAttributedToNonLoadPub;
-our %GenPeptDbLinkIdAttributedToNonLoadPub;
-&initializeGenPeptAccessionsMap();
+    #------------------- report N:1 -------------------------------------------------
+    &reportNtoOne();
 
-our %GenPeptsToLoad;
-&processGenBankAccessionsAssociatedToNonLoadPubs();
+    ##-----------------------------------------------------------------------------------
+    ## Step 6: map ZFIN gene records to NCBI gene Ids based on common Vega Gene Id
+    ##-----------------------------------------------------------------------------------
 
-# ----- get all the Genpept accessions associated with gene at ZFIN, and those with multiple ZFIN genes ----------------------------
-&printGenPeptsAssociatedWithGeneAtZFIN();
-
-#---------------------------------------------------------------------------
-#  write GenBank DNA accessions with mapped genes onto toLoad.unl
-#---------------------------------------------------------------------------
-&writeGenBankDNAaccessionsWithMappedGenesToLoad();
-
-#---------------------------------------------------------------------------
-#  write RefSeq RNA accessions with mapped genes onto toLoad.unl
-#---------------------------------------------------------------------------
-&writeRefSeqRNAaccessionsWithMappedGenesToLoad();
+    #---------------------------------------------------------------------------
+    # prepare the list of ZFIN gene with Vega Ids to be mapped to NCBI records
+    #---------------------------------------------------------------------------
+    our %ZDBgeneAndVegaGeneIds;
+    our %VegaGeneAndZDBgeneIds;
+    our %ZDBgeneWithMultipleVegaGeneIds;
+    our %vegaGeneIdWithMultipleZFINgenes;
+    &buildVegaIDMappings();
 
 
-#---------------------------------------------------------------------------
-#  write RefPept accessions with mapped genes onto toLoad.unl
-#---------------------------------------------------------------------------
-&writeRefPeptAccessionsWithMappedGenesToLoad();
+    ## ---------------------------------------------------------------------------------------------------------------------
+    ## doing the mapping based on common Vega Gene Id
+    ## ---------------------------------------------------------------------------------------------------------------------
+    our %oneToOneViaVega;
+    &writeCommonVegaGeneIdMappings();
 
-#---------------------------------------------------------------------------
-#  write RefSeq DNA accessions with mapped genes onto toLoad.unl
-#---------------------------------------------------------------------------
-&writeRefSeqDNAaccessionsWithMappedGenesToLoad();
+    #--------------------------------------------------------------------------------------------------------------
+    # This section CONTINUES to deal with dblink_length field
+    # There are 3 sources for length:
+    # 1) the existing dblink_length for GenBank including GenPept records
+    # 2) the length value of RefSeq sequences on NCBI's RefSeq-release#.catalog file
+    # 3) calculated length
+    # The first two have been done before parsing the gene2accession file.
+    # During parsing gene2accession file, accessions still missing length are stored in a hash named %noLength
+    #---------------------------------------------------------------------------------------------------------------
 
-close TOLOAD;
+    #----------------------- 3) calculate the length for the those still with no length ---------------
+    &calculateLengthForAccessionsWithoutLength();
 
-system("/bin/date");
-print LOG "Done everything before doing the deleting and inserting\n";
-print LOG "\n$ctToDelete total number of db_link records are dropped.\n$ctToLoad total number of new records are added.\n\n";
-print STATS "\n$ctToDelete total number of db_link records are dropped.\n$ctToLoad total number of new records are added.\n\n";
+    #---------------------------------------------------------------------------------------------
+    # Step 7: prepare the final add-list for RefSeq and GenBank records
+    #---------------------------------------------------------------------------------------------
+    our %geneAccFdbcont;
+    &getGenBankAndRefSeqsWithZfinGenes();
 
-#-----------------------------------------------------------------------------------------------------------------------
-# Step 8: execute the SQL file to do the deletion according to delete list, and do the loading according to te add list
-#-----------------------------------------------------------------------------------------------------------------------
-&executeDeleteAndLoadSQLFile();
+    #---------------------------------------------------------------------------
+    #  write GenBank RNA accessions with mapped genes onto toLoad.unl
+    #---------------------------------------------------------------------------
+    &writeGenBankRNAaccessionsWithMappedGenesToLoad();
 
-&sendLoadLogs;
 
-#-------------------------------------------------------------------------------------------------
-# Step 9: Report the GenPept accessions associated with multiple ZFIN genes after the load.
-# Report GenPept accessions associated with ZFIN genes still attributed to a non-load pub.
-# And do the record counts after the load, and report statistics.
-#-------------------------------------------------------------------------------------------------
+    #---------------------------------------------------------------------------------------
+    #  write GenPept accessions with mapped genes onto toLoad.unl
+    #---------------------------------------------------------------------------------------
+    our %GenPeptAttributedToNonLoadPub;
+    our %GenPeptDbLinkIdAttributedToNonLoadPub;
+    &initializeGenPeptAccessionsMap();
 
-&reportAllLoadStatistics();
+    our %GenPeptsToLoad;
+    &processGenBankAccessionsAssociatedToNonLoadPubs();
 
-$subject = "Auto from $dbname: NCBI_gene_load.pl :: Statistics";
-ZFINPerlModules->sendMailWithAttachedReport($ENV{'SWISSPROT_EMAIL_REPORT'},"$subject","reportStatistics");
+    # ----- get all the Genpept accessions associated with gene at ZFIN, and those with multiple ZFIN genes ----------------------------
+    &printGenPeptsAssociatedWithGeneAtZFIN();
 
-print LOG "\n\nAll done! \n\n\n";
+    #---------------------------------------------------------------------------
+    #  write GenBank DNA accessions with mapped genes onto toLoad.unl
+    #---------------------------------------------------------------------------
+    &writeGenBankDNAaccessionsWithMappedGenesToLoad();
 
-close LOG;
+    #---------------------------------------------------------------------------
+    #  write RefSeq RNA accessions with mapped genes onto toLoad.unl
+    #---------------------------------------------------------------------------
+    &writeRefSeqRNAaccessionsWithMappedGenesToLoad();
 
-$subject = "Auto from $dbname: NCBI_gene_load.pl :: log file";
-ZFINPerlModules->sendMailWithAttachedReport($ENV{'SWISSPROT_EMAIL_ERR'},"$subject","logNCBIgeneLoad");
 
-system("/bin/date");
+    #---------------------------------------------------------------------------
+    #  write RefPept accessions with mapped genes onto toLoad.unl
+    #---------------------------------------------------------------------------
+    &writeRefPeptAccessionsWithMappedGenesToLoad();
 
-exit;
+    #---------------------------------------------------------------------------
+    #  write RefSeq DNA accessions with mapped genes onto toLoad.unl
+    #---------------------------------------------------------------------------
+    &writeRefSeqDNAaccessionsWithMappedGenesToLoad();
+
+    close TOLOAD;
+
+    system("/bin/date");
+    print LOG "Done everything before doing the deleting and inserting\n";
+    print LOG "\n$ctToDelete total number of db_link records are dropped.\n$ctToLoad total number of new records are added.\n\n";
+    print STATS "\n$ctToDelete total number of db_link records are dropped.\n$ctToLoad total number of new records are added.\n\n";
+
+    #-----------------------------------------------------------------------------------------------------------------------
+    # Step 8: execute the SQL file to do the deletion according to delete list, and do the loading according to te add list
+    #-----------------------------------------------------------------------------------------------------------------------
+    &executeDeleteAndLoadSQLFile();
+
+    &sendLoadLogs;
+
+    #-------------------------------------------------------------------------------------------------
+    # Step 9: Report the GenPept accessions associated with multiple ZFIN genes after the load.
+    # Report GenPept accessions associated with ZFIN genes still attributed to a non-load pub.
+    # And do the record counts after the load, and report statistics.
+    #-------------------------------------------------------------------------------------------------
+
+    &reportAllLoadStatistics();
+
+    &emailLoadReports();
+
+    print LOG "\n\nAll done! \n\n\n";
+    close LOG;
+
+    system("/bin/date");
+
+    exit;
+}
 
 #---------------------- subroutines  -------------------------------------------------------
 
 # The return code from "system" isn't reliable when used in syntax of "system(...) or die ..."
 # Use this subroutine to a better handling.
-
 sub doSystemCommand {
 
   $systemCommand = $_[0];
@@ -414,6 +394,22 @@ sub removeOldFiles {
         system("/bin/rm -f RefSeqCatalog.gz");
         system("/bin/rm -f RELEASE_NUMBER");
     }
+}
+
+sub openLoggingFileHandles {
+    open LOG, '>', "logNCBIgeneLoad" or die "can not open logNCBIgeneLoad: $! \n";
+    open STATS, '>', "reportStatistics" or die "can not open reportStatistics" ;
+    print LOG "Start ... \n";
+}
+
+sub downloadNCBIFiles {
+    ## only the following RefSeq catalog file may remain unchanged over a period of time
+    ## the rest 3 are changing every day
+    our $releaseNum = &getReleaseNumber();
+    print LOG "RefSeq Catalog Release Number is $releaseNum.\n\n";
+
+    &downloadNCBIFilesForRelease($releaseNum);
+    print LOG "Done with downloading.\n\n";
 }
 
 sub getReleaseNumber {
@@ -3284,3 +3280,13 @@ sub reportAllLoadStatistics {
 
     close STATS;
 }
+
+sub emailLoadReports {
+    my $subject = "Auto from $dbname: NCBI_gene_load.pl :: Statistics";
+    ZFINPerlModules->sendMailWithAttachedReport($ENV{'SWISSPROT_EMAIL_REPORT'},"$subject","reportStatistics");
+
+    $subject = "Auto from $dbname: NCBI_gene_load.pl :: log file";
+    ZFINPerlModules->sendMailWithAttachedReport($ENV{'SWISSPROT_EMAIL_ERR'},"$subject","logNCBIgeneLoad");
+}
+
+main();
