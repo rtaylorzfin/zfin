@@ -341,22 +341,7 @@ print STATS "\n$ctToDelete total number of db_link records are dropped.\n$ctToLo
 #-----------------------------------------------------------------------------------------------------------------------
 # Step 8: execute the SQL file to do the deletion according to delete list, and do the loading according to te add list
 #-----------------------------------------------------------------------------------------------------------------------
-
-if (!-e "toLoad.unl" || $ctToLoad == 0) {
-   print LOG "\nMissing the add list, toLoad.unl, or it is empty. Something is wrong!\n\n";
-   close STATS;
-   $subjectLine = "Auto from $dbname: " . "NCBI_gene_load.pl :: missing or empty add list, toLoad.unl";
-   &reportErrAndExit($subjectLine);
-}
-
-try {
-  &doSystemCommand("psql -d $ENV{'DB_NAME'} -a -f loadNCBIgeneAccs.sql >loadLog1 2> loadLog2");
-} catch {
-  chomp $_;
-  &reportErrAndExit("Auto from $dbname: NCBI_gene_load.pl :: failed at loadNCBIgeneAccs.sql");
-} ;
-
-print LOG "\nDone with the deltion and loading!\n\n";
+&executeDeleteAndLoadSQLFile();
 
 &sendLoadLogs;
 
@@ -366,324 +351,7 @@ print LOG "\nDone with the deltion and loading!\n\n";
 # And do the record counts after the load, and report statistics.
 #-------------------------------------------------------------------------------------------------
 
-# ----- AFTER THE LOAD, get all the Genpept accessions associated with gene at ZFIN, and those with multiple ZFIN genes ---------
-
-$sqlAllGenPeptWithGeneAfterLoad = "select dblink_acc_num, dblink_linked_recid
-                                     from db_link
-                                    where dblink_fdbcont_zdb_id = 'ZDB-FDBCONT-040412-42'
-                                      and (dblink_linked_recid like 'ZDB-GENE%' or dblink_linked_recid like '%RNAG%');";
-
-$curAllGenPeptWithGeneAfterLoad = $handle->prepare($sqlAllGenPeptWithGeneAfterLoad);
-
-$curAllGenPeptWithGeneAfterLoad->execute;
-
-$curAllGenPeptWithGeneAfterLoad->bind_columns(\$GenPept,\$geneZdbId);
-
-# use the following hash to store all the GenPept accession stored at ZFIN that are assoctied with gene after the load
-# key: GenPept accession
-# value: gene zdb id
-
-%allGenPeptWithGeneAfterLoad = ();
-
-# a hash to store GenPept accessions and the multiple related ZFIN gene Ids after the load
-# key: GenPept accession
-# value: reference to an array of gene zdb id
-
-%GenPeptWithMultipleZDBgeneAfterLoad = ();
-
-while ($curAllGenPeptWithGeneAfterLoad->fetch) {
-
-  if (exists($GenPeptWithMultipleZDBgeneAfterLoad{$GenPept}) ||
-       (exists($allGenPeptWithGeneAfterLoad{$GenPept}) && $allGenPeptWithGeneAfterLoad{$GenPept} ne $geneZdbId)) {
-
-        if (!exists($GenPeptWithMultipleZDBgeneAfterLoad{$GenPept})) {
-            $firstGenPept = $allGenPeptWithGeneAfterLoad{$GenPept};
-            $ref_arrayZDBgeneIds = [$firstGenPept,$geneZdbId];
-            $GenPeptWithMultipleZDBgeneAfterLoad{$GenPept} = $ref_arrayZDBgeneIds;
-        } else {
-            $ref_arrayZDBgeneIds = $GenPeptWithMultipleZDBgeneAfterLoad{$GenPept};
-            push(@$ref_arrayZDBgeneIds, $geneZdbId);
-        }
-   }
-
-  $allGenPeptWithGeneAfterLoad{$GenPept} = $geneZdbId;
-}
-
-$curAllGenPeptWithGeneAfterLoad->finish();
-
-$ctAllGenPeptWithGeneZFINafterLoad = scalar(keys %allGenPeptWithGeneAfterLoad);
-
-$ctGenPeptWithMultipleZDBgeneAfterLoad = scalar(keys %GenPeptWithMultipleZDBgeneAfterLoad);
-
-print LOG "\nctAllGenPeptWithGeneZFINafterLoad = $ctAllGenPeptWithGeneZFINafterLoad\n\n";
-
-print LOG "\nctGenPeptWithMultipleZDBgeneAfterLoad = $ctGenPeptWithMultipleZDBgeneAfterLoad\n\n";
-
-print STATS "----- After the load, the GenBank accessions associated with multiple ZFIN genes----\n\n";
-print STATS "GenPept \t mapped gene \tall associated genes\n";
-print STATS "--------\t-------------\t-------------\n";
-
-$ctGenPeptWithMultipleZDBgeneAfterLoad = 0;
-foreach $GenPept (sort keys %GenPeptWithMultipleZDBgeneAfterLoad) {
-    $ref_arrayZDBgeneIds = $GenPeptWithMultipleZDBgeneAfterLoad{$GenPept};
-    print STATS "$GenPept\t$GenPeptsToLoad{$GenPept}\t@$ref_arrayZDBgeneIds\n";
-    $ctGenPeptWithMultipleZDBgeneAfterLoad++;
-}
-print STATS "-----------------------------------------\nTotal: $ctGenPeptWithMultipleZDBgeneAfterLoad\n\n\n";
-
-print LOG "\nctGenPeptWithMultipleZDBgeneAfterLoad = $ctGenPeptWithMultipleZDBgeneAfterLoad\n\n";
-
-#-------------------------------------------------------------------------------------------------
-# Report GenPept accessions associated with ZFIN genes still attributed to a non-load pub.
-#-------------------------------------------------------------------------------------------------
-print STATS "\n------GenPept accessions with ZFIN genes still attributed to non-load publication ----------\n\n";
-
-open (NONLOADPUBGENPPEPT, "reportNonLoadPubGenPept") ||  die "Cannot open reportNonLoadPubGenPept : $!\n";
-
-@lines = <NONLOADPUBGENPPEPT>;
-$ctGenPeptNonLoadPub = 0;
-foreach $line (@lines) {
-   $ctGenPeptNonLoadPub++;
-   chop($line);
-   @fields = split(/\|/, $line);
-   print STATS "$fields[0]\t$fields[1]\t$fields[2]\n";
-}
-
-close NONLOADPUBGENPPEPT;
-
-print STATS "--------------------------\nTotal: $ctGenPeptNonLoadPub\n\n\n";
-
-#-------------------------------------------------------------------------------------------------
-# Do the record counts after the load, and report statistics.
-#-------------------------------------------------------------------------------------------------
-
-$sql = "select mrkr_zdb_id, mrkr_abbrev from marker
-         where (mrkr_zdb_id like 'ZDB-GENE%' or mrkr_zdb_id like '%RNAG%')
-           and exists (select 1 from db_link
-         where dblink_linked_recid = mrkr_zdb_id
-           and dblink_fdbcont_zdb_id in ('ZDB-FDBCONT-040412-38','ZDB-FDBCONT-040412-39','ZDB-FDBCONT-040527-1'));";
-
-$curGenesWithRefSeqAfter = $handle->prepare($sql);
-
-$curGenesWithRefSeqAfter->execute;
-
-$curGenesWithRefSeqAfter->bind_columns(\$geneId,\$geneSymbol);
-
-%genesWithRefSeqAfterLoad = ();
-
-while ($curGenesWithRefSeqAfter->fetch) {
-  $genesWithRefSeqAfterLoad{$geneId} = $geneSymbol;
-}
-
-$curGenesWithRefSeq->finish();
-
-$ctGenesWithRefSeqAfter = scalar(keys %genesWithRefSeqAfterLoad);
-
-$handle->disconnect();
-
-# NCBI Gene Id
-$sql = "select distinct dblink_acc_num
-          from db_link
-         where dblink_fdbcont_zdb_id = 'ZDB-FDBCONT-040412-1'
-           and (dblink_linked_recid like 'ZDB-GENE%' or dblink_linked_recid like '%RNAG%');";
-
-$numNCBIgeneIdAfter = ZFINPerlModules->countData($sql);
-
-#RefSeq RNA
-$sql = "select distinct dblink_acc_num
-          from db_link
-         where dblink_fdbcont_zdb_id = 'ZDB-FDBCONT-040412-38'
-           and (dblink_linked_recid like 'ZDB-GENE%' or dblink_linked_recid like '%RNAG%');";
-
-$numRefSeqRNAAfter = ZFINPerlModules->countData($sql);
-
-# RefPept
-$sql = "select distinct dblink_acc_num
-          from db_link
-         where dblink_fdbcont_zdb_id = 'ZDB-FDBCONT-040412-39'
-           and (dblink_linked_recid like 'ZDB-GENE%' or dblink_linked_recid like '%RNAG%');";
-
-$numRefPeptAfter = ZFINPerlModules->countData($sql);
-
-#RefSeq DNA
-$sql = "select distinct dblink_acc_num
-          from db_link
-         where dblink_fdbcont_zdb_id = 'ZDB-FDBCONT-040527-1'
-           and (dblink_linked_recid like 'ZDB-GENE%' or dblink_linked_recid like '%RNAG%');";
-
-$numRefSeqDNAAfter = ZFINPerlModules->countData($sql);
-
-# GenBank RNA (only those loaded - excluding curated ones)
-$sql = "select distinct dblink_acc_num
-          from db_link
-         where dblink_fdbcont_zdb_id = 'ZDB-FDBCONT-040412-37'
-           and (dblink_linked_recid like 'ZDB-GENE%' or dblink_linked_recid like '%RNAG%')
-           and exists(select 1 from record_attribution
-                       where recattrib_data_zdb_id = dblink_zdb_id
-                         and recattrib_source_zdb_id in ('ZDB-PUB-020723-3','ZDB-PUB-130725-2'));";
-
-$numGenBankRNAAfter = ZFINPerlModules->countData($sql);
-
-# GenPept (only those loaded - excluding curated ones)
-$sql = "select distinct dblink_acc_num
-          from db_link
-         where dblink_fdbcont_zdb_id = 'ZDB-FDBCONT-040412-42'
-           and (dblink_linked_recid like 'ZDB-GENE%' or dblink_linked_recid like '%RNAG%')
-           and exists(select 1 from record_attribution
-                       where recattrib_data_zdb_id = dblink_zdb_id
-                         and recattrib_source_zdb_id in ('ZDB-PUB-020723-3','ZDB-PUB-130725-2'));";
-
-$numGenPeptAfter = ZFINPerlModules->countData($sql);
-
-# GenBank DNA (only those loaded - excluding curated ones)
-$sql = "select distinct dblink_acc_num
-          from db_link
-         where dblink_fdbcont_zdb_id = 'ZDB-FDBCONT-040412-36'
-           and (dblink_linked_recid like 'ZDB-GENE%' or dblink_linked_recid like '%RNAG%')
-           and exists(select 1 from record_attribution
-                       where recattrib_data_zdb_id = dblink_zdb_id
-                         and recattrib_source_zdb_id in ('ZDB-PUB-020723-3','ZDB-PUB-130725-2'));";
-
-$numGenBankDNAAfter = ZFINPerlModules->countData($sql);
-
-# number of genes with RefSeq RNA
-$sql = "select distinct dblink_linked_recid
-          from db_link
-         where dblink_fdbcont_zdb_id = 'ZDB-FDBCONT-040412-38'
-           and dblink_acc_num like 'NM_%'
-           and (dblink_linked_recid like 'ZDB-GENE%' or dblink_linked_recid like '%RNAG%');";
-
-$numGenesRefSeqRNAAfter = ZFINPerlModules->countData($sql);
-
-# number of genes with RefPept
-$sql = "select distinct dblink_linked_recid
-          from db_link
-         where dblink_fdbcont_zdb_id = 'ZDB-FDBCONT-040412-39'
-           and dblink_acc_num like 'NP_%'
-           and (dblink_linked_recid like 'ZDB-GENE%' or dblink_linked_recid like '%RNAG%');";
-
-$numGenesRefSeqPeptAfter = ZFINPerlModules->countData($sql);
-
-# number of genes with GenBank
-$sql = "select distinct dblink_linked_recid
-          from db_link, foreign_db_contains, foreign_db
-         where dblink_fdbcont_zdb_id = fdbcont_zdb_id
-           and fdbcont_fdb_db_id = fdb_db_pk_id
-           and fdb_db_name = 'GenBank'
-           and (dblink_linked_recid like 'ZDB-GENE%' or dblink_linked_recid like '%RNAG%');";
-
-$numGenesGenBankAfter = ZFINPerlModules->countData($sql);
-
-print STATS "\n********* Percentage change of various categories of records *************\n\n";
-
-print STATS "number of db_link records with gene     \t";
-print STATS "before load\t";
-print STATS "after load\t";
-print STATS "percentage change\n";
-print STATS "----------------------------------------\t-----------\t-----------\t-------------------------\n";
-
-print STATS "NCBI gene Id                                  \t";
-print STATS "$numNCBIgeneIdBefore   \t";
-print STATS "$numNCBIgeneIdAfter   \t";
-printf STATS "%.2f\n", ($numNCBIgeneIdAfter - $numNCBIgeneIdBefore) / $numNCBIgeneIdBefore * 100 if ($numNCBIgeneIdBefore > 0);
-
-print STATS "RefSeq RNA                                 \t";
-print STATS "$numRefSeqRNABefore        \t";
-print STATS "$numRefSeqRNAAfter       \t";
-printf STATS "%.2f\n", ($numRefSeqRNAAfter - $numRefSeqRNABefore) / $numRefSeqRNABefore * 100 if ($numRefSeqRNABefore > 0);
-
-print STATS "RefPept                                 \t";
-print STATS "$numRefPeptBefore   \t";
-print STATS "$numRefPeptAfter   \t";
-printf STATS "%.2f\n", ($numRefPeptAfter - $numRefPeptBefore) / $numRefPeptBefore * 100 if ($numRefPeptBefore > 0);
-
-print STATS "RefSeq DNA                                 \t";
-print STATS "$numRefSeqDNABefore      \t";
-print STATS "$numRefSeqDNAAfter        \t";
-if ($numRefSeqDNABefore > 0) {
-    printf STATS "%.2f\n", ($numRefSeqDNAAfter - $numRefSeqDNABefore) / $numRefSeqDNABefore * 100;
-} else {
-    printf STATS "\n";
-}
-
-print STATS "GenBank RNA                                 \t";
-print STATS "$numGenBankRNABefore        \t";
-print STATS "$numGenBankRNAAfter       \t";
-printf STATS "%.2f\n", ($numGenBankRNAAfter - $numGenBankRNABefore) / $numGenBankRNABefore * 100 if ($numGenBankRNABefore > 0);
-
-print STATS "GenPept                                 \t";
-print STATS "$numGenPeptBefore   \t";
-print STATS "$numGenPeptAfter   \t";
-printf STATS "%.2f\n", ($numGenPeptAfter - $numGenPeptBefore) / $numGenPeptBefore * 100 if ($numGenPeptBefore > 0);
-
-print STATS "GenBank DNA                                 \t";
-print STATS "$numGenBankDNABefore       \t";
-print STATS "$numGenBankDNAAfter        \t";
-printf STATS "%.2f\n", ($numGenBankDNAAfter - $numGenBankDNABefore) / $numGenBankDNABefore * 100 if ($numGenBankDNABefore > 0);
-
-print STATS "\n\n";
-
-print STATS "number of genes                              \t";
-print STATS "before load\t";
-print STATS "after load\t";
-print STATS "percentage change\n";
-print STATS "----------------------------------------\t-----------\t-----------\t-------------------------\n";
-
-print STATS "with RefSeq                             \t";
-print STATS "$ctGenesWithRefSeqBefore   \t";
-print STATS "$ctGenesWithRefSeqAfter   \t";
-printf STATS "%.2f\n", ($ctGenesWithRefSeqAfter - $ctGenesWithRefSeqBefore) / $ctGenesWithRefSeqBefore * 100 if ($ctGenesWithRefSeqBefore > 0);
-
-print STATS "with RefSeq NM                          \t";
-print STATS "$numGenesRefSeqRNABefore   \t";
-print STATS "$numGenesRefSeqRNAAfter   \t";
-printf STATS "%.2f\n", ($numGenesRefSeqRNAAfter - $numGenesRefSeqRNABefore) / $numGenesRefSeqRNABefore * 100 if ($numGenesRefSeqRNABefore > 0);
-
-print STATS "with RefSeq NP                          \t";
-print STATS "$numGenesRefSeqPeptBefore   \t";
-print STATS "$numGenesRefSeqPeptAfter   \t";
-printf STATS "%.2f\n", ($numGenesRefSeqPeptAfter - $numGenesRefSeqPeptBefore) / $numGenesRefSeqPeptBefore * 100 if ($numGenesRefSeqPeptBefore > 0);
-
-print STATS "with GenBank                            \t";
-print STATS "$numGenesGenBankBefore        \t";
-print STATS "$numGenesGenBankAfter       \t";
-printf STATS "%.2f\n", ($numGenesGenBankAfter - $numGenesGenBankBefore) / $numGenesGenBankBefore * 100 if ($numGenesGenBankBefore > 0);
-
-@keysSortedByValues = sort { lc($geneZDBidsSymbols{$a}) cmp lc($geneZDBidsSymbols{$b}) } keys %geneZDBidsSymbols;
-
-print STATS "\n\nList of genes used to have RefSeq acc but no longer having any:\n";
-print STATS "-------------------------------------------------------------------\n";
-
-$ctGenesLostRefSeq = 0;
-foreach $zdbGeneId (@keysSortedByValues) {
-  $symbol = $geneZDBidsSymbols{$zdbGeneId};
-  if (exists($genesWithRefSeqBeforeLoad{$zdbGeneId})
-    && !exists($genesWithRefSeqAfterLoad{$zdbGeneId})) {
-        $ctGenesLostRefSeq++;
-        print STATS "$symbol\t$zdbGeneId\n";
-
-  }
-}
-
-print STATS "\ntotal: $ctGenesLostRefSeq\n\n";
-
-print STATS "\n\nList of genes now having RefSeq acc but used to have none ReSeq:\n";
-print STATS "-------------------------------------------------------------------\n";
-
-$ctGenesGainRefSeq = 0;
-foreach $zdbGeneId (@keysSortedByValues) {
-  $symbol = $geneZDBidsSymbols{$zdbGeneId};
-  if (exists($genesWithRefSeqAfterLoad{$zdbGeneId})
-      && !exists($genesWithRefSeqBeforeLoad{$zdbGeneId})) {
-        $ctGenesGainRefSeq++;
-        print STATS "$symbol\t$zdbGeneId\n";
-
-  }
-}
-
-print STATS "\ntotal: $ctGenesGainRefSeq\n\n\n";
-
-close STATS;
+&reportAllLoadStatistics();
 
 $subject = "Auto from $dbname: NCBI_gene_load.pl :: Statistics";
 ZFINPerlModules->sendMailWithAttachedReport($ENV{'SWISSPROT_EMAIL_REPORT'},"$subject","reportStatistics");
@@ -3253,4 +2921,353 @@ sub writeRefSeqDNAaccessionsWithMappedGenesToLoad {
             }
         }
     }
+}
+
+sub executeDeleteAndLoadSQLFile {
+    #-----------------------------------------------------------------------------------------------------------------------
+    # Step 8: execute the SQL file to do the deletion according to delete list, and do the loading according to te add list
+    #-----------------------------------------------------------------------------------------------------------------------
+
+    if (!-e "toLoad.unl" || $ctToLoad == 0) {
+        print LOG "\nMissing the add list, toLoad.unl, or it is empty. Something is wrong!\n\n";
+        close STATS;
+        $subjectLine = "Auto from $dbname: " . "NCBI_gene_load.pl :: missing or empty add list, toLoad.unl";
+        &reportErrAndExit($subjectLine);
+    }
+
+    try {
+        &doSystemCommand("psql -d $ENV{'DB_NAME'} -a -f loadNCBIgeneAccs.sql >loadLog1 2> loadLog2");
+    } catch {
+        chomp $_;
+        &reportErrAndExit("Auto from $dbname: NCBI_gene_load.pl :: failed at loadNCBIgeneAccs.sql");
+    } ;
+
+    print LOG "\nDone with the deltion and loading!\n\n";
+}
+
+sub reportAllLoadStatistics {
+    #-------------------------------------------------------------------------------------------------
+    # Step 9: Report the GenPept accessions associated with multiple ZFIN genes after the load.
+    # Report GenPept accessions associated with ZFIN genes still attributed to a non-load pub.
+    # And do the record counts after the load, and report statistics.
+    #-------------------------------------------------------------------------------------------------
+
+    # ----- AFTER THE LOAD, get all the Genpept accessions associated with gene at ZFIN, and those with multiple ZFIN genes ---------
+
+    $sqlAllGenPeptWithGeneAfterLoad = "select dblink_acc_num, dblink_linked_recid
+                                     from db_link
+                                    where dblink_fdbcont_zdb_id = 'ZDB-FDBCONT-040412-42'
+                                      and (dblink_linked_recid like 'ZDB-GENE%' or dblink_linked_recid like '%RNAG%');";
+
+    $curAllGenPeptWithGeneAfterLoad = $handle->prepare($sqlAllGenPeptWithGeneAfterLoad);
+
+    $curAllGenPeptWithGeneAfterLoad->execute;
+
+    $curAllGenPeptWithGeneAfterLoad->bind_columns(\$GenPept,\$geneZdbId);
+
+    # use the following hash to store all the GenPept accession stored at ZFIN that are assoctied with gene after the load
+    # key: GenPept accession
+    # value: gene zdb id
+
+    %allGenPeptWithGeneAfterLoad = ();
+
+    # a hash to store GenPept accessions and the multiple related ZFIN gene Ids after the load
+    # key: GenPept accession
+    # value: reference to an array of gene zdb id
+
+    %GenPeptWithMultipleZDBgeneAfterLoad = ();
+
+    while ($curAllGenPeptWithGeneAfterLoad->fetch) {
+
+        if (exists($GenPeptWithMultipleZDBgeneAfterLoad{$GenPept}) ||
+            (exists($allGenPeptWithGeneAfterLoad{$GenPept}) && $allGenPeptWithGeneAfterLoad{$GenPept} ne $geneZdbId)) {
+
+            if (!exists($GenPeptWithMultipleZDBgeneAfterLoad{$GenPept})) {
+                $firstGenPept = $allGenPeptWithGeneAfterLoad{$GenPept};
+                $ref_arrayZDBgeneIds = [$firstGenPept,$geneZdbId];
+                $GenPeptWithMultipleZDBgeneAfterLoad{$GenPept} = $ref_arrayZDBgeneIds;
+            } else {
+                $ref_arrayZDBgeneIds = $GenPeptWithMultipleZDBgeneAfterLoad{$GenPept};
+                push(@$ref_arrayZDBgeneIds, $geneZdbId);
+            }
+        }
+
+        $allGenPeptWithGeneAfterLoad{$GenPept} = $geneZdbId;
+    }
+
+    $curAllGenPeptWithGeneAfterLoad->finish();
+
+    $ctAllGenPeptWithGeneZFINafterLoad = scalar(keys %allGenPeptWithGeneAfterLoad);
+
+    $ctGenPeptWithMultipleZDBgeneAfterLoad = scalar(keys %GenPeptWithMultipleZDBgeneAfterLoad);
+
+    print LOG "\nctAllGenPeptWithGeneZFINafterLoad = $ctAllGenPeptWithGeneZFINafterLoad\n\n";
+
+    print LOG "\nctGenPeptWithMultipleZDBgeneAfterLoad = $ctGenPeptWithMultipleZDBgeneAfterLoad\n\n";
+
+    print STATS "----- After the load, the GenBank accessions associated with multiple ZFIN genes----\n\n";
+    print STATS "GenPept \t mapped gene \tall associated genes\n";
+    print STATS "--------\t-------------\t-------------\n";
+
+    $ctGenPeptWithMultipleZDBgeneAfterLoad = 0;
+    foreach $GenPept (sort keys %GenPeptWithMultipleZDBgeneAfterLoad) {
+        $ref_arrayZDBgeneIds = $GenPeptWithMultipleZDBgeneAfterLoad{$GenPept};
+        print STATS "$GenPept\t$GenPeptsToLoad{$GenPept}\t@$ref_arrayZDBgeneIds\n";
+        $ctGenPeptWithMultipleZDBgeneAfterLoad++;
+    }
+    print STATS "-----------------------------------------\nTotal: $ctGenPeptWithMultipleZDBgeneAfterLoad\n\n\n";
+
+    print LOG "\nctGenPeptWithMultipleZDBgeneAfterLoad = $ctGenPeptWithMultipleZDBgeneAfterLoad\n\n";
+
+    #-------------------------------------------------------------------------------------------------
+    # Report GenPept accessions associated with ZFIN genes still attributed to a non-load pub.
+    #-------------------------------------------------------------------------------------------------
+    print STATS "\n------GenPept accessions with ZFIN genes still attributed to non-load publication ----------\n\n";
+
+    open (NONLOADPUBGENPPEPT, "reportNonLoadPubGenPept") ||  die "Cannot open reportNonLoadPubGenPept : $!\n";
+
+    @lines = <NONLOADPUBGENPPEPT>;
+    $ctGenPeptNonLoadPub = 0;
+    foreach $line (@lines) {
+        $ctGenPeptNonLoadPub++;
+        chop($line);
+        @fields = split(/\|/, $line);
+        print STATS "$fields[0]\t$fields[1]\t$fields[2]\n";
+    }
+
+    close NONLOADPUBGENPPEPT;
+
+    print STATS "--------------------------\nTotal: $ctGenPeptNonLoadPub\n\n\n";
+
+    #-------------------------------------------------------------------------------------------------
+    # Do the record counts after the load, and report statistics.
+    #-------------------------------------------------------------------------------------------------
+
+    $sql = "select mrkr_zdb_id, mrkr_abbrev from marker
+         where (mrkr_zdb_id like 'ZDB-GENE%' or mrkr_zdb_id like '%RNAG%')
+           and exists (select 1 from db_link
+         where dblink_linked_recid = mrkr_zdb_id
+           and dblink_fdbcont_zdb_id in ('ZDB-FDBCONT-040412-38','ZDB-FDBCONT-040412-39','ZDB-FDBCONT-040527-1'));";
+
+    $curGenesWithRefSeqAfter = $handle->prepare($sql);
+
+    $curGenesWithRefSeqAfter->execute;
+
+    $curGenesWithRefSeqAfter->bind_columns(\$geneId,\$geneSymbol);
+
+    %genesWithRefSeqAfterLoad = ();
+
+    while ($curGenesWithRefSeqAfter->fetch) {
+        $genesWithRefSeqAfterLoad{$geneId} = $geneSymbol;
+    }
+
+    $curGenesWithRefSeq->finish();
+
+    $ctGenesWithRefSeqAfter = scalar(keys %genesWithRefSeqAfterLoad);
+
+    $handle->disconnect();
+
+    # NCBI Gene Id
+    $sql = "select distinct dblink_acc_num
+          from db_link
+         where dblink_fdbcont_zdb_id = 'ZDB-FDBCONT-040412-1'
+           and (dblink_linked_recid like 'ZDB-GENE%' or dblink_linked_recid like '%RNAG%');";
+
+    $numNCBIgeneIdAfter = ZFINPerlModules->countData($sql);
+
+    #RefSeq RNA
+    $sql = "select distinct dblink_acc_num
+          from db_link
+         where dblink_fdbcont_zdb_id = 'ZDB-FDBCONT-040412-38'
+           and (dblink_linked_recid like 'ZDB-GENE%' or dblink_linked_recid like '%RNAG%');";
+
+    $numRefSeqRNAAfter = ZFINPerlModules->countData($sql);
+
+    # RefPept
+    $sql = "select distinct dblink_acc_num
+          from db_link
+         where dblink_fdbcont_zdb_id = 'ZDB-FDBCONT-040412-39'
+           and (dblink_linked_recid like 'ZDB-GENE%' or dblink_linked_recid like '%RNAG%');";
+
+    $numRefPeptAfter = ZFINPerlModules->countData($sql);
+
+    #RefSeq DNA
+    $sql = "select distinct dblink_acc_num
+          from db_link
+         where dblink_fdbcont_zdb_id = 'ZDB-FDBCONT-040527-1'
+           and (dblink_linked_recid like 'ZDB-GENE%' or dblink_linked_recid like '%RNAG%');";
+
+    $numRefSeqDNAAfter = ZFINPerlModules->countData($sql);
+
+    # GenBank RNA (only those loaded - excluding curated ones)
+    $sql = "select distinct dblink_acc_num
+          from db_link
+         where dblink_fdbcont_zdb_id = 'ZDB-FDBCONT-040412-37'
+           and (dblink_linked_recid like 'ZDB-GENE%' or dblink_linked_recid like '%RNAG%')
+           and exists(select 1 from record_attribution
+                       where recattrib_data_zdb_id = dblink_zdb_id
+                         and recattrib_source_zdb_id in ('ZDB-PUB-020723-3','ZDB-PUB-130725-2'));";
+
+    $numGenBankRNAAfter = ZFINPerlModules->countData($sql);
+
+    # GenPept (only those loaded - excluding curated ones)
+    $sql = "select distinct dblink_acc_num
+          from db_link
+         where dblink_fdbcont_zdb_id = 'ZDB-FDBCONT-040412-42'
+           and (dblink_linked_recid like 'ZDB-GENE%' or dblink_linked_recid like '%RNAG%')
+           and exists(select 1 from record_attribution
+                       where recattrib_data_zdb_id = dblink_zdb_id
+                         and recattrib_source_zdb_id in ('ZDB-PUB-020723-3','ZDB-PUB-130725-2'));";
+
+    $numGenPeptAfter = ZFINPerlModules->countData($sql);
+
+    # GenBank DNA (only those loaded - excluding curated ones)
+    $sql = "select distinct dblink_acc_num
+          from db_link
+         where dblink_fdbcont_zdb_id = 'ZDB-FDBCONT-040412-36'
+           and (dblink_linked_recid like 'ZDB-GENE%' or dblink_linked_recid like '%RNAG%')
+           and exists(select 1 from record_attribution
+                       where recattrib_data_zdb_id = dblink_zdb_id
+                         and recattrib_source_zdb_id in ('ZDB-PUB-020723-3','ZDB-PUB-130725-2'));";
+
+    $numGenBankDNAAfter = ZFINPerlModules->countData($sql);
+
+    # number of genes with RefSeq RNA
+    $sql = "select distinct dblink_linked_recid
+          from db_link
+         where dblink_fdbcont_zdb_id = 'ZDB-FDBCONT-040412-38'
+           and dblink_acc_num like 'NM_%'
+           and (dblink_linked_recid like 'ZDB-GENE%' or dblink_linked_recid like '%RNAG%');";
+
+    $numGenesRefSeqRNAAfter = ZFINPerlModules->countData($sql);
+
+    # number of genes with RefPept
+    $sql = "select distinct dblink_linked_recid
+          from db_link
+         where dblink_fdbcont_zdb_id = 'ZDB-FDBCONT-040412-39'
+           and dblink_acc_num like 'NP_%'
+           and (dblink_linked_recid like 'ZDB-GENE%' or dblink_linked_recid like '%RNAG%');";
+
+    $numGenesRefSeqPeptAfter = ZFINPerlModules->countData($sql);
+
+    # number of genes with GenBank
+    $sql = "select distinct dblink_linked_recid
+          from db_link, foreign_db_contains, foreign_db
+         where dblink_fdbcont_zdb_id = fdbcont_zdb_id
+           and fdbcont_fdb_db_id = fdb_db_pk_id
+           and fdb_db_name = 'GenBank'
+           and (dblink_linked_recid like 'ZDB-GENE%' or dblink_linked_recid like '%RNAG%');";
+
+    $numGenesGenBankAfter = ZFINPerlModules->countData($sql);
+
+    print STATS "\n********* Percentage change of various categories of records *************\n\n";
+
+    print STATS "number of db_link records with gene     \t";
+    print STATS "before load\t";
+    print STATS "after load\t";
+    print STATS "percentage change\n";
+    print STATS "----------------------------------------\t-----------\t-----------\t-------------------------\n";
+
+    print STATS "NCBI gene Id                                  \t";
+    print STATS "$numNCBIgeneIdBefore   \t";
+    print STATS "$numNCBIgeneIdAfter   \t";
+    printf STATS "%.2f\n", ($numNCBIgeneIdAfter - $numNCBIgeneIdBefore) / $numNCBIgeneIdBefore * 100 if ($numNCBIgeneIdBefore > 0);
+
+    print STATS "RefSeq RNA                                 \t";
+    print STATS "$numRefSeqRNABefore        \t";
+    print STATS "$numRefSeqRNAAfter       \t";
+    printf STATS "%.2f\n", ($numRefSeqRNAAfter - $numRefSeqRNABefore) / $numRefSeqRNABefore * 100 if ($numRefSeqRNABefore > 0);
+
+    print STATS "RefPept                                 \t";
+    print STATS "$numRefPeptBefore   \t";
+    print STATS "$numRefPeptAfter   \t";
+    printf STATS "%.2f\n", ($numRefPeptAfter - $numRefPeptBefore) / $numRefPeptBefore * 100 if ($numRefPeptBefore > 0);
+
+    print STATS "RefSeq DNA                                 \t";
+    print STATS "$numRefSeqDNABefore      \t";
+    print STATS "$numRefSeqDNAAfter        \t";
+    if ($numRefSeqDNABefore > 0) {
+        printf STATS "%.2f\n", ($numRefSeqDNAAfter - $numRefSeqDNABefore) / $numRefSeqDNABefore * 100;
+    } else {
+        printf STATS "\n";
+    }
+
+    print STATS "GenBank RNA                                 \t";
+    print STATS "$numGenBankRNABefore        \t";
+    print STATS "$numGenBankRNAAfter       \t";
+    printf STATS "%.2f\n", ($numGenBankRNAAfter - $numGenBankRNABefore) / $numGenBankRNABefore * 100 if ($numGenBankRNABefore > 0);
+
+    print STATS "GenPept                                 \t";
+    print STATS "$numGenPeptBefore   \t";
+    print STATS "$numGenPeptAfter   \t";
+    printf STATS "%.2f\n", ($numGenPeptAfter - $numGenPeptBefore) / $numGenPeptBefore * 100 if ($numGenPeptBefore > 0);
+
+    print STATS "GenBank DNA                                 \t";
+    print STATS "$numGenBankDNABefore       \t";
+    print STATS "$numGenBankDNAAfter        \t";
+    printf STATS "%.2f\n", ($numGenBankDNAAfter - $numGenBankDNABefore) / $numGenBankDNABefore * 100 if ($numGenBankDNABefore > 0);
+
+    print STATS "\n\n";
+
+    print STATS "number of genes                              \t";
+    print STATS "before load\t";
+    print STATS "after load\t";
+    print STATS "percentage change\n";
+    print STATS "----------------------------------------\t-----------\t-----------\t-------------------------\n";
+
+    print STATS "with RefSeq                             \t";
+    print STATS "$ctGenesWithRefSeqBefore   \t";
+    print STATS "$ctGenesWithRefSeqAfter   \t";
+    printf STATS "%.2f\n", ($ctGenesWithRefSeqAfter - $ctGenesWithRefSeqBefore) / $ctGenesWithRefSeqBefore * 100 if ($ctGenesWithRefSeqBefore > 0);
+
+    print STATS "with RefSeq NM                          \t";
+    print STATS "$numGenesRefSeqRNABefore   \t";
+    print STATS "$numGenesRefSeqRNAAfter   \t";
+    printf STATS "%.2f\n", ($numGenesRefSeqRNAAfter - $numGenesRefSeqRNABefore) / $numGenesRefSeqRNABefore * 100 if ($numGenesRefSeqRNABefore > 0);
+
+    print STATS "with RefSeq NP                          \t";
+    print STATS "$numGenesRefSeqPeptBefore   \t";
+    print STATS "$numGenesRefSeqPeptAfter   \t";
+    printf STATS "%.2f\n", ($numGenesRefSeqPeptAfter - $numGenesRefSeqPeptBefore) / $numGenesRefSeqPeptBefore * 100 if ($numGenesRefSeqPeptBefore > 0);
+
+    print STATS "with GenBank                            \t";
+    print STATS "$numGenesGenBankBefore        \t";
+    print STATS "$numGenesGenBankAfter       \t";
+    printf STATS "%.2f\n", ($numGenesGenBankAfter - $numGenesGenBankBefore) / $numGenesGenBankBefore * 100 if ($numGenesGenBankBefore > 0);
+
+    @keysSortedByValues = sort { lc($geneZDBidsSymbols{$a}) cmp lc($geneZDBidsSymbols{$b}) } keys %geneZDBidsSymbols;
+
+    print STATS "\n\nList of genes used to have RefSeq acc but no longer having any:\n";
+    print STATS "-------------------------------------------------------------------\n";
+
+    $ctGenesLostRefSeq = 0;
+    foreach $zdbGeneId (@keysSortedByValues) {
+        $symbol = $geneZDBidsSymbols{$zdbGeneId};
+        if (exists($genesWithRefSeqBeforeLoad{$zdbGeneId})
+            && !exists($genesWithRefSeqAfterLoad{$zdbGeneId})) {
+            $ctGenesLostRefSeq++;
+            print STATS "$symbol\t$zdbGeneId\n";
+
+        }
+    }
+
+    print STATS "\ntotal: $ctGenesLostRefSeq\n\n";
+
+    print STATS "\n\nList of genes now having RefSeq acc but used to have none ReSeq:\n";
+    print STATS "-------------------------------------------------------------------\n";
+
+    $ctGenesGainRefSeq = 0;
+    foreach $zdbGeneId (@keysSortedByValues) {
+        $symbol = $geneZDBidsSymbols{$zdbGeneId};
+        if (exists($genesWithRefSeqAfterLoad{$zdbGeneId})
+            && !exists($genesWithRefSeqBeforeLoad{$zdbGeneId})) {
+            $ctGenesGainRefSeq++;
+            print STATS "$symbol\t$zdbGeneId\n";
+
+        }
+    }
+
+    print STATS "\ntotal: $ctGenesGainRefSeq\n\n\n";
+
+    close STATS;
 }
