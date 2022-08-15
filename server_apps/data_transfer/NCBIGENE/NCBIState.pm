@@ -56,4 +56,23 @@ our %accZFINsupportingMoreThan1;
 our %geneZFINwithAccSupportingMoreThan1;
 our %accZFINsupportingOnly1;
 
+#used in eg. initializeSequenceLengthHash, lots of other places
+our %sequenceLength;
+
+#used in eg. parseGene2AccessionFile
+our $ctNoLength;
+our $ctNoLengthRefSeq;
+our $ctZebrafishGene2accession;
+our $ctlines;
+our %GenBankDNAncbiGeneIds;
+our %GenPeptNCBIgeneIds;
+our %RefPeptNCBIgeneIds;
+our %RefSeqDNAncbiGeneIds;
+our %RefSeqRNAncbiGeneIds;
+our %noLength;
+our %supportedGeneNCBI;
+our %supportingAccNCBI;
+
+
+
 1;
