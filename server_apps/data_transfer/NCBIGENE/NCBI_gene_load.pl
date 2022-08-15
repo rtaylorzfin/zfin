@@ -46,42 +46,14 @@ our $debug = 1;
 # set environment variables
 chdir $ENV{'ROOT_PATH'} . "/server_apps/data_transfer/NCBIGENE/";
 
-our $dbname = $ENV{'DB_NAME'};
-our $dbhost = $ENV{'PGHOST'};
-our $username = "";
-our $password = "";
-### open a handle on the db
-our $handle = DBI->connect ("DBI:Pg:dbname=$dbname;host=$dbhost", $username, $password)
-    or die "Cannot connect to database: $DBI::errstr\n";
+our $dbname;
+our $dbhost;
+our $username;
+our $password;
+our $handle;
+&initializeDatabase();
 
-#------------------------------------------------
-# remove old files
-#------------------------------------------------
-
-if (!$ENV{"SKIP_DOWNLOADS"}) {
-    print "Removing old files in 5 seconds...\n";
-    sleep(5);
-
-    print "Removing prepareLog* loadLog* logNCBIgeneLoad debug* report* toDelete.unl toMap.unl toLoad.unl length.unl noLength.unl seq.fasta *.gz zf_gene_info.gz gene2vega.gz gene2accession.gz RefSeqCatalog.gz RELEASE_NUMBER\n";
-    system("/bin/rm -f prepareLog*");
-    system("/bin/rm -f loadLog*");
-    system("/bin/rm -f logNCBIgeneLoad");
-    system("/bin/rm -f debug*");
-    system("/bin/rm -f report*");
-    system("/bin/rm -f toDelete.unl");
-    system("/bin/rm -f toMap.unl");
-    system("/bin/rm -f toLoad.unl");
-    system("/bin/rm -f length.unl");
-    system("/bin/rm -f noLength.unl");
-    system("/bin/rm -f seq.fasta");
-    system("/bin/rm -f *.gz");
-
-    system("/bin/rm -f zf_gene_info.gz");
-    system("/bin/rm -f gene2vega.gz");
-    system("/bin/rm -f gene2accession.gz");
-    system("/bin/rm -f RefSeqCatalog.gz");
-    system("/bin/rm -f RELEASE_NUMBER");
-}
+&removeOldFiles();
 
 open LOG, '>', "logNCBIgeneLoad" or die "can not open logNCBIgeneLoad: $! \n";
 open STATS, '>', "reportStatistics" or die "can not open reportStatistics" ;
@@ -401,6 +373,47 @@ sub reportErrAndExit {
 sub sendLoadLogs {
   $subject = "Auto from $dbname: NCBI_gene_load.pl :: loadLog1 file";
   ZFINPerlModules->sendMailWithAttachedReport($ENV{'SWISSPROT_EMAIL_ERR'},"$subject","loadLog1");
+}
+
+sub initializeDatabase {
+    our $dbname = $ENV{'DB_NAME'};
+    our $dbhost = $ENV{'PGHOST'};
+    our $username = "";
+    our $password = "";
+    ### open a handle on the db
+    our $handle = DBI->connect ("DBI:Pg:dbname=$dbname;host=$dbhost", $username, $password)
+        or die "Cannot connect to database: $DBI::errstr\n";
+}
+
+sub removeOldFiles {
+    #------------------------------------------------
+    # remove old files
+    #------------------------------------------------
+
+    if (!$ENV{"SKIP_DOWNLOADS"}) {
+        print "Removing old files in 5 seconds...\n";
+        sleep(5);
+
+        print "Removing prepareLog* loadLog* logNCBIgeneLoad debug* report* toDelete.unl toMap.unl toLoad.unl length.unl noLength.unl seq.fasta *.gz zf_gene_info.gz gene2vega.gz gene2accession.gz RefSeqCatalog.gz RELEASE_NUMBER\n";
+        system("/bin/rm -f prepareLog*");
+        system("/bin/rm -f loadLog*");
+        system("/bin/rm -f logNCBIgeneLoad");
+        system("/bin/rm -f debug*");
+        system("/bin/rm -f report*");
+        system("/bin/rm -f toDelete.unl");
+        system("/bin/rm -f toMap.unl");
+        system("/bin/rm -f toLoad.unl");
+        system("/bin/rm -f length.unl");
+        system("/bin/rm -f noLength.unl");
+        system("/bin/rm -f seq.fasta");
+        system("/bin/rm -f *.gz");
+
+        system("/bin/rm -f zf_gene_info.gz");
+        system("/bin/rm -f gene2vega.gz");
+        system("/bin/rm -f gene2accession.gz");
+        system("/bin/rm -f RefSeqCatalog.gz");
+        system("/bin/rm -f RELEASE_NUMBER");
+    }
 }
 
 sub getReleaseNumber {
