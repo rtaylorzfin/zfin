@@ -73,6 +73,58 @@ our %noLength;
 our %supportedGeneNCBI;
 our %supportingAccNCBI;
 
+# used in eg. initializeHashOfNCBIAccessionsSupportingMultipleGenes
+our %accNCBIsupportingMoreThan1;
+our %accNCBIsupportingOnly1;
+our %geneNCBIwithAccSupportingMoreThan1;
+
+# used in eg. initializeMapOfZfinToNCBIgeneIds
+our %oneToNZFINtoNCBI;
+our %oneToOneZFINtoNCBI;
+our %genesZFINwithNoRNAFoundAtNCBI;
+
+# used in eg. oneWayMappingNCBItoZfinGenes
+our %oneToOneNCBItoZFIN;
+our %oneToNNCBItoZFIN;
+
+# used in eg. compare2WayMappingResults
+our %mapped; ## the list of 1:1; key: ZDB gene Id; value: NCBI gene Id
+our %mappedReversed;
+our $ctOneToOneNCBI;
+
+# used in eg. writeNCBIgeneIdsMappedBasedOnGenBankRNA
+our $ctToLoad;
+
+# used in eg. getOneToNNCBItoZFINgeneIds
+our %nToOne;
+our %oneToN;
+
+# used in eg. getNtoOneAndNtoNfromZFINtoNCBI
+our %zdbGeneIdsNtoOneAndNtoN;
+
+# used in eg. buildVegaIDMappings
+our %ZDBgeneAndVegaGeneIds;
+our %VegaGeneAndZDBgeneIds;
+our %ZDBgeneWithMultipleVegaGeneIds;
+our %vegaGeneIdWithMultipleZFINgenes;
+
+# used in eg. writeCommonVegaGeneIdMappings
+our %oneToOneViaVega;
+
+# used in eg. getGenBankAndRefSeqsWithZfinGenes
+our %geneAccFdbcont;
+
+# used in eg. initializeGenPeptAccessionsMap
+our %GenPeptAttributedToNonLoadPub;
+our %GenPeptDbLinkIdAttributedToNonLoadPub;
+
+# used in eg. processGenBankAccessionsAssociatedToNonLoadPubs
+our %GenPeptsToLoad;
+
+# readZfinGeneInfoFile
+our %geneZDBidsSymbols;
+
+
 
 
 1;
