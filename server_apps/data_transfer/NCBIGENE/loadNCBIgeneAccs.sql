@@ -15,7 +15,7 @@ create temporary table ncbi_gene_delete (
 
 create index t_id_index on ncbi_gene_delete (delete_dblink_zdb_id);
 
-copy ncbi_gene_delete from '<!--|ROOT_PATH|-->/server_apps/data_transfer/NCBIGENE/toDelete.unl';
+\copy ncbi_gene_delete from '<!--|ROOT_PATH|-->/server_apps/data_transfer/NCBIGENE/toDelete.unl';
 
 create temporary table ncbi_gene_load (
   mapped_zdb_gene_id    text not null,
@@ -26,7 +26,7 @@ create temporary table ncbi_gene_load (
   load_pub_zdb_id       text not null
 );
 
-copy ncbi_gene_load from '<!--|ROOT_PATH|-->/server_apps/data_transfer/NCBIGENE/toLoad.unl' (delimiter '|');
+\copy ncbi_gene_load from '<!--|ROOT_PATH|-->/server_apps/data_transfer/NCBIGENE/toLoad.unl' (delimiter '|');
 
 update ncbi_gene_load 
  set sequence_length = null
