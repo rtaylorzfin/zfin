@@ -1964,6 +1964,11 @@ sub getOneToNNCBItoZFINgeneIds {
 
     my $ctOneToN = 0;
     my $ctNtoNfromZFIN = 0;
+    my $mappedNCBIgene;
+    my $refArrayAccs;
+    my $refAssociatedNCBIgenes;
+    my $refAssociatedZFINgenes;
+    my $mappedZFINgene;
 
     # report N:N
     open (NTON, ">reportNtoN") ||  die "Cannot open reportNtoN : $!\n";
@@ -1991,7 +1996,7 @@ sub getOneToNNCBItoZFINgeneIds {
                 ## set off flag 1 to N (ZFIN to NCBI)
                 $oneToNflag = 0;
 
-                $ref_hashZdbIds = $NCBIState::oneToNNCBItoZFIN{$ncbiId};
+                my $ref_hashZdbIds = $NCBIState::oneToNNCBItoZFIN{$ncbiId};
                 foreach my $zdbId (keys %$ref_hashZdbIds) {
                     if (exists($NCBIState::oneToNZFINtoNCBI{$zdbId})) {
                         $zdbIdsOfNtoN{$zdbId} = $NCBIState::oneToNZFINtoNCBI{$zdbId};
@@ -2050,7 +2055,7 @@ sub getOneToNNCBItoZFINgeneIds {
 
         } else {                 ## 1 to N (ZFIN to NCBI)
             $ctOneToN++;
-            $oneToN{$geneZFINtoMultiNCBI} = $ref_hashNCBIids;
+            $NCBIState::oneToN{$geneZFINtoMultiNCBI} = $ref_hashNCBIids;
         }
 
     }
@@ -2074,6 +2079,7 @@ sub getNtoOneAndNtoNfromZFINtoNCBI {
 
     my $ctNtoOne = 0;
     my $ctNtoNfromNCBI = 0;
+    my $refArrayAccs;
 
     # the following hash stores those zdb gene ids that are involved in N:1 and N:N (ZFIN to NCBI)
     %NCBIState::zdbGeneIdsNtoOneAndNtoN = ();
@@ -2083,13 +2089,13 @@ sub getNtoOneAndNtoNfromZFINtoNCBI {
         # key: NCBI gene Id
         # value: reference to hash of associated ZDB gene Id(s)
 
-        %ncbiIdsOfNtoN = ();
+        my %ncbiIdsOfNtoN = ();
 
         ## set on the flag of 1 to N (NCBI to ZFIN)
-        $oneToNflag = 1;
+        my $oneToNflag = 1;
 
         # get the reference to the hash of mapped ZFIN genes for this NCBI gene
-        $ref_hashZFINids = $NCBIState::oneToNNCBItoZFIN{$geneNCBItoMultiZFIN};
+        my $ref_hashZFINids = $NCBIState::oneToNNCBItoZFIN{$geneNCBItoMultiZFIN};
 
         ## for each 1 to N (NCBI to ZFIN), examine if there is 1 to N mapping the other way (ZFIN to NCBI)
         foreach my $zfinId (sort keys %$ref_hashZFINids) {
@@ -2102,12 +2108,12 @@ sub getNtoOneAndNtoNfromZFINtoNCBI {
                 ## set off flag 1 to N (NCBI to ZFIN)
                 $oneToNflag = 0;
 
-                $ref_hashNcbiIds = $NCBIState::oneToNZFINtoNCBI{$zfinId};
+                my $ref_hashNcbiIds = $NCBIState::oneToNZFINtoNCBI{$zfinId};
                 foreach my $ncbiId (keys %$ref_hashNcbiIds) {
                     if (exists($NCBIState::oneToNNCBItoZFIN{$ncbiId})) {
                         $ncbiIdsOfNtoN{$ncbiId} = $NCBIState::oneToNNCBItoZFIN{$ncbiId};
                     } elsif (exists($NCBIState::oneToOneNCBItoZFIN{$ncbiId})) {
-                        $mappedZFINgene = $NCBIState::oneToOneNCBItoZFIN{$ncbiId};
+                        my $mappedZFINgene = $NCBIState::oneToOneNCBItoZFIN{$ncbiId};
                         $ncbiIdsOfNtoN{$ncbiId} = {$mappedZFINgene => 1};
                     } else {                              ## impossible
                         print LOG "\n\nThere is a bug: $ncbiId is one of the mapped NCBI Ids of $zfinId but could not find a mapped ZDB Id?\n\n";
@@ -2436,6 +2442,7 @@ sub calculateLengthForAccessionsWithoutLength {
 
         # Set the JAVA_HOME path to override the jenkins one
         $ENV{'JAVA_HOME'} = getPropertyValue("JAVA_HOME");
+
 
         $cmdEfetch = "cd " . $ENV{'SOURCEROOT'} . " ; " .
             "gradle '-DncbiLoadInput=$currentDir/noLength.unl' " .
