@@ -25,6 +25,9 @@
 # execute the following to run the scriot in debug mode:
 # perl -s NCBI_gene_load.pl -debug
 
+use strict;
+use warnings FATAL => 'all';
+
 use DBI;
 use Cwd;
 use POSIX;
@@ -839,7 +842,7 @@ sub initializeSetsOfZfinRecords {
 
     open (ZFINGENESUPPORTED, "toMap.unl") ||  die "Cannot open toMap.unl : $!\n";
     my $ctSupportedZFINgenes = 0;
-    my %zfinGenes = {};
+    my %zfinGenes = ();
     while (<ZFINGENESUPPORTED>) {
         if ($_) {
             $ctSupportedZFINgenes++;
@@ -937,8 +940,6 @@ sub initializeSetsOfZfinRecords {
 
     $curGetSupportingGenBankRNAs->finish();
 
-    my $ref_arrayAccs;
-    my $ref_arrayGenes;
 
     if ($debug) {
         open (DBG1, ">debug1") ||  die "Cannot open debug1 : $!\n";
@@ -1915,7 +1916,7 @@ sub compare2WayMappingResults {
     print LOG "\n ctAllpotentialOneToOneZFIN = $ctAllpotentialOneToOneZFIN \n ctOneToOneZFIN = $ctOneToOneZFIN\n\n";
 
     my $ctAllpotentialOneToOneNCBI = 0;
-    foreach my $ncbiId (keys %NCBIState::oneToOneNCBItoZFIN) {
+    foreach $ncbiId (keys %NCBIState::oneToOneNCBItoZFIN) {
         $ctAllpotentialOneToOneNCBI++;
         my $zdbId = $NCBIState::oneToOneNCBItoZFIN{$ncbiId};
         if (exists($NCBIState::oneToOneZFINtoNCBI{$zdbId})) {
@@ -2080,6 +2081,7 @@ sub getNtoOneAndNtoNfromZFINtoNCBI {
     my $ctNtoOne = 0;
     my $ctNtoNfromNCBI = 0;
     my $refArrayAccs;
+    my $mappedNCBIgene;
 
     # the following hash stores those zdb gene ids that are involved in N:1 and N:N (ZFIN to NCBI)
     %NCBIState::zdbGeneIdsNtoOneAndNtoN = ();
@@ -2131,7 +2133,7 @@ sub getNtoOneAndNtoNfromZFINtoNCBI {
                 $refArrayAccs = $NCBIState::supportedGeneNCBI{$ncbiIdNtoN};
                 print NTON "$ncbiIdNtoN ($NCBIState::NCBIidsGeneSymbols{$ncbiIdNtoN}) [@$refArrayAccs]\n";
 
-                $refAssociatedZFINgenes = $ncbiIdsOfNtoN{$ncbiIdNtoN};
+                my $refAssociatedZFINgenes = $ncbiIdsOfNtoN{$ncbiIdNtoN};
                 # for each mapped ZFIN gene
                 foreach my $zdbId (sort keys %$refAssociatedZFINgenes) {
                     $refArrayAccs = $NCBIState::supportedGeneZFIN{$zdbId};
@@ -2147,7 +2149,7 @@ sub getNtoOneAndNtoNfromZFINtoNCBI {
                 # the following print the associated NCBI records for each of the mapped ZDB gene
 
                 if (exists($NCBIState::oneToNZFINtoNCBI{$zdbId})) {
-                    $refAssociatedNCBIgenes = $NCBIState::oneToNZFINtoNCBI{$zdbId};
+                    my $refAssociatedNCBIgenes = $NCBIState::oneToNZFINtoNCBI{$zdbId};
 
                     # for each of the associated ZFIN gene
                     foreach my $ncbiGene (sort keys %$refAssociatedNCBIgenes) {
@@ -2178,7 +2180,7 @@ sub getNtoOneAndNtoNfromZFINtoNCBI {
     print STATS "\nMapping result statistics: number of N:1 (ZFIN to NCBI) - $ctNtoOne\n\n";
     print STATS "\nMapping result statistics: number of N:N (NCBI to ZFIN) - $ctNtoNfromNCBI\n\n";
 
-    $subject = "Auto from $NCBIState::dbname: " . "NCBI_gene_load.pl :: List of N to N";
+    my $subject = "Auto from $NCBIState::dbname: " . "NCBI_gene_load.pl :: List of N to N";
     ZFINPerlModules->sendMailWithAttachedReport($ENV{'SWISSPROT_EMAIL_REPORT'},"$subject","reportNtoN");
 }
 
@@ -2193,13 +2195,13 @@ sub reportOneToN {
     open (ONETON, ">reportOneToN") ||  die "Cannot open reportOneToN : $!\n";
 
     my $ct = 0;
-    foreach my $zdbId (sort keys %oneToN) {
+    foreach my $zdbId (sort keys %NCBIState::oneToN) {
         $ct++;
         print ONETON "$ct) ---------------------------------------------\n";
         my $refArrayAccs = $NCBIState::supportedGeneZFIN{$zdbId};
         print ONETON "$zdbId ($NCBIState::geneZDBidsSymbols{$zdbId}) [@$refArrayAccs]\n\n";
 
-        my $refHashMultiNCBIgenes = $oneToN{$zdbId};
+        my $refHashMultiNCBIgenes = $NCBIState::oneToN{$zdbId};
         foreach my $ncbiId (sort keys %$refHashMultiNCBIgenes) {
             $refArrayAccs = $NCBIState::supportedGeneNCBI{$ncbiId};
             print ONETON "   $ncbiId ($NCBIState::NCBIidsGeneSymbols{$ncbiId}) [@$refArrayAccs]\n\n";
@@ -2208,7 +2210,7 @@ sub reportOneToN {
 
     close ONETON;
 
-    $subject = "Auto from $NCBIState::dbname: " . "NCBI_gene_load.pl :: List of 1 to N";
+    my $subject = "Auto from $NCBIState::dbname: " . "NCBI_gene_load.pl :: List of 1 to N";
     ZFINPerlModules->sendMailWithAttachedReport($ENV{'SWISSPROT_EMAIL_REPORT'},"$subject","reportOneToN");
 }
 
@@ -2221,14 +2223,14 @@ sub reportNtoOne {
 
     open (NTOONE, ">reportNtoOne") ||  die "Cannot open reportNtoOne : $!\n";
 
-    $ct = 0;
+    my $ct = 0;
     foreach my $ncbiId (sort keys %NCBIState::nToOne) {
         $ct++;
         print NTOONE "$ct) ---------------------------------------------\n";
-        $refArrayAccs = $NCBIState::supportedGeneNCBI{$ncbiId};
+        my $refArrayAccs = $NCBIState::supportedGeneNCBI{$ncbiId};
         print NTOONE "$ncbiId ($NCBIState::NCBIidsGeneSymbols{$ncbiId}) [@$refArrayAccs]\n\n";
 
-        $refHashMultiZFINgenes = $NCBIState::nToOne{$ncbiId};
+        my $refHashMultiZFINgenes = $NCBIState::nToOne{$ncbiId};
         foreach my $zdbId (sort keys %$refHashMultiZFINgenes) {
             $refArrayAccs = $NCBIState::supportedGeneZFIN{$zdbId};
             print NTOONE "   $zdbId ($NCBIState::geneZDBidsSymbols{$zdbId}) [@$refArrayAccs]\n\n";
@@ -2237,7 +2239,7 @@ sub reportNtoOne {
 
     close NTOONE;
 
-    $subject = "Auto from $NCBIState::dbname: " . "NCBI_gene_load.pl :: List of N to 1";
+    my $subject = "Auto from $NCBIState::dbname: " . "NCBI_gene_load.pl :: List of N to 1";
     ZFINPerlModules->sendMailWithAttachedReport($ENV{'SWISSPROT_EMAIL_REPORT'},"$subject","reportNtoOne");
 }
 
@@ -2254,7 +2256,7 @@ sub buildVegaIDMappings {
     #     %ZDBgeneWithMultipleVegaGeneIds
     #     %vegaGeneIdWithMultipleZFINgenes
 
-    $sqlGetVEGAidAndGeneZDBId = "select mrel_mrkr_1_zdb_id, dblink_acc_num
+    my $sqlGetVEGAidAndGeneZDBId = "select mrel_mrkr_1_zdb_id, dblink_acc_num
                                from marker_relationship, db_link
                               where mrel_mrkr_2_zdb_id = dblink_linked_recid
                                 and dblink_fdbcont_zdb_id = 'ZDB-FDBCONT-040412-14'
@@ -2262,47 +2264,50 @@ sub buildVegaIDMappings {
                                 and dblink_acc_num like 'OTTDARG%'
                                 and mrel_type = 'gene produces transcript';";
 
-    $curGetZDBgeneIdVegaGeneId = $NCBIState::handle->prepare($sqlGetVEGAidAndGeneZDBId);
+    my $curGetZDBgeneIdVegaGeneId = $NCBIState::handle->prepare($sqlGetVEGAidAndGeneZDBId);
     $curGetZDBgeneIdVegaGeneId->execute();
+
+    my ($geneZdbId, $VegaGeneId);
     $curGetZDBgeneIdVegaGeneId->bind_columns(\$geneZdbId,\$VegaGeneId);
 
     ## store the ZDB Gene ID/VEGA Gene Id and VEGA Gene Id/ZDB Gene ID pairs in hashes
     ## also store those ZDB gene Ids with multiple corresponding VEGA Gene Ids
 
-    %ZDBgeneAndVegaGeneIds = ();
+    %NCBIState::ZDBgeneAndVegaGeneIds = ();
     %NCBIState::VegaGeneAndZDBgeneIds = ();
-    %ZDBgeneWithMultipleVegaGeneIds = ();
-    %vegaGeneIdWithMultipleZFINgenes = ();
+    %NCBIState::ZDBgeneWithMultipleVegaGeneIds = ();
+    %NCBIState::vegaGeneIdWithMultipleZFINgenes = ();
 
     my $ctTotalZDBgeneIdVegaGeneIds = 0;
+    my $ref_arrayZDBgenes;
 
     while ($curGetZDBgeneIdVegaGeneId->fetch()) {
         $ctTotalZDBgeneIdVegaGeneIds++;
-
-        if (exists($ZDBgeneWithMultipleVegaGeneIds{$geneZdbId}) || (exists($ZDBgeneAndVegaGeneIds{$geneZdbId}) && $ZDBgeneAndVegaGeneIds{$geneZdbId} ne $VegaGeneId)) {
-            if (!exists($ZDBgeneWithMultipleVegaGeneIds{$geneZdbId})) {
-                $firstVegaGeneIdFound = $ZDBgeneAndVegaGeneIds{$geneZdbId};
+        my $ref_arrayVegaGeneIds;
+        if (exists($NCBIState::ZDBgeneWithMultipleVegaGeneIds{$geneZdbId}) || (exists($NCBIState::ZDBgeneAndVegaGeneIds{$geneZdbId}) && $NCBIState::ZDBgeneAndVegaGeneIds{$geneZdbId} ne $VegaGeneId)) {
+            if (!exists($NCBIState::ZDBgeneWithMultipleVegaGeneIds{$geneZdbId})) {
+                my $firstVegaGeneIdFound = $NCBIState::ZDBgeneAndVegaGeneIds{$geneZdbId};
                 $ref_arrayVegaGeneIds = [$firstVegaGeneIdFound,$VegaGeneId];
-                $ZDBgeneWithMultipleVegaGeneIds{$geneZdbId} = $ref_arrayVegaGeneIds;
+                $NCBIState::ZDBgeneWithMultipleVegaGeneIds{$geneZdbId} = $ref_arrayVegaGeneIds;
             } else {
-                $ref_arrayVegaGeneIds = $ZDBgeneWithMultipleVegaGeneIds{$geneZdbId};
+                $ref_arrayVegaGeneIds = $NCBIState::ZDBgeneWithMultipleVegaGeneIds{$geneZdbId};
                 push(@$ref_arrayVegaGeneIds, $VegaGeneId);
             }
         }
 
-        if (exists($vegaGeneIdWithMultipleZFINgenes{$VegaGeneId})
+        if (exists($NCBIState::vegaGeneIdWithMultipleZFINgenes{$VegaGeneId})
             || (exists($NCBIState::VegaGeneAndZDBgeneIds{$VegaGeneId}) && $NCBIState::VegaGeneAndZDBgeneIds{$VegaGeneId} ne $geneZdbId)) {
-            if (!exists($vegaGeneIdWithMultipleZFINgenes{$VegaGeneId})) {
-                $firstGeneZDBidFound = $NCBIState::VegaGeneAndZDBgeneIds{$VegaGeneId};
+            if (!exists($NCBIState::vegaGeneIdWithMultipleZFINgenes{$VegaGeneId})) {
+                my $firstGeneZDBidFound = $NCBIState::VegaGeneAndZDBgeneIds{$VegaGeneId};
                 $ref_arrayZDBgenes = [$firstGeneZDBidFound,$geneZdbId];
-                $vegaGeneIdWithMultipleZFINgenes{$VegaGeneId} = $ref_arrayZDBgenes;
+                $NCBIState::vegaGeneIdWithMultipleZFINgenes{$VegaGeneId} = $ref_arrayZDBgenes;
             } else {
-                $ref_arrayZDBgenes = $vegaGeneIdWithMultipleZFINgenes{$VegaGeneId};
+                $ref_arrayZDBgenes = $NCBIState::vegaGeneIdWithMultipleZFINgenes{$VegaGeneId};
                 push(@$ref_arrayZDBgenes, $geneZdbId);
             }
         }
 
-        $ZDBgeneAndVegaGeneIds{$geneZdbId} = $VegaGeneId;
+        $NCBIState::ZDBgeneAndVegaGeneIds{$geneZdbId} = $VegaGeneId;
         $NCBIState::VegaGeneAndZDBgeneIds{$VegaGeneId} = $geneZdbId;
     }
 
@@ -2312,20 +2317,20 @@ sub buildVegaIDMappings {
 
     $curGetZDBgeneIdVegaGeneId->finish();
 
-    $ctVegaIdWithMultipleZDBgene = 0;
+    my $ctVegaIdWithMultipleZDBgene = 0;
     print LOG "\nThe following Vega Gene Ids at ZFIN correspond to multiple ZDB Gene Ids\n";
-    foreach my $vega (sort keys %vegaGeneIdWithMultipleZFINgenes) {
+    foreach my $vega (sort keys %NCBIState::vegaGeneIdWithMultipleZFINgenes) {
         $ctVegaIdWithMultipleZDBgene++;
-        $ref_arrayZDBgenes = $vegaGeneIdWithMultipleZFINgenes{$vega};
+        $ref_arrayZDBgenes = $NCBIState::vegaGeneIdWithMultipleZFINgenes{$vega};
         print LOG "$vega @$ref_arrayZDBgenes\n";
     }
     print LOG "\nctVegaIdWithMultipleZDBgene = $ctVegaIdWithMultipleZDBgene\n\n";
 
     open (ZDBGENENVEGA, ">reportZDBgeneIdWithMultipleVegaIds") ||  die "Cannot open reportZDBgeneIdWithMultipleVegaIds : $!\n";
-    $ctZDBgeneIdWithMultipleVegaId = 0;
-    foreach my $zdbGene (sort keys %ZDBgeneWithMultipleVegaGeneIds) {
+    my $ctZDBgeneIdWithMultipleVegaId = 0;
+    foreach my $zdbGene (sort keys %NCBIState::ZDBgeneWithMultipleVegaGeneIds) {
         $ctZDBgeneIdWithMultipleVegaId++;
-        $ref_arrayVegaIds = $ZDBgeneWithMultipleVegaGeneIds{$zdbGene};
+        my $ref_arrayVegaIds = $NCBIState::ZDBgeneWithMultipleVegaGeneIds{$zdbGene};
         print ZDBGENENVEGA "$zdbGene @$ref_arrayVegaIds\n";
     }
     print LOG "\nctZDBgeneIdWithMultipleVegaId = $ctZDBgeneIdWithMultipleVegaId\n\n";
@@ -2344,7 +2349,7 @@ sub writeCommonVegaGeneIdMappings {
     #   %geneZFINwithAccSupportingMoreThan1
     #   %oneToOneViaVega
 
-    %oneToOneViaVega = ();
+    %NCBIState::oneToOneViaVega = ();
 
     my $ctMappedViaVega = 0;
 
@@ -2356,7 +2361,7 @@ sub writeCommonVegaGeneIdMappings {
             && !exists($NCBIState::geneZFINwithAccSupportingMoreThan1{$zdbId})) {
 
             if (exists($NCBIState::ZDBgeneAndVegaGeneIds{$zdbId}) && !exists($NCBIState::ZDBgeneWithMultipleVegaGeneIds{$zdbId})) {
-                $vegaGeneId = $NCBIState::ZDBgeneAndVegaGeneIds{$zdbId};
+                my $vegaGeneId = $NCBIState::ZDBgeneAndVegaGeneIds{$zdbId};
 
                 ## exclude those NCBI gene Ids that are in the final 1:1, 1:N, N:1, N:N lists and
                 ## those in the list of those with at least 1 GenBank RNA accession supporting more than 1 genes
@@ -2366,7 +2371,7 @@ sub writeCommonVegaGeneIdMappings {
                     && !exists($NCBIState::vegaGeneIdWithMultipleZFINgenes{$vegaGeneId})
                 ) {
 
-                    $NCBIgeneIdMappedViaVega = $NCBIState::vegaIdsNCBIids{$vegaGeneId};
+                    my $NCBIgeneIdMappedViaVega = $NCBIState::vegaIdsNCBIids{$vegaGeneId};
 
                     ## exclude those NCBI gene Ids with multiple Vega Gene Ids, and those with multiple GenBank RNAs,
                     ## and those already mapped
@@ -2388,7 +2393,7 @@ sub writeCommonVegaGeneIdMappings {
         }
     }
 
-    $ctTotalMapped = $ctMappedViaVega + $NCBIState::ctOneToOneNCBI;
+    my $ctTotalMapped = $ctMappedViaVega + $NCBIState::ctOneToOneNCBI;
     print LOG "\nctMappedViaVega = $ctMappedViaVega\n\nTotal number of the gene records mapped: $ctMappedViaVega + $NCBIState::ctOneToOneNCBI = $ctTotalMapped\n\n";
     print STATS "\nMapping result via Vega Gene Id: $ctMappedViaVega additional gene records are mapped\n\n";
     print STATS "Total number of the gene records mapped: $ctMappedViaVega + $NCBIState::ctOneToOneNCBI = $ctTotalMapped\n\n";
@@ -2411,7 +2416,7 @@ sub calculateLengthForAccessionsWithoutLength {
     open (NOLENGTH, ">noLength.unl") ||  die "Cannot open noLength.unl : $!\n";
 
     foreach my $accWithNoLength (keys %NCBIState::noLength) {
-        $NCBIgeneId = $NCBIState::noLength{$accWithNoLength};
+        my $NCBIgeneId = $NCBIState::noLength{$accWithNoLength};
 
         # print to the noLength.unl only for those with mapped gene Id
         print NOLENGTH "$accWithNoLength\n" if exists($NCBIState::mappedReversed{$NCBIgeneId}) || exists($NCBIState::oneToOneViaVega{$NCBIgeneId});
@@ -2444,7 +2449,7 @@ sub calculateLengthForAccessionsWithoutLength {
         $ENV{'JAVA_HOME'} = getPropertyValue("JAVA_HOME");
 
 
-        $cmdEfetch = "cd " . $ENV{'SOURCEROOT'} . " ; " .
+        my $cmdEfetch = "cd " . $ENV{'SOURCEROOT'} . " ; " .
             "gradle '-DncbiLoadInput=$currentDir/noLength.unl' " .
             "       '-DncbiLoadOutput=$currentDir/seq.fasta' " .
             "         NCBILoadTask ; " .
@@ -2471,7 +2476,7 @@ sub calculateLengthForAccessionsWithoutLength {
 
     # fasta_len.awk is the script that does the calculation based on fasta sequence
 
-    $cmdCalLength = "/opt/zfin/bin/fasta_len.awk seq.fasta >length.unl";
+    my $cmdCalLength = "/opt/zfin/bin/fasta_len.awk seq.fasta >length.unl";
     &doSystemCommand($cmdCalLength);
 
     if (!-e "length.unl") {
@@ -2481,14 +2486,14 @@ sub calculateLengthForAccessionsWithoutLength {
         &reportErrAndExit($subjectLine);
     }
 
-    $ctSeqLengthCalculated = 0;
+    my $ctSeqLengthCalculated = 0;
     open (LENGTH, "length.unl") ||  die "Cannot open length.unl : $!\n";
     while (<LENGTH>) {
         chomp;
 
         if ($_ =~ m/^(\w+)\|(\d+)\|$/) {
-            $acc = $1;
-            $length = $2;
+            my $acc = $1;
+            my $length = $2;
 
             $NCBIState::sequenceLength{$acc} = $length;
 
@@ -2512,16 +2517,17 @@ sub getGenBankAndRefSeqsWithZfinGenes {
     ## the following SQL is used to get all the existing GenBank and RefSeq records with gene and pseudogene at ZFIN
     ## these records should not and could not be loaded
 
-    $sqlGetGenBankAndRefSeqAccs = "select dblink_linked_recid, dblink_acc_num, dblink_fdbcont_zdb_id, dblink_zdb_id
+    my $sqlGetGenBankAndRefSeqAccs = "select dblink_linked_recid, dblink_acc_num, dblink_fdbcont_zdb_id, dblink_zdb_id
                                  from db_link
                                 where (dblink_linked_recid like 'ZDB-GENE%' or dblink_linked_recid like '%RNAG%')
                                   and dblink_fdbcont_zdb_id in ('ZDB-FDBCONT-040412-37','ZDB-FDBCONT-040412-42',
                                                                 'ZDB-FDBCONT-040412-36','ZDB-FDBCONT-040412-38',
                                                                 'ZDB-FDBCONT-040412-39','ZDB-FDBCONT-040527-1');";
 
-    $curGetGenBankAndRefSeqAccs = $NCBIState::handle->prepare($sqlGetGenBankAndRefSeqAccs);
+    my $curGetGenBankAndRefSeqAccs = $NCBIState::handle->prepare($sqlGetGenBankAndRefSeqAccs);
 
     $curGetGenBankAndRefSeqAccs->execute();
+    my ($gene,$acc,$fdbcont,$dblinkId);
     $curGetGenBankAndRefSeqAccs->bind_columns(\$gene,\$acc,\$fdbcont,\$dblinkId);
 
     # in order for the inserting not to violate the constraint unique (dblink_linked_recid,dblink_acc_num,dblink_fdbcont_zdb_id)
@@ -2530,7 +2536,7 @@ sub getGenBankAndRefSeqsWithZfinGenes {
 
     %NCBIState::geneAccFdbcont = ();
 
-    $ctGeneAccFdbcont = 0;
+    my $ctGeneAccFdbcont = 0;
     while ($curGetGenBankAndRefSeqAccs->fetch()) {
         if (!exists($NCBIState::toDelete{$dblinkId})) {              # exclude those to be deleted first
             $NCBIState::geneAccFdbcont{$gene . $acc . $fdbcont} = $dblinkId;
@@ -2554,7 +2560,8 @@ sub writeGenBankRNAaccessionsWithMappedGenesToLoad {
     #   %oneToOneViaVega
 
     foreach my $GenBankRNA (sort keys %NCBIState::accNCBIsupportingOnly1) {
-        $NCBIgeneId = $NCBIState::accNCBIsupportingOnly1{$GenBankRNA};
+        my $NCBIgeneId = $NCBIState::accNCBIsupportingOnly1{$GenBankRNA};
+        my $zdbGeneId;
         if (exists($NCBIState::mappedReversed{$NCBIgeneId})) {
             $zdbGeneId = $NCBIState::mappedReversed{$NCBIgeneId};
             if (!exists($NCBIState::geneAccFdbcont{$zdbGeneId . $GenBankRNA . $NCBIState::fdcontGenBankRNA})) {
@@ -2583,17 +2590,18 @@ sub initializeGenPeptAccessionsMap {
 
     # get the Genpept accessions and the attribututed pulications that are not the load publications
 
-    $sqlGenPeptAttributedToNonLoadPub = "select dblink_acc_num, dblink_zdb_id, recattrib_source_zdb_id
+    my $sqlGenPeptAttributedToNonLoadPub = "select dblink_acc_num, dblink_zdb_id, recattrib_source_zdb_id
                                        from record_attribution, db_link
                                       where recattrib_data_zdb_id = dblink_zdb_id
                                         and dblink_fdbcont_zdb_id = 'ZDB-FDBCONT-040412-42'
                                         and (dblink_linked_recid like 'ZDB-GENE%' or dblink_linked_recid like '%RNAG%')
                                         and recattrib_source_zdb_id not in ('ZDB-PUB-020723-3','ZDB-PUB-130725-2');";
 
-    $curGenPeptAttributedToNonLoadPub = $NCBIState::handle->prepare($sqlGenPeptAttributedToNonLoadPub);
+    my $curGenPeptAttributedToNonLoadPub = $NCBIState::handle->prepare($sqlGenPeptAttributedToNonLoadPub);
 
     $curGenPeptAttributedToNonLoadPub->execute;
 
+    my ($GenPept,$dbLinkId,$nonLoadPub);
     $curGenPeptAttributedToNonLoadPub->bind_columns(\$GenPept,\$dbLinkId,\$nonLoadPub);
 
     # use the following hash to store GenPept accessions and the attributed pulications that are not one of the load publications
@@ -2608,7 +2616,7 @@ sub initializeGenPeptAccessionsMap {
 
     %NCBIState::GenPeptDbLinkIdAttributedToNonLoadPub = ();
 
-    $ctGenPeptNonLoadPub = 0;
+    my $ctGenPeptNonLoadPub = 0;
     while ($curGenPeptAttributedToNonLoadPub->fetch) {
         $NCBIState::GenPeptAttributedToNonLoadPub{$GenPept} = $nonLoadPub;
         $NCBIState::GenPeptDbLinkIdAttributedToNonLoadPub{$GenPept} = $dbLinkId;
@@ -2619,7 +2627,7 @@ sub initializeGenPeptAccessionsMap {
 
     $curGenPeptAttributedToNonLoadPub->finish();
 
-    $ctGenPeptAttributedToNonLoadPub = scalar(keys %NCBIState::GenPeptAttributedToNonLoadPub);
+    my $ctGenPeptAttributedToNonLoadPub = scalar(keys %NCBIState::GenPeptAttributedToNonLoadPub);
 
     print LOG "\nctGenPeptAttributedToNonLoadPub = $ctGenPeptAttributedToNonLoadPub\n\n";
 }
@@ -2641,14 +2649,16 @@ sub processGenBankAccessionsAssociatedToNonLoadPubs {
 
     open (MORETODELETE, ">>toDelete.unl") ||  die "Cannot open toDelete.unl : $!\n";
 
-    $ctToAttribute = 0;
+    my $ctToAttribute = 0;
 
     print LOG "\nThe GenPept accessions used to attribute to non-load publication now attribute to load pub:\n\n";
     print LOG "GenPept\tZFIN gene Id\tnon-load pub\tload pub\n";
     print LOG "-------\t------------\t------------\t--------\n";
 
+    my $zdbGeneId;
+    my $moreToDelete;
     foreach my $GenPept (sort keys %NCBIState::GenPeptNCBIgeneIds) {
-        $NCBIgeneId = $NCBIState::GenPeptNCBIgeneIds{$GenPept};
+        my $NCBIgeneId = $NCBIState::GenPeptNCBIgeneIds{$GenPept};
         if (exists($NCBIState::mappedReversed{$NCBIgeneId})) {
             $zdbGeneId = $NCBIState::mappedReversed{$NCBIgeneId};
             if (!exists($NCBIState::geneAccFdbcont{$zdbGeneId . $GenPept . $NCBIState::fdcontGenPept})) {
@@ -2703,15 +2713,16 @@ sub printGenPeptsAssociatedWithGeneAtZFIN {
     #   %GenPeptsToLoad
 
 
-    $sqlAllGenPeptWithGeneZFIN = "select dblink_acc_num, dblink_linked_recid
+    my $sqlAllGenPeptWithGeneZFIN = "select dblink_acc_num, dblink_linked_recid
                                 from db_link
                                where dblink_fdbcont_zdb_id = 'ZDB-FDBCONT-040412-42'
                                  and (dblink_linked_recid like 'ZDB-GENE%' or dblink_linked_recid like '%RNAG%');";
 
-    $curAllGenPeptWithGeneZFIN = $NCBIState::handle->prepare($sqlAllGenPeptWithGeneZFIN);
+    my $curAllGenPeptWithGeneZFIN = $NCBIState::handle->prepare($sqlAllGenPeptWithGeneZFIN);
 
     $curAllGenPeptWithGeneZFIN->execute;
 
+    my ($GenPept,$geneZdbId);
     $curAllGenPeptWithGeneZFIN->bind_columns(\$GenPept,\$geneZdbId);
 
     # use the following hash to store all the GenPept accession stored at ZFIN that are assoctied with gene
@@ -2725,14 +2736,14 @@ sub printGenPeptsAssociatedWithGeneAtZFIN {
     # value: reference to an array of gene zdb id
 
     my %GenPeptWithMultipleZDBgene = ();
-
+    my $ref_arrayZDBgeneIds;
     while ($curAllGenPeptWithGeneZFIN->fetch) {
 
         if (exists($GenPeptWithMultipleZDBgene{$GenPept}) ||
             (exists($AllGenPeptWithGeneZFIN{$GenPept}) && $AllGenPeptWithGeneZFIN{$GenPept} ne $geneZdbId)) {
 
             if (!exists($GenPeptWithMultipleZDBgene{$GenPept})) {
-                $firstGenPept = $AllGenPeptWithGeneZFIN{$GenPept};
+                my $firstGenPept = $AllGenPeptWithGeneZFIN{$GenPept};
                 $ref_arrayZDBgeneIds = [$firstGenPept,$geneZdbId];
                 $GenPeptWithMultipleZDBgene{$GenPept} = $ref_arrayZDBgeneIds;
             } else {
@@ -2746,9 +2757,9 @@ sub printGenPeptsAssociatedWithGeneAtZFIN {
 
     $curAllGenPeptWithGeneZFIN->finish();
 
-    $ctAllGenPeptWithGeneZFIN = scalar(keys %AllGenPeptWithGeneZFIN);
+    my $ctAllGenPeptWithGeneZFIN = scalar(keys %AllGenPeptWithGeneZFIN);
 
-    $ctGenPeptWithMultipleZDBgene = scalar(keys %GenPeptWithMultipleZDBgene);
+    my $ctGenPeptWithMultipleZDBgene = scalar(keys %GenPeptWithMultipleZDBgene);
 
     print LOG "\nctAllGenPeptWithGeneZFIN = $ctAllGenPeptWithGeneZFIN\n\n";
 
@@ -2758,7 +2769,7 @@ sub printGenPeptsAssociatedWithGeneAtZFIN {
     print LOG "GenPept \t mapped gene \tall associated genes\n";
     print LOG "--------\t-------------\t-------------\n";
 
-    $ctGenPeptWithMultipleZDBgeneToLoad = 0;
+    my $ctGenPeptWithMultipleZDBgeneToLoad = 0;
     foreach my $GenPept (sort keys %GenPeptWithMultipleZDBgene) {
         if (exists($NCBIState::GenPeptsToLoad{$GenPept})) {
             $ref_arrayZDBgeneIds = $GenPeptWithMultipleZDBgene{$GenPept};
@@ -2781,7 +2792,7 @@ sub writeGenBankDNAaccessionsWithMappedGenesToLoad {
     #   %mappedReversed
     #   %geneAccFdbcont
     #   %oneToOneViaVega
-
+    my $zdbGeneId;
     foreach my $GenBankDNA (sort keys %NCBIState::GenBankDNAncbiGeneIds) {
         my @multipleNCBIgeneIds = @{$NCBIState::GenBankDNAncbiGeneIds{$GenBankDNA}};
         foreach my $NCBIgeneId (@multipleNCBIgeneIds) {
@@ -2817,7 +2828,8 @@ sub writeRefSeqRNAaccessionsWithMappedGenesToLoad {
     #  $NCBIState::pubMappedbasedOnVega
     #  $ctToLoad
     #  $NCBIState::fdcontRefSeqRNA
-
+    my $NCBIgeneId;
+    my $zdbGeneId;
     foreach my $RefSeqRNA (sort keys %NCBIState::RefSeqRNAncbiGeneIds) {
         $NCBIgeneId = $NCBIState::RefSeqRNAncbiGeneIds{$RefSeqRNA};
         if (exists($NCBIState::mappedReversed{$NCBIgeneId})) {
@@ -2853,7 +2865,8 @@ sub writeRefPeptAccessionsWithMappedGenesToLoad {
     #  %oneToOneViaVega
 
     foreach my $RefPept (sort keys %NCBIState::RefPeptNCBIgeneIds) {
-        $NCBIgeneId = $NCBIState::RefPeptNCBIgeneIds{$RefPept};
+        my $NCBIgeneId = $NCBIState::RefPeptNCBIgeneIds{$RefPept};
+        my $zdbGeneId;
         if (exists($NCBIState::mappedReversed{$NCBIgeneId})) {
             $zdbGeneId = $NCBIState::mappedReversed{$NCBIgeneId};
             if (!exists($NCBIState::geneAccFdbcont{$zdbGeneId . $RefPept . $NCBIState::fdcontRefPept})) {
@@ -2887,7 +2900,8 @@ sub writeRefSeqDNAaccessionsWithMappedGenesToLoad {
     #  %oneToOneViaVega
 
     foreach my $RefSeqDNA (sort keys %NCBIState::RefSeqDNAncbiGeneIds) {
-        $NCBIgeneId = $NCBIState::RefSeqDNAncbiGeneIds{$RefSeqDNA};
+        my $NCBIgeneId = $NCBIState::RefSeqDNAncbiGeneIds{$RefSeqDNA};
+        my $zdbGeneId;
         if (exists($NCBIState::mappedReversed{$NCBIgeneId})) {
             $zdbGeneId = $NCBIState::mappedReversed{$NCBIgeneId};
             if (!exists($NCBIState::geneAccFdbcont{$zdbGeneId . $RefSeqDNA . $NCBIState::fdcontRefSeqDNA})) {
@@ -2937,28 +2951,30 @@ sub reportAllLoadStatistics {
 
     # ----- AFTER THE LOAD, get all the Genpept accessions associated with gene at ZFIN, and those with multiple ZFIN genes ---------
 
-    $sqlAllGenPeptWithGeneAfterLoad = "select dblink_acc_num, dblink_linked_recid
+    my $sqlAllGenPeptWithGeneAfterLoad = "select dblink_acc_num, dblink_linked_recid
                                      from db_link
                                     where dblink_fdbcont_zdb_id = 'ZDB-FDBCONT-040412-42'
                                       and (dblink_linked_recid like 'ZDB-GENE%' or dblink_linked_recid like '%RNAG%');";
 
-    $curAllGenPeptWithGeneAfterLoad = $NCBIState::handle->prepare($sqlAllGenPeptWithGeneAfterLoad);
+    my $curAllGenPeptWithGeneAfterLoad = $NCBIState::handle->prepare($sqlAllGenPeptWithGeneAfterLoad);
 
     $curAllGenPeptWithGeneAfterLoad->execute;
 
+    my ($GenPept, $geneZdbId);
     $curAllGenPeptWithGeneAfterLoad->bind_columns(\$GenPept,\$geneZdbId);
 
     # use the following hash to store all the GenPept accession stored at ZFIN that are assoctied with gene after the load
     # key: GenPept accession
     # value: gene zdb id
 
-    %allGenPeptWithGeneAfterLoad = ();
+    my %allGenPeptWithGeneAfterLoad = ();
 
     # a hash to store GenPept accessions and the multiple related ZFIN gene Ids after the load
     # key: GenPept accession
     # value: reference to an array of gene zdb id
 
-    %GenPeptWithMultipleZDBgeneAfterLoad = ();
+    my %GenPeptWithMultipleZDBgeneAfterLoad = ();
+    my $ref_arrayZDBgeneIds;
 
     while ($curAllGenPeptWithGeneAfterLoad->fetch) {
 
@@ -2966,7 +2982,7 @@ sub reportAllLoadStatistics {
             (exists($allGenPeptWithGeneAfterLoad{$GenPept}) && $allGenPeptWithGeneAfterLoad{$GenPept} ne $geneZdbId)) {
 
             if (!exists($GenPeptWithMultipleZDBgeneAfterLoad{$GenPept})) {
-                $firstGenPept = $allGenPeptWithGeneAfterLoad{$GenPept};
+                my $firstGenPept = $allGenPeptWithGeneAfterLoad{$GenPept};
                 $ref_arrayZDBgeneIds = [$firstGenPept,$geneZdbId];
                 $GenPeptWithMultipleZDBgeneAfterLoad{$GenPept} = $ref_arrayZDBgeneIds;
             } else {
@@ -2980,9 +2996,9 @@ sub reportAllLoadStatistics {
 
     $curAllGenPeptWithGeneAfterLoad->finish();
 
-    $ctAllGenPeptWithGeneZFINafterLoad = scalar(keys %allGenPeptWithGeneAfterLoad);
+    my $ctAllGenPeptWithGeneZFINafterLoad = scalar(keys %allGenPeptWithGeneAfterLoad);
 
-    $ctGenPeptWithMultipleZDBgeneAfterLoad = scalar(keys %GenPeptWithMultipleZDBgeneAfterLoad);
+    my $ctGenPeptWithMultipleZDBgeneAfterLoad = scalar(keys %GenPeptWithMultipleZDBgeneAfterLoad);
 
     print LOG "\nctAllGenPeptWithGeneZFINafterLoad = $ctAllGenPeptWithGeneZFINafterLoad\n\n";
 
@@ -2993,7 +3009,7 @@ sub reportAllLoadStatistics {
     print STATS "--------\t-------------\t-------------\n";
 
     $ctGenPeptWithMultipleZDBgeneAfterLoad = 0;
-    foreach my $GenPept (sort keys %GenPeptWithMultipleZDBgeneAfterLoad) {
+    foreach $GenPept (sort keys %GenPeptWithMultipleZDBgeneAfterLoad) {
         $ref_arrayZDBgeneIds = $GenPeptWithMultipleZDBgeneAfterLoad{$GenPept};
         print STATS "$GenPept\t$NCBIState::GenPeptsToLoad{$GenPept}\t@$ref_arrayZDBgeneIds\n";
         $ctGenPeptWithMultipleZDBgeneAfterLoad++;
@@ -3009,12 +3025,12 @@ sub reportAllLoadStatistics {
 
     open (NONLOADPUBGENPPEPT, "reportNonLoadPubGenPept") ||  die "Cannot open reportNonLoadPubGenPept : $!\n";
 
-    @lines = <NONLOADPUBGENPPEPT>;
-    $ctGenPeptNonLoadPub = 0;
+    my @lines = <NONLOADPUBGENPPEPT>;
+    my $ctGenPeptNonLoadPub = 0;
     foreach my $line (@lines) {
         $ctGenPeptNonLoadPub++;
         chop($line);
-        @fields = split(/\|/, $line);
+        my @fields = split(/\|/, $line);
         print STATS "$fields[0]\t$fields[1]\t$fields[2]\n";
     }
 
@@ -3026,27 +3042,28 @@ sub reportAllLoadStatistics {
     # Do the record counts after the load, and report statistics.
     #-------------------------------------------------------------------------------------------------
 
-    $sql = "select mrkr_zdb_id, mrkr_abbrev from marker
+    my $sql = "select mrkr_zdb_id, mrkr_abbrev from marker
          where (mrkr_zdb_id like 'ZDB-GENE%' or mrkr_zdb_id like '%RNAG%')
            and exists (select 1 from db_link
          where dblink_linked_recid = mrkr_zdb_id
            and dblink_fdbcont_zdb_id in ('ZDB-FDBCONT-040412-38','ZDB-FDBCONT-040412-39','ZDB-FDBCONT-040527-1'));";
 
-    $curGenesWithRefSeqAfter = $NCBIState::handle->prepare($sql);
+    my $curGenesWithRefSeqAfter = $NCBIState::handle->prepare($sql);
 
     $curGenesWithRefSeqAfter->execute;
 
+    my ($geneId, $geneSymbol);
     $curGenesWithRefSeqAfter->bind_columns(\$geneId,\$geneSymbol);
 
-    %genesWithRefSeqAfterLoad = ();
+    my %genesWithRefSeqAfterLoad = ();
 
     while ($curGenesWithRefSeqAfter->fetch) {
         $genesWithRefSeqAfterLoad{$geneId} = $geneSymbol;
     }
 
-    $NCBIState::curGenesWithRefSeq->finish();
+    $curGenesWithRefSeqAfter->finish();
 
-    $ctGenesWithRefSeqAfter = scalar(keys %genesWithRefSeqAfterLoad);
+    my $ctGenesWithRefSeqAfter = scalar(keys %genesWithRefSeqAfterLoad);
 
     $NCBIState::handle->disconnect();
 
@@ -3056,7 +3073,7 @@ sub reportAllLoadStatistics {
          where dblink_fdbcont_zdb_id = 'ZDB-FDBCONT-040412-1'
            and (dblink_linked_recid like 'ZDB-GENE%' or dblink_linked_recid like '%RNAG%');";
 
-    $numNCBIgeneIdAfter = ZFINPerlModules->countData($sql);
+    my $numNCBIgeneIdAfter = ZFINPerlModules->countData($sql);
 
     #RefSeq RNA
     $sql = "select distinct dblink_acc_num
@@ -3064,7 +3081,7 @@ sub reportAllLoadStatistics {
          where dblink_fdbcont_zdb_id = 'ZDB-FDBCONT-040412-38'
            and (dblink_linked_recid like 'ZDB-GENE%' or dblink_linked_recid like '%RNAG%');";
 
-    $numRefSeqRNAAfter = ZFINPerlModules->countData($sql);
+    my $numRefSeqRNAAfter = ZFINPerlModules->countData($sql);
 
     # RefPept
     $sql = "select distinct dblink_acc_num
@@ -3072,7 +3089,7 @@ sub reportAllLoadStatistics {
          where dblink_fdbcont_zdb_id = 'ZDB-FDBCONT-040412-39'
            and (dblink_linked_recid like 'ZDB-GENE%' or dblink_linked_recid like '%RNAG%');";
 
-    $numRefPeptAfter = ZFINPerlModules->countData($sql);
+    my $numRefPeptAfter = ZFINPerlModules->countData($sql);
 
     #RefSeq DNA
     $sql = "select distinct dblink_acc_num
@@ -3080,7 +3097,7 @@ sub reportAllLoadStatistics {
          where dblink_fdbcont_zdb_id = 'ZDB-FDBCONT-040527-1'
            and (dblink_linked_recid like 'ZDB-GENE%' or dblink_linked_recid like '%RNAG%');";
 
-    $numRefSeqDNAAfter = ZFINPerlModules->countData($sql);
+    my $numRefSeqDNAAfter = ZFINPerlModules->countData($sql);
 
     # GenBank RNA (only those loaded - excluding curated ones)
     $sql = "select distinct dblink_acc_num
@@ -3091,7 +3108,7 @@ sub reportAllLoadStatistics {
                        where recattrib_data_zdb_id = dblink_zdb_id
                          and recattrib_source_zdb_id in ('ZDB-PUB-020723-3','ZDB-PUB-130725-2'));";
 
-    $numGenBankRNAAfter = ZFINPerlModules->countData($sql);
+    my $numGenBankRNAAfter = ZFINPerlModules->countData($sql);
 
     # GenPept (only those loaded - excluding curated ones)
     $sql = "select distinct dblink_acc_num
@@ -3102,7 +3119,7 @@ sub reportAllLoadStatistics {
                        where recattrib_data_zdb_id = dblink_zdb_id
                          and recattrib_source_zdb_id in ('ZDB-PUB-020723-3','ZDB-PUB-130725-2'));";
 
-    $numGenPeptAfter = ZFINPerlModules->countData($sql);
+    my $numGenPeptAfter = ZFINPerlModules->countData($sql);
 
     # GenBank DNA (only those loaded - excluding curated ones)
     $sql = "select distinct dblink_acc_num
@@ -3113,7 +3130,7 @@ sub reportAllLoadStatistics {
                        where recattrib_data_zdb_id = dblink_zdb_id
                          and recattrib_source_zdb_id in ('ZDB-PUB-020723-3','ZDB-PUB-130725-2'));";
 
-    $numGenBankDNAAfter = ZFINPerlModules->countData($sql);
+    my $numGenBankDNAAfter = ZFINPerlModules->countData($sql);
 
     # number of genes with RefSeq RNA
     $sql = "select distinct dblink_linked_recid
@@ -3122,7 +3139,7 @@ sub reportAllLoadStatistics {
            and dblink_acc_num like 'NM_%'
            and (dblink_linked_recid like 'ZDB-GENE%' or dblink_linked_recid like '%RNAG%');";
 
-    $numGenesRefSeqRNAAfter = ZFINPerlModules->countData($sql);
+    my $numGenesRefSeqRNAAfter = ZFINPerlModules->countData($sql);
 
     # number of genes with RefPept
     $sql = "select distinct dblink_linked_recid
@@ -3131,7 +3148,7 @@ sub reportAllLoadStatistics {
            and dblink_acc_num like 'NP_%'
            and (dblink_linked_recid like 'ZDB-GENE%' or dblink_linked_recid like '%RNAG%');";
 
-    $numGenesRefSeqPeptAfter = ZFINPerlModules->countData($sql);
+    my $numGenesRefSeqPeptAfter = ZFINPerlModules->countData($sql);
 
     # number of genes with GenBank
     $sql = "select distinct dblink_linked_recid
@@ -3141,7 +3158,7 @@ sub reportAllLoadStatistics {
            and fdb_db_name = 'GenBank'
            and (dblink_linked_recid like 'ZDB-GENE%' or dblink_linked_recid like '%RNAG%');";
 
-    $numGenesGenBankAfter = ZFINPerlModules->countData($sql);
+    my $numGenesGenBankAfter = ZFINPerlModules->countData($sql);
 
     print STATS "\n********* Percentage change of various categories of records *************\n\n";
 
@@ -3218,12 +3235,13 @@ sub reportAllLoadStatistics {
     print STATS "$numGenesGenBankAfter       \t";
     printf STATS "%.2f\n", ($numGenesGenBankAfter - $NCBIState::numGenesGenBankBefore) / $NCBIState::numGenesGenBankBefore * 100 if ($NCBIState::numGenesGenBankBefore > 0);
 
-    @keysSortedByValues = sort { lc($NCBIState::geneZDBidsSymbols{$a}) cmp lc($NCBIState::geneZDBidsSymbols{$b}) } keys %NCBIState::geneZDBidsSymbols;
+    my @keysSortedByValues = sort { lc($NCBIState::geneZDBidsSymbols{$a}) cmp lc($NCBIState::geneZDBidsSymbols{$b}) } keys %NCBIState::geneZDBidsSymbols;
 
     print STATS "\n\nList of genes used to have RefSeq acc but no longer having any:\n";
     print STATS "-------------------------------------------------------------------\n";
 
-    $ctGenesLostRefSeq = 0;
+    my $symbol;
+    my $ctGenesLostRefSeq = 0;
     foreach my $zdbGeneId (@keysSortedByValues) {
         $symbol = $NCBIState::geneZDBidsSymbols{$zdbGeneId};
         if (exists($NCBIState::genesWithRefSeqBeforeLoad{$zdbGeneId})
@@ -3239,7 +3257,7 @@ sub reportAllLoadStatistics {
     print STATS "\n\nList of genes now having RefSeq acc but used to have none ReSeq:\n";
     print STATS "-------------------------------------------------------------------\n";
 
-    $ctGenesGainRefSeq = 0;
+    my $ctGenesGainRefSeq = 0;
     foreach my $zdbGeneId (@keysSortedByValues) {
         $symbol = $NCBIState::geneZDBidsSymbols{$zdbGeneId};
         if (exists($genesWithRefSeqAfterLoad{$zdbGeneId})
