@@ -224,7 +224,7 @@ sub main {
     #-----------------------------------------------------------------------------------------------------------------------
     executeDeleteAndLoadSQLFile();
 
-    &sendLoadLogs;
+    sendLoadLogs();
 
     #-------------------------------------------------------------------------------------------------
     # Step 9: Report the GenPept accessions associated with multiple ZFIN genes after the load.
@@ -236,13 +236,13 @@ sub main {
 
     emailLoadReports();
 
-    print LOG "\n\nAll done! \n\n\n";
-    close LOG;
-
     # Sort noLength.unl so we can compare the results with the previous run.
     doSystemCommand("sort -o noLength.unl noLength.unl");
 
     system("/bin/date");
+
+    print LOG "\n\nAll done! \n\n\n";
+    close LOG;
 
     exit;
 }
@@ -264,7 +264,7 @@ sub doSystemCommand {
      print LOG "\nFailed to execute system command, $systemCommand\nExit.\n\n";
 
      if ($systemCommand =~ m/loadNCBIgeneAccs\.sql/) {
-       &sendLoadLogs;
+       sendLoadLogs();
      }
      reportErrAndExit($subjectLine);
   }
@@ -3035,7 +3035,7 @@ sub reportAllLoadStatistics {
     foreach my $line (@lines) {
         $ctGenPeptNonLoadPub++;
         chop($line);
-        my @fields = split(/\|/, $line);
+        my @fields = split(/\t/, $line);
         print STATS "$fields[0]\t$fields[1]\t$fields[2]\n";
     }
 
