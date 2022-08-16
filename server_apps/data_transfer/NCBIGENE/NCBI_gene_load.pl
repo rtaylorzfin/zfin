@@ -239,6 +239,9 @@ sub main {
     print LOG "\n\nAll done! \n\n\n";
     close LOG;
 
+    # Sort noLength.unl so we can compare the results with the previous run.
+    doSystemCommand("sort -o noLength.unl noLength.unl");
+
     system("/bin/date");
 
     exit;
