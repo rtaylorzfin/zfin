@@ -47,8 +47,10 @@ select count(dblink_zdb_id) as noLengthBefore
 
 --!echo 'Delete from zdb_active_data table and cause delete cascades on db_link records'
 
-delete from zdb_active_data
- where exists (select 'x' from ncbi_gene_delete where zactvd_zdb_id = delete_dblink_zdb_id);
+\echo 'Deleting from reference_protein';
+\copy (select * from reference_protein where rp_dblink_zdb_id in (select * from ncbi_gene_delete)) to '<!--|ROOT_PATH|-->/server_apps/data_transfer/NCBIGENE/referenceProteinDeletes.unl' (delimiter '|');
+delete from reference_protein where rp_dblink_zdb_id in (select * from ncbi_gene_delete);
+delete from zdb_active_data where zactvd_zdb_id in (select * from ncbi_gene_delete);
 
 --!echo 'Delete from record_attribution table for those manually curated records but attributed to load publication'
 
@@ -91,7 +93,7 @@ select zdb_id, load_pub_zdb_id
 
 --! echo "Dump all the GenPept accession associated with genes at ZFIN that are still attributed to a non-load pub"
 
---unload to "<!--|ROOT_PATH|-->/server_apps/data_transfer/NCBIGENE/reportNonLoadPubGenPept" 
+--unload to "<!--|ROOT_PATH|-->/server_apps/data_transfer/NCBIGENE/reportNonLoadPubGenPept"
 create view reportNonLoadPubGenPept as
 select recattrib_source_zdb_id, dblink_acc_num, dblink_linked_recid 
   from db_link, record_attribution 
