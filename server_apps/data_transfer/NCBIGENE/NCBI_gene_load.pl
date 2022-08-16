@@ -58,25 +58,25 @@ sub main {
     # set environment variables
     chdir $ENV{'ROOT_PATH'} . "/server_apps/data_transfer/NCBIGENE/";
 
-    &initializeDatabase();
+    initializeDatabase();
 
-    &removeOldFiles();
+    removeOldFiles();
 
-    &openLoggingFileHandles();
+    openLoggingFileHandles();
 
     #-------------------------------------------------------------------------------------------------
     # Step 1: Download and decompress NCBI data files
     #-------------------------------------------------------------------------------------------------
-    &downloadNCBIFiles();
+    downloadNCBIFiles();
 
-    &prepareNCBIgeneLoadDatabaseQuery();
+    prepareNCBIgeneLoadDatabaseQuery();
 
-    &getMetricsOfDbLinksToDelete();
+    getMetricsOfDbLinksToDelete();
 
     # Get Record Counts using global variables
-    &getRecordCounts();
+    getRecordCounts();
 
-    &readZfinGeneInfoFile();
+    readZfinGeneInfoFile();
 
     #----------------------------------------------------------------------------------------------------------------------
     # Step 5: Map ZFIN gene records to NCBI gene records based on GenBank RNA sequences
@@ -85,7 +85,7 @@ sub main {
     #-----------------------------------------
     # Step 5-1: initial set of ZFIN records
     #-----------------------------------------
-    &initializeSetsOfZfinRecords();
+    initializeSetsOfZfinRecords();
 
     #--------------------------------------------------------------------------------------------------------------
     # Step 5-2: Get dblink_length values
@@ -100,49 +100,49 @@ sub main {
     # During parsing gene2accession file, accessions still missing length will be stored in a hash named %noLength
     # 3) will be done after parsing gene2accession file.
     #---------------------------------------------------------------------------------------------------------------
-    &initializeSequenceLengthHash();
+    initializeSequenceLengthHash();
 
     #----------------------- 2) parse RefSeq-release#.catalog file to get the length for RefSeq sequences ----------------------
 
-    &parseRefSeqCatalogFileForSequenceLength();
+    parseRefSeqCatalogFileForSequenceLength();
 
-    &printSequenceLengthsCount();
+    printSequenceLengthsCount();
 
-    &parseGene2AccessionFile();
+    parseGene2AccessionFile();
 
-    &countNCBIGenesWithSupportingGenBankRNA();
+    countNCBIGenesWithSupportingGenBankRNA();
 
-    &logGenBankDNAncbiGeneIds();
+    logGenBankDNAncbiGeneIds();
 
-    &logSupportingAccNCBI();
+    logSupportingAccNCBI();
 
-    &initializeHashOfNCBIAccessionsSupportingMultipleGenes();
+    initializeHashOfNCBIAccessionsSupportingMultipleGenes();
 
-    &initializeMapOfZfinToNCBIgeneIds();
+    initializeMapOfZfinToNCBIgeneIds();
 
-    &logOneToZeroAssociations();
+    logOneToZeroAssociations();
 
-    &oneWayMappingNCBItoZfinGenes();
+    oneWayMappingNCBItoZfinGenes();
 
-    &compare2WayMappingResults();
+    compare2WayMappingResults();
 
     #---------------- open a .unl file as the add list -----------------
     open(TOLOAD, ">toLoad.unl") || die "Cannot open toLoad.unl : $!\n";
 
     # -------- write the NCBI gene Ids mapped based on GenBank RNA accessions on toLoad.unl ------------
-    &writeNCBIgeneIdsMappedBasedOnGenBankRNA();
+    writeNCBIgeneIdsMappedBasedOnGenBankRNA();
 
     #------------------------ get 1:N list and N:N from ZFIN to NCBI -----------------------------
-    &getOneToNNCBItoZFINgeneIds();
+    getOneToNNCBItoZFINgeneIds();
 
     #------------------------ get N:1 list and N:N from ZFIN to NCBI -----------------------------
-    &getNtoOneAndNtoNfromZFINtoNCBI();
+    getNtoOneAndNtoNfromZFINtoNCBI();
 
     #--------------------- report 1:N ---------------------------------------------
-    &reportOneToN();
+    reportOneToN();
 
     #------------------- report N:1 -------------------------------------------------
-    &reportNtoOne();
+    reportNtoOne();
 
     ##-----------------------------------------------------------------------------------
     ## Step 6: map ZFIN gene records to NCBI gene Ids based on common Vega Gene Id
@@ -151,13 +151,13 @@ sub main {
     #---------------------------------------------------------------------------
     # prepare the list of ZFIN gene with Vega Ids to be mapped to NCBI records
     #---------------------------------------------------------------------------
-    &buildVegaIDMappings();
+    buildVegaIDMappings();
 
 
     ## ---------------------------------------------------------------------------------------------------------------------
     ## doing the mapping based on common Vega Gene Id
     ## ---------------------------------------------------------------------------------------------------------------------
-    &writeCommonVegaGeneIdMappings();
+    writeCommonVegaGeneIdMappings();
 
     #--------------------------------------------------------------------------------------------------------------
     # This section CONTINUES to deal with dblink_length field
@@ -170,47 +170,47 @@ sub main {
     #---------------------------------------------------------------------------------------------------------------
 
     #----------------------- 3) calculate the length for the those still with no length ---------------
-    &calculateLengthForAccessionsWithoutLength();
+    calculateLengthForAccessionsWithoutLength();
 
     #---------------------------------------------------------------------------------------------
     # Step 7: prepare the final add-list for RefSeq and GenBank records
     #---------------------------------------------------------------------------------------------
-    &getGenBankAndRefSeqsWithZfinGenes();
+    getGenBankAndRefSeqsWithZfinGenes();
 
     #---------------------------------------------------------------------------
     #  write GenBank RNA accessions with mapped genes onto toLoad.unl
     #---------------------------------------------------------------------------
-    &writeGenBankRNAaccessionsWithMappedGenesToLoad();
+    writeGenBankRNAaccessionsWithMappedGenesToLoad();
 
     #---------------------------------------------------------------------------------------
     #  write GenPept accessions with mapped genes onto toLoad.unl
     #---------------------------------------------------------------------------------------
-    &initializeGenPeptAccessionsMap();
+    initializeGenPeptAccessionsMap();
 
-    &processGenBankAccessionsAssociatedToNonLoadPubs();
+    processGenBankAccessionsAssociatedToNonLoadPubs();
 
     # ----- get all the Genpept accessions associated with gene at ZFIN, and those with multiple ZFIN genes ----------------------------
-    &printGenPeptsAssociatedWithGeneAtZFIN();
+    printGenPeptsAssociatedWithGeneAtZFIN();
 
     #---------------------------------------------------------------------------
     #  write GenBank DNA accessions with mapped genes onto toLoad.unl
     #---------------------------------------------------------------------------
-    &writeGenBankDNAaccessionsWithMappedGenesToLoad();
+    writeGenBankDNAaccessionsWithMappedGenesToLoad();
 
     #---------------------------------------------------------------------------
     #  write RefSeq RNA accessions with mapped genes onto toLoad.unl
     #---------------------------------------------------------------------------
-    &writeRefSeqRNAaccessionsWithMappedGenesToLoad();
+    writeRefSeqRNAaccessionsWithMappedGenesToLoad();
 
     #---------------------------------------------------------------------------
     #  write RefPept accessions with mapped genes onto toLoad.unl
     #---------------------------------------------------------------------------
-    &writeRefPeptAccessionsWithMappedGenesToLoad();
+    writeRefPeptAccessionsWithMappedGenesToLoad();
 
     #---------------------------------------------------------------------------
     #  write RefSeq DNA accessions with mapped genes onto toLoad.unl
     #---------------------------------------------------------------------------
-    &writeRefSeqDNAaccessionsWithMappedGenesToLoad();
+    writeRefSeqDNAaccessionsWithMappedGenesToLoad();
 
     close TOLOAD;
 
@@ -222,7 +222,7 @@ sub main {
     #-----------------------------------------------------------------------------------------------------------------------
     # Step 8: execute the SQL file to do the deletion according to delete list, and do the loading according to te add list
     #-----------------------------------------------------------------------------------------------------------------------
-    &executeDeleteAndLoadSQLFile();
+    executeDeleteAndLoadSQLFile();
 
     &sendLoadLogs;
 
@@ -232,9 +232,9 @@ sub main {
     # And do the record counts after the load, and report statistics.
     #-------------------------------------------------------------------------------------------------
 
-    &reportAllLoadStatistics();
+    reportAllLoadStatistics();
 
-    &emailLoadReports();
+    emailLoadReports();
 
     print LOG "\n\nAll done! \n\n\n";
     close LOG;
@@ -266,7 +266,7 @@ sub doSystemCommand {
      if ($systemCommand =~ m/loadNCBIgeneAccs\.sql/) {
        &sendLoadLogs;
      }
-     &reportErrAndExit($subjectLine);
+     reportErrAndExit($subjectLine);
   }
 }
 
@@ -335,7 +335,7 @@ sub downloadNCBIFiles {
     our $releaseNum = &getReleaseNumber();
     print LOG "RefSeq Catalog Release Number is $releaseNum.\n\n";
 
-    &downloadNCBIFilesForRelease($releaseNum);
+    downloadNCBIFilesForRelease($releaseNum);
     print LOG "Done with downloading.\n\n";
 }
 
@@ -363,20 +363,16 @@ sub downloadNCBIFilesForRelease {
 
     try {
         downloadOrUseLocalFile($ftpNCBIrefSeqCatalog, "RefSeqCatalog.gz");
-        #    &doSystemCommand("/local/bin/gunzip -c $catalogFile >RefSeqCatalog");
 
         downloadOrUseLocalFile("ftp://ftp.ncbi.nlm.nih.gov/gene/DATA/gene2accession.gz", "gene2accession.gz");
-        #    &doSystemCommand("/local/bin/gunzip -f gene2accession.gz");
 
         downloadOrUseLocalFile("ftp://ftp.ncbi.nih.gov/gene/DATA/ARCHIVE/gene2vega.gz", "gene2vega.gz");
-        #    &doSystemCommand("/local/bin/gunzip -f gene2vega.gz");
 
         downloadOrUseLocalFile("ftp://ftp.ncbi.nlm.nih.gov/gene/DATA/GENE_INFO/Non-mammalian_vertebrates/Danio_rerio.gene_info.gz", "zf_gene_info.gz");
-        #    &doSystemCommand("/local/bin/gunzip -f zf_gene_info.gz");
     }
     catch {
         chomp $_;
-        &reportErrAndExit("Auto from $NCBIState::dbname: NCBI_gene_load.pl :: $_");
+        reportErrAndExit("Auto from $NCBIState::dbname: NCBI_gene_load.pl :: $_");
     };
 
     #-------------------------------------------------------------------------------------------------
@@ -387,7 +383,7 @@ sub downloadNCBIFilesForRelease {
     if (!-e "zf_gene_info.gz" || !-e "gene2accession.gz" || !-e "RefSeqCatalog.gz") {
         my $subjectLine = "Auto from $NCBIState::dbname: NCBI_gene_load.pl :: ERROR with download";
         print LOG "\nMissing one or more downloaded NCBI file(s)\n\n";
-        &reportErrAndExit($subjectLine);
+        reportErrAndExit($subjectLine);
     }
 }
 
@@ -400,10 +396,10 @@ sub prepareNCBIgeneLoadDatabaseQuery {
     #--------------------------------------------------------------------------------------------------------------------
 
     try {
-        &doSystemCommand("psql -v ON_ERROR_STOP=1 -d $ENV{'DB_NAME'} -a -f prepareNCBIgeneLoad.sql >prepareLog1 2> prepareLog2");
+        doSystemCommand("psql -v ON_ERROR_STOP=1 -d $ENV{'DB_NAME'} -a -f prepareNCBIgeneLoad.sql >prepareLog1 2> prepareLog2");
     } catch {
         chomp $_;
-        &reportErrAndExit("Auto from $NCBIState::dbname: NCBI_gene_load.pl :: faile at prepareNCBIgeneLoad.sql - $_");
+        reportErrAndExit("Auto from $NCBIState::dbname: NCBI_gene_load.pl :: faile at prepareNCBIgeneLoad.sql - $_");
     } ;
 
     print LOG "Done with preparing the delete list and the list for mapping.\n\n";
@@ -440,7 +436,7 @@ sub getMetricsOfDbLinksToDelete {
     if ($NCBIState::ctToDelete == 0) {
         my $subjectLine = "Auto from $NCBIState::dbname: " . "NCBI_gene_load.pl :: the delete list, toDelete.unl, is empty";
         # print LOG "\nThe delete list, toDelete.unl is empty. Something is wrong.\n\n";
-        &reportErrAndExit($subjectLine);
+        reportErrAndExit($subjectLine);
     }
 }
 
@@ -1081,7 +1077,7 @@ sub initializeSetsOfZfinRecords {
     if ($ctAccZFINSupportingOnly1 + $ctAccZFINSupportingMoreThan1 != $ctAllSupportingAccZFIN) {
         close STATS;
         my $subjectLine = "Auto from $NCBIState::dbname: " . "NCBI_gene_load.pl :: some numbers don't add up";
-        &reportErrAndExit($subjectLine);
+        reportErrAndExit($subjectLine);
     }
 
     print LOG "ctGenesZFINwithAccSupportingMoreThan1 = $ctGenesZFINwithAccSupportingMoreThan1\n\n";
@@ -1171,11 +1167,7 @@ sub parseRefSeqCatalogFileForSequenceLength {
 
 sub printSequenceLengthsCount {
     # Global: %sequenceLength
-    my $ctAccWithLength = 0;
-    foreach my $accWithLength (keys %NCBIState::sequenceLength) {
-        $ctAccWithLength++;
-    }
-
+    my $ctAccWithLength = scalar(keys %NCBIState::sequenceLength);
     print LOG "\nctAccWithLength = $ctAccWithLength";
 }
 
@@ -1546,7 +1538,7 @@ sub initializeHashOfNCBIAccessionsSupportingMultipleGenes {
     if ($ctAccNCBISupportingOnly1 + $ctAccNCBISupportingMoreThan1 != $ctAllSupportingAccNCBI) {
         close STATS;
         my $subjectLine = "Auto from $NCBIState::dbname: " . "NCBI_gene_load.pl :: some numbers don't add up";
-        &reportErrAndExit($subjectLine);
+        reportErrAndExit($subjectLine);
     }
 }
 
@@ -1695,7 +1687,7 @@ sub initializeMapOfZfinToNCBIgeneIds {
     if ($ct1to1ZFINtoNCBI + $ct1toNZFINtoNCBI + $ctZFINgenesWithAllAccsNotFoundAtNCBI != $ctProcessedZFINgenes) {
         close STATS;
         my $subjectLine = "Auto from $NCBIState::dbname: " . "NCBI_gene_load.pl :: some numbers don't add up";
-        &reportErrAndExit($subjectLine);
+        reportErrAndExit($subjectLine);
     }
 }
 
@@ -1877,7 +1869,7 @@ sub oneWayMappingNCBItoZfinGenes {
     if ($ct1to1NCBItoZFIN + $ct1toNNCBItoZFIN + $ctNCBIgenesWithAllAccsNotFoundAtZFIN != $ctProcessedNCBIgenes) {
         close STATS;
         my $subjectLine = "Auto from $NCBIState::dbname: " . "NCBI_gene_load.pl :: some numbers don't add up";
-        &reportErrAndExit($subjectLine);
+        reportErrAndExit($subjectLine);
     }
 
     print STATS "\nMapping result statistics: number of 0:1 (ZFIN to NCBI) - $ctzeroToOne\n\n";
@@ -2429,7 +2421,7 @@ sub calculateLengthForAccessionsWithoutLength {
         print LOG "\nCannot find noLength.unl as input file for efetch.\n\n";
         close STATS;
         my $subjectLine = "Auto from $NCBIState::dbname: " . "NCBI_gene_load.pl :: no input file for efetch.r";
-        &reportErrAndExit($subjectLine);
+        reportErrAndExit($subjectLine);
     }
 
     print LOG "\nStart efetching ... \n\n";
@@ -2456,7 +2448,7 @@ sub calculateLengthForAccessionsWithoutLength {
         print "Executing $cmdEfetch\n";
         print LOG "Executing $cmdEfetch\n";
 
-        &doSystemCommand($cmdEfetch);
+        doSystemCommand($cmdEfetch);
     }
 
     print LOG "\nAfter efetching\n\n";
@@ -2468,7 +2460,7 @@ sub calculateLengthForAccessionsWithoutLength {
         print LOG "\nCannot execute efetch for input noLength.unl and output seq.fasta: $! \n\n";
         close STATS;
         my $subjectLine = "Auto from $NCBIState::dbname: " . "NCBI_gene_load.pl :: ERROR with efetch";
-        &reportErrAndExit($subjectLine);
+        reportErrAndExit($subjectLine);
     }
 
     print LOG "\nDone with efetching.\n\n";
@@ -2476,13 +2468,13 @@ sub calculateLengthForAccessionsWithoutLength {
     # fasta_len.awk is the script that does the calculation based on fasta sequence
 
     my $cmdCalLength = "/opt/zfin/bin/fasta_len.awk seq.fasta >length.unl";
-    &doSystemCommand($cmdCalLength);
+    doSystemCommand($cmdCalLength);
 
     if (!-e "length.unl") {
         print LOG "\nError happened when execute fasta_len.awk seq.fasta >length.unl: $! \n\n";
         close STATS;
         my $subjectLine = "Auto from $NCBIState::dbname: " . "NCBI_gene_load.pl :: ERROR with fasta_len.awk";
-        &reportErrAndExit($subjectLine);
+        reportErrAndExit($subjectLine);
     }
 
     my $ctSeqLengthCalculated = 0;
@@ -2942,14 +2934,14 @@ sub executeDeleteAndLoadSQLFile {
         print LOG "\nMissing the add list, toLoad.unl, or it is empty. Something is wrong!\n\n";
         close STATS;
         my $subjectLine = "Auto from $NCBIState::dbname: " . "NCBI_gene_load.pl :: missing or empty add list, toLoad.unl";
-        &reportErrAndExit($subjectLine);
+        reportErrAndExit($subjectLine);
     }
 
     try {
-        &doSystemCommand("psql -v ON_ERROR_STOP=1 -d $ENV{'DB_NAME'} -a -f loadNCBIgeneAccs.sql >loadLog1 2> loadLog2");
+        doSystemCommand("psql -v ON_ERROR_STOP=1 -d $ENV{'DB_NAME'} -a -f loadNCBIgeneAccs.sql >loadLog1 2> loadLog2");
     } catch {
         chomp $_;
-        &reportErrAndExit("Auto from $NCBIState::dbname: NCBI_gene_load.pl :: failed at loadNCBIgeneAccs.sql");
+        reportErrAndExit("Auto from $NCBIState::dbname: NCBI_gene_load.pl :: failed at loadNCBIgeneAccs.sql");
     } ;
 
     print LOG "\nDone with the deltion and loading!\n\n";
