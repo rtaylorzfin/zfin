@@ -1,4 +1,7 @@
 #!/opt/zfin/bin/perl
+use strict;
+use warnings FATAL => 'all';
+
 #
 # NCBI_gene_load.pl
 #
@@ -24,9 +27,6 @@
 
 # execute the following to run the scriot in debug mode:
 # perl -s NCBI_gene_load.pl -debug
-
-use strict;
-use warnings FATAL => 'all';
 
 use DBI;
 use Cwd;
@@ -1128,7 +1128,7 @@ sub parseRefSeqCatalogFileForSequenceLength {
     my $taxId;
     my $refSeqAcc;
 
-    open(REFSEQCATALOG, "cat RefSeqCatalog.gz | gunzip -c |") || die("Cannot open RefSeqCatalog.gz : $!\n");
+    open(REFSEQCATALOG, "cat RefSeqCatalog.gz | gunzip -c | grep 7955 |") || die("Cannot open RefSeqCatalog.gz : $!\n");
 
     ## Sample record (last column is length of the sequence):
     ## 7955    Danio rerio     NP_001001398.2  89191828        complete|vertebrate_other       PROVISIONAL     205
@@ -1252,7 +1252,7 @@ sub parseGene2AccessionFile {
 
     print LOG "\nParsing NCBI gene2accession file ... \n\n";
 
-    open(GENE2ACC, "cat gene2accession.gz | gunzip -c |") || die("Cannot open gene2accession.gz : $!\n");
+    open(GENE2ACC, "cat gene2accession.gz | gunzip -c | grep 7955 |") || die("Cannot open gene2accession.gz : $!\n");
 
     ##Format: tax_id GeneID status RNA_nucleotide_accession.version RNA_nucleotide_gi protein_accession.version protein_gi genomic_nucleotide_accession.version genomic_nucleotide_gi start_position_on_the_genomic_accession end_position_on_the_genomic_accession orientation assembly mature_peptide_accession.version mature_peptide_gi Symbol
 
@@ -1262,9 +1262,6 @@ sub parseGene2AccessionFile {
         if ($_) {
 
             $ctlines++;
-
-            ## the first line is just description of the fields, not the data
-            next if $ctlines < 2;
 
             undef @fields;
             @fields = split("\t");
@@ -1403,7 +1400,6 @@ sub parseGene2AccessionFile {
 
     close GENE2ACC;
 
-    $ctlines--;    ## because the first line is just description of the fileds
     print LOG "\n\nNumber of lines on gene2accession file:  $ctlines\n\n";
     print LOG "\nctZebrafishGene2accession:  $NCBIState::ctZebrafishGene2accession\n\n";
 
@@ -1898,7 +1894,7 @@ sub compare2WayMappingResults {
 
     %NCBIState::mapped = ();  ## the list of 1:1; key: ZDB gene Id; value: NCBI gene Id
     %NCBIState::mappedReversed = ();  ## the list of 1:1; key: NCBI gene Id; value: ZDB gene Id
-    my $ctOneToOneNCBI = 0;
+    $NCBIState::ctOneToOneNCBI = 0;
 
     my $ctAllpotentialOneToOneZFIN = 0;
     my $ctOneToOneZFIN = 0;
@@ -1920,13 +1916,13 @@ sub compare2WayMappingResults {
         $ctAllpotentialOneToOneNCBI++;
         my $zdbId = $NCBIState::oneToOneNCBItoZFIN{$ncbiId};
         if (exists($NCBIState::oneToOneZFINtoNCBI{$zdbId})) {
-            $ctOneToOneNCBI++;    ## this number should be the same as $ctOneToOneZFIN
+            $NCBIState::ctOneToOneNCBI++;    ## this number should be the same as $ctOneToOneZFIN
             $NCBIState::mappedReversed{$ncbiId} = $zdbId;
         }
     }
 
-    print LOG "\n ctAllpotentialOneToOneNCBI = $ctAllpotentialOneToOneNCBI \n ctOneToOneNCBI = $ctOneToOneNCBI\n\n";
-    print STATS "\nMapping result statistics: number of 1:1 based on GenBank RNA - $ctOneToOneNCBI\n\n";
+    print LOG "\n ctAllpotentialOneToOneNCBI = $ctAllpotentialOneToOneNCBI \n ctOneToOneNCBI = $NCBIState::ctOneToOneNCBI\n\n";
+    print STATS "\nMapping result statistics: number of 1:1 based on GenBank RNA - $NCBIState::ctOneToOneNCBI\n\n";
 }
 
 sub writeNCBIgeneIdsMappedBasedOnGenBankRNA {
@@ -2565,14 +2561,16 @@ sub writeGenBankRNAaccessionsWithMappedGenesToLoad {
         if (exists($NCBIState::mappedReversed{$NCBIgeneId})) {
             $zdbGeneId = $NCBIState::mappedReversed{$NCBIgeneId};
             if (!exists($NCBIState::geneAccFdbcont{$zdbGeneId . $GenBankRNA . $NCBIState::fdcontGenBankRNA})) {
-                print TOLOAD "$zdbGeneId|$GenBankRNA||$NCBIState::sequenceLength{$GenBankRNA}|$NCBIState::fdcontGenBankRNA|$NCBIState::pubMappedbasedOnRNA\n";
+                my $length = exists($NCBIState::sequenceLength{$GenBankRNA}) ? $NCBIState::sequenceLength{$GenBankRNA} : '';
+                print TOLOAD "$zdbGeneId|$GenBankRNA||$length|$NCBIState::fdcontGenBankRNA|$NCBIState::pubMappedbasedOnRNA\n";
                 $NCBIState::geneAccFdbcont{$zdbGeneId . $GenBankRNA . $NCBIState::fdcontGenBankRNA} = 1;
                 $NCBIState::ctToLoad++;
             }
         } elsif (exists($NCBIState::oneToOneViaVega{$NCBIgeneId})) {
             $zdbGeneId = $NCBIState::oneToOneViaVega{$NCBIgeneId};
             if (!exists($NCBIState::geneAccFdbcont{$zdbGeneId . $GenBankRNA . $NCBIState::fdcontGenBankRNA})) {
-                print TOLOAD "$zdbGeneId|$GenBankRNA||$NCBIState::sequenceLength{$GenBankRNA}|$NCBIState::fdcontGenBankRNA|$NCBIState::pubMappedbasedOnVega\n";
+                my $length = exists($NCBIState::sequenceLength{$GenBankRNA}) ? $NCBIState::sequenceLength{$GenBankRNA} : '';
+                print TOLOAD "$zdbGeneId|$GenBankRNA||$length|$NCBIState::fdcontGenBankRNA|$NCBIState::pubMappedbasedOnVega\n";
                 $NCBIState::geneAccFdbcont{$zdbGeneId . $GenBankRNA . $NCBIState::fdcontGenBankRNA} = 1;
                 $NCBIState::ctToLoad++;
             }
@@ -2662,7 +2660,8 @@ sub processGenBankAccessionsAssociatedToNonLoadPubs {
         if (exists($NCBIState::mappedReversed{$NCBIgeneId})) {
             $zdbGeneId = $NCBIState::mappedReversed{$NCBIgeneId};
             if (!exists($NCBIState::geneAccFdbcont{$zdbGeneId . $GenPept . $NCBIState::fdcontGenPept})) {
-                print TOLOAD "$zdbGeneId|$GenPept||$NCBIState::sequenceLength{$GenPept}|$NCBIState::fdcontGenPept|$NCBIState::pubMappedbasedOnRNA\n";
+                my $length = exists($NCBIState::sequenceLength{$GenPept}) ? $NCBIState::sequenceLength{$GenPept} : '';
+                print TOLOAD "$zdbGeneId|$GenPept||$length|$NCBIState::fdcontGenPept|$NCBIState::pubMappedbasedOnRNA\n";
                 $NCBIState::geneAccFdbcont{$zdbGeneId . $GenPept . $NCBIState::fdcontGenPept} = 1;
                 $NCBIState::ctToLoad++;
                 $NCBIState::GenPeptsToLoad{$GenPept} = $zdbGeneId;
@@ -2671,7 +2670,8 @@ sub processGenBankAccessionsAssociatedToNonLoadPubs {
                     $moreToDelete = $NCBIState::GenPeptDbLinkIdAttributedToNonLoadPub{$GenPept};
                     print MORETODELETE "$moreToDelete\n";
                     $NCBIState::toDelete{$moreToDelete} = 1;
-                    print TOLOAD "$zdbGeneId|$GenPept||$NCBIState::sequenceLength{$GenPept}|$NCBIState::fdcontGenPept|$NCBIState::pubMappedbasedOnRNA\n";
+                    my $length = exists($NCBIState::sequenceLength{$GenPept}) ? $NCBIState::sequenceLength{$GenPept} : '';
+                    print TOLOAD "$zdbGeneId|$GenPept||$length|$NCBIState::fdcontGenPept|$NCBIState::pubMappedbasedOnRNA\n";
                     $NCBIState::geneAccFdbcont{$zdbGeneId . $GenPept . $NCBIState::fdcontGenPept} = 1;
                     $NCBIState::ctToLoad++;
                     print LOG "$GenPept\t$zdbGeneId\t$NCBIState::GenPeptAttributedToNonLoadPub{$GenPept}\t$NCBIState::pubMappedbasedOnRNA\n";
@@ -2681,7 +2681,8 @@ sub processGenBankAccessionsAssociatedToNonLoadPubs {
         } elsif (exists($NCBIState::oneToOneViaVega{$NCBIgeneId})) {
             $zdbGeneId = $NCBIState::oneToOneViaVega{$NCBIgeneId};
             if (!exists($NCBIState::geneAccFdbcont{$zdbGeneId . $GenPept . $NCBIState::fdcontGenPept})) {
-                print TOLOAD "$zdbGeneId|$GenPept||$NCBIState::sequenceLength{$GenPept}|$NCBIState::fdcontGenPept|$NCBIState::pubMappedbasedOnVega\n";
+                my $length = exists($NCBIState::sequenceLength{$GenPept}) ? $NCBIState::sequenceLength{$GenPept} : '';
+                print TOLOAD "$zdbGeneId|$GenPept||$length|$NCBIState::fdcontGenPept|$NCBIState::pubMappedbasedOnVega\n";
                 $NCBIState::geneAccFdbcont{$zdbGeneId . $GenPept . $NCBIState::fdcontGenPept} = 1;
                 $NCBIState::ctToLoad++;
                 $NCBIState::GenPeptsToLoad{$GenPept} = $zdbGeneId;
@@ -2690,7 +2691,8 @@ sub processGenBankAccessionsAssociatedToNonLoadPubs {
                     $moreToDelete = $NCBIState::GenPeptDbLinkIdAttributedToNonLoadPub{$GenPept};
                     print MORETODELETE "$moreToDelete\n";
                     $NCBIState::toDelete{$moreToDelete} = 1;
-                    print TOLOAD "$zdbGeneId|$GenPept||$NCBIState::sequenceLength{$GenPept}|$NCBIState::fdcontGenPept|$NCBIState::pubMappedbasedOnVega\n";
+                    my $length = exists($NCBIState::sequenceLength{$GenPept}) ? $NCBIState::sequenceLength{$GenPept} : '';
+                    print TOLOAD "$zdbGeneId|$GenPept||$length|$NCBIState::fdcontGenPept|$NCBIState::pubMappedbasedOnVega\n";
                     $NCBIState::geneAccFdbcont{$zdbGeneId . $GenPept . $NCBIState::fdcontGenPept} = 1;
                     $NCBIState::ctToLoad++;
                     print LOG "$GenPept\t$zdbGeneId\t$NCBIState::GenPeptAttributedToNonLoadPub{$GenPept}\t$NCBIState::pubMappedbasedOnVega\n";
@@ -2770,7 +2772,7 @@ sub printGenPeptsAssociatedWithGeneAtZFIN {
     print LOG "--------\t-------------\t-------------\n";
 
     my $ctGenPeptWithMultipleZDBgeneToLoad = 0;
-    foreach my $GenPept (sort keys %GenPeptWithMultipleZDBgene) {
+    foreach $GenPept (sort keys %GenPeptWithMultipleZDBgene) {
         if (exists($NCBIState::GenPeptsToLoad{$GenPept})) {
             $ref_arrayZDBgeneIds = $GenPeptWithMultipleZDBgene{$GenPept};
             print LOG "$GenPept\t$NCBIState::GenPeptsToLoad{$GenPept}\t@$ref_arrayZDBgeneIds\n";
@@ -2799,7 +2801,8 @@ sub writeGenBankDNAaccessionsWithMappedGenesToLoad {
             if (exists($NCBIState::mappedReversed{$NCBIgeneId})) {
                 $zdbGeneId = $NCBIState::mappedReversed{$NCBIgeneId};
                 if (!exists($NCBIState::geneAccFdbcont{$zdbGeneId . $GenBankDNA . $NCBIState::fdcontGenBankDNA})) {
-                    print TOLOAD "$zdbGeneId|$GenBankDNA||$NCBIState::sequenceLength{$GenBankDNA}|$NCBIState::fdcontGenBankDNA|$NCBIState::pubMappedbasedOnRNA\n";
+                    my $length = exists($NCBIState::sequenceLength{$GenBankDNA}) ? $NCBIState::sequenceLength{$GenBankDNA} : '';
+                    print TOLOAD "$zdbGeneId|$GenBankDNA||$length|$NCBIState::fdcontGenBankDNA|$NCBIState::pubMappedbasedOnRNA\n";
                     $NCBIState::geneAccFdbcont{$zdbGeneId . $GenBankDNA . $NCBIState::fdcontGenBankDNA} = 1;
                     $NCBIState::ctToLoad++;
                 }
@@ -2807,7 +2810,8 @@ sub writeGenBankDNAaccessionsWithMappedGenesToLoad {
             elsif (exists($NCBIState::oneToOneViaVega{$NCBIgeneId})) {
                 $zdbGeneId = $NCBIState::oneToOneViaVega{$NCBIgeneId};
                 if (!exists($NCBIState::geneAccFdbcont{$zdbGeneId . $GenBankDNA . $NCBIState::fdcontGenBankDNA})) {
-                    print TOLOAD "$zdbGeneId|$GenBankDNA||$NCBIState::sequenceLength{$GenBankDNA}|$NCBIState::fdcontGenBankDNA|$NCBIState::pubMappedbasedOnVega\n";
+                    my $length = exists($NCBIState::sequenceLength{$GenBankDNA}) ? $NCBIState::sequenceLength{$GenBankDNA} : '';
+                    print TOLOAD "$zdbGeneId|$GenBankDNA||$length|$NCBIState::fdcontGenBankDNA|$NCBIState::pubMappedbasedOnVega\n";
                     $NCBIState::geneAccFdbcont{$zdbGeneId . $GenBankDNA . $NCBIState::fdcontGenBankDNA} = 1;
                     $NCBIState::ctToLoad++;
                 }
@@ -2835,14 +2839,16 @@ sub writeRefSeqRNAaccessionsWithMappedGenesToLoad {
         if (exists($NCBIState::mappedReversed{$NCBIgeneId})) {
             $zdbGeneId = $NCBIState::mappedReversed{$NCBIgeneId};
             if (!exists($NCBIState::geneAccFdbcont{$zdbGeneId . $RefSeqRNA . $NCBIState::fdcontRefSeqRNA})) {
-                print TOLOAD "$zdbGeneId|$RefSeqRNA||$NCBIState::sequenceLength{$RefSeqRNA}|$NCBIState::fdcontRefSeqRNA|$NCBIState::pubMappedbasedOnRNA\n";
+                my $length = exists($NCBIState::sequenceLength{$RefSeqRNA}) ? $NCBIState::sequenceLength{$RefSeqRNA} : '';
+                print TOLOAD "$zdbGeneId|$RefSeqRNA||$length|$NCBIState::fdcontRefSeqRNA|$NCBIState::pubMappedbasedOnRNA\n";
                 $NCBIState::geneAccFdbcont{$zdbGeneId . $RefSeqRNA . $NCBIState::fdcontRefSeqRNA} = 1;
                 $NCBIState::ctToLoad++;
             }
         } elsif (exists($NCBIState::oneToOneViaVega{$NCBIgeneId})) {
             $zdbGeneId = $NCBIState::oneToOneViaVega{$NCBIgeneId};
             if (!exists($NCBIState::geneAccFdbcont{$zdbGeneId . $RefSeqRNA . $NCBIState::fdcontRefSeqRNA})) {
-                print TOLOAD "$zdbGeneId|$RefSeqRNA||$NCBIState::sequenceLength{$RefSeqRNA}|$NCBIState::fdcontRefSeqRNA|$NCBIState::pubMappedbasedOnVega\n";
+                my $length = exists($NCBIState::sequenceLength{$RefSeqRNA}) ? $NCBIState::sequenceLength{$RefSeqRNA} : '';
+                print TOLOAD "$zdbGeneId|$RefSeqRNA||$length|$NCBIState::fdcontRefSeqRNA|$NCBIState::pubMappedbasedOnVega\n";
                 $NCBIState::geneAccFdbcont{$zdbGeneId . $RefSeqRNA . $NCBIState::fdcontRefSeqRNA} = 1;
                 $NCBIState::ctToLoad++;
             }
@@ -2870,14 +2876,16 @@ sub writeRefPeptAccessionsWithMappedGenesToLoad {
         if (exists($NCBIState::mappedReversed{$NCBIgeneId})) {
             $zdbGeneId = $NCBIState::mappedReversed{$NCBIgeneId};
             if (!exists($NCBIState::geneAccFdbcont{$zdbGeneId . $RefPept . $NCBIState::fdcontRefPept})) {
-                print TOLOAD "$zdbGeneId|$RefPept||$NCBIState::sequenceLength{$RefPept}|$NCBIState::fdcontRefPept|$NCBIState::pubMappedbasedOnRNA\n";
+                my $length = exists($NCBIState::sequenceLength{$RefPept}) ? $NCBIState::sequenceLength{$RefPept} : '';
+                print TOLOAD "$zdbGeneId|$RefPept||$length|$NCBIState::fdcontRefPept|$NCBIState::pubMappedbasedOnRNA\n";
                 $NCBIState::geneAccFdbcont{$zdbGeneId . $RefPept . $NCBIState::fdcontRefPept} = 1;
                 $NCBIState::ctToLoad++;
             }
         } elsif (exists($NCBIState::oneToOneViaVega{$NCBIgeneId})) {
             $zdbGeneId = $NCBIState::oneToOneViaVega{$NCBIgeneId};
             if (!exists($NCBIState::geneAccFdbcont{$zdbGeneId . $RefPept . $NCBIState::fdcontRefPept})) {
-                print TOLOAD "$zdbGeneId|$RefPept||$NCBIState::sequenceLength{$RefPept}|$NCBIState::fdcontRefPept|$NCBIState::pubMappedbasedOnVega\n";
+                my $length = exists($NCBIState::sequenceLength{$RefPept}) ? $NCBIState::sequenceLength{$RefPept} : '';
+                print TOLOAD "$zdbGeneId|$RefPept||$length|$NCBIState::fdcontRefPept|$NCBIState::pubMappedbasedOnVega\n";
                 $NCBIState::geneAccFdbcont{$zdbGeneId . $RefPept . $NCBIState::fdcontRefPept} = 1;
                 $NCBIState::ctToLoad++;
             }
@@ -2905,14 +2913,16 @@ sub writeRefSeqDNAaccessionsWithMappedGenesToLoad {
         if (exists($NCBIState::mappedReversed{$NCBIgeneId})) {
             $zdbGeneId = $NCBIState::mappedReversed{$NCBIgeneId};
             if (!exists($NCBIState::geneAccFdbcont{$zdbGeneId . $RefSeqDNA . $NCBIState::fdcontRefSeqDNA})) {
-                print TOLOAD "$zdbGeneId|$RefSeqDNA||$NCBIState::sequenceLength{$RefSeqDNA}|$NCBIState::fdcontRefSeqDNA|$NCBIState::pubMappedbasedOnRNA\n";
+                my $length = exists($NCBIState::sequenceLength{$RefSeqDNA}) ? $NCBIState::sequenceLength{$RefSeqDNA} : '';
+                print TOLOAD "$zdbGeneId|$RefSeqDNA||$length|$NCBIState::fdcontRefSeqDNA|$NCBIState::pubMappedbasedOnRNA\n";
                 $NCBIState::geneAccFdbcont{$zdbGeneId . $RefSeqDNA . $NCBIState::fdcontRefSeqDNA} = 1;
                 $NCBIState::ctToLoad++;
             }
         } elsif (exists($NCBIState::oneToOneViaVega{$NCBIgeneId})) {
             $zdbGeneId = $NCBIState::oneToOneViaVega{$NCBIgeneId};
             if (!exists($NCBIState::geneAccFdbcont{$zdbGeneId . $RefSeqDNA . $NCBIState::fdcontRefSeqDNA})) {
-                print TOLOAD "$zdbGeneId|$RefSeqDNA||$NCBIState::sequenceLength{$RefSeqDNA}|$NCBIState::fdcontRefSeqDNA|$NCBIState::pubMappedbasedOnVega\n";
+                my $length = exists($NCBIState::sequenceLength{$RefSeqDNA}) ? $NCBIState::sequenceLength{$RefSeqDNA} : '';
+                print TOLOAD "$zdbGeneId|$RefSeqDNA||$length|$NCBIState::fdcontRefSeqDNA|$NCBIState::pubMappedbasedOnVega\n";
                 $NCBIState::geneAccFdbcont{$zdbGeneId . $RefSeqDNA . $NCBIState::fdcontRefSeqDNA} = 1;
                 $NCBIState::ctToLoad++;
             }
