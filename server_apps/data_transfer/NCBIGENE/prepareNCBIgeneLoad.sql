@@ -126,11 +126,11 @@ select count(gene) as numberOfGenesWithRNAevidence from genes_supported_by_rna;
 
 --!echo 'Dump the list of genes supported by GenBank RNA sequenecs, as the start set on ZFIN end for mapping'
 
-\copy (select distinct gene from genes_supported_by_rna) to '<!--|ROOT_PATH|-->/server_apps/data_transfer/NCBIGENE/toMap.unl' (delimiter '|');
+\copy (select distinct gene from genes_supported_by_rna) to '/opt/zfin//www_homes/zfin.org/server_apps/data_transfer/NCBIGENE/toMap.unl' (delimiter '|');
 
 --!echo 'Dump the delete list'
 
-\copy (select * from pre_delete order by dblink_loaded_zdb_id) to '<!--|ROOT_PATH|-->/server_apps/data_transfer/NCBIGENE/toDelete.unl' (delimiter '|');
+\copy (select * from pre_delete order by dblink_loaded_zdb_id) to '/opt/zfin//www_homes/zfin.org/server_apps/data_transfer/NCBIGENE/toDelete.unl' (delimiter '|');
 
 drop view genes_supported_by_rna;
 

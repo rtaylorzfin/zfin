@@ -15,7 +15,7 @@ create temporary table ncbi_gene_delete (
 
 create index t_id_index on ncbi_gene_delete (delete_dblink_zdb_id);
 
-copy ncbi_gene_delete from '<!--|ROOT_PATH|-->/server_apps/data_transfer/NCBIGENE/toDelete.unl';
+\copy ncbi_gene_delete from '/opt/zfin/www_homes/zfin.org/server_apps/data_transfer/NCBIGENE/toDelete.unl';
 
 create temporary table ncbi_gene_load (
   mapped_zdb_gene_id    text not null,
@@ -26,7 +26,7 @@ create temporary table ncbi_gene_load (
   load_pub_zdb_id       text not null
 );
 
-copy ncbi_gene_load from '<!--|ROOT_PATH|-->/server_apps/data_transfer/NCBIGENE/toLoad.unl' (delimiter '|');
+\copy ncbi_gene_load from '/opt/zfin/www_homes/zfin.org/server_apps/data_transfer/NCBIGENE/toLoad.unl' (delimiter '|');
 
 update ncbi_gene_load 
  set sequence_length = null
@@ -60,15 +60,25 @@ delete from record_attribution
                   and dblink_fdbcont_zdb_id in ('ZDB-FDBCONT-040412-37','ZDB-FDBCONT-040412-42','ZDB-FDBCONT-040412-36')
               );
 
---!echo 'Insert into zdb_active_data the new zdb ids of db_link records'
-
 insert into zdb_active_data select zdb_id from ncbi_gene_load;
 
---!echo 'Insert the new records into db_link table'
+\echo 'Skipping duplicate entries in db_link table for the new records that would violate key:';
+select mapped_zdb_gene_id, ncbi_accession, ncbi_accession, 'uncurated: NCBI gene load ' || now(), zdb_id, sequence_length, fdbcont_zdb_id
+from ncbi_gene_load
+where exists(
+              select 'x' from db_link where (dblink_linked_recid, dblink_acc_num, dblink_fdbcont_zdb_id)
+                                                = (mapped_zdb_gene_id, ncbi_accession, fdbcont_zdb_id)
+          );
 
-insert into db_link (dblink_linked_recid, dblink_acc_num, dblink_acc_num_display, dblink_info, dblink_zdb_id, dblink_length, dblink_fdbcont_zdb_id) 
-select mapped_zdb_gene_id, ncbi_accession, ncbi_accession, 'uncurated: NCBI gene load ' || now(), zdb_id, sequence_length, fdbcont_zdb_id 
-  from ncbi_gene_load;
+
+\echo 'Insert the new records into db_link table';
+insert into db_link (dblink_linked_recid, dblink_acc_num, dblink_acc_num_display, dblink_info, dblink_zdb_id, dblink_length, dblink_fdbcont_zdb_id)
+select mapped_zdb_gene_id, ncbi_accession, ncbi_accession, 'uncurated: NCBI gene load ' || now(), zdb_id, sequence_length, fdbcont_zdb_id
+from ncbi_gene_load
+where not exists(
+        select 'x' from db_link where (dblink_linked_recid, dblink_acc_num, dblink_fdbcont_zdb_id)
+                                          = (mapped_zdb_gene_id, ncbi_accession, fdbcont_zdb_id)
+    );
     
 --! echo "Attribute the new db_link records to one of the 2 load publications, depending on what kind of mapping"
 
@@ -78,7 +88,7 @@ select zdb_id, load_pub_zdb_id
 
 --! echo "Dump all the GenPept accession associated with genes at ZFIN that are still attributed to a non-load pub"
 
---unload to "<!--|ROOT_PATH|-->/server_apps/data_transfer/NCBIGENE/reportNonLoadPubGenPept" 
+--unload to "/opt/zfin//www_homes/zfin.org/server_apps/data_transfer/NCBIGENE/reportNonLoadPubGenPept" 
 create view reportNonLoadPubGenPept as
 select recattrib_source_zdb_id, dblink_acc_num, dblink_linked_recid 
   from db_link, record_attribution 
@@ -88,7 +98,7 @@ select recattrib_source_zdb_id, dblink_acc_num, dblink_linked_recid
    and recattrib_source_zdb_id not in ('ZDB-PUB-020723-3','ZDB-PUB-130725-2') 
 group by recattrib_source_zdb_id, dblink_acc_num, dblink_linked_recid 
 order by recattrib_source_zdb_id, dblink_acc_num, dblink_linked_recid;
-\copy (select * from reportNonLoadPubGenPept) to '<!--|ROOT_PATH|-->/server_apps/data_transfer/NCBIGENE/reportNonLoadPubGenPept' with delimiter as '	' null as '';
+\copy (select * from reportNonLoadPubGenPept) to '/opt/zfin//www_homes/zfin.org/server_apps/data_transfer/NCBIGENE/reportNonLoadPubGenPept' with delimiter as '	' null as '';
 drop view reportNonLoadPubGenPept;
 
 --!echo 'CHECK: how many RefSeq and GenBank accessions missing length after the load'
