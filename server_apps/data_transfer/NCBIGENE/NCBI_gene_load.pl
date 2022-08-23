@@ -20,7 +20,8 @@ use warnings FATAL => 'all';
 #
 # The values of dblink_length are also processed and loaded.
 # And statistics and various reports are generated and emailed.
-
+#
+# This script makes heavy use of global variables. They are all defined and documented just after the main subroutine.
 #
 # See README or http://fogbugz.zfin.org/default.asp?W1625
 # for a detailed documentation of the steps.
