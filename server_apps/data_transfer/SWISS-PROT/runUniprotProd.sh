@@ -12,15 +12,6 @@
 
 set -eo pipefail
 
-# Handle exiting with error code
-trap 'catch $? $LINENO' EXIT
-catch() {
-  if [ "$1" != "0" ]; then
-    # error handling goes here
-    echo "Caught BASH Error with exit code $1"
-  fi
-}
-
 main() {
 
 if [ -z "$SKIP_CLEANUP" ]
