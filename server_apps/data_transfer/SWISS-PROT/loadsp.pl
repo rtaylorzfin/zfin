@@ -16,10 +16,15 @@
 # ec2go
 
 use DBI;
-use lib "<!--|ROOT_PATH|-->/server_apps/";
-use ZFINPerlModules;
 use Try::Tiny;
 use POSIX;
+use FindBin;
+
+#relative path to library file(s) (ZFINPerlModules.pm)
+use lib "$FindBin::Bin/../../";
+use ZFINPerlModules qw(assert_environment trim);
+assert_environment('ROOT_PATH', 'PGHOST', 'DB_NAME', 'SWISSPROT_EMAIL_ERR', 'SWISSPROT_EMAIL_REPORT');
+
 
 # ----------------- Send Error Report -------------
 # Parameter
@@ -28,7 +33,7 @@ use POSIX;
 sub sendErrorReport ($) {
 
   my $SUBJECT = "Auto from $dbname SWISS-PROT:".$_[0];
-  ZFINPerlModules->sendMailWithAttachedReport('<!--|SWISSPROT_EMAIL_ERR|-->',"$SUBJECT","report.txt");
+  ZFINPerlModules->sendMailWithAttachedReport($ENV{'SWISSPROT_EMAIL_ERR'},"$SUBJECT","report.txt");
 
 }
 
@@ -37,8 +42,8 @@ sub countData {
   my $ctsql = @_[0];
   my $nRecords = 0;
 
-  my $dbname = "<!--|DB_NAME|-->";
-  my $dbhost = "<!--|PGHOST|-->";
+  my $dbname = "$ENV{'DB_NAME'}";
+  my $dbhost = "$ENV{'PGHOST'}";
   my $username = "";
   my $password = "";
 
@@ -67,9 +72,9 @@ sub countData {
 
 
 #set environment variables
-$dbname = "<!--|DB_NAME|-->";
+$dbname = "$ENV{'DB_NAME'}";
 
-chdir "<!--|ROOT_PATH|-->/server_apps/data_transfer/SWISS-PROT/";
+chdir "$ENV{'ROOT_PATH'}/server_apps/data_transfer/SWISS-PROT/";
 
 
 #remove old files
@@ -221,7 +226,7 @@ $numMrkrProcessBefore = countData($sql);
 
 print("Running sp_addbackattr.sql at " . strftime("%Y-%m-%d %H:%M:%S", localtime(time())) . "\n");
 try {
-  system("psql -d <!--|DB_NAME|--> -a -f sp_addbackattr.sql >addBackAttributionReport.txt");
+  system("psql -v ON_ERROR_STOP=1 -d $ENV{'DB_NAME'} -a -f sp_addbackattr.sql >addBackAttributionReport.txt");
 } catch {
   chomp $_;
   &sendErrorReport("Failed to execute sp_addbackattr.sql - $_");
@@ -232,7 +237,7 @@ try {
 print "\n Capturing data from last SWISS-PROT loading.\n";
 
 try {
-  system("psql -d <!--|DB_NAME|--> -a -f sp_capture.sql >capturereport.txt");
+  system("psql -v ON_ERROR_STOP=1 -d $ENV{'DB_NAME'} -a -f sp_capture.sql >capturereport.txt");
 } catch {
   chomp $_;
   &sendErrorReport("Failed to execute sp_capture.sql - $_");
@@ -243,7 +248,7 @@ try {
 print "\n delete records source from last SWISS-PROT loading.\n";
 
 try {
-  system("psql -d <!--|DB_NAME|--> -a -f sp_delete.sql >deletereport.txt");
+  system("psql -v ON_ERROR_STOP=1 -d $ENV{'DB_NAME'} -a -f sp_delete.sql >deletereport.txt");
 } catch {
   chomp $_;
   &sendErrorReport("Failed to execute sp_delete.sql - $_");
@@ -258,7 +263,7 @@ system("cat ok2file >> okfile");
 
 # ----------- Parse the SWISS-PROT file ----------------
 print "\n sp_parser.pl okfile \n";
-system ("<!--|ROOT_PATH|-->/server_apps/data_transfer/SWISS-PROT/sp_parser.pl okfile");
+system ("$ENV{'ROOT_PATH'}/server_apps/data_transfer/SWISS-PROT/sp_parser.pl okfile");
 
 $count = 0;
 $retry = 1;
@@ -276,7 +281,7 @@ while( !( -e "dr_dblink.unl" &&
       $count = 0;
       $retry = 0;
       print "retry sp_parser.pl\n";
-      system("<!--|ROOT_PATH|-->/server_apps/data_transfer/SWISS-PROT/sp_parser.pl okfile");
+      system("$ENV{'ROOT_PATH'}/server_apps/data_transfer/SWISS-PROT/sp_parser.pl okfile");
     }
     else
     {
@@ -290,7 +295,7 @@ system("ls *.unl");
 
 # ------------ Parse spkw2go ---------------
 print "\nsptogo.pl spkw2go\n";
-system ("<!--|ROOT_PATH|-->/server_apps/data_transfer/SWISS-PROT/sptogo.pl spkw2go");
+system ("$ENV{'ROOT_PATH'}/server_apps/data_transfer/SWISS-PROT/sptogo.pl spkw2go");
 $count = 0;
 $retry = 1;
 # wait till parsing is finished
@@ -304,7 +309,7 @@ while( !( -e "sp_mrkrgoterm.unl")) {
       $count = 0;
       $retry = 0;
       print "retry sptogo.pl\n";
-      system("<!--|ROOT_PATH|-->/server_apps/data_transfer/SWISS-PROT/sptogo.pl spkw2go");
+      system("$ENV{'ROOT_PATH'}/server_apps/data_transfer/SWISS-PROT/sptogo.pl spkw2go");
     }
     else
     {
@@ -316,7 +321,7 @@ while( !( -e "sp_mrkrgoterm.unl")) {
 
 # ------------ Parse interpro2go ---------------
 print "\niptogo.pl interpro2go\n";
-system ("<!--|ROOT_PATH|-->/server_apps/data_transfer/SWISS-PROT/iptogo.pl interpro2go");
+system ("$ENV{'ROOT_PATH'}/server_apps/data_transfer/SWISS-PROT/iptogo.pl interpro2go");
 $count = 0;
 $retry = 1;
 # wait till parsing is finished
@@ -330,7 +335,7 @@ while( !( -e "ip_mrkrgoterm.unl")) {
       $count = 0;
       $retry = 0;
       print "retry iptogo.pl\n";
-      system("<!--|ROOT_PATH|-->/server_apps/data_transfer/SWISS-PROT/iptogo.pl interpro2go");
+      system("$ENV{'ROOT_PATH'}/server_apps/data_transfer/SWISS-PROT/iptogo.pl interpro2go");
     }
     else
     {
@@ -344,7 +349,7 @@ while( !( -e "ip_mrkrgoterm.unl")) {
 # ------------ Parse ec2go ---------------
 
 print "\nectogo.pl ec2go\n";
-system ("<!--|ROOT_PATH|-->/server_apps/data_transfer/SWISS-PROT/ectogo.pl ec2go");
+system ("$ENV{'ROOT_PATH'}/server_apps/data_transfer/SWISS-PROT/ectogo.pl ec2go");
 $count = 0;
 $retry = 1;
 # wait till parsing is finished
@@ -358,7 +363,7 @@ while( !( -e "ec_mrkrgoterm.unl")) {
       $count = 0;
       $retry = 0;
       print "retry ectogo.pl\n";
-      system("<!--|ROOT_PATH|-->/server_apps/data_transfer/SWISS-PROT/ectogo.pl ec2go");
+      system("$ENV{'ROOT_PATH'}/server_apps/data_transfer/SWISS-PROT/ectogo.pl ec2go");
     }
     else
     {
@@ -372,7 +377,7 @@ while( !( -e "ec_mrkrgoterm.unl")) {
 # ------------ Loading ---------------------
 print "\nloading... at " . strftime("%Y-%m-%d %H:%M:%S", localtime(time())) . "\n";
 try {
-  system("psql -d <!--|DB_NAME|--> -a -f sp_load.sql > report.txt");
+  system("psql -v ON_ERROR_STOP=1 -d $ENV{'DB_NAME'} -a -f sp_load.sql > report.txt");
 } catch {
   chomp $_;
   &sendErrorReport("Failed to execute sp_load.sql - $_");
@@ -610,11 +615,11 @@ print "All done at " . strftime("%Y-%m-%d %H:%M:%S", localtime(time())) . "\n";
 
 #------------------ Send statistics of changes of record counts with the load ----------------
 $subject = "Auto from $dbname: " . "post UniProt load statistics";
-ZFINPerlModules->sendMailWithAttachedReport('<!--|SWISSPROT_EMAIL_CURATOR|-->',"$subject","postUniProtLoadStatistics.txt");
-ZFINPerlModules->sendMailWithAttachedReport('<!--|SWISSPROT_EMAIL_ERR|-->',"$subject","postUniProtLoadStatistics.txt");
+ZFINPerlModules->sendMailWithAttachedReport($ENV{'SWISSPROT_EMAIL_CURATOR'},"$subject","postUniProtLoadStatistics.txt");
+ZFINPerlModules->sendMailWithAttachedReport($ENV{'SWISSPROT_EMAIL_ERR'},"$subject","postUniProtLoadStatistics.txt");
 
 #------------------ Send log of the load ----------------
 $subject = "Auto from $dbname: " . "UniProt load log";
-ZFINPerlModules->sendMailWithAttachedReport('<!--|SWISSPROT_EMAIL_ERR|-->',"$subject","report.txt");
+ZFINPerlModules->sendMailWithAttachedReport($ENV{'SWISSPROT_EMAIL_ERR'},"$subject","report.txt");
 
 exit;
