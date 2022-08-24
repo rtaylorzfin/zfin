@@ -54,7 +54,7 @@ sub doSystemCommandOrFailWithEmail {
     my $returnCode = system( $systemCommand );
 
     if ( $returnCode != 0 ) {
-        sendMailWithAttachedReport($email, $subject, $textFile);
+        ZFINPerlModules->sendMailWithAttachedReport($email, $subject, $textFile);
         exit -1;
     }
 }
