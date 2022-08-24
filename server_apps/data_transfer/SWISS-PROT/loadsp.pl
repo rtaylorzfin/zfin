@@ -22,7 +22,7 @@ use FindBin;
 
 #relative path to library file(s) (ZFINPerlModules.pm)
 use lib "$FindBin::Bin/../../";
-use ZFINPerlModules qw(assertEnvironment trim);
+use ZFINPerlModules qw(assertEnvironment trim doSystemCommandOrFailWithEmail);
 assertEnvironment('ROOT_PATH', 'PGHOST', 'DB_NAME', 'SWISSPROT_EMAIL_ERR', 'SWISSPROT_EMAIL_REPORT');
 
 
@@ -31,10 +31,18 @@ assertEnvironment('ROOT_PATH', 'PGHOST', 'DB_NAME', 'SWISSPROT_EMAIL_ERR', 'SWIS
 #   $    Error message
 
 sub sendErrorReport ($) {
-
   my $SUBJECT = "Auto from $dbname SWISS-PROT:".$_[0];
   ZFINPerlModules->sendMailWithAttachedReport($ENV{'SWISSPROT_EMAIL_ERR'},"$SUBJECT","report.txt");
+}
 
+sub runCmd {
+  my $cmd = shift();
+  my $failMessage = shift();
+  doSystemCommandOrFailWithEmail(
+      $cmd,
+      $ENV{'SWISSPROT_EMAIL_ERR'},
+      "Auto from $dbname SWISS-PROT: $failMessage",
+      "report.txt");
 }
 
 sub countData {
@@ -225,35 +233,20 @@ $sql = "select distinct mrkr_zdb_id from marker, marker_go_term_evidence, term
 $numMrkrProcessBefore = countData($sql);
 
 print("Running sp_addbackattr.sql at " . strftime("%Y-%m-%d %H:%M:%S", localtime(time())) . "\n");
-try {
-  system("psql -v ON_ERROR_STOP=1 -d $ENV{'DB_NAME'} -a -f sp_addbackattr.sql >addBackAttributionReport.txt");
-} catch {
-  chomp $_;
-  &sendErrorReport("Failed to execute sp_addbackattr.sql - $_");
-  exit -1;
-};
+runCmd("psql -v ON_ERROR_STOP=1 -d $ENV{'DB_NAME'} -a -f sp_addbackattr.sql >addBackAttributionReport.txt",
+      "Failed to execute sp_addbackattr.sql");
 
 #--------------- Capture some history from last SWISS-PROT loading-----
 print "\n Capturing data from last SWISS-PROT loading.\n";
 
-try {
-  system("psql -v ON_ERROR_STOP=1 -d $ENV{'DB_NAME'} -a -f sp_capture.sql >capturereport.txt");
-} catch {
-  chomp $_;
-  &sendErrorReport("Failed to execute sp_capture.sql - $_");
-  exit -1;
-};
+runCmd("psql -v ON_ERROR_STOP=1 -d $ENV{'DB_NAME'} -a -f sp_capture.sql >capturereport.txt",
+    "Failed to execute sp_capture.sql");
 
 #--------------- Delete records from last SWISS-PROT loading-----
 print "\n delete records source from last SWISS-PROT loading.\n";
 
-try {
-  system("psql -v ON_ERROR_STOP=1 -d $ENV{'DB_NAME'} -a -f sp_delete.sql >deletereport.txt");
-} catch {
-  chomp $_;
-  &sendErrorReport("Failed to execute sp_delete.sql - $_");
-  exit -1;
-};
+runCmd("psql -v ON_ERROR_STOP=1 -d $ENV{'DB_NAME'} -a -f sp_delete.sql >deletereport.txt",
+    "Failed to execute sp_delete.sql");
 
 # good records for loading
 # concatenate okfile ok2file
@@ -376,13 +369,8 @@ while( !( -e "ec_mrkrgoterm.unl")) {
 
 # ------------ Loading ---------------------
 print "\nloading... at " . strftime("%Y-%m-%d %H:%M:%S", localtime(time())) . "\n";
-try {
-  system("psql -v ON_ERROR_STOP=1 -d $ENV{'DB_NAME'} -a -f sp_load.sql > report.txt");
-} catch {
-  chomp $_;
-  &sendErrorReport("Failed to execute sp_load.sql - $_");
-  exit -1;
-};
+runCmd("psql -v ON_ERROR_STOP=1 -d $ENV{'DB_NAME'} -a -f sp_load.sql > report.txt",
+    "Failed to execute sp_load.sql");
 
 #--------------------------- record counts after loading finishes ----------------------------
 
