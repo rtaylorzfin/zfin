@@ -22,8 +22,8 @@ use FindBin;
 
 #relative path to library file(s) (ZFINPerlModules.pm)
 use lib "$FindBin::Bin/../../";
-use ZFINPerlModules qw(assert_environment trim);
-assert_environment('ROOT_PATH', 'PGHOST', 'DB_NAME', 'SWISSPROT_EMAIL_ERR', 'SWISSPROT_EMAIL_REPORT');
+use ZFINPerlModules qw(assertEnvironment trim);
+assertEnvironment('ROOT_PATH', 'PGHOST', 'DB_NAME', 'SWISSPROT_EMAIL_ERR', 'SWISSPROT_EMAIL_REPORT');
 
 
 # ----------------- Send Error Report -------------

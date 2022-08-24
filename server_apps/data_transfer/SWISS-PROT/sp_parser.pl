@@ -11,8 +11,8 @@ use Cwd;
 
 use FindBin;
 use lib "$FindBin::Bin/../../";
-use ZFINPerlModules qw(assert_environment);
-assert_environment('DB_NAME', 'PGHOST');
+use ZFINPerlModules qw(assertEnvironment);
+assertEnvironment('DB_NAME', 'PGHOST');
 
 my $first = 1;       #indicate the beginning of DR(the end of CC)
 

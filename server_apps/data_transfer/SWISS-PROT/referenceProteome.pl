@@ -15,8 +15,8 @@ use DBI;
 use Try::Tiny;
 use FindBin;
 use lib "$FindBin::Bin/../../";
-use ZFINPerlModules qw(assert_environment);
-assert_environment('ROOT_PATH', 'PGHOST', 'DB_NAME');
+use ZFINPerlModules qw(assertEnvironment);
+assertEnvironment('ROOT_PATH', 'PGHOST', 'DB_NAME');
 
 # set environment variables
 $ENV{"DBDATE"}="Y4MD-";

@@ -9,8 +9,8 @@ use MIME::Lite;
 use Try::Tiny;
 use FindBin;
 use lib "$FindBin::Bin/../../";
-use ZFINPerlModules qw(assert_environment trim);
-assert_environment('ROOT_PATH', 'INFORMIXDIR', 'DB_NAME', 'SWISSPROT_EMAIL_ERR', 'LOGNAME');
+use ZFINPerlModules qw(assertEnvironment trim);
+assertEnvironment('ROOT_PATH', 'INFORMIXDIR', 'DB_NAME', 'SWISSPROT_EMAIL_ERR', 'LOGNAME');
 
 # ----------------- Send Error Report -------------
 # Parameter

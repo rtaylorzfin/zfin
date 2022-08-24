@@ -14,8 +14,8 @@
 use MIME::Lite;
 use FindBin;
 use lib "$FindBin::Bin/../../";
-use ZFINPerlModules qw(assert_environment);
-assert_environment('GO_EMAIL_CURATOR');
+use ZFINPerlModules qw(assertEnvironment);
+assertEnvironment('GO_EMAIL_CURATOR');
 
 #------------------ Send GO Result ----------------
 # No parameter
