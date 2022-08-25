@@ -1384,10 +1384,6 @@ sub parseGene2AccessionFile {
 
             $status = $fields[2];
 
-            if ($fields[7] =~ /^CR847926/) {
-                print LOG "DEBUG found: CR847926\n";
-                print "DEBUG found: CR847926\n";
-            }
 
             if ($status eq "-") {
                 if (ZFINPerlModules->stringStartsWithLetter($fields[3])) {
