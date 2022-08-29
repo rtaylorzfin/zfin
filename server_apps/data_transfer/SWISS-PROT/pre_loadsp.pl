@@ -26,7 +26,7 @@ use POSIX;
 
 
 use lib $ENV{'ROOT_PATH'} . "/server_apps/";
-use ZFINPerlModules qw(assertEnvironment trim);
+use ZFINPerlModules qw(assertEnvironment trim assertFileExists);
 assertEnvironment('ROOT_PATH', 'PGHOST', 'DB_NAME', 'SWISSPROT_EMAIL_ERR', 'SWISSPROT_EMAIL_REPORT');
 
 #------------------- Flush Output Buffer --------------
@@ -160,7 +160,7 @@ sub select_zebrafish {
     if ($ENV{'SPROT_FILE_URL'}) {
         $SPROT_FILE_URL = $ENV{'SPROT_FILE_URL'};
     } elsif ($ENV{'SKIP_DOWNLOADS'}) {
-        assertFileExists('./uniprot_sprot_vertebrates.dat.gz', 'Missing uniprot tremble file and SKIP_DOWNLOADS set to 1');
+        assertFileExists('./uniprot_sprot_vertebrates.dat.gz', 'Missing uniprot sprot file and SKIP_DOWNLOADS set to 1');
         $SPROT_FILE_URL = 'file://' . $cwd . '/uniprot_sprot_vertebrates.dat.gz';
     }
 
