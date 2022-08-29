@@ -23,7 +23,7 @@
   </builders>
   <publishers>
     <hudson.tasks.ArtifactArchiver>
-      <artifacts>server_apps/data_transfer/NCBIGENE/report*,server_apps/data_transfer/NCBIGENE/log*,server_apps/data_transfer/NCBIGENE/*.unl,server_apps/data_transfer/NCBIGENE/loadLog*</artifacts>
+      <artifacts>server_apps/data_transfer/NCBIGENE/report*,server_apps/data_transfer/NCBIGENE/log*,server_apps/data_transfer/NCBIGENE/*.unl,server_apps/data_transfer/NCBIGENE/loadLog*,server_apps/data_transfer/NCBIGENE/debug*</artifacts>
       <latestOnly>false</latestOnly>
       <allowEmptyArchive>true</allowEmptyArchive>
     </hudson.tasks.ArtifactArchiver>
