@@ -2910,9 +2910,20 @@ sub writeGenBankDNAaccessionsWithMappedGenesToLoad {
     #   %geneAccFdbcont
     #   %oneToOneViaVega
     my $zdbGeneId;
+    my $NCBIgeneId;
+
     foreach my $GenBankDNA (sort keys %GenBankDNAncbiGeneIds) {
         my @multipleNCBIgeneIds = @{$GenBankDNAncbiGeneIds{$GenBankDNA}};
+
+        if ($ENV{'DEBUG_BROKEN_LOGIC_7925'}) {
+            #For recreating the broken logic from before zfin-7925 was fixed (for debugging purposes)
+            print "DEBUG_BROKEN_LOGIC_7925\n";
+            my $tmpNcbiGeneId = shift(@multipleNCBIgeneIds);
+            @multipleNCBIgeneIds = ($tmpNcbiGeneId);
+        }
+        print "DEBUG: count of multiple NCBI gene ids: " . scalar(@multipleNCBIgeneIds) . "\n";
         foreach my $NCBIgeneId (@multipleNCBIgeneIds) {
+            print " $NCBIgeneId";
             if (exists($mappedReversed{$NCBIgeneId})) {
                 $zdbGeneId = $mappedReversed{$NCBIgeneId};
                 if (!exists($geneAccFdbcont{$zdbGeneId . $GenBankDNA . $fdcontGenBankDNA})) {
@@ -2932,6 +2943,7 @@ sub writeGenBankDNAaccessionsWithMappedGenesToLoad {
                 }
             }
         }
+        print "\n";
     }
 }
 
