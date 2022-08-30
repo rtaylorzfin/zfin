@@ -103,8 +103,6 @@ sub main {
 
     countNCBIGenesWithSupportingGenBankRNA();
 
-    logGenBankDNAncbiGeneIds();
-
     logSupportingAccNCBI();
 
     initializeHashOfNCBIAccessionsSupportingMultipleGenes();
@@ -114,6 +112,8 @@ sub main {
     logOneToZeroAssociations();
 
     oneWayMappingNCBItoZfinGenes();
+
+    logGenBankDNAncbiGeneIds();
 
     compare2WayMappingResults();
 
@@ -1529,14 +1529,26 @@ sub countNCBIGenesWithSupportingGenBankRNA {
 sub logGenBankDNAncbiGeneIds {
     # Global: %GenBankDNAncbiGeneIds
     # Global: $debug
-    open(DBG5A, ">debug5a") || die "Cannot open debug5a : $!\n" if $debug;
+    if ($debug) {
+        open(DBG5A, ">debug5a") || die "Cannot open debug5a : $!\n";
 
-    foreach my $gikey (sort keys %GenBankDNAncbiGeneIds) {
-        my $giref_arrayAccs = $GenBankDNAncbiGeneIds{$gikey} if $debug;
-        print DBG5A "$gikey\t@$giref_arrayAccs\n" if $debug;
+        foreach my $genBankAccession (sort keys %GenBankDNAncbiGeneIds) {
+            my $refArrayNcbiGeneIds = $GenBankDNAncbiGeneIds{$genBankAccession};
+            print DBG5A "$genBankAccession\t";
+            my $buffer = "";
+            foreach my $ncbiGeneId (@$refArrayNcbiGeneIds) {
+                my $zfinGeneId = $oneToOneNCBItoZFIN{$ncbiGeneId};
+
+                $buffer .= "$ncbiGeneId";
+                $buffer .= "/$zfinGeneId" if $zfinGeneId;
+                $buffer .= " ";
+            }
+            chomp($buffer);
+            print DBG5A "$buffer\n";
+        }
+
+        close DBG5A;
     }
-
-    close DBG5A if $debug;
 }
 
 sub logSupportingAccNCBI {
