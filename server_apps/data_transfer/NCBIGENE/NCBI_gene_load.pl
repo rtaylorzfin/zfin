@@ -120,6 +120,9 @@ sub main {
     #---------------- open a .unl file as the add list -----------------
     open(TOLOAD, ">toLoad.unl") || die "Cannot open toLoad.unl : $!\n";
 
+    #---------------- open a .unl file as record_attributions to preserve -----------------
+    open(TO_PRESERVE, ">toPreserve.unl") || die "Cannot open toPreserve.unl : $!\n";
+
     # -------- write the NCBI gene Ids mapped based on GenBank RNA accessions on toLoad.unl ------------
     writeNCBIgeneIdsMappedBasedOnGenBankRNA();
 
@@ -202,7 +205,7 @@ sub main {
     #---------------------------------------------------------------------------
     writeRefSeqDNAaccessionsWithMappedGenesToLoad();
 
-    close TOLOAD;
+    closeUnloadFiles();
 
     printStatsBeforeDelete();
 
@@ -223,10 +226,10 @@ sub main {
 
     emailLoadReports();
 
+    system("/bin/date");
+
     # Sort noLength.unl so we can compare the results with the previous run.
     doSystemCommand("sort -o noLength.unl noLength.unl");
-
-    system("/bin/date");
 
     print LOG "\n\nAll done! \n\n\n";
     close LOG;
@@ -2917,33 +2920,47 @@ sub writeGenBankDNAaccessionsWithMappedGenesToLoad {
 
         if ($ENV{'DEBUG_BROKEN_LOGIC_7925'}) {
             #For recreating the broken logic from before zfin-7925 was fixed (for debugging purposes)
-            print "DEBUG_BROKEN_LOGIC_7925\n";
-            my $tmpNcbiGeneId = shift(@multipleNCBIgeneIds);
+            print LOG "DEBUG_BROKEN_LOGIC_7925\n";
+            my $tmpNcbiGeneId = pop(@multipleNCBIgeneIds);
             @multipleNCBIgeneIds = ($tmpNcbiGeneId);
         }
-        print "DEBUG: count of multiple NCBI gene ids: " . scalar(@multipleNCBIgeneIds) . "\n";
-        foreach my $NCBIgeneId (@multipleNCBIgeneIds) {
-            print " $NCBIgeneId";
+        print LOG "DEBUG: " . scalar(@multipleNCBIgeneIds) . " NCBI Gene IDs for " . $GenBankDNA . ":";
+        foreach $NCBIgeneId (@multipleNCBIgeneIds) {
+            print LOG " $NCBIgeneId";
             if (exists($mappedReversed{$NCBIgeneId})) {
                 $zdbGeneId = $mappedReversed{$NCBIgeneId};
+                print LOG "/$zdbGeneId(reverse)";
                 if (!exists($geneAccFdbcont{$zdbGeneId . $GenBankDNA . $fdcontGenBankDNA})) {
                     my $length = exists($sequenceLength{$GenBankDNA}) ? $sequenceLength{$GenBankDNA} : '';
                     print TOLOAD "$zdbGeneId|$GenBankDNA||$length|$fdcontGenBankDNA|$pubMappedbasedOnRNA\n";
                     $geneAccFdbcont{$zdbGeneId . $GenBankDNA . $fdcontGenBankDNA} = 1;
                     $ctToLoad++;
+                } else {
+                    my $dbLinkToPreserve = $geneAccFdbcont{$zdbGeneId . $GenBankDNA . $fdcontGenBankDNA};
+                    print TO_PRESERVE "$dbLinkToPreserve\n";
+
+                    # mark db_link ID as one to preserve from the record_attribution table
+                    print LOG "_DUPE<$dbLinkToPreserve>";
                 }
             }
             elsif (exists($oneToOneViaVega{$NCBIgeneId})) {
                 $zdbGeneId = $oneToOneViaVega{$NCBIgeneId};
+                print LOG "/$zdbGeneId(vega)";
                 if (!exists($geneAccFdbcont{$zdbGeneId . $GenBankDNA . $fdcontGenBankDNA})) {
                     my $length = exists($sequenceLength{$GenBankDNA}) ? $sequenceLength{$GenBankDNA} : '';
                     print TOLOAD "$zdbGeneId|$GenBankDNA||$length|$fdcontGenBankDNA|$pubMappedbasedOnVega\n";
                     $geneAccFdbcont{$zdbGeneId . $GenBankDNA . $fdcontGenBankDNA} = 1;
                     $ctToLoad++;
+                } else {
+                    my $dbLinkToPreserve = $geneAccFdbcont{$zdbGeneId . $GenBankDNA . $fdcontGenBankDNA};
+                    print TO_PRESERVE "$dbLinkToPreserve\n";
+
+                    # mark db_link ID as one to preserve from the record_attribution table
+                    print LOG "_DUPE<$dbLinkToPreserve>";
                 }
             }
         }
-        print "\n";
+        print LOG "\n";
     }
 }
 
@@ -3055,6 +3072,12 @@ sub writeRefSeqDNAaccessionsWithMappedGenesToLoad {
             }
         }
     }
+}
+
+sub closeUnloadFiles {
+    close TOLOAD;
+    close TO_PRESERVE;
+    doSystemCommand("sort --unique -o toPreserve.unl toPreserve.unl");
 }
 
 sub printStatsBeforeDelete {
