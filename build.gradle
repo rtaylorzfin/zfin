@@ -794,6 +794,12 @@ test {
         includeTestsMatching "org.zfin.gbrowse.presentation.GBrowseImageSpec"
         includeTestsMatching "org.zfin.figure.service.ImageServiceSpec"
 
+        includeTestsMatching "org.zfin.ontology.service.RibbonServiceIntegrationSpec"
+        includeTestsMatching "org.zfin.uniquery.CategoriesAndFacetsSpec"
+        includeTestsMatching "org.zfin.uniquery.QuerySpec"
+        includeTestsMatching "org.zfin.uniquery.RelatedLinksSpec"
+        includeTestsMatching "org.zfin.uniquery.ResultAttributesSpec"
+
         /*need to figure out ..all tests fail here
         includeTestsMatching "org.zfin.figure.service.FigureViewServiceSpec"*/
 
