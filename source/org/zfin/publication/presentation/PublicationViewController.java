@@ -18,6 +18,8 @@ import org.zfin.figure.presentation.FigurePhenotypeSummary;
 import org.zfin.figure.service.FigureViewService;
 import org.zfin.framework.ComparatorCreator;
 import org.zfin.framework.api.Pagination;
+import org.zfin.framework.featureflag.FeatureFlagEnum;
+import org.zfin.framework.featureflag.FeatureFlags;
 import org.zfin.framework.presentation.LookupStrings;
 import org.zfin.framework.presentation.PaginationBean;
 import org.zfin.framework.presentation.PaginationResult;
@@ -52,7 +54,9 @@ import java.util.*;
 import java.util.stream.Collectors;
 
 import static java.util.stream.Collectors.toList;
+import static org.apache.commons.lang.StringEscapeUtils.escapeXml;
 import static org.zfin.repository.RepositoryFactory.getFigureRepository;
+import static org.zfin.util.ZfinStringUtils.objectToJson;
 
 @Controller
 @RequestMapping("/publication")
@@ -118,8 +122,14 @@ public class PublicationViewController {
         List<ImageResult> images = publicationService.getImageResults(publication);
         model.addAttribute("imageResults", images);
 
+        model.addAttribute("imagesJson", escapeXml(objectToJson(images)));
+
         model.addAttribute(LookupStrings.DYNAMIC_TITLE, getTitle(publication));
         model.addAttribute("relatedData", relatedDataService.getXrefsLinks(publication.getZdbID(), "Publication", null));
+
+        //TODO: instead of FUTURE_FLAG_PLACEHOLDER, use the correct flag after PR#391 (USE_NAVIGATION_COUNTER)
+        model.addAttribute("useNavigationCounter",
+                FeatureFlags.isFlagEnabled(FeatureFlagEnum.FUTURE_FLAG_PLACEHOLDER));
 
         return "publication/publication-view";
     }
