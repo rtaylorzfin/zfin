@@ -20,7 +20,7 @@
 <!--|DB_NAME|-->	zfindb
 <!--|DB_OWNER|-->	docker
 <!--|DEFAULT_EMAIL|-->	informix\@zfin.org
-<!--|DOMAIN_NAME|-->	zfin.org
+<!--|DOMAIN_NAME|-->	cell-mac.zfin.org
 <!--|ENVIRONMENT|-->	development
 <!--|FTP_ROOT|-->	/opt/zfin//ftp
 <!--|GBROWSE_DB|-->	ensembl_current
@@ -44,7 +44,7 @@
 <!--|MOVE_BLAST_FILES_TO_DEVELOPMENT|-->	false
 <!--|MUTANT_NAME|-->	zfin.org
 <!--|NOMEN_COORDINATOR|-->	informix\@zfin.org
-<!--|NON_SECURE_HTTP|-->	http://
+<!--|NON_SECURE_HTTP|-->	https://
 <!--|PARTNER_DBNAME|-->	false
 <!--|PARTNER_INTERNAL_INSTANCE|-->	false
 <!--|PARTNER_SOURCEROOT|-->	false

@@ -135,9 +135,8 @@
     </condition>
 
     <condition property="notproduction">
-        <not>
-            <equals arg1="${DBNAME}" arg2="zfindb"/>
-        </not>
+        <!-- inversion of the above property -->
+        <equals arg1="${isproduction}" arg2="false"/>
     </condition>
 
     <condition property="ismutant">
