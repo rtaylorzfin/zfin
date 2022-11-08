@@ -538,7 +538,7 @@ test(s) need to be run before committing changes or pushing files to production 
     <!--Not using runDBtest macrodef here because we are setting smoke.failure as a property-->
     <!--This is used to determine if output should be mailed.  Could be handed in, as well.-->
     <target name="smokeTests" if="notproduction" depends="compile,build-tests" description="Tests to make sure that the system is alive and working properly."  >
-
+        <echo message="pass flag singleTest to run a specific test. For example: ant smokeTests -DsingleTest=AnatomySmokeTest"/>
         <junit fork="true"
                printsummary="yes"
                haltonfailure="false"
@@ -551,6 +551,7 @@ test(s) need to be run before committing changes or pushing files to production 
             <sysproperty key="log4j.configurationFile" value="${web-inf.dir}/log4j2.xml"/>
             <!--<jvmarg value="-DWEBINF=${web-inf.target}"/>-->
             <jvmarg value="-Djava.io.tmpdir=${tomcat-temp}"/>
+            <jvmarg value="-DsingleTest=${singleTest}"/>
             <jvmarg value="-Xverify:none"/> <!-- fix issue with smoke tests and "Illegal use of nonvirtual function call" and spock -->
             <jvmarg value="--add-opens=java.base/java.lang=ALL-UNNAMED"/>
             <jvmarg value="--add-opens=java.xml/com.sun.org.apache.xml.internal.serialize=ALL-UNNAMED"/>

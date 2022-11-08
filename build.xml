@@ -710,8 +710,9 @@
         <echo message="Is informix: ${isinformix}"/>
         <echo message="Is mutant: ${ismutant}"/>
         <echo message="Not production: ${notproduction}"/>
-        <echo message="Has pre-redirctories: ${has.pre-directories}"/>
-        <echo message="Has post-redirctories: ${has.post-directories}"/>
+        <echo message="Is production: ${isproduction}"/>
+        <echo message="Has pre-redirectories: ${has.pre-directories}"/>
+        <echo message="Has post-redirectories: ${has.post-directories}"/>
     </target>
 
     <taskdef resource="task.properties" classpath="lib/Java/grand-1.8.jar">
