@@ -19,7 +19,6 @@ import org.zfin.framework.HibernateUtil;
 import org.zfin.ontology.datatransfer.AbstractScriptWrapper;
 
 import java.io.*;
-import java.net.URI;
 import java.nio.charset.StandardCharsets;
 import java.nio.file.Files;
 import java.nio.file.Path;
@@ -62,7 +61,7 @@ public class UniProtAnalysisTask extends AbstractScriptWrapper {
         initAll();
 
         String inputFileName = getInputFileName();
-        RichStreamReader sr = getRichStreamReader(inputFileName);
+        RichStreamReader sr = getRichStreamReaderForUniprotDatFile(inputFileName);
 
         System.out.println("Starting to read file: " + inputFileName);
         List<ImmutablePair<String, String>> pairs = getUniProtRefSeqPairs(sr);
@@ -77,10 +76,107 @@ public class UniProtAnalysisTask extends AbstractScriptWrapper {
         dropTemporaryTable();
     }
 
-    private void dropTemporaryTable() {
+    private String getInputFileName() {
+        String inputFile = System.getenv("UNIPROT_INPUT_FILE");
+        if (inputFile == null) {
+            if (Files.exists(Paths.get(DEBUG_INPUT_FILE))) {
+                inputFile = DEBUG_INPUT_FILE;
+                System.out.println("Using debug input file: " + DEBUG_INPUT_FILE);
+            } else {
+                System.err.println("No input file specified. Please set the environment variable UNIPROT_INPUT_FILE.");
+                System.exit(3);
+            }
+        }
+        return inputFile;
+    }
+
+    private RichStreamReader getRichStreamReaderForUniprotDatFile(String inputFileName) throws FileNotFoundException, BioException {
+        BufferedReader br = new BufferedReader(new FileReader(inputFileName));
+        RichSequenceFormat inFormat = new UniProtFormatZFIN();
+
+        //skips parsing of certain sections that otherwise would throw exceptions
+        inFormat.setElideFeatures(true);
+        inFormat.setElideSymbols(true);
+
+        FiniteAlphabet alpha = (FiniteAlphabet) AlphabetManager.alphabetForName("PROTEIN");
+        SymbolTokenization tokenization = alpha.getTokenization("default");
+
+        return new RichStreamReader(
+                br, inFormat, tokenization,
+                RichSequenceBuilderFactory.THRESHOLD,
+                null);
+    }
+
+    private List<ImmutablePair<String, String>> getUniProtRefSeqPairs(RichStreamReader sr) throws BioException {
+
+        int count = 0;
+        List<ImmutablePair<String, String>> UniProtRefSeqPairs = new ArrayList<>();
+        while (sr.hasNext()) {
+            count++;
+            RichSequence seq = sr.nextRichSequence();
+
+            List<RankedCrossRef> filteredRefSeqs = seq.getRankedCrossRefs()
+                    .stream()
+                    .filter(rankedXref -> "RefSeq".equals(rankedXref.getCrossRef().getDbname()))
+                    .collect(Collectors.toList());
+
+            for ( RankedCrossRef xref : filteredRefSeqs) {
+                UniProtRefSeqPairs.add(new ImmutablePair<>(
+                        seq.getAccession(),
+                        xref.getCrossRef().getAccession().replaceAll("\\.\\d*", "")
+                ));
+            }
+        }
+        return UniProtRefSeqPairs;
+    }
+
+    private File writePairsToTemporaryFile(List<ImmutablePair<String, String>> pairs) throws IOException {
+        //create temporary file for import
+        File tf =File.createTempFile("temp-file", "tmp");
+        String tempPath =tf.getParent();
+        String filename = "up-to-refseq-pairs.csv";
+
+        File tempFile = new File(tempPath + File.separator + filename);
+
+        //write to temporary file
+        BufferedWriter bw = new BufferedWriter(new FileWriter(tempFile));
+        for (ImmutablePair<String, String> pair : pairs) {
+            bw.write(pair.getLeft() + "," + pair.getRight());
+            bw.newLine();
+        }
+        bw.close();
+        return tempFile;
+    }
+
+    private void writeFileToTemporaryTable(File tempFile) throws SQLException, IOException {
+
+        //create temporary table
         Session session = HibernateUtil.currentSession();
-        Transaction tx = session.beginTransaction();
-        session.createSQLQuery("DROP TABLE up_to_refseq_temp").executeUpdate();
+        Transaction transaction = HibernateUtil.createTransaction();
+
+        String dropTable = "DROP TABLE IF EXISTS up_to_refseq_temp;";
+        String createTable = "CREATE TABLE up_to_refseq_temp (uniprot text, refseq text);";
+
+        session.createNativeQuery(dropTable).executeUpdate();
+        session.createNativeQuery(createTable).executeUpdate();
+        session.flush();
+        transaction.commit();
+
+        copyFromTempFileIntoDatabase(tempFile);
+    }
+
+    private void copyFromTempFileIntoDatabase(File tempFile) throws SQLException, IOException {
+        FileReader fileReader = new FileReader(tempFile);
+        Session session = HibernateUtil.currentSession();
+        SessionImplementor sessImpl = (SessionImplementor) session;
+        BaseConnection conn = (BaseConnection) sessImpl.getJdbcConnectionAccess().obtainConnection();
+        conn.setAutoCommit(true);
+        Transaction tx = sessImpl.beginTransaction();
+        CopyManager copyManager = new CopyManager(conn);
+        long numInserted = copyManager.copyIn("copy up_to_refseq_temp (uniprot, refseq) from STDIN with csv", fileReader);
+        System.out.println("Number of rows inserted: " + numInserted);
+        sessImpl.flush();
+        session.flush();
         tx.commit();
     }
 
@@ -118,6 +214,13 @@ public class UniProtAnalysisTask extends AbstractScriptWrapper {
         writer.close();
     }
 
+    private void dropTemporaryTable() {
+        Session session = HibernateUtil.currentSession();
+        Transaction tx = session.beginTransaction();
+        session.createSQLQuery("DROP TABLE up_to_refseq_temp").executeUpdate();
+        tx.commit();
+    }
+
     private void writeCsvLine(Object result, CSVPrinter csvPrinter) throws IOException {
         Object[] row = (Object[]) result;
         List<String> record = new ArrayList<>();
@@ -126,110 +229,5 @@ public class UniProtAnalysisTask extends AbstractScriptWrapper {
         }
         csvPrinter.printRecord(record);
     }
-
-    private void writeFileToTemporaryTable(File tempFile) throws SQLException, IOException {
-
-        //create temporary table
-        Session session = HibernateUtil.currentSession();
-        Transaction transaction = HibernateUtil.createTransaction();
-
-        String dropTable = "DROP TABLE IF EXISTS up_to_refseq_temp;";
-        String createTable = "CREATE TABLE up_to_refseq_temp (uniprot text, refseq text);";
-
-        session.createNativeQuery(dropTable).executeUpdate();
-        session.createNativeQuery(createTable).executeUpdate();
-        session.flush();
-        transaction.commit();
-
-        copyFromTempFileIntoDatabase(tempFile);
-    }
-
-    private File writePairsToTemporaryFile(List<ImmutablePair<String, String>> pairs) throws IOException {
-        //create temporary file for import
-        File tf =File.createTempFile("temp-file", "tmp");
-        String tempPath =tf.getParent();
-        String filename = "up-to-refseq-pairs.csv";
-
-        File tempFile = new File(tempPath + File.separator + filename);
-
-        //write to temporary file
-        BufferedWriter bw = new BufferedWriter(new FileWriter(tempFile));
-        for (ImmutablePair<String, String> pair : pairs) {
-            bw.write(pair.getLeft() + "," + pair.getRight());
-            bw.newLine();
-        }
-        bw.close();
-        return tempFile;
-    }
-
-    private void copyFromTempFileIntoDatabase(File tempFile) throws SQLException, IOException {
-        FileReader fileReader = new FileReader(tempFile);
-        Session session = HibernateUtil.currentSession();
-        SessionImplementor sessImpl = (SessionImplementor) session;
-        BaseConnection conn = (BaseConnection) sessImpl.getJdbcConnectionAccess().obtainConnection();
-        conn.setAutoCommit(true);
-        Transaction tx = sessImpl.beginTransaction();
-        CopyManager copyManager = new CopyManager(conn);
-        long numInserted = copyManager.copyIn("copy up_to_refseq_temp (uniprot, refseq) from STDIN with csv", fileReader);
-        System.out.println("Number of rows inserted: " + numInserted);
-        sessImpl.flush();
-        session.flush();
-        tx.commit();
-    }
-
-    private List<ImmutablePair<String, String>> getUniProtRefSeqPairs(RichStreamReader sr) throws BioException {
-
-        int count = 0;
-        List<ImmutablePair<String, String>> UniProtRefSeqPairs = new ArrayList<>();
-        while (sr.hasNext()) {
-            count++;
-            RichSequence seq = sr.nextRichSequence();
-
-            List<RankedCrossRef> filteredRefSeqs = seq.getRankedCrossRefs()
-                    .stream()
-                    .filter(rankedXref -> "RefSeq".equals(rankedXref.getCrossRef().getDbname()))
-                    .collect(Collectors.toList());
-
-            for ( RankedCrossRef xref : filteredRefSeqs) {
-                UniProtRefSeqPairs.add(new ImmutablePair<>(
-                        seq.getAccession(),
-                        xref.getCrossRef().getAccession().replaceAll("\\.\\d*", "")
-                ));
-            }
-        }
-        return UniProtRefSeqPairs;
-    }
-
-    private RichStreamReader getRichStreamReader(String inputFileName) throws FileNotFoundException, BioException {
-        BufferedReader br = new BufferedReader(new FileReader(inputFileName));
-        RichSequenceFormat inFormat = new UniProtFormatZFIN();
-
-        //skips parsing of certain sections that otherwise would throw exceptions
-        inFormat.setElideFeatures(true);
-        inFormat.setElideSymbols(true);
-
-        FiniteAlphabet alpha = (FiniteAlphabet) AlphabetManager.alphabetForName("PROTEIN");
-        SymbolTokenization tokenization = alpha.getTokenization("default");
-
-        return new RichStreamReader(
-                br, inFormat, tokenization,
-                RichSequenceBuilderFactory.THRESHOLD,
-                null);
-    }
-
-    private String getInputFileName() {
-        String inputFile = System.getenv("UNIPROT_INPUT_FILE");
-        if (inputFile == null) {
-            if (Files.exists(Paths.get(DEBUG_INPUT_FILE))) {
-                inputFile = DEBUG_INPUT_FILE;
-                System.out.println("Using debug input file: " + DEBUG_INPUT_FILE);
-            } else {
-                System.err.println("No input file specified. Please set the environment variable UNIPROT_INPUT_FILE.");
-                System.exit(3);
-            }
-        }
-        return inputFile;
-    }
-
 
 }
