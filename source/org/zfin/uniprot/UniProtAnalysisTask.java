@@ -1,5 +1,7 @@
 package org.zfin.uniprot;
 
+import org.apache.commons.csv.CSVFormat;
+import org.apache.commons.csv.CSVPrinter;
 import org.apache.commons.lang3.tuple.ImmutablePair;
 import org.biojava.bio.BioException;
 import org.biojava.bio.seq.io.SymbolTokenization;
@@ -17,7 +19,10 @@ import org.zfin.framework.HibernateUtil;
 import org.zfin.ontology.datatransfer.AbstractScriptWrapper;
 
 import java.io.*;
+import java.net.URI;
+import java.nio.charset.StandardCharsets;
 import java.nio.file.Files;
+import java.nio.file.Path;
 import java.nio.file.Paths;
 import java.sql.SQLException;
 import java.util.ArrayList;
@@ -28,8 +33,7 @@ import java.util.stream.Collectors;
 public class UniProtAnalysisTask extends AbstractScriptWrapper {
 
     private static final String CSV_FILE = "uniprot_analysis_zfin_8275.csv";
-    private static final String DEBUG_INPUT_FILE = "/Volumes/MORESPACE/pre_zfin.dat";
-    private static final String DEBUG_DB_FILE = "/Volumes/MORESPACE/up-to-refseq-pairs.csv";
+    private static final String DEBUG_INPUT_FILE = "/Volumes/MORESPACE/prob7";
 
     public static void main(String[] args) {
         UniProtAnalysisTask task = new UniProtAnalysisTask();
@@ -49,6 +53,8 @@ public class UniProtAnalysisTask extends AbstractScriptWrapper {
             e.printStackTrace();
             System.exit(3);
         }
+
+        HibernateUtil.closeSession();
         System.exit(0);
     }
 
@@ -67,7 +73,58 @@ public class UniProtAnalysisTask extends AbstractScriptWrapper {
         System.out.println("Finished writing to temp file");
 
         writeFileToTemporaryTable(tempFile);
+        generateReport();
+        dropTemporaryTable();
+    }
 
+    private void dropTemporaryTable() {
+        Session session = HibernateUtil.currentSession();
+        Transaction tx = session.beginTransaction();
+        session.createSQLQuery("DROP TABLE up_to_refseq_temp").executeUpdate();
+        tx.commit();
+    }
+
+    private void generateReport() throws IOException {
+        Path path = Paths.get( CSV_FILE );
+        BufferedWriter writer = Files.newBufferedWriter(path, StandardCharsets.UTF_8);
+
+        CSVPrinter csvPrinter = new CSVPrinter(writer, CSVFormat.DEFAULT
+                .withHeader( "uniprot","refseqs","gene_count","genes","dblinks","dblink_info" ));
+
+        String sql = """
+            SELECT
+                uniprot,
+                string_agg(refseq, ';') AS refseqs,
+                count(DISTINCT dblink_linked_recid) AS gene_count,
+                string_agg(DISTINCT dblink_linked_recid, ';') AS genes,
+                string_agg(dblink_zdb_id, ';') AS dblinks,
+                string_agg(DISTINCT dblink_info, ';') AS dblink_info
+            FROM
+                up_to_refseq_temp up
+                LEFT JOIN db_link dl ON up.refseq = dl.dblink_acc_num
+            GROUP BY
+                uniprot
+            ORDER BY
+            	count(DISTINCT dblink_linked_recid) DESC,
+            	uniprot
+        """;
+        List results = HibernateUtil.currentSession().createSQLQuery(sql).list();
+        for(Object result : results) {
+            writeCsvLine(result, csvPrinter);
+        }
+
+        csvPrinter.flush();
+        csvPrinter.close();
+        writer.close();
+    }
+
+    private void writeCsvLine(Object result, CSVPrinter csvPrinter) throws IOException {
+        Object[] row = (Object[]) result;
+        List<String> record = new ArrayList<>();
+        for (Object o : row) {
+            record.add(o == null ? "" : o.toString());
+        }
+        csvPrinter.printRecord(record);
     }
 
     private void writeFileToTemporaryTable(File tempFile) throws SQLException, IOException {
@@ -97,8 +154,6 @@ public class UniProtAnalysisTask extends AbstractScriptWrapper {
 
         //write to temporary file
         BufferedWriter bw = new BufferedWriter(new FileWriter(tempFile));
-        bw.write("UniProt,RefSeq");
-        bw.newLine();
         for (ImmutablePair<String, String> pair : pairs) {
             bw.write(pair.getLeft() + "," + pair.getRight());
             bw.newLine();
@@ -120,9 +175,6 @@ public class UniProtAnalysisTask extends AbstractScriptWrapper {
         sessImpl.flush();
         session.flush();
         tx.commit();
-        sessImpl.close();
-        session.close();
-        conn.close();
     }
 
     private List<ImmutablePair<String, String>> getUniProtRefSeqPairs(RichStreamReader sr) throws BioException {
