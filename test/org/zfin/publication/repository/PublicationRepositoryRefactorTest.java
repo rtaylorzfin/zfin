@@ -119,6 +119,10 @@ public class PublicationRepositoryRefactorTest extends AbstractDatabaseTest {
     public void getPubsForDisplay() {
         assertTrue(publicationRepository.getPubsForDisplay("ZDB-GENE-040426-1855").size() > 10);
         assertTrue(publicationRepository.getPubsForDisplay("ZDB-GENE-051005-1").size() > 15);
+
+        assertEquals(22, publicationRepository.getPubsForDisplay("ZDB-GENE-040426-1855").size());
+        assertEquals(28, publicationRepository.getPubsForDisplay("ZDB-GENE-051005-1").size());
+
         assertEquals(0, publicationRepository.getPubsForDisplay("ZDB-SSLP-000315-3").size());
     }
 

@@ -352,26 +352,25 @@ public class HibernatePublicationRepository extends PaginationUtil implements Pu
     @SuppressWarnings("unchecked")
     public List<Figure> getFiguresByGeneAndAnatomy(Marker marker, GenericTerm anatomyTerm) {
         Session session = HibernateUtil.currentSession();
-        String hql = "select distinct fig from Figure fig, ExpressionResult res, Marker marker, ExpressionExperiment exp, " +
-                "     FishExperiment fishox, ExpressionResultFigure xpatfig, Genotype geno " +
-                "where " +
-                "   marker = :marker AND " +
-                "   exp.gene = marker AND " +
-                "   res.expressionExperiment = exp AND " +
-                "   (res.entity.superterm = :aoTerm OR res.entity.subterm = :aoTerm) AND " +
-                "   xpatfig.expressionResult = res AND " +
-                "   xpatfig.figure = fig AND " +
-                "   res.expressionFound = :expressionFound AND " +
-                "   exp.fishExperiment = fishox AND " +
-                "   fishox.standardOrGenericControl = :condition AND " +
-                "   fishox.fish.genotype = geno AND " +
-                "   fishox.fish.genotype.wildtype = :isWildtype ";
+        String hql = """
+                select distinct fig from Figure fig, ExpressionResult res, Marker marker, ExpressionExperiment exp,
+                     FishExperiment fishox, ExpressionResultFigure xpatfig, Genotype geno
+                where
+                   marker = :marker AND
+                   exp.gene = marker AND
+                   res.expressionExperiment = exp AND
+                   (res.entity.superterm = :aoTerm OR res.entity.subterm = :aoTerm) AND
+                   xpatfig.expressionResult = res AND
+                   xpatfig.figure = fig AND
+                   res.expressionFound is true AND
+                   exp.fishExperiment = fishox AND
+                   fishox.standardOrGenericControl is true AND
+                   fishox.fish.genotype = geno AND
+                   fishox.fish.genotype.wildtype is true
+                """;
         Query query = session.createQuery(hql);
-        query.setBoolean("expressionFound", true);
-        query.setBoolean("isWildtype", true);
         query.setParameter("aoTerm", anatomyTerm);
         query.setParameter("marker", marker);
-        query.setBoolean("condition", true);
         return (List<Figure>) query.list();
     }
 
@@ -379,8 +378,8 @@ public class HibernatePublicationRepository extends PaginationUtil implements Pu
     public List<Publication> getPubsForDisplay(String zdbID) {
 
         List<String> publicationIDs = HibernateUtil.currentSession()
-                .createSQLQuery(getCommonPublicationSQL(zdbID))
-                .setString("markerZdbID", zdbID)
+                .createNativeQuery(getCommonPublicationSQL(zdbID))
+                .setParameter("markerZdbID", zdbID)
                 .list();
 
         if (CollectionUtils.isEmpty(publicationIDs)) {
