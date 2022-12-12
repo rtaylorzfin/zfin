@@ -86,7 +86,7 @@ public class HibernatePublicationRepository extends PaginationUtil implements Pu
     public List<Publication> getExpressedGenePublications(String geneID, String anatomyItemID) {
         Session session = HibernateUtil.currentSession();
         String hql = """
-                SELECT distinct publication FROM Publication publication, ExpressionExperiment exp, ExpressionResult res  \s
+                SELECT distinct publication FROM Publication publication, ExpressionExperiment exp, ExpressionResult res
                 WHERE (res.entity.superterm.zdbID = :aoZdbID OR
                        res.entity.subterm.zdbID = :aoZdbID)
                 AND publication = exp.publication
@@ -448,18 +448,20 @@ public class HibernatePublicationRepository extends PaginationUtil implements Pu
     public PaginationResult<Figure> getFiguresByGenoExp(Genotype geno) {
         Session session = HibernateUtil.currentSession();
 
-        String hql = "select distinct figure from Figure figure, ExpressionResult res, ExpressionExperiment exp," +
-                "FishExperiment fishox, Genotype geno, ExpressionResultFigure xpatfig " +
-                "where geno.zdbID = :genoID AND " +
-                "      fishox.fish.genotype = geno AND " +
-                "   res.expressionExperiment = exp AND " +
-                "   xpatfig.expressionResult = res AND " +
-                "   xpatfig.figure = figure AND " +
-                "   exp.antibody is null AND " +
-                "   exp.fishExperiment = fishox  " +
-                "order by figure.orderingLabel    ";
-        Query query = session.createQuery(hql);
-        query.setString("genoID", geno.getZdbID());
+        String hql = """
+                select distinct figure from Figure figure, ExpressionResult res, ExpressionExperiment exp,
+                FishExperiment fishox, Genotype geno, ExpressionResultFigure xpatfig
+                where geno.zdbID = :genoID AND
+                      fishox.fish.genotype = geno AND
+                   res.expressionExperiment = exp AND
+                   xpatfig.expressionResult = res AND
+                   xpatfig.figure = figure AND
+                   exp.antibody is null AND
+                   exp.fishExperiment = fishox
+                order by figure.orderingLabel  
+                """;
+        org.hibernate.query.Query query = session.createQuery(hql);
+        query.setParameter("genoID", geno.getZdbID());
         PaginationResult<Figure> paginationResult = new PaginationResult<Figure>(query.list());
         return paginationResult;
     }
@@ -1347,54 +1349,54 @@ public class HibernatePublicationRepository extends PaginationUtil implements Pu
     }
 
     public long getCloneProbeCount(Publication publication) {
-        String sql = "\tselect count(recattrib_data_zdb_id)" +
-            "\t from  record_attribution, marker" +
-            "\t where recattrib_source_zdb_id = :zdbID" +
-            "\t  and  recattrib_data_zdb_id   = mrkr_zdb_id" +
-            "\t  and  mrkr_type in " +
-            "\t\t  (select mtgrpmem_mrkr_type from marker_type_group_member" +
+        String sql = " select count(recattrib_data_zdb_id)" +
+            "  from  record_attribution, marker" +
+            "  where recattrib_source_zdb_id = :zdbID" +
+            "   and  recattrib_data_zdb_id   = mrkr_zdb_id" +
+            "   and  mrkr_type in " +
+            "    (select mtgrpmem_mrkr_type from marker_type_group_member" +
             "                    where mtgrpmem_mrkr_type_group = 'SEARCH_SEG');";
         return getCount(sql, publication.getZdbID());
     }
 
     public long getExpressionCount(Publication publication) {
-        String sql = "\tselect count(distinct xpatfig_fig_zdb_id)" +
-            " \t  from figure, expression_pattern_figure" +
-            " \t where fig_source_zdb_id = :zdbID" +
+        String sql = " select count(distinct xpatfig_fig_zdb_id)" +
+            "    from figure, expression_pattern_figure" +
+            "   where fig_source_zdb_id = :zdbID" +
             "         and fig_zdb_id=xpatfig_fig_zdb_id";
         return getCount(sql, publication.getZdbID());
     }
 
     public long getPhenotypeCount(Publication publication) {
-        String sql = "\tselect count(distinct pg_fig_zdb_id)" +
-            " \t  from figure, phenotype_source_generated" +
-            " \t where fig_source_zdb_id = :zdbID" +
+        String sql = " select count(distinct pg_fig_zdb_id)" +
+            "    from figure, phenotype_source_generated" +
+            "   where fig_source_zdb_id = :zdbID" +
             "         and pg_fig_zdb_id = fig_zdb_id";
         return getCount(sql, publication.getZdbID());
     }
 
     public long getPhenotypeAlleleCount(Publication publication) {
-        String sql = "\tselect count(distinct geno_zdb_id)" +
-                "\tfrom   record_attribution, genotype" +
-                "\twhere  recattrib_source_zdb_id = :zdbID" +
-                "\t  and  recattrib_data_zdb_id = geno_zdb_id" +
-                "\t  and  geno_is_wildtype = 'f';";
+        String sql = " select count(distinct geno_zdb_id)" +
+                " from   record_attribution, genotype" +
+                " where  recattrib_source_zdb_id = :zdbID" +
+                "   and  recattrib_data_zdb_id = geno_zdb_id" +
+                "   and  geno_is_wildtype = 'f';";
         return getCount(sql, publication.getZdbID());
     }
 
     public long getFeatureCount(Publication publication) {
-        String sql = "\tselect count(distinct recattrib_data_zdb_id)" +
-            "\t from  record_attribution" +
-            "\t where recattrib_source_zdb_id = :zdbID" +
-            "\t  and  recattrib_data_zdb_id like 'ZDB-ALT-%';";
+        String sql = " select count(distinct recattrib_data_zdb_id)" +
+            "  from  record_attribution" +
+            "  where recattrib_source_zdb_id = :zdbID" +
+            "   and  recattrib_data_zdb_id like 'ZDB-ALT-%';";
         return getCount(sql, publication.getZdbID());
     }
 
     public long getFishCount(Publication publication) {
-        String sql = "\tselect count(distinct fish_zdb_id)" +
-            "\tfrom   record_attribution, fish" +
-            "\twhere  recattrib_source_zdb_id = :zdbID" +
-            "\t  and  recattrib_data_zdb_id = fish_zdb_id;";
+        String sql = " select count(distinct fish_zdb_id)" +
+            " from   record_attribution, fish" +
+            " where  recattrib_source_zdb_id = :zdbID" +
+            "   and  recattrib_data_zdb_id = fish_zdb_id;";
         return getCount(sql, publication.getZdbID());
     }
 
