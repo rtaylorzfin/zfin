@@ -50,11 +50,11 @@ public class BatchNCBIFetchByRefSeqTask extends AbstractScriptWrapper {
     public void run() {
         List<String> accessionLines = getInputLines();
         List<List<String>> batchesOfAccessions = partitionInputs(accessionLines);
-        fetchAndWriteFastas(batchesOfAccessions);
+        fetchAndWrite(batchesOfAccessions);
         closeFiles();
     }
 
-    private void fetchAndWriteFastas(List<List<String>> batchesOfAccessions) {
+    private void fetchAndWrite(List<List<String>> batchesOfAccessions) {
         for(List<String> batch : batchesOfAccessions) {
             try {
                 String apiResult = fetchResults(batch);
