@@ -18,7 +18,7 @@ import static org.junit.Assert.*;
 public class ZdbIdValidatorUnitTest extends AbstractDatabaseTest {
 
     @Test
-    public void validateSimpleID() throws Exception {
+    public void validateSimpleID() {
 
         //test that a known gene validates as existing
         boolean exists = ZdbIdValidator.validateExists("ZDB-GENE-110913-113");
@@ -35,7 +35,7 @@ public class ZdbIdValidatorUnitTest extends AbstractDatabaseTest {
     }
 
     @Test
-    public void validateListOfIDs() throws Exception {
+    public void validateListOfIDs() {
 
         List<String> ids = List.of(
                 "ZDB-XPAT-040724-1381",
@@ -69,6 +69,30 @@ public class ZdbIdValidatorUnitTest extends AbstractDatabaseTest {
         );
         exists = ZdbIdValidator.validateAllIdsExist(ids);
         assertFalse(exists);
+
+    }
+
+    @Test
+    public void getInvalidIDsFromList() {
+
+        //test that a list with some valid and some invalid will fail:
+        List<String> ids = List.of(
+                "ZDB-GENE-650000-1",
+                "ZDB-GENE-650000-2",
+                "ZDB-GENE-650000-3",
+                "ZDB-FMREL-120806-15882",
+                "ZDB-DALIAS-170508-7",
+                "ZDB-FIG-100830-19",
+                "ZDB-EXTNOTE-210715-2",
+                "ZDB-DALIAS-160831-60188",
+                "ZDB-DBLINK-220830-1784",
+                "ZDB-DALIAS-091209-19932"
+        );
+        List<String> invalidIDs = ZdbIdValidator.getInvalidIDsFromList(ids);
+        assertEquals(3, invalidIDs.size());
+        assertEquals("ZDB-GENE-650000-1", invalidIDs.get(0));
+        assertEquals("ZDB-GENE-650000-2", invalidIDs.get(1));
+        assertEquals("ZDB-GENE-650000-3", invalidIDs.get(2));
 
     }
 
