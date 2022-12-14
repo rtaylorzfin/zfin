@@ -45,6 +45,9 @@ import org.zfin.util.DatabaseJdbcStatement;
 import org.zfin.util.DateUtil;
 
 import javax.persistence.NoResultException;
+import javax.persistence.criteria.CriteriaBuilder;
+import javax.persistence.criteria.CriteriaQuery;
+import javax.persistence.criteria.Root;
 import java.math.BigDecimal;
 import java.sql.*;
 import java.util.Date;
@@ -128,6 +131,20 @@ public class HibernateInfrastructureRepository implements InfrastructureReposito
         Criteria criteria = session.createCriteria(ActiveData.class);
         criteria.add(Restrictions.eq("zdbID", zdbID));
         return (ActiveData) criteria.uniqueResult();
+    }
+
+    @Override
+    public List<ActiveData> getAllActiveData(List<String> zdbIDs) {
+        Session session = currentSession();
+        CriteriaBuilder builder = session.getCriteriaBuilder();
+        CriteriaQuery<ActiveData> query = builder.createQuery(ActiveData.class);
+        Root<ActiveData> root = query.from(ActiveData.class);
+        query.select(root)
+            .where(
+                root.get("zdbID").in(zdbIDs)
+            );
+
+        return session.createQuery(query).list();
     }
 
     public ActiveSource getActiveSource(String zdbID) {

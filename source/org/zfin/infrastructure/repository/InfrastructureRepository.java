@@ -34,6 +34,8 @@ public interface InfrastructureRepository {
 
     ActiveData getActiveData(String zdbID);
 
+    List<ActiveData> getAllActiveData(List<String> zdbID);
+
     public ActiveSource getActiveSource(String zdbID);
 
     void deleteActiveData(ActiveData activeData);
