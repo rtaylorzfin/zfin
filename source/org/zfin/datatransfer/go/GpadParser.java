@@ -1,5 +1,7 @@
 package org.zfin.datatransfer.go;
 
+import lombok.Getter;
+import lombok.Setter;
 import org.apache.commons.csv.CSVFormat;
 import org.apache.commons.csv.CSVRecord;
 import org.springframework.stereotype.Component;
@@ -17,6 +19,11 @@ import java.util.List;
 @Component
 public class GpadParser extends FpInferenceGafParser {
 
+    @Getter
+    @Setter
+    private boolean validateInferences = false;
+
+    @Override
     public List<GafEntry> parseGafFile(File downloadedFile) throws Exception {
         List<GafEntry> gafEntries = new ArrayList<>();
         Reader in = new FileReader(downloadedFile);
@@ -31,6 +38,17 @@ public class GpadParser extends FpInferenceGafParser {
                 continue;
             GafEntry gafEntry = getGafEntry(lineNumber, record);
             gafEntries.add(gafEntry);
+        }
+        if (validateInferences) {
+            try {
+                GafEntriesValidator.raiseExceptionForAnyInvalidIDs(gafEntries);
+            } catch (GafEntryValidationException geve) {
+                //log the error (should we throw the exception and stop the job?)
+                System.err.println(geve.getMessage());
+                logger.error(geve.getMessage());
+                setErrorEncountered(true);
+                setErrorMessage(geve.getMessage());
+            }
         }
         return gafEntries;
     }
@@ -74,7 +92,7 @@ public class GpadParser extends FpInferenceGafParser {
             GenericTerm term = RepositoryFactory.getOntologyRepository().getTermByOboID(gafEntry.getEvidenceCode());
             EcoGoEvidenceCodeMapping ecoCodeMap = RepositoryFactory.getOntologyRepository().getEcoEvidenceCode(term);
             if (ecoCodeMap == null) {
-                logger.error("invalid eco code" + gafEntry.getEvidenceCode());
+                logger.error("invalid eco code: " + gafEntry.getEvidenceCode());
                 System.out.println(term.getOboID());
             } else {
 

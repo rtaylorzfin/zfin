@@ -3,7 +3,9 @@ package org.zfin.datatransfer.go;
 import org.apache.commons.collections4.CollectionUtils;
 import org.zfin.infrastructure.ActiveData;
 
+import java.util.HashSet;
 import java.util.List;
+import java.util.Set;
 
 import static org.zfin.repository.RepositoryFactory.getInfrastructureRepository;
 
@@ -18,12 +20,15 @@ public class ZdbIdValidator {
         return activeData != null;
     }
 
-    public static boolean validateAllIdsExist(List<String> IDs) {
+    public static boolean validateAllIdsExist(Set<String> IDs) {
         List<ActiveData> results = getInfrastructureRepository().getAllActiveData(IDs);
         return results.size() == IDs.size();
     }
+    public static boolean validateAllIdsExist(List<String> IDs) {
+        return validateAllIdsExist(new HashSet<>(IDs));
+    }
 
-    public static List<String> getInvalidIDsFromList(List<String> IDs) {
+    public static List<String> getInvalidIDsFromSet(Set<String> IDs) {
         List<String> resultIDs = getInfrastructureRepository()
                                     .getAllActiveData(IDs)
                                     .stream()

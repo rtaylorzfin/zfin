@@ -25,6 +25,7 @@ import org.zfin.util.DatabaseJdbcStatement;
 import java.util.Collection;
 import java.util.Date;
 import java.util.List;
+import java.util.Set;
 
 public interface InfrastructureRepository {
 
@@ -34,7 +35,7 @@ public interface InfrastructureRepository {
 
     ActiveData getActiveData(String zdbID);
 
-    List<ActiveData> getAllActiveData(List<String> zdbID);
+    List<ActiveData> getAllActiveData(Set<String> zdbID);
 
     public ActiveSource getActiveSource(String zdbID);
 

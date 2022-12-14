@@ -134,7 +134,7 @@ public class HibernateInfrastructureRepository implements InfrastructureReposito
     }
 
     @Override
-    public List<ActiveData> getAllActiveData(List<String> zdbIDs) {
+    public List<ActiveData> getAllActiveData(Set<String> zdbIDs) {
         Session session = currentSession();
         CriteriaBuilder builder = session.getCriteriaBuilder();
         CriteriaQuery<ActiveData> query = builder.createQuery(ActiveData.class);

@@ -8,7 +8,9 @@ import org.springframework.test.context.web.WebAppConfiguration;
 import org.zfin.AbstractDatabaseTest;
 import org.zfin.AppConfig;
 
+import java.util.HashSet;
 import java.util.List;
+import java.util.Set;
 
 import static org.junit.Assert.*;
 
@@ -88,7 +90,7 @@ public class ZdbIdValidatorUnitTest extends AbstractDatabaseTest {
                 "ZDB-DBLINK-220830-1784",
                 "ZDB-DALIAS-091209-19932"
         );
-        List<String> invalidIDs = ZdbIdValidator.getInvalidIDsFromList(ids);
+        List<String> invalidIDs = ZdbIdValidator.getInvalidIDsFromSet(new HashSet<>(ids));
         assertEquals(3, invalidIDs.size());
         assertEquals("ZDB-GENE-650000-1", invalidIDs.get(0));
         assertEquals("ZDB-GENE-650000-2", invalidIDs.get(1));
