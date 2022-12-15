@@ -10,28 +10,27 @@ import org.zfin.AppConfig;
 
 import java.util.HashSet;
 import java.util.List;
-import java.util.Set;
 
 import static org.junit.Assert.*;
 
 @RunWith(SpringJUnit4ClassRunner.class)
 @ContextConfiguration(classes = {AppConfig.class})
 @WebAppConfiguration
-public class ZdbIdValidatorUnitTest extends AbstractDatabaseTest {
+public class ZdbIDValidatorUnitTest extends AbstractDatabaseTest {
 
     @Test
     public void validateSimpleID() {
 
         //test that a known gene validates as existing
-        boolean exists = ZdbIdValidator.validateExists("ZDB-GENE-110913-113");
+        boolean exists = ZdbIDValidator.validateExists("ZDB-GENE-110913-113");
         assertTrue(exists);
 
         //test that an invalid data type fails to validate
-        exists = ZdbIdValidator.validateExists("ZDB-BOGUSTYPE-111111-11");
+        exists = ZdbIDValidator.validateExists("ZDB-BOGUSTYPE-111111-11");
         assertFalse(exists);
 
         //test that a valid formatted id that does not exist returns false
-        exists = ZdbIdValidator.validateExists("ZDB-GENE-650000-1");
+        exists = ZdbIDValidator.validateExists("ZDB-GENE-650000-1");
         assertFalse(exists);
 
     }
@@ -53,7 +52,7 @@ public class ZdbIdValidatorUnitTest extends AbstractDatabaseTest {
         );
 
         //test that a list of known entities validate as existing
-        boolean exists = ZdbIdValidator.validateAllIdsExist(ids);
+        boolean exists = ZdbIDValidator.validateAllIDsExist(ids);
         assertTrue(exists);
 
         //test that a list with some valid and some invalid will fail:
@@ -69,7 +68,7 @@ public class ZdbIdValidatorUnitTest extends AbstractDatabaseTest {
                 "ZDB-DBLINK-220830-1784",
                 "ZDB-DALIAS-091209-19932"
         );
-        exists = ZdbIdValidator.validateAllIdsExist(ids);
+        exists = ZdbIDValidator.validateAllIDsExist(ids);
         assertFalse(exists);
 
     }
@@ -90,7 +89,7 @@ public class ZdbIdValidatorUnitTest extends AbstractDatabaseTest {
                 "ZDB-DBLINK-220830-1784",
                 "ZDB-DALIAS-091209-19932"
         );
-        List<String> invalidIDs = ZdbIdValidator.getInvalidIDsFromSet(new HashSet<>(ids));
+        List<String> invalidIDs = ZdbIDValidator.getInvalidIDsFromSet(new HashSet<>(ids));
         assertEquals(3, invalidIDs.size());
         assertEquals("ZDB-GENE-650000-1", invalidIDs.get(0));
         assertEquals("ZDB-GENE-650000-2", invalidIDs.get(1));

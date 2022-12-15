@@ -10,7 +10,7 @@ import java.util.Set;
 import static org.zfin.repository.RepositoryFactory.getInfrastructureRepository;
 
 //TODO: should this be Id or ID?
-public class ZdbIdValidator {
+public class ZdbIDValidator {
     public static boolean validateExists(String ID) {
         boolean isValidStructure = ActiveData.validateActiveData(ID);
         if (!isValidStructure) {
@@ -20,12 +20,12 @@ public class ZdbIdValidator {
         return activeData != null;
     }
 
-    public static boolean validateAllIdsExist(Set<String> IDs) {
+    public static boolean validateAllIDsExist(Set<String> IDs) {
         List<ActiveData> results = getInfrastructureRepository().getAllActiveData(IDs);
         return results.size() == IDs.size();
     }
-    public static boolean validateAllIdsExist(List<String> IDs) {
-        return validateAllIdsExist(new HashSet<>(IDs));
+    public static boolean validateAllIDsExist(List<String> IDs) {
+        return validateAllIDsExist(new HashSet<>(IDs));
     }
 
     public static List<String> getInvalidIDsFromSet(Set<String> IDs) {

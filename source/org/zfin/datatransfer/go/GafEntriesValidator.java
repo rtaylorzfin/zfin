@@ -26,7 +26,7 @@ public class GafEntriesValidator {
         }
 
         //get the bad IDs
-        return ZdbIdValidator.getInvalidIDsFromSet(allZdbIDs);
+        return ZdbIDValidator.getInvalidIDsFromSet(allZdbIDs);
     }
 
     /**
