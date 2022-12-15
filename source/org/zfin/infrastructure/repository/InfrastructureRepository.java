@@ -186,6 +186,13 @@ public interface InfrastructureRepository {
     ReplacementZdbID getReplacementZdbId(String oldZdbID);
 
     /**
+     * Bulk retrieve the replaced zdbID for a given zdbID.
+     * @param oldZdbIDs list of ZDB IDs
+     * @return all matching replaced objects
+     */
+    List<ReplacementZdbID> getAllReplacementZdbIds(List<String> oldZdbIDs);
+
+    /**
      * Retrieve all data aliases for a given zdbID.
      *
      * @param aliasLowerName Lower-case alias name.

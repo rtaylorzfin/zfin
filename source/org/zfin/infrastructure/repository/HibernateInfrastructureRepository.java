@@ -54,6 +54,7 @@ import java.util.Date;
 import java.util.*;
 
 import static org.zfin.framework.HibernateUtil.currentSession;
+import static org.zfin.repository.RepositoryFactory.getInfrastructureRepository;
 
 @Repository
 public class HibernateInfrastructureRepository implements InfrastructureRepository {
@@ -760,6 +761,20 @@ public class HibernateInfrastructureRepository implements InfrastructureReposito
         Criteria query = session.createCriteria(ReplacementZdbID.class);
         query.add(Restrictions.eq("oldZdbID", oldZdbID));
         return (ReplacementZdbID) query.uniqueResult();
+    }
+
+    @Override
+    public List<ReplacementZdbID> getAllReplacementZdbIds(List<String> oldZdbIDs) {
+        Session session = currentSession();
+        CriteriaBuilder builder = session.getCriteriaBuilder();
+        CriteriaQuery<ReplacementZdbID> query = builder.createQuery(ReplacementZdbID.class);
+        Root<ReplacementZdbID> root = query.from(ReplacementZdbID.class);
+        query.select(root)
+                .where(
+                        root.get("oldZdbID").in(oldZdbIDs)
+                );
+
+        return session.createQuery(query).list();
     }
 
     @SuppressWarnings("unchecked")

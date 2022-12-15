@@ -7,11 +7,13 @@ import org.springframework.test.context.junit4.SpringJUnit4ClassRunner;
 import org.springframework.test.context.web.WebAppConfiguration;
 import org.zfin.AbstractDatabaseTest;
 import org.zfin.AppConfig;
+import org.zfin.infrastructure.ReplacementZdbID;
 
 import java.util.HashSet;
 import java.util.List;
 
 import static org.junit.Assert.*;
+import static org.zfin.repository.RepositoryFactory.getInfrastructureRepository;
 
 @RunWith(SpringJUnit4ClassRunner.class)
 @ContextConfiguration(classes = {AppConfig.class})
@@ -94,6 +96,36 @@ public class ZdbIDValidatorUnitTest extends AbstractDatabaseTest {
         assertEquals("ZDB-GENE-650000-1", invalidIDs.get(0));
         assertEquals("ZDB-GENE-650000-2", invalidIDs.get(1));
         assertEquals("ZDB-GENE-650000-3", invalidIDs.get(2));
+
+    }
+
+    @Test
+    public void getAllActiveDataResolveMerged() {
+        //test that a list with some valid and some invalid will fail:
+        List<String> ids = List.of(
+                "ZDB-GENE-650000-1", //bogus ID
+                "ZDB-GENE-030131-3937", //replaced to ZDB-GENE-000112-47 wu:fc59g04	22747
+                "ZDB-GENE-000208-18" //just a regular gene (urod)
+        );
+
+        List<ReplacementZdbID> results = getInfrastructureRepository().getAllReplacementZdbIds(ids);
+        assertEquals(1, results.size());
+        assertEquals("ZDB-GENE-000112-47", results.get(0).getReplacementZdbID());
+
+    }
+
+    @Test
+    public void getInvalidIDsFromSetResolvingMerged() {
+        //test that a list with some valid and some invalid will fail:
+        List<String> ids = List.of(
+                "ZDB-GENE-650000-1", //bogus ID
+                "ZDB-GENE-030131-3937", //replaced to ZDB-GENE-000112-47 wu:fc59g04	22747
+                "ZDB-GENE-000208-18" //just a regular gene (urod)
+        );
+
+        List<String> invalidIDs = ZdbIDValidator.getInvalidIDsFromSetResolvingMerged(new HashSet<>(ids));
+        assertEquals(1, invalidIDs.size());
+        assertEquals("ZDB-GENE-650000-1", invalidIDs.get(0));
 
     }
 

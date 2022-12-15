@@ -14,6 +14,7 @@ public class GafEntriesValidator {
     /**
      * Given a list of GafEntries, return all IDs from the GafEntry inferences column that
      * are invalid.  They will be flagged as invalid if they are not in the zdb_active_data table.
+     * This allows ZDB IDs that have been replaced.
      *
      * @param gafEntries list of GafEntries
      * @return all invalid IDs from the GafEntries
@@ -26,7 +27,7 @@ public class GafEntriesValidator {
         }
 
         //get the bad IDs
-        return ZdbIDValidator.getInvalidIDsFromSet(allZdbIDs);
+        return ZdbIDValidator.getInvalidIDsFromSetResolvingMerged(allZdbIDs);
     }
 
     /**

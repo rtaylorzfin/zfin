@@ -2,15 +2,22 @@ package org.zfin.datatransfer.go;
 
 import org.apache.commons.collections4.CollectionUtils;
 import org.zfin.infrastructure.ActiveData;
+import org.zfin.infrastructure.ReplacementZdbID;
 
-import java.util.HashSet;
-import java.util.List;
-import java.util.Set;
+import java.util.*;
 
 import static org.zfin.repository.RepositoryFactory.getInfrastructureRepository;
 
-//TODO: should this be Id or ID?
+/**
+ * Helper class for validating ZDB IDs
+ */
 public class ZdbIDValidator {
+
+    /**
+     * returns true if the ID exists in the zdb_active_data table
+     * @param ID
+     * @return true if the ID exists in the zdb_active_data table
+     */
     public static boolean validateExists(String ID) {
         boolean isValidStructure = ActiveData.validateActiveData(ID);
         if (!isValidStructure) {
@@ -20,14 +27,28 @@ public class ZdbIDValidator {
         return activeData != null;
     }
 
+    /**
+     * @param IDs
+     * @return true if all the IDs exist in the zdb_active_data table
+     *
+     */
     public static boolean validateAllIDsExist(Set<String> IDs) {
-        List<ActiveData> results = getInfrastructureRepository().getAllActiveData(IDs);
-        return results.size() == IDs.size();
+        return 0 == getInvalidIDsFromSet(IDs).size();
     }
+
+    /**
+     * Alias, but accepting List instead of Set
+     * @param IDs
+     * @return true if all the IDs exist in the zdb_active_data table
+     */
     public static boolean validateAllIDsExist(List<String> IDs) {
         return validateAllIDsExist(new HashSet<>(IDs));
     }
 
+    /**
+     * @param IDs
+     * @return all of the given IDs that do not show up in the zdb_active_data table
+     */
     public static List<String> getInvalidIDsFromSet(Set<String> IDs) {
         List<String> resultIDs = getInfrastructureRepository()
                                     .getAllActiveData(IDs)
@@ -36,4 +57,20 @@ public class ZdbIDValidator {
                                     .toList();
         return (List<String>) CollectionUtils.subtract(IDs, resultIDs);
     }
+
+    /**
+     * @param IDs
+     * @return all of the given IDs that do not show up in the zdb_active_data table -- ignoring merged IDs.
+     */
+    public static List<String> getInvalidIDsFromSetResolvingMerged(Set<String> IDs) {
+        List<String> invalidIDs = getInvalidIDsFromSet(IDs);
+        List<String> mergedIDs = getInfrastructureRepository()
+                .getAllReplacementZdbIds(invalidIDs)
+                .stream()
+                .map(ReplacementZdbID::getOldZdbID)
+                .toList();
+
+        return (List<String>) CollectionUtils.subtract(invalidIDs, mergedIDs);
+    }
+
 }
