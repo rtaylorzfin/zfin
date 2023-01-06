@@ -42,6 +42,14 @@ task NCBILoadTask(type: JavaExec) {
     systemProperty "ncbiLoadOutput", System.getProperty("ncbiLoadOutput", null)
 }
 
+task batchNCBIFetchByRefSeqTask(type: JavaExec) {
+    classpath = sourceSets.main.runtimeClasspath
+    main = 'org.zfin.datatransfer.webservice.BatchNCBIFetchByRefSeqTask'
+    systemProperty "apiKey", System.getProperty("apiKey", null)
+    systemProperty "ncbiLoadInput", System.getProperty("ncbiLoadInput", null)
+    systemProperty "ncbiLoadOutput", System.getProperty("ncbiLoadOutput", null)
+}
+
 task cleanMarkerGoTermEvidenceDuplicatesTask(type: JavaExec) {
     classpath = sourceSets.main.runtimeClasspath
     main = 'org.zfin.mutant.MarkerGoTermEvidenceCleanupTask'
