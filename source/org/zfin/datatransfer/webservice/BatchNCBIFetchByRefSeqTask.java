@@ -45,7 +45,7 @@ public class BatchNCBIFetchByRefSeqTask extends AbstractScriptWrapper {
     }
 
     public BatchNCBIFetchByRefSeqTask(String[] args) {
-        initAll();
+        initProperties();
         initInputs(args);
         initFiles();
     }
@@ -98,7 +98,7 @@ public class BatchNCBIFetchByRefSeqTask extends AbstractScriptWrapper {
     private void fetchAndWriteBatch(List<String> batch) throws ServiceConnectionException, IOException {
         try {
             String apiResult = fetchResults(batch);
-            writer.write(apiResult + "\n");
+            writer.write(apiResult);
         } catch (IOException | ServiceConnectionException e) {
             LOG.error("Error fetching batch ");
             LOG.error(e.getMessage());
