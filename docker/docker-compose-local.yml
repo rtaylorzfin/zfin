@@ -1,0 +1,31 @@
+version: '3.8'
+
+services:
+  solr:
+    container_name: solrfh_container
+    build: ./solr/
+    restart: always
+    ports:
+      - "8983:8983"
+    volumes:
+      - solr_data:/var/solr
+  httpd:
+    container_name: httpdfh_container
+    build: ./httpd-for-host/
+    restart: always
+    ports:
+      - "80:80"
+      - "443:443"
+    volumes:
+      - /opt/zfin/www_homes/macdev:/opt/zfin/www_homes/macdev
+#      - /opt/zfin/www_homes/macdev:/opt/zfin/www_homes/zfin.org # should this mapping work?
+      - httpd_log:/var/log/httpd
+      - tls_certs:/opt/zfin/tls
+      - certbot_data:/etc/letsencrypt
+
+volumes:
+  solr_data:
+  www_data:
+  httpd_log:
+  tls_certs:
+  certbot_data:
