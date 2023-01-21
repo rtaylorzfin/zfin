@@ -46,22 +46,22 @@
 
     ProxyRequests Off
     ProxyPreserveHost On
-    ProxyPass /action/ http://tomcat:2008/action/
-    ProxyPassReverse /action/ http://tomcat:2008/action/
+    ProxyPass /action/ http://host.docker.internal:2008/action/
+    ProxyPassReverse /action/ http://host.docker.internal:2008/action/
     #ProxyPass /blast/ http://genomix.cs.uoregon.edu/cgi-bin/zfin/
     #ProxyPassReverse /blast/ http://genomix.cs.uoregon.edu/cgi-bin/zfin/
-    ProxyPass /ajax/ http://tomcat:2008/ajax/
-    ProxyPassReverse /ajax/ http://tomcat:2008/ajax/ 
+    ProxyPass /ajax/ http://host.docker.internal:2008/ajax/
+    ProxyPassReverse /ajax/ http://host.docker.internal:2008/ajax/ 
 
     ProxyPass /gb2/ http://gbrowse1.zfin.org/gb2/
     ProxyPassReverse /gb2/ http://gbrowse1.zfin.org/gb2/
     ProxyPass /gbrowse2/ http://gbrowse1.zfin.org/gbrowse2/
     ProxyPassReverse /gbrowse2/ http://gbrowse1.zfin.org/gbrowse2/
 
-    ProxyPass /webapp/ http://tomcat:2008/webapp/
-    ProxyPassReverse /webapp/ http://tomcat:2008/webapp/
-    ProxyPass /webservice/ http://tomcat:2008/webservice/
-    ProxyPassReverse /webservice/ http://tomcat:2008/webservice/
+    ProxyPass /webapp/ http://host.docker.internal:2008/webapp/
+    ProxyPassReverse /webapp/ http://host.docker.internal:2008/webapp/
+    ProxyPass /webservice/ http://host.docker.internal:2008/webservice/
+    ProxyPassReverse /webservice/ http://host.docker.internal:2008/webservice/
     #for using the prototype search from kinetix/zfin.org
     ProxyPass /zfinlabs/ http://zygotix.zfin.org:9109/action/quicksearch/
     ProxyPassReverse /zfinlabs/ http://zygotix.zfin.org:9109/action/quicksearch/
@@ -116,14 +116,14 @@
     SSLProxyCheckPeerCN off
     SSLProxyCheckPeerName off
     SSLProxyCheckPeerExpire off
-    ProxyPass /action/ https://tomcat:8443/action/
-    ProxyPassReverse /action/ https://tomcat:8443/action/
-    ProxyPass /ajax/ https://tomcat:8443/ajax/
-    ProxyPassReverse /ajax/ https://tomcat:8443/ajax/ 
-    ProxyPass /webapp/ https://tomcat:8443/webapp/
-    ProxyPassReverse /webapp/ https://tomcat:8443/webapp/
-    ProxyPass /webservice/ https://tomcat:8443/webservice/
-    ProxyPassReverse /webservice/ https://tomcat:8443/webservice/
+    ProxyPass /action/ https://host.docker.internal:8443/action/
+    ProxyPassReverse /action/ https://host.docker.internal:8443/action/
+    ProxyPass /ajax/ https://host.docker.internal:8443/ajax/
+    ProxyPassReverse /ajax/ https://host.docker.internal:8443/ajax/ 
+    ProxyPass /webapp/ https://host.docker.internal:8443/webapp/
+    ProxyPassReverse /webapp/ https://host.docker.internal:8443/webapp/
+    ProxyPass /webservice/ https://host.docker.internal:8443/webservice/
+    ProxyPassReverse /webservice/ https://host.docker.internal:8443/webservice/
 
     ProxyPass /gb2/ http://gbrowse1.zfin.org/gb2/
     ProxyPassReverse /gb2/ http://gbrowse1.zfin.org/gb2/
