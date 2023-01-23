@@ -4,7 +4,7 @@
     ServerAlias     watson.zfin.org
     ServerAlias     crick.zfin.org
     ServerAlias     stage.zfin.org
-    DocumentRoot	/srv/www/zfin.org/home
+    DocumentRoot	/srv/www/macdev/home
     LogFormat "%h %V %u %t \"%r\" %>s %b \"%{Referer}i\" \"%{User-Agent}i\" %T" timing
     LogFormat "{ \"@timestamp\": \"%{%Y-%m-%dT%H:%M:%S%z}t\", \"@fields\": { \"client\": \"%a\", \"duration_usec\": %D, \"status\": %s, \"request\": \"%U%q\", \"method\": \"%m\", \"referrer\": \"%{Referer}i\" } }" logstash_json
     CustomLog	/var/log/httpd/zfin_access timing
@@ -21,7 +21,7 @@
     </Location>
     #FIXME: Where should this point?
     Alias		/zfin_doc /research/zprod/Commons/doc
-    ScriptAlias	/cgi-bin /srv/www/zfin.org/cgi-bin
+    ScriptAlias	/cgi-bin /srv/www/macdev/cgi-bin
 
     RedirectMatch permanent /zirc(.*)      http://zebrafish.org/zirc$1
     RedirectMatch permanent /zf_info/stckctr/* http://zebrafish.org/zirc/home/guide.php
@@ -42,7 +42,7 @@
     RewriteCond %{REQUEST_URI} ^/jobs
     RewriteRule ^(.*)$ https://%{SERVER_NAME}/$1 [R=301,L]
 
-    Include /srv/www/zfin.org/server_apps/apache/inc-redirect
+    Include /srv/www/macdev/server_apps/apache/inc-redirect
 
     ProxyRequests Off
     ProxyPreserveHost On
@@ -96,8 +96,8 @@
     ServerAlias crick.zfin.org
     ServerAlias stage.zfin.org
     SSLProxyEngine on
-    DocumentRoot	/srv/www/zfin.org/home
-    ScriptAlias	/cgi-bin /srv/www/zfin.org/cgi-bin
+    DocumentRoot	/srv/www/macdev/home
+    ScriptAlias	/cgi-bin /srv/www/macdev/cgi-bin
     CustomLog	/var/log/httpd/zfin_access combined
     ErrorLog	/var/log/httpd/zfin_errors
     <Location /server-status>
@@ -179,7 +179,7 @@
       ProxyPassReverse  http://localhost:8983/solr
     </Location>
             
-    Include /srv/www/zfin.org/server_apps/apache/inc-redirect
+    Include /srv/www/macdev/server_apps/apache/inc-redirect
 </VirtualHost>
 
 <VirtualHost *:80>
