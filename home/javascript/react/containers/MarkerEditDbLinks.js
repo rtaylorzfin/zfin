@@ -57,6 +57,28 @@ const MarkerEditDbLinks = ({markerId, group = 'other marker pages'}) => {
         return null;
     }
 
+    const optionsForDatabase = (databases) => {
+        //group by name:
+        const groupedDatabases = databases.reduce( (carry, el) => {
+            if (!carry[el.name]) { carry[el.name] = []; }
+            carry[el.name].push(el);
+            return carry;
+        }, {});
+
+        //for entries with duplicate names, append suffix to name
+        const options = Object.entries(groupedDatabases).map( ([groupName, items]) => {
+            if (items.length > 1) {
+                return items.map( item => ({label: `${item.name} (${item.type} - ${item.zdbID})`, value: item.zdbID}));
+            } else {
+                return {label: items[0].name, value: items[0].zdbID};
+            }
+        }).flat();
+
+        return options.map(database => (
+            <option value={database.value} key={database.value}>{database.label}</option>
+        ));
+    }
+
     return (
         <>
             <AddEditList
@@ -82,9 +104,7 @@ const MarkerEditDbLinks = ({markerId, group = 'other marker pages'}) => {
                         validate={value => value ? false : 'A database is required'}
                     >
                         <option value='' />
-                        {databases.value.map(database => (
-                            <option value={database.zdbID} key={database.zdbID}>{database.name}</option>
-                        ))}
+                        {optionsForDatabase(databases.value)}
                     </FormGroup>
 
                     <FormGroup
