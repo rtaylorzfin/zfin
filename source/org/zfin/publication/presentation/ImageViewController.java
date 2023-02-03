@@ -88,6 +88,44 @@ public class ImageViewController {
     }
 
 
+    @RequestMapping("/view2/{zdbID}")
+    public String getImageView2(Model model, @PathVariable("zdbID") String zdbID) {
+
+        Image image = publicationRepository.getImageById(zdbID);
+        if (image == null) {
+            String replacedZdbID = RepositoryFactory.getInfrastructureRepository().getWithdrawnZdbID(zdbID);
+            if (replacedZdbID != null) {
+
+                return "redirect:/" + replacedZdbID;
+            } else {
+                model.addAttribute(LookupStrings.ZDB_ID, zdbID);
+                return LookupStrings.RECORD_NOT_FOUND_PAGE;
+            }
+        }
+
+
+        model.addAttribute("image", image);
+        Figure figure = image.getFigure();
+        if (figure!=null) {
+            model.addAttribute(LookupStrings.DYNAMIC_TITLE, "Image: " + figureViewService.getFullFigureLabel(image.getFigure()));
+            model.addAttribute("expressionGeneList", figureViewService.getExpressionGenes(image.getFigure()));
+            model.addAttribute("antibodyList", figureViewService.getAntibodies(image.getFigure()));
+            Map<Figure, FigureExpressionSummary> expressionSummaryMap = new HashMap<>();
+            Map<Figure, FigurePhenotypeSummary> phenotypeSummaryMap = new HashMap<>();
+
+            expressionSummaryMap.put(figure, figureViewService.getFigureExpressionSummary(figure));
+            phenotypeSummaryMap.put(figure, figureViewService.getFigurePhenotypeSummary(figure));
+
+            model.addAttribute("expressionSummaryMap", expressionSummaryMap);
+            model.addAttribute("phenotypeSummaryMap", phenotypeSummaryMap);
+            Clone probe = figureViewService.getProbeForFigure(figure);
+            model.addAttribute("probe", probe);
+        }
+
+        model.addAttribute("directLink", true);
+        return "publication/publication-image";
+    }
+
     @RequestMapping("/publication/image-popup/{zdbID}")
     public String updateOrthologyNote(@PathVariable String zdbID,
                                       @ModelAttribute("formBean") ImageViewBean form) throws Exception {
