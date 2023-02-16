@@ -395,6 +395,28 @@
     <target name="compile" depends="prepare"
             description="Target to compile all classes, excluding test files, and moving anything from the source
             folder to the class folder.">
+        <echo>
+            ###########################################################
+            #                                                         #
+            #   SPRING UPGRADE TODO:                                  #
+            #                                                         #
+            #   Remove from Gradle:
+            #     implementation group: 'org.springframework.ws', name: 'spring-ws-core', version: '2.2.2.RELEASE'                                                      #
+            #                                                         #
+            ############################################################
+            #
+            # Do something about these jars:
+            #
+            home/WEB-INF/lib/spring-instrument-4.2.2.RELEASE.jar
+            home/WEB-INF/lib/spring-instrument-tomcat-4.2.2.RELEASE.jar
+            home/WEB-INF/lib/spring-webmvc-4.2.9.RELEASE.jar
+            home/WEB-INF/lib/spring-ws-core-2.2.2.RELEASE.jar
+            home/WEB-INF/lib/spring-ws-security-2.0.0.RELEASE.jar
+            home/WEB-INF/lib/spring-ws-support-2.0.0.RELEASE.jar
+            home/WEB-INF/lib/spring-ws-test-2.0.0.RELEASE.jar
+            home/WEB-INF/lib/spring-xml-2.0.0-RC2.jar
+
+        </echo>
         <copy todir="${classbin.dir}">
             <fileset dir="${source.dir}">
                 <include name="**/*.xml"/>
