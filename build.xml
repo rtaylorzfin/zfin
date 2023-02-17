@@ -401,15 +401,14 @@
             #   SPRING UPGRADE TODO:                                  #
             #                                                         #
             #   Remove from Gradle:
-            #     implementation group: 'org.springframework.ws', name: 'spring-ws-core', version: '2.2.2.RELEASE'                                                      #
+            #     implementation group: 'org.springframework.ws',
+                                name: 'spring-ws-core',
+                                version: '2.2.2.RELEASE'              #
             #                                                         #
             ############################################################
             #
             # Do something about these jars:
             #
-            home/WEB-INF/lib/spring-instrument-4.2.2.RELEASE.jar
-            home/WEB-INF/lib/spring-instrument-tomcat-4.2.2.RELEASE.jar
-            home/WEB-INF/lib/spring-webmvc-4.2.9.RELEASE.jar
             home/WEB-INF/lib/spring-ws-core-2.2.2.RELEASE.jar
             home/WEB-INF/lib/spring-ws-security-2.0.0.RELEASE.jar
             home/WEB-INF/lib/spring-ws-support-2.0.0.RELEASE.jar
