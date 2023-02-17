@@ -99,7 +99,7 @@ public class MarkerEndpoint extends AbstractMarkerWebService {
     /**
      * Some logging to help figure out if these methods are safe to deprecate.
      * If these methods are never called, then it should be safe to remove them.
-     * Once removed, we can take out our dependencies: spring-ws-*.jar and spring-xml*.jar
+     * Once removed, we can take out our dependencies: spring-ws-*.jar, spring-xml*.jar, and jdom-1.1.jar
      */
     private void logRequest(String methodName, String message) {
         log.info("DEPRECATE THIS METHOD? " + methodName + ": " + message);
