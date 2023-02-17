@@ -705,7 +705,7 @@ dependencies {
     implementation group: 'org.hibernate.search', name: 'hibernate-search-mapper-pojo-base', version: '6.1.0.Final'
     implementation group: 'org.springframework', name: 'spring-orm', version: '4.3.5.RELEASE'
     implementation group: 'org.springframework', name: 'spring-core', version: '4.3.5.RELEASE'
-    implementation group: 'org.springframework.security', name: 'spring-security-core', version: '4.3.5.RELEASE'
+    implementation group: 'org.springframework.security', name: 'spring-security-core', version: '4.0.3.RELEASE'
     implementation group: 'org.springframework', name: 'spring-webmvc', version: '4.3.5.RELEASE'
     implementation group: 'org.springframework', name: 'spring-web', version: '4.3.5.RELEASE'
     implementation group: 'org.springframework', name: 'spring-context-support', version: '4.3.5.RELEASE'
