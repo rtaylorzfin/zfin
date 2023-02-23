@@ -2465,4 +2465,19 @@ public class HibernatePublicationRepository extends PaginationUtil implements Pu
 		return criteria;
 	}
 
+	@Override
+	public CorrespondenceNeeded getCorrespondenceNeeded(long id) {
+		return (CorrespondenceNeeded) HibernateUtil.currentSession().get(CorrespondenceNeeded.class, id);
+	}
+
+	@Override
+	public List<CorrespondenceNeeded> getCorrespondenceNeededByPublicationID(String zdbID) {
+		CriteriaBuilder criteriaBuilder = currentSession().getCriteriaBuilder();
+		CriteriaQuery<CorrespondenceNeeded> cr = criteriaBuilder.createQuery(CorrespondenceNeeded.class);
+		Root<CorrespondenceNeeded> root = cr.from(CorrespondenceNeeded.class);
+		cr.select(root);
+		cr.where(criteriaBuilder.equal(root.get("publication").get("zdbID"), zdbID));
+		return currentSession().createQuery(cr).list();
+	}
+
 }

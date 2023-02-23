@@ -35,10 +35,7 @@ import org.zfin.ontology.Ontology;
 import org.zfin.ontology.repository.OntologyRepository;
 import org.zfin.orthology.Ortholog;
 import org.zfin.profile.Person;
-import org.zfin.publication.Publication;
-import org.zfin.publication.PublicationTrackingHistory;
-import org.zfin.publication.PublicationTrackingLocation;
-import org.zfin.publication.PublicationTrackingStatus;
+import org.zfin.publication.*;
 import org.zfin.publication.presentation.DashboardPublicationBean;
 import org.zfin.publication.presentation.DashboardPublicationList;
 import org.zfin.repository.RepositoryFactory;
@@ -46,6 +43,7 @@ import org.zfin.sequence.MarkerDBLink;
 
 import java.util.Calendar;
 import java.util.List;
+import java.util.Set;
 
 import static org.hamcrest.MatcherAssert.assertThat;
 import static org.hamcrest.Matchers.*;
@@ -800,5 +798,18 @@ public class PublicationRepositoryTest extends AbstractDatabaseTest {
 
         assertTrue(numberOfStatusChanges >= 0);
     }
+
+    @Test
+    public void getCorrespondenceNeeded() {
+        CorrespondenceNeeded cn = getPublicationRepository().getCorrespondenceNeeded(4);
+        assertEquals(4, cn.getId());
+    }
+
+    @Test
+    public void getCorrespondenceNeededByPub() {
+        List<CorrespondenceNeeded> cn = getPublicationRepository().getCorrespondenceNeededByPublicationID("ZDB-PUB-221002-9");
+        assertEquals(2, cn.size());
+    }
+
 }
 

@@ -1,0 +1,22 @@
+package org.zfin.publication;
+
+import lombok.Getter;
+import lombok.Setter;
+
+import javax.persistence.*;
+
+@Setter
+@Getter
+@Entity
+@Table(name = "pub_correspondence_needed_reason")
+public class CorrespondenceNeededReason {
+
+    @Id
+    @GeneratedValue(strategy = GenerationType.IDENTITY)
+    @Column(name = "pcnr_pk_id")
+    private long id;
+
+    @Column(name = "pcnr_name")
+    private String name;
+
+}

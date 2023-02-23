@@ -901,6 +901,7 @@ test {
         //showStandardStreams = true
     }
     filter {
+        includeTestsMatching "org.zfin.publication.repository.PublicationRepositoryTest"
         includeTestsMatching "org.zfin.UnitTests"
         //spock tests
 
