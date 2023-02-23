@@ -1,6 +1,5 @@
 package org.zfin.publication.repository;
 
-import org.apache.commons.collections4.map.MultiKeyMap;
 import org.springframework.web.multipart.MultipartFile;
 import org.zfin.antibody.Antibody;
 import org.zfin.curation.presentation.CorrespondenceDTO;
@@ -8,11 +7,9 @@ import org.zfin.expression.Experiment;
 import org.zfin.expression.Figure;
 import org.zfin.expression.Image;
 import org.zfin.feature.Feature;
-import org.zfin.feature.FeatureMarkerRelationship;
 import org.zfin.framework.api.Pagination;
 import org.zfin.framework.presentation.PaginationBean;
 import org.zfin.framework.presentation.PaginationResult;
-import org.zfin.infrastructure.PublicationAttribution;
 import org.zfin.infrastructure.SourceAlias;
 import org.zfin.marker.Clone;
 import org.zfin.marker.Marker;
@@ -468,4 +465,13 @@ public interface PublicationRepository extends PaginationParameter {
     CorrespondenceNeeded getCorrespondenceNeeded(long id);
 
     List<CorrespondenceNeeded> getCorrespondenceNeededByPublicationID(String zdbID);
+
+    List<CorrespondenceNeededReason> getAllCorrespondenceNeededReasons();
+
+    void deleteCorrespondenceNeededByPublicationID(String pubID);
+
+    CorrespondenceNeededReason getCorrespondenceNeededReasonByID(long id);
+
+    void insertCorrespondenceNeeded(CorrespondenceNeeded correspondenceNeeded);
+
 }

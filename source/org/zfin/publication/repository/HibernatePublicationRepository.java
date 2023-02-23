@@ -2467,7 +2467,7 @@ public class HibernatePublicationRepository extends PaginationUtil implements Pu
 
 	@Override
 	public CorrespondenceNeeded getCorrespondenceNeeded(long id) {
-		return (CorrespondenceNeeded) HibernateUtil.currentSession().get(CorrespondenceNeeded.class, id);
+		return HibernateUtil.currentSession().get(CorrespondenceNeeded.class, id);
 	}
 
 	@Override
@@ -2480,4 +2480,33 @@ public class HibernatePublicationRepository extends PaginationUtil implements Pu
 		return currentSession().createQuery(cr).list();
 	}
 
+	@Override
+	public List<CorrespondenceNeededReason> getAllCorrespondenceNeededReasons() {
+		CriteriaBuilder criteriaBuilder = currentSession().getCriteriaBuilder();
+		CriteriaQuery<CorrespondenceNeededReason> cr = criteriaBuilder.createQuery(CorrespondenceNeededReason.class);
+		Root<CorrespondenceNeededReason> root = cr.from(CorrespondenceNeededReason.class);
+		cr.select(root);
+		cr.orderBy(criteriaBuilder.asc(root.get("order")));
+
+		return currentSession().createQuery(cr).list();
+	}
+
+	@Override
+	public void deleteCorrespondenceNeededByPublicationID(String pubID) {
+		CriteriaBuilder criteriaBuilder = currentSession().getCriteriaBuilder();
+		CriteriaDelete<CorrespondenceNeeded> cr = criteriaBuilder.createCriteriaDelete(CorrespondenceNeeded.class);
+		Root<CorrespondenceNeeded> root = cr.from(CorrespondenceNeeded.class);
+		cr.where(criteriaBuilder.equal(root.get("publication").get("zdbID"), pubID));
+		currentSession().createQuery(cr).executeUpdate();
+	}
+
+	@Override
+	public CorrespondenceNeededReason getCorrespondenceNeededReasonByID(long id) {
+		return currentSession().get(CorrespondenceNeededReason.class, id);
+	}
+
+	@Override
+	public void insertCorrespondenceNeeded(CorrespondenceNeeded correspondenceNeeded) {
+		currentSession().save(correspondenceNeeded);
+	}
 }

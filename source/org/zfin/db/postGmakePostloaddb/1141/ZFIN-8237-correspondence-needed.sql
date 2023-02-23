@@ -6,7 +6,8 @@
 -- ----------------------------
 CREATE TABLE IF NOT EXISTS "public"."pub_correspondence_needed_reason" (
                                                              "pcnr_pk_id" serial8,
-                                                             "pcnr_name" text COLLATE "pg_catalog"."default" NOT NULL
+                                                             "pcnr_name" text COLLATE "pg_catalog"."default" NOT NULL,
+                                                             "pcnr_order" int
 );
 
 -- ----------------------------
@@ -48,7 +49,8 @@ ALTER TABLE "public"."pub_correspondence_needed" ADD CONSTRAINT "pcnr_pub_zdb_fk
 -- ----------------------------
 CREATE TABLE IF NOT EXISTS "public"."pub_correspondence_needed_resolution_type" (
                                                                       "pcnrt_pk_id" serial8,
-                                                                      "pcnrt_name" text COLLATE "pg_catalog"."default" NOT NULL
+                                                                      "pcnrt_name" text COLLATE "pg_catalog"."default" NOT NULL,
+                                                                      "pcnrt_order" int
 );
 
 -- ----------------------------
@@ -86,15 +88,15 @@ ALTER TABLE "public"."pub_correspondence_needed_resolution" ADD CONSTRAINT "pcnr
 -- ----------------------------
 -- INSERTS
 -- ----------------------------
-INSERT INTO pub_correspondence_needed_reason (pcnr_name) VALUES ('Missing Allele information'),
-                                                                ('Gene can''t be ID'),
-                                                                ('Incorrect primers -Gene'),
-                                                                ('Set up line designation (Lab-line designation link)'),
-                                                                ('STR sequence missing'),
-                                                                ('STR Sequence question'),
-                                                                ('Missing Antibody information'),
-                                                                ('Other');
+INSERT INTO pub_correspondence_needed_reason (pcnr_name, pcnr_order) VALUES ('Missing Allele information', 1),
+                                                                ('Gene can''t be ID', 2),
+                                                                ('Incorrect primers -Gene', 3),
+                                                                ('Set up line designation (Lab-line designation link)', 4),
+                                                                ('STR sequence missing', 5),
+                                                                ('STR Sequence question', 6),
+                                                                ('Missing Antibody information', 7),
+                                                                ('Other', 8);
 
-INSERT INTO pub_correspondence_needed_resolution_type (pcnrt_name) VALUES ('No Author response'),
-                                                                    ('Author responded -needed more emails'),
-                                                                    ('Author responded with needed info');
+INSERT INTO pub_correspondence_needed_resolution_type (pcnrt_name, pcnrt_order) VALUES ('No Author response', 1),
+                                                                    ('Author responded -needed more emails', 2),
+                                                                    ('Author responded with needed info', 3);

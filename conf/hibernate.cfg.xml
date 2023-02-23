@@ -152,8 +152,10 @@
         <mapping class="org.zfin.ontology.TermDefinitionReference"/>
         <mapping class="org.zfin.ontology.TermExternalReference"/>
         <mapping class="org.zfin.ontology.TermStage"/>
-        <mapping class="org.zfin.ontology.TransitiveClosure"/>        
+        <mapping class="org.zfin.ontology.TransitiveClosure"/>
         <mapping class="org.zfin.publication.CorrespondenceComposedMessage"/>
+        <mapping class="org.zfin.publication.CorrespondenceNeeded"/>
+        <mapping class="org.zfin.publication.CorrespondenceNeededReason"/>
         <mapping class="org.zfin.publication.CorrespondenceReceivedMessage"/>
         <mapping class="org.zfin.publication.CorrespondenceRecipient"/>
         <mapping class="org.zfin.publication.CorrespondenceSentMessage"/>
