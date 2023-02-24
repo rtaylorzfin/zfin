@@ -36,7 +36,7 @@ import {
     PubCorrespondenceSection,
 } from '../components/pub-tracker';
 import PubPDFLink from '../components/PubPDFLink';
-import PubCorrespondenceNeeded from "../components/pub-tracker/PubCorrespondenceNeeded";
+import PubCorrespondenceNeeded from '../components/pub-tracker/PubCorrespondenceNeeded';
 
 const STATUS = 'Status';
 const TOPICS = 'Topics';
