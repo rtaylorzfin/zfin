@@ -28,24 +28,20 @@ const PubCorrespondenceNeeded = ({pubId}) => {
     }
 
     return <>
-        <div className="section ">
-            <div className='heading '>
+        <div className="section mb-1">
+            <div className='heading'>
                 Reasons for Correspondence
             </div>
         </div>
-        <ul className="list-group row">
+        <div className="row p-2">
             {correspondenceReasons.map((reason) =>
-                <div className="col-sm-6">
-                    <li key={reason.id} className="list-group-item rounded-0 border-top-0 border-left-0 border-right-0">
-                        <div className="custom-control custom-checkbox">
-                            <input className="custom-control-input" id={'reason-' + reason.id} type="checkbox" onChange={event => onToggleReason(reason, event.target.checked)}/>
-                            <label className="cursor-pointer font-weight-normal d-block custom-control-label"
-                                   htmlFor={'reason-' + reason.id}>{reason.name}</label>
-                        </div>
-                    </li>
+                <div key={reason.id} className="col-sm-6 custom-control custom-checkbox">
+                    <input className="custom-control-input" id={'reason-' + reason.id} type="checkbox" onChange={event => onToggleReason(reason, event.target.checked)}/>
+                    <label className="cursor-pointer font-weight-normal d-block custom-control-label"
+                           htmlFor={'reason-' + reason.id}>{reason.name}</label>
                 </div>
             )}
-        </ul>
+        </div>
     </>;
 };
 
