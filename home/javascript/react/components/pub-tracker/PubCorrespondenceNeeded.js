@@ -28,43 +28,24 @@ const PubCorrespondenceNeeded = ({pubId}) => {
     }
 
     return <>
-        <table className='table col-sm-6'>
-            <thead>
-            <tr>
-                <th></th>
-                <th>Reason</th>
-            </tr>
-            </thead>
-            <tbody>
+        <div className="section ">
+            <div className='heading '>
+                Reasons for Correspondence
+            </div>
+        </div>
+        <ul className="list-group row">
             {correspondenceReasons.map((reason) =>
-                <tr key={reason.id}>
-                    <td>
-                        <input type='checkbox' checked={reason.needed} onChange={event => onToggleReason(reason, event.target.checked)} />
-                    </td>
-                    <td>{reason.name}</td>
-                </tr>
+                <div className="col-sm-6">
+                    <li key={reason.id} className="list-group-item rounded-0 border-top-0 border-left-0 border-right-0">
+                        <div className="custom-control custom-checkbox">
+                            <input className="custom-control-input" id={'reason-' + reason.id} type="checkbox" onChange={event => onToggleReason(reason, event.target.checked)}/>
+                            <label className="cursor-pointer font-weight-normal d-block custom-control-label"
+                                   htmlFor={'reason-' + reason.id}>{reason.name}</label>
+                        </div>
+                    </li>
+                </div>
             )}
-            </tbody>
-        </table>
-        {/*<ul className="list-group">*/}
-        {/*    <li className="list-group-item rounded-0">*/}
-        {/*        <div className="custom-control custom-checkbox border-bottom">*/}
-        {/*            <input className="custom-control-input" id="customCheck1" type="checkbox"/>*/}
-        {/*                <label className="cursor-pointer font-weight-normal d-block custom-control-label"*/}
-        {/*                       htmlFor="customCheck1">Margherita</label>*/}
-        {/*        </div>*/}
-        {/*        <div className="custom-control custom-checkbox border-bottom">*/}
-        {/*            <input className="custom-control-input" id="customCheck1" type="checkbox"/>*/}
-        {/*                <label className="cursor-pointer font-weight-normal d-block custom-control-label"*/}
-        {/*                       htmlFor="customCheck1">Margherita</label>*/}
-        {/*        </div>*/}
-        {/*        <div className="custom-control custom-checkbox border-bottom">*/}
-        {/*            <input className="custom-control-input" id="customCheck1" type="checkbox"/>*/}
-        {/*                <label className="cursor-pointer font-weight-normal d-block custom-control-label"*/}
-        {/*                       htmlFor="customCheck1">Margherita</label>*/}
-        {/*        </div>*/}
-        {/*    </li>*/}
-        {/*</ul>*/}
+        </ul>
     </>;
 };
 
