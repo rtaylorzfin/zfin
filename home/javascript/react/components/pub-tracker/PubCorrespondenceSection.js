@@ -228,7 +228,6 @@ class PubCorrespondenceSection extends React.Component {
                 <Alert color='danger' dismissable onDismiss={this.clearErrorMessage}>
                     {errorMessage}
                 </Alert>
-
                 <PubCorrespondenceList
                     correspondences={correspondences}
                     onResend={this.handleResend}
