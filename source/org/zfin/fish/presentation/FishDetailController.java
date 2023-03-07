@@ -115,6 +115,11 @@ public class FishDetailController {
                     return "redirect:/" + replacedDataReference.getPublicationID();
                 }
             }
+            replacedZdbID = getInfrastructureRepository().getWithdrawnZdbID(zdbID);
+            if (replacedZdbID != null) {
+                LOG.debug("found a withdrawn zdbID for: " + zdbID + "->" + replacedZdbID);
+                return "redirect:/" + replacedZdbID;
+            }
         }
 
         if (fish == null) {
