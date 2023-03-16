@@ -69,11 +69,11 @@ sub main {
 
     initializeDB();
 
-    generateReportOfManuallyCuratedUniProtIDsWithMultipleGenes();
+    generateReportOfManuallyCuratedUniProtIDsWithMultipleGenes("manuallyCuratedUniProtIDsWithMultipleGenes.txt");
 
-    generateReportOfManuallyCuratedUniProtIDs();
+    generateReportOfManuallyCuratedUniProtIDs("manuallyCuratedUniProtIDs.txt");
 
-    checkForInvalidManuallyCuratedUniProtIDs();
+    checkForInvalidManuallyCuratedUniProtIDs("invalidManuallyCuratedUniProtIDs.txt");
 
     &downloadGOtermFiles();
 
@@ -122,13 +122,18 @@ sub initializeDB {
         or die "Cannot connect to PostgreSQL database: $DBI::errstr\n";
 }
 
+########################################################################################################
+#
+#  Validate manually-added UniProt IDs attributed to the new publication, ZDB-PUB-170131-9
+#  Here we check for IDs that were manually curated (eg. attrib'd to ZDB-PUB-170131-9)
+#  with the additional check that the IDs are also associated with multiple genes.
+#  (Historical note: for FB case 15015)
+#
+#  Accepts as first argument the name of the file to write the report to (manuallyCuratedUniProtIDsWithMultipleGenes.txt).
+#
+########################################################################################################
 sub generateReportOfManuallyCuratedUniProtIDsWithMultipleGenes {
-
-    ########################################################################################################
-    #
-    #  for FB case 15015, Validate manually-added UniProt IDs attributed to the new publication, ZDB-PUB-170131-9
-    #
-    ########################################################################################################
+    my $reportFilename = $_[0];
 
     my $sqlGetManuallyEnteredUniProtIDsWithMultGenes = "select distinct db1.dblink_acc_num from db_link db1
                                                      where exists(select 'x' from record_attribution
@@ -142,7 +147,7 @@ sub generateReportOfManuallyCuratedUniProtIDsWithMultipleGenes {
     $curGetManuallyEnteredUniProtIDsWithMultGenes->execute();
     my $manuallyEnteredUniProtIDWithMultGenes;
     $curGetManuallyEnteredUniProtIDsWithMultGenes->bind_columns(\$manuallyEnteredUniProtIDWithMultGenes);
-    open MULTIPLE, ">manuallyCuratedUniProtIDsWithMultipleGenes.txt" || die("Cannot open manuallyCuratedUniProtIDsWithMultipleGenes.txt !");
+    open MULTIPLE, ">$reportFilename" || die("Cannot open $reportFilename !");
     my $ctManuallyEnteredUniProtIDsWithMultGenes = 0;
     while ($curGetManuallyEnteredUniProtIDsWithMultGenes->fetch()) {
         print MULTIPLE "$manuallyEnteredUniProtIDWithMultGenes\n";
@@ -156,12 +161,20 @@ sub generateReportOfManuallyCuratedUniProtIDsWithMultipleGenes {
 
     if ($ctManuallyEnteredUniProtIDsWithMultGenes > 0) {
         my $subject = "Auto from SWISS-PROT: manually curated UniProt IDs with multiple genes";
-        ZFINPerlModules->sendMailWithAttachedReport($ENV{'SWISSPROT_EMAIL_REPORT'}, "$subject", "manuallyCuratedUniProtIDsWithMultipleGenes.txt");
-        #  system("cp manuallyCuratedUniProtIDsWithMultipleGenes.txt log/");
+        ZFINPerlModules->sendMailWithAttachedReport($ENV{'SWISSPROT_EMAIL_REPORT'}, "$subject", $reportFilename);
+        #  system("cp $reportFilename log/");
     }
 }
 
+########################################################################################################
+#
+#  Validate manually-added UniProt IDs attributed to the new publication, ZDB-PUB-170131-9
+#
+#  Accepts as first argument the name of the file to write the report to (manuallyCuratedUniProtIDs.txt).
+#
+########################################################################################################
 sub generateReportOfManuallyCuratedUniProtIDs {
+    my $reportFilename = $_[0];
 
     my $sqlGetManuallyEnteredUniProtIDs = "select dblink_acc_num from db_link
                                         where exists(select 'x' from record_attribution
@@ -173,7 +186,7 @@ sub generateReportOfManuallyCuratedUniProtIDs {
     my $manuallyEnteredUniProtID;
     $curGetManuallyEnteredUniProtIDs->bind_columns(\$manuallyEnteredUniProtID);
 
-    open MCIDS, ">manuallyCuratedUniProtIDs.txt" || die("Cannot open manuallyCuratedUniProtIDs.txt !");
+    open MCIDS, ">$reportFilename" || die("Cannot open $reportFilename !");
     while ($curGetManuallyEnteredUniProtIDs->fetch()) {
         $manuallyEnteredUniProtIDs[$ctManuallyEnteredUniProtIDs] = $manuallyEnteredUniProtID;
         print MCIDS "$manuallyEnteredUniProtID\n";
@@ -186,16 +199,26 @@ sub generateReportOfManuallyCuratedUniProtIDs {
 
 }
 
+########################################################################################################
+#
+#  Check for invalid manually curated UniProt IDs
+#  This iterates over every manually curated UniProt ID and checks to see if it is valid by making a
+#  web request to https://rest.uniprot.org/uniprotkb/{$ID} and checking for a 404.
+#
+#  Accepts as first argument the name of the file to write the report to (invalidManuallyCuratedUniProtIDs.txt).
+#
+########################################################################################################
 sub checkForInvalidManuallyCuratedUniProtIDs {
     my $uniprotId;
     my $url;
     my $uniProtURL = "https://rest.uniprot.org/uniprotkb/";
+    my $reportFilename = $_[0];
 
     if ($ENV{"SKIP_MANUAL_CHECK"}) {
         print("Skipping check for invalid manually entered uniprot IDs\n");
     }
     else {
-        open INVALID, ">invalidManuallyCuratedUniProtIDs.txt" || die("Cannot open invalidManuallyCuratedUniProtIDs.txt !");
+        open INVALID, ">$reportFilename" || die("Cannot open $reportFilename !");
         my $numInvalidUniProtIDs = 0;
 
         if ($ctManuallyEnteredUniProtIDs > 0) {
@@ -219,8 +242,8 @@ sub checkForInvalidManuallyCuratedUniProtIDs {
 
         if ($numInvalidUniProtIDs > 0) {
             my $subject = "Auto from SWISS-PROT: invalid manually curated UniProt IDs";
-            ZFINPerlModules->sendMailWithAttachedReport($ENV{'SWISSPROT_EMAIL_REPORT'}, "$subject", "invalidManuallyCuratedUniProtIDs.txt");
-            #      system("cp invalidManuallyCuratedUniProtIDs.txt log");
+            ZFINPerlModules->sendMailWithAttachedReport($ENV{'SWISSPROT_EMAIL_REPORT'}, "$subject", "$reportFilename");
+            #      system("cp $reportFilename log");
         }
     }
 }
@@ -395,6 +418,9 @@ sub processPreZfinDatFileAndGenerateZfinDatFileEtCetera {
         foreach $line (@lines) {
             if ($line =~ m/CC   (-------)|(Copyrighted)|(Distributed)/) {
                 #Skip copyright lines
+                next;
+            } elsif ($line =~ m/DR   ZFIN; ZDB-GENE-.*; SO:0001217./) {
+                #Skip lines that are erroneously associated with SO:0001217 as a gene abbreviation (ZFIN-8499)
                 next;
             }
 
