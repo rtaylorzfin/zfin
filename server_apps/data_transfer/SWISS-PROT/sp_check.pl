@@ -14,6 +14,8 @@
 # are collected and divided into different problem files for biologists to 
 # look into.
 
+use strict;
+use warnings;
 use DBI;
 use POSIX;
 
@@ -22,10 +24,6 @@ use lib $ENV{'ROOT_PATH'} . "/server_apps/";
 use ZFINPerlModules qw(assertEnvironment md5File);
 assertEnvironment('PGHOST','ROOT_PATH', 'DB_NAME');
 
-# Take a SP file as input (content format restricted).
-
-# Create the output files and give them titles. 
-init_files();
 
 my $num_ok = 0;   # number of good records that are going to be loaded
 my $num_prob = 0; # number of problem records
@@ -39,236 +37,286 @@ my $password = "";
 my $dbh = DBI->connect("DBI:Pg:dbname=$dbname;host=$dbhost", $username, $password)
     or die "Cannot connect to PostgreSQL database: $DBI::errstr\n";
 
-# if PubMed number not in zfin, output to a single file
-open PUB, ">pubmed_not_in_zfin" or die "Cannot open the pubmed_not_in_zfin:$!";
+### Globals
+my @embl_match;
+my $probrecd;
 
-my $zfin_dat_hash = md5File('zfin.dat');
-print "Processing zfin.dat (md5:$zfin_dat_hash) at " . strftime("%Y-%m-%d %H:%M:%S", localtime(time())) . " \n";
+### TODO: move these to local scope if possible.
+my $after_embl;
+my $count;
+my $dr;
+my $dr_zfin;
+my $embl_ac;
+my $embl_exist;
+my $embl_gp;
+my $embl_nt;
+my $fileno;
+my $good;
+my $match;
+my $no;
+my $num_match;
+my $num_pub;
+my $one_match;
+my $probfile;
+my $qual_check;
+my $sp_id;
+my $temprecd;
+my $zfin_ac;
+my @EMBL;
+my @embl_nt;
+my @embl_nt_matched;
+my @pubmed;
+my @rx;
+my @zfin;
 
-$/ = "//\n";
-open(UNPT, "zfin.dat") || die "Cannot open zfin.dat : $!\n";
-my $record_count = 0;
-while (<UNPT>) {
-    $record_count++;
-}
-close(UNPT);
-my $one_percent_of_records = floor($record_count / 100);
-$one_percent_of_records = 1 if $one_percent_of_records == 0;
 
-print "zfin.dat has $record_count records\n";
+sub main {
+    # Take a SP file as input (content format restricted).
 
-open(UNPT, "zfin.dat") || die "Cannot open zfin.dat : $!\n";
-my $progress_count = 0;
-while (<UNPT>) {
-    $progress_count++;
+    # Create the output files and give them titles.
+    init_files();
 
-    #give some indication of progress (once per 1% of records)
-    if ($progress_count % $one_percent_of_records == 0) {
-        print ceil($progress_count * 100 / $record_count) . "% - " . strftime("%Y-%m-%d %H:%M:%S", localtime(time())) . " \n";
+    # if PubMed number not in zfin, output to a single file
+    open PUB, ">pubmed_not_in_zfin" or die "Cannot open the pubmed_not_in_zfin:$!";
+
+    my $zfin_dat_hash = md5File('zfin.dat');
+    print "Processing zfin.dat (md5:$zfin_dat_hash) at " . strftime("%Y-%m-%d %H:%M:%S", localtime(time())) . " \n";
+
+    $/ = "//\n";
+    open(UNPT, "zfin.dat") || die "Cannot open zfin.dat : $!\n";
+    my $record_count = 0;
+    while (<UNPT>) {
+        $record_count++;
     }
+    close(UNPT);
+    my $one_percent_of_records = floor($record_count / 100);
+    $one_percent_of_records = 1 if $one_percent_of_records == 0;
 
-    init_var(); # Initialize the variables and arrays
+    print "zfin.dat has $record_count records\n";
 
-    # records in probfile contains AC, RX, DR EMBL lines
-    # they go to one of the prob# files for curator review. 
-    $probrecd = "prob$$.txt";
-    open PROB, ">$probrecd" or die "Cannot create the prob record file: $!";
+    open(UNPT, "zfin.dat") || die "Cannot open zfin.dat : $!\n";
+    my $progress_count = 0;
+    while (<UNPT>) {
+        my $record = $_;
+        $progress_count++;
 
-    if (!/DR\s*EMBL;/) {
-        # if no EMBL line
-        open F, ">>prob7" or die "Cannot open prob7 file";
-        print F;
-        close F;
-        print PROB;
-        close PROB;
-        system("cat '$probrecd' >> problemfile");
-        unlink $probrecd;
-        $num_prob++;
-        next;
-    }
-
-    if (/DR\s*ZFIN;.*\nDR\s*ZFIN;/) {
-        # if >1 ZFIN lines
-        open F, ">>prob8" or die "Cannot open prob8 file";
-        print F;
-        close F;
-        print PROB;
-        close PROB;
-        system("cat '$probrecd' >> problemfile");
-        unlink $probrecd;
-        $num_prob++;
-        next;
-    }
-
-    # record in tempfile contains ID, AC, DE, GN, DR, CC, KW, 
-    # it goes to "okfile" and "problemfile". Some record from problemfile
-    # would be matched out and appended to the okfile for parsing.
-
-    $temprecd = "temp$$.txt";
-    open TMP, ">$temprecd" or die "Cannot create the temporary file: $!";
-
-    foreach (split /\n/) {
-        $_ = $_ . "\n";
-
-        if (/^AC/ || /^GN/ || /^CC/ || /^ID/ || /^DE/) {
-            print TMP;
+        #give some indication of progress (once per 1% of records)
+        if ($progress_count % $one_percent_of_records == 0) {
+            print ceil($progress_count * 100 / $record_count) . "% - " . strftime("%Y-%m-%d %H:%M:%S", localtime(time())) . " \n";
         }
 
-        if (/^ID\s+(\w+)/) {
-            $sp_id = $1;
-            next;
-        }
-        if (/^AC/) {
+        init_var(); # Initialize the variables and arrays
+
+        # records in probfile contains AC, RX, DR EMBL lines
+        # they go to one of the prob# files for curator review.
+        $probrecd = "prob$$.txt";
+        open PROB, ">$probrecd" or die "Cannot create the prob record file: $!";
+
+        if ($record !~ /DR\s*EMBL;/ && $record !~ /DR\s*RefSeq;/) {
+            # if no EMBL line
+            open F, ">>prob7" or die "Cannot open prob7 file";
+            print F;
+            close F;
             print PROB;
+            close PROB;
+            system("cat '$probrecd' >> problemfile");
+            unlink $probrecd;
+            $num_prob++;
             next;
         }
 
-        if (/^RX\s+MEDLINE=\d+.*PubMed=(\d+)/) {
-            # now only PubMed in zfin
-            push @rx, $_;
-            $num_pub = 1;
+        if (/DR\s*ZFIN;.*\nDR\s*ZFIN;/) {
+            # if >1 ZFIN lines
+            open F, ">>prob8" or die "Cannot open prob8 file";
+            print F;
+            close F;
+            print PROB;
+            close PROB;
+            system("cat '$probrecd' >> problemfile");
+            unlink $probrecd;
+            $num_prob++;
             next;
         }
 
-        if (/^DR\s+EMBL;\s+(\w+);\s+(\w+)\./) {
-            # check for EMBL acc number, parse it
+        # record in tempfile contains ID, AC, DE, GN, DR, CC, KW,
+        # it goes to "okfile" and "problemfile". Some record from problemfile
+        # would be matched out and appended to the okfile for parsing.
 
-            $dr = $_;
-            chop($dr); #the '\n' appended above could only be choped, not chomped.
-            print PROB "$dr";
-            $embl_exist = 1;
-            $embl_nt = $1;
-            push @embl_nt, $embl_nt;
+        $temprecd = "temp$$.txt";
+        open TMP, ">$temprecd" or die "Cannot create the temporary file: $!";
 
-            # use GenPept acc for matching, storing results in @EMBL
-            $embl_gp = $2;
-            @embl_match = Embl_Match($embl_gp, "GenPept"); # first try the polypeptide accession
-            $num_match = @embl_match;                      # record number of genes directly or indirectly associated
+        foreach (split /\n/) {
+            $_ = $_ . "\n";
 
-            if (@embl_match) {
-                print PROB "\tGP match: @embl_match\n";
-            } else {
-                print PROB "\n";
+            if (/^AC/ || /^GN/ || /^CC/ || /^ID/ || /^DE/) {
+                print TMP;
             }
 
-            @EMBL = (@EMBL, @embl_match); # collect all the matches for each record
-
-            if ($num_match > 1) {
-                $fileno = "1";
-            } elsif (!$num_match) {
-                print TMP "$dr  GP_NO_MATCH\n";
-            } else {
-                $one_match = pop(@embl_match);
-                print TMP "$dr  GP match: $one_match\n"; # the gene id is used in the parser
-                $count++;                                # only count the one match
+            if (/^ID\s+(\w+)/) {
+                $sp_id = $1;
+                next;
             }
-            $after_embl = 1;
-            next;
-        }
+            if (/^AC/) {
+                print PROB;
+                next;
+            }
 
-        # after the EMBL lines and ZFIN line, check the GenPept matching,
-        # if GenPept matching is not sufficient, use GenBank to furthur sort
-        # the records.
-        if ($after_embl && !$qual_check) {
-            ($no, $good) = Embl_Check();
+            if (/^RX\s+MEDLINE=\d+.*PubMed=(\d+)/) {
+                # now only PubMed in zfin
+                push @rx, $_;
+                $num_pub = 1;
+                next;
+            }
 
-            if (!$no && $good) {
-                $fileno = "0";
-            } elsif (!$no && !$good) {
-                $fileno = "2"; #GenPept matching shows conflicts
-            } else {
-                #GenBank acc check
-                @EMBL = ();
-                $count = 0;
-                foreach $embl_nt (@embl_nt) {
-                    @embl_match = Embl_Match($embl_nt, "GenBank");
-                    $num_match = @embl_match;
-                    if (@embl_match) {
-                        push @embl_nt_matched, $embl_nt;
-                        print PROB "\tGB match: @embl_match\n"; #!!this line is used in the sp_parser.pl
-                    }
-                    @EMBL = (@EMBL, @embl_match); # collect all the matches for each record
-                    if ($num_match) {
-                        $count++; # count for matched ones
-                        if ($num_match == 1) {
-                            $one_match = pop(@embl_match); # record the one match in ZFIN
-                            print TMP "\t\tGB match: $one_match\n";
-                        }
-                    }
+            if (/^DR\s+EMBL;\s+(\w+);\s+(\w+)\./) {
+                # check for EMBL acc number, parse it
+
+                $dr = $_;
+                chop($dr); #the '\n' appended above could only be choped, not chomped.
+                print PROB "$dr";
+                $embl_exist = 1;
+                $embl_nt = $1;
+                push @embl_nt, $embl_nt;
+
+                # use GenPept acc for matching, storing results in @EMBL
+                $embl_gp = $2;
+                @embl_match = Embl_Match($embl_gp, "GenPept"); # first try the polypeptide accession
+                $num_match = @embl_match;                      # record number of genes directly or indirectly associated
+
+                if (@embl_match) {
+                    print PROB "\tGP match: @embl_match\n";
+                }
+                else {
+                    print PROB "\n";
                 }
 
+                @EMBL = (@EMBL, @embl_match); # collect all the matches for each record
+
+                if ($num_match > 1) {
+                    $fileno = "1";
+                }
+                elsif (!$num_match) {
+                    print TMP "$dr  GP_NO_MATCH\n";
+                }
+                else {
+                    $one_match = pop(@embl_match);
+                    print TMP "$dr  GP match: $one_match\n"; # the gene id is used in the parser
+                    $count++;                                # only count the one match
+                }
+                $after_embl = 1;
+                next;
+            }
+
+            # after the EMBL lines and ZFIN line, check the GenPept matching,
+            # if GenPept matching is not sufficient, use GenBank to furthur sort
+            # the records.
+            if ($after_embl && !$qual_check) {
                 ($no, $good) = Embl_Check();
 
-                if ($no) {
-                    if (!$num_pub) {
-                        $fileno = "6";
-                    } else {
-                        $fileno = PubMed_Check() ? "5" : "6";
+                if (!$no && $good) {
+                    $fileno = "0";
+                }
+                elsif (!$no && !$good) {
+                    $fileno = "2"; #GenPept matching shows conflicts
+                }
+                else {
+                    #GenBank acc check
+                    @EMBL = ();
+                    $count = 0;
+                    foreach $embl_nt (@embl_nt) {
+                        @embl_match = Embl_Match($embl_nt, "GenBank");
+                        $num_match = @embl_match;
+                        if (@embl_match) {
+                            push @embl_nt_matched, $embl_nt;
+                            print PROB "\tGB match: @embl_match\n"; #!!this line is used in the sp_parser.pl
+                        }
+                        @EMBL = (@EMBL, @embl_match); # collect all the matches for each record
+                        if ($num_match) {
+                            $count++; # count for matched ones
+                            if ($num_match == 1) {
+                                $one_match = pop(@embl_match); # record the one match in ZFIN
+                                print TMP "\t\tGB match: $one_match\n";
+                            }
+                        }
                     }
-                } elsif (!$good) {
-                    $fileno = "3";
-                } else {
-                    $fileno = Embl_Genomic_Check() ? "4" : "0";
+
+                    ($no, $good) = Embl_Check();
+
+                    if ($no) {
+                        if (!$num_pub) {
+                            $fileno = "6";
+                        }
+                        else {
+                            $fileno = PubMed_Check() ? "5" : "6";
+                        }
+                    }
+                    elsif (!$good) {
+                        $fileno = "3";
+                    }
+                    else {
+                        $fileno = Embl_Genomic_Check() ? "4" : "0";
+                    }
+                }
+                $qual_check = 1;
+
+            }
+
+            if (/^DR\s+ZFIN;\s+(.*);/) {
+                # check for ZFIN acc number, parse it
+                $fileno = "00" if (!$fileno && $one_match && ($1 ne $one_match));
+                print PROB;
+                print TMP;
+                next;
+            }
+
+            if (/^DR/ || /^KW/) {
+                print TMP;
+                next;
+            }
+
+            if (/\/\//) {
+                # end of one record
+
+                print PROB "//\n";
+                close PROB;
+                print TMP "//\n";
+                close TMP;
+
+                if ($fileno eq "0") {
+                    system("cat '$temprecd' >> okfile");
+                    $num_ok++;
+                }
+                elsif ($fileno eq "00") {
+                    #those disagrees go to both okfile and prob0.
+                    system("cat '$temprecd' >> okfile");
+                    system("cat '$probrecd' >> prob0 ");
+                    $num_ok++;
+                }
+                else {
+                    $probfile = "prob" . $fileno;
+                    system("cat '$probrecd' >> '$probfile'");
+                    system("cat '$temprecd' >> problemfile");
+                    $num_prob++;
                 }
             }
-            $qual_check = 1;
+        } # foreach loop for one record
 
-        }
+        unlink $temprecd;
+        unlink $probrecd;
 
-        if (/^DR\s+ZFIN;\s+(.*);/) {
-            # check for ZFIN acc number, parse it
-            $fileno = "00" if (!$fileno && $one_match && ($1 ne $one_match));
-            print PROB;
-            print TMP;
-            next;
-        }
+    } # for loop for SP file
+    close UNPT;
 
-        if (/^DR/ || /^KW/) {
-            print TMP;
-            next;
-        }
+    close PUB;
+    print "Finished processing zfin.dat at " . strftime("%Y-%m-%d %H:%M:%S", localtime(time())) . " \n";
 
-        if (/\/\//) {
-            # end of one record
-
-            print PROB "//\n";
-            close PROB;
-            print TMP "//\n";
-            close TMP;
-
-            if ($fileno eq "0") {
-                system("cat '$temprecd' >> okfile");
-                $num_ok++;
-            } elsif ($fileno eq "00") {
-                #those disagrees go to both okfile and prob0.
-                system("cat '$temprecd' >> okfile");
-                system("cat '$probrecd' >> prob0 ");
-                $num_ok++;
-            } else {
-                $probfile = "prob" . $fileno;
-                system("cat '$probrecd' >> '$probfile'");
-                system("cat '$temprecd' >> problemfile");
-                $num_prob++;
-            }
-        }
-    } # foreach loop for one record
-
-    unlink $temprecd;
-    unlink $probrecd;
-
-} # for loop for SP file
-close UNPT;
-
-close PUB;
-print "Finished processing zfin.dat at " . strftime("%Y-%m-%d %H:%M:%S", localtime(time())) . " \n";
-
-open CHECKREP, ">checkreport.txt" or die "Cannot open checkreport.txt:$!";
-print CHECKREP "\nFinal report: \n";
-print CHECKREP "\t problem records(#) : $num_prob \n";
-print CHECKREP "\t ok records(#)  : $num_ok \n";
-printf CHECKREP "\t ok percentage   : %.1f\%\n", (100 - $num_prob / ($num_prob + $num_ok) * 100.0);
-close CHECKREP;
-
+    open CHECKREP, ">checkreport.txt" or die "Cannot open checkreport.txt:$!";
+    print CHECKREP "\nFinal report: \n";
+    print CHECKREP "\t problem records(#) : $num_prob \n";
+    print CHECKREP "\t ok records(#)  : $num_ok \n";
+    printf CHECKREP "\t ok percentage   : %.1f\%\n", (100 - $num_prob / ($num_prob + $num_ok) * 100.0);
+    close CHECKREP;
+}
 #---------------------------------------------------------------------------------------
 #
 
@@ -551,3 +599,5 @@ ENDDOC
     print FILE "$title";
     close FILE;
 }
+
+main();
