@@ -265,7 +265,7 @@ sub main {
                 next;
             }
 
-            if (/\/\//) {
+            if (/^\/\//) {
                 # end of one record
 
                 $problem_buffer .= "//\n";
@@ -306,7 +306,7 @@ sub main {
 
     my $ok_percent = sprintf("%.1f", 100 - ($num_prob/($num_prob+$num_ok)*100));
 
-    print CHECKREP "\t ok percentage   : $ok_percent% \n";
+    print CHECKREP "\t ok percentage   : $ok_percent%\n";
     close CHECKREP;
 }
 #---------------------------------------------------------------------------------------
@@ -614,7 +614,7 @@ sub print_progress {
 
     #only print once per percent
     if ($percent != $last_percent) {
-        print "$progress_count/$record_count ($percent%) " . strftime("%Y-%m-%d %H:%M:%S", localtime(time())) . " \n";
+        print "$progress_count/$record_count ($percent%) " . strftime("%Y-%m-%d %H:%M:%S", localtime(time())) . "\n";
         $last_percent = $percent;
     }
 }
