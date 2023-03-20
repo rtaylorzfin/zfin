@@ -103,8 +103,7 @@ sub main {
         # they go to one of the prob# files for curator review.
         my $problem_buffer = "";
 
-        # if ($record !~ /DR\s*EMBL;/ && $record !~ /DR\s*RefSeq;/) {
-        if ($record !~ /DR\s*EMBL;/) {
+        if ($record !~ /DR\s*EMBL;/ && $record !~ /DR\s*RefSeq;/) {
             # if no EMBL line
             file_append("prob7", $record);
             file_append("problemfile", $record);
@@ -132,10 +131,7 @@ sub main {
             $_ = $_ . "\n";
             my $line = $_;
 
-            if ($after_embl && !$qual_check) {
-              # this clause is processed below
-                # TODO: can probably remove this if clause and just keep what's in the elsif
-            } elsif (isIgnoreLine($line)) {
+            if (isIgnoreLine($line)) {
                 next;
             }
 
