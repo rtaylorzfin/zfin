@@ -39,7 +39,6 @@ my $dbh = DBI->connect("DBI:Pg:dbname=$dbname;host=$dbhost", $username, $passwor
 
 ### Globals
 my @embl_match;
-my $probrecd;
 
 ### TODO: move these to local scope if possible.
 my $after_embl;
@@ -49,7 +48,7 @@ my $dr_zfin;
 my $embl_ac;
 my $embl_exist;
 my $embl_gp;
-my $embl_nt;
+my $embl_genbank_acc;
 my $fileno;
 my $good;
 my $match;
@@ -60,7 +59,6 @@ my $one_match;
 my $probfile;
 my $qual_check;
 my $sp_id;
-my $temprecd;
 my $zfin_ac;
 my @EMBL;
 my @embl_nt;
@@ -68,7 +66,9 @@ my @embl_nt_matched;
 my @pubmed;
 my @rx;
 my @zfin;
-
+my $last_percent = 0;
+my $progress_count = 0;
+my $record_count = 0;
 
 sub main {
     # Take a SP file as input (content format restricted).
@@ -84,80 +84,71 @@ sub main {
 
     $/ = "//\n";
     open(UNPT, "zfin.dat") || die "Cannot open zfin.dat : $!\n";
-    my $record_count = 0;
+    $record_count = 0;
     while (<UNPT>) {
         $record_count++;
     }
     close(UNPT);
-    my $one_percent_of_records = floor($record_count / 100);
-    $one_percent_of_records = 1 if $one_percent_of_records == 0;
-
     print "zfin.dat has $record_count records\n";
 
     open(UNPT, "zfin.dat") || die "Cannot open zfin.dat : $!\n";
-    my $progress_count = 0;
+
     while (<UNPT>) {
         my $record = $_;
-        $progress_count++;
-
-        #give some indication of progress (once per 1% of records)
-        if ($progress_count % $one_percent_of_records == 0) {
-            print ceil($progress_count * 100 / $record_count) . "% - " . strftime("%Y-%m-%d %H:%M:%S", localtime(time())) . " \n";
-        }
+        print_progress();
 
         init_var(); # Initialize the variables and arrays
 
         # records in probfile contains AC, RX, DR EMBL lines
         # they go to one of the prob# files for curator review.
-        $probrecd = "prob$$.txt";
-        open PROB, ">$probrecd" or die "Cannot create the prob record file: $!";
+        my $problem_buffer = "";
 
         if ($record !~ /DR\s*EMBL;/ && $record !~ /DR\s*RefSeq;/) {
             # if no EMBL line
-            open F, ">>prob7" or die "Cannot open prob7 file";
-            print F;
-            close F;
-            print PROB;
-            close PROB;
-            system("cat '$probrecd' >> problemfile");
-            unlink $probrecd;
+            file_append("prob7", $record);
+            file_append("problemfile", $problem_buffer);
+
             $num_prob++;
             next;
         }
 
         if (/DR\s*ZFIN;.*\nDR\s*ZFIN;/) {
             # if >1 ZFIN lines
-            open F, ">>prob8" or die "Cannot open prob8 file";
-            print F;
-            close F;
-            print PROB;
-            close PROB;
-            system("cat '$probrecd' >> problemfile");
-            unlink $probrecd;
+            file_append("prob8", $record);
+            file_append("problemfile", $problem_buffer);
+
             $num_prob++;
             next;
         }
 
-        # record in tempfile contains ID, AC, DE, GN, DR, CC, KW,
+        # record in tempfile contains AC, GN, CC, ID, DE, DR, KW,
         # it goes to "okfile" and "problemfile". Some record from problemfile
         # would be matched out and appended to the okfile for parsing.
 
-        $temprecd = "temp$$.txt";
-        open TMP, ">$temprecd" or die "Cannot create the temporary file: $!";
+        my $temp_buffer = "";
 
         foreach (split /\n/) {
             $_ = $_ . "\n";
+            my $line = $_;
+
+            if ($after_embl && !$qual_check) {
+              # this clause is processed below
+                # TODO: can probably remove this if clause and just keep what's in the elsif
+            } elsif (isIgnoreLine($line)) {
+                next;
+            }
 
             if (/^AC/ || /^GN/ || /^CC/ || /^ID/ || /^DE/) {
-                print TMP;
+                $temp_buffer .= $line;
             }
 
             if (/^ID\s+(\w+)/) {
                 $sp_id = $1;
                 next;
             }
+
             if (/^AC/) {
-                print PROB;
+                $problem_buffer .= $line;
                 next;
             }
 
@@ -173,10 +164,10 @@ sub main {
 
                 $dr = $_;
                 chop($dr); #the '\n' appended above could only be choped, not chomped.
-                print PROB "$dr";
+                $problem_buffer .= "$dr";
                 $embl_exist = 1;
-                $embl_nt = $1;
-                push @embl_nt, $embl_nt;
+                $embl_genbank_acc = $1;
+                push @embl_nt, $embl_genbank_acc;
 
                 # use GenPept acc for matching, storing results in @EMBL
                 $embl_gp = $2;
@@ -184,10 +175,10 @@ sub main {
                 $num_match = @embl_match;                      # record number of genes directly or indirectly associated
 
                 if (@embl_match) {
-                    print PROB "\tGP match: @embl_match\n";
+                    $problem_buffer .= "\tGP match: @embl_match\n";
                 }
                 else {
-                    print PROB "\n";
+                    $problem_buffer .= "\n";
                 }
 
                 @EMBL = (@EMBL, @embl_match); # collect all the matches for each record
@@ -196,11 +187,11 @@ sub main {
                     $fileno = "1";
                 }
                 elsif (!$num_match) {
-                    print TMP "$dr  GP_NO_MATCH\n";
+                    $temp_buffer .= "$dr  GP_NO_MATCH\n";
                 }
                 else {
                     $one_match = pop(@embl_match);
-                    print TMP "$dr  GP match: $one_match\n"; # the gene id is used in the parser
+                    $temp_buffer .= "$dr  GP match: $one_match\n"; # the gene id is used in the parser
                     $count++;                                # only count the one match
                 }
                 $after_embl = 1;
@@ -223,19 +214,19 @@ sub main {
                     #GenBank acc check
                     @EMBL = ();
                     $count = 0;
-                    foreach $embl_nt (@embl_nt) {
-                        @embl_match = Embl_Match($embl_nt, "GenBank");
+                    foreach $embl_genbank_acc (@embl_nt) {
+                        @embl_match = Embl_Match($embl_genbank_acc, "GenBank");
                         $num_match = @embl_match;
                         if (@embl_match) {
-                            push @embl_nt_matched, $embl_nt;
-                            print PROB "\tGB match: @embl_match\n"; #!!this line is used in the sp_parser.pl
+                            push @embl_nt_matched, $embl_genbank_acc;
+                            $problem_buffer .= "\tGB match: @embl_match\n"; #!!this line is used in the sp_parser.pl
                         }
                         @EMBL = (@EMBL, @embl_match); # collect all the matches for each record
                         if ($num_match) {
                             $count++; # count for matched ones
                             if ($num_match == 1) {
                                 $one_match = pop(@embl_match); # record the one match in ZFIN
-                                print TMP "\t\tGB match: $one_match\n";
+                                $temp_buffer .= "\t\tGB match: $one_match\n";
                             }
                         }
                     }
@@ -264,45 +255,43 @@ sub main {
             if (/^DR\s+ZFIN;\s+(.*);/) {
                 # check for ZFIN acc number, parse it
                 $fileno = "00" if (!$fileno && $one_match && ($1 ne $one_match));
-                print PROB;
-                print TMP;
+                $problem_buffer .= $line;
+                $temp_buffer .= $line;
                 next;
             }
 
             if (/^DR/ || /^KW/) {
-                print TMP;
+                $temp_buffer .= $line;
                 next;
             }
 
             if (/\/\//) {
                 # end of one record
 
-                print PROB "//\n";
-                close PROB;
-                print TMP "//\n";
-                close TMP;
+                $problem_buffer .= "//\n";
+                $temp_buffer .= "//\n";
 
+                open (OK, ">>okfile");
                 if ($fileno eq "0") {
-                    system("cat '$temprecd' >> okfile");
+                    #append temp_buffer to okfile
+                    print OK $temp_buffer;
                     $num_ok++;
                 }
                 elsif ($fileno eq "00") {
                     #those disagrees go to both okfile and prob0.
-                    system("cat '$temprecd' >> okfile");
-                    system("cat '$probrecd' >> prob0 ");
+                    print OK $temp_buffer;
+                    file_append('prob0', $problem_buffer);
                     $num_ok++;
                 }
                 else {
                     $probfile = "prob" . $fileno;
-                    system("cat '$probrecd' >> '$probfile'");
-                    system("cat '$temprecd' >> problemfile");
+                    file_append($probfile, $problem_buffer);
+                    file_append("problemfile", $temp_buffer);
                     $num_prob++;
                 }
+                close OK;
             }
         } # foreach loop for one record
-
-        unlink $temprecd;
-        unlink $probrecd;
 
     } # for loop for SP file
     close UNPT;
@@ -414,6 +403,19 @@ sub Embl_Genomic_Check() {
     return ($all_genomic);
 }
 
+sub isIgnoreLine {
+    my $line = shift;
+    my $isRelevantLine = ($line =~ /^AC/ ||
+        $line =~ /^GN/ ||
+        $line =~ /^CC/ ||
+        $line =~ /^ID/ ||
+        $line =~ /^DE/ ||
+        $line =~ /^DR/ ||
+        $line =~ /^KW/ ||
+        $line =~ /\/\// ||
+        $line =~ /^RX\s+MEDLINE=\d+.*PubMed=(\d+)/);
+    return !$isRelevantLine;
+}
 
 #check whether at least one EMBL# is in ZFIN,
 #and for those have match(es), if every one has multiple matches,
@@ -446,13 +448,14 @@ sub Embl_Check() {
 # Check whether at least one PubMed number is in ZFIN db.
 # Return 0/1 that denote this result.
 sub PubMed_Check() {
+    my $prob_buffer = $_[0];
 
     my $match = 0;
     my ($sth, $pubmed, $qpubmed, $pub_match);
 
     foreach my $rx (@rx) {
         chop($rx); # the added '\n' could only be chopped not chompped.
-        print PROB "$rx";
+        $prob_buffer .= "$rx";
 
         $pubmed = $1 if ($rx =~ /^RX\s+MEDLINE=\d+.*PubMed=(\d+)/);
         $qpubmed = $dbh->quote($pubmed);
@@ -464,15 +467,16 @@ sub PubMed_Check() {
 
         if ($pub_match) {
 
-            print PROB "\t$pub_match";
+            $prob_buffer .= "\t$pub_match";
             $match = 1;
         } else {
 
             print PUB "$pubmed\n";
         }
-        print PROB "\n";
+        $prob_buffer .= "\n";
     }
 
+    $_[0] = $prob_buffer; #is this necessary in perl?
     return $match;
 }
 
@@ -597,6 +601,29 @@ ENDDOC
 ENDDOC
 
     print FILE "$title";
+    close FILE;
+}
+
+sub print_progress {
+    $progress_count++;
+
+    my $percent = int($progress_count/$record_count*100);
+
+    #only print once per percent
+    if ($percent != $last_percent) {
+        print "$progress_count/$record_count ($percent%) " . strftime("%Y-%m-%d %H:%M:%S", localtime(time())) . " \n";
+        $last_percent = $percent;
+    }
+}
+
+sub file_append {
+    my $filename = shift;
+    my $content = shift;
+
+    $mode = ">>";
+
+    open FILE, "$mode$filename" or die "Cannot open the file $filename: $!";
+    print FILE "$content";
     close FILE;
 }
 
