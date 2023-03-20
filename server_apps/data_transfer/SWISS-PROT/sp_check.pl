@@ -103,10 +103,11 @@ sub main {
         # they go to one of the prob# files for curator review.
         my $problem_buffer = "";
 
-        if ($record !~ /DR\s*EMBL;/ && $record !~ /DR\s*RefSeq;/) {
+        # if ($record !~ /DR\s*EMBL;/ && $record !~ /DR\s*RefSeq;/) {
+        if ($record !~ /DR\s*EMBL;/) {
             # if no EMBL line
             file_append("prob7", $record);
-            file_append("problemfile", $problem_buffer);
+            file_append("problemfile", $record);
 
             $num_prob++;
             next;
@@ -115,7 +116,7 @@ sub main {
         if (/DR\s*ZFIN;.*\nDR\s*ZFIN;/) {
             # if >1 ZFIN lines
             file_append("prob8", $record);
-            file_append("problemfile", $problem_buffer);
+            file_append("problemfile", $record);
 
             $num_prob++;
             next;
