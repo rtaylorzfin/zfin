@@ -303,7 +303,10 @@ sub main {
     print CHECKREP "\nFinal report: \n";
     print CHECKREP "\t problem records(#) : $num_prob \n";
     print CHECKREP "\t ok records(#)  : $num_ok \n";
-    printf CHECKREP "\t ok percentage   : %.1f\%\n", (100 - $num_prob / ($num_prob + $num_ok) * 100.0);
+
+    my $ok_percent = sprintf("%.1f", 100 - ($num_prob/($num_prob+$num_ok)*100));
+
+    print CHECKREP "\t ok percentage   : $ok_percent% \n";
     close CHECKREP;
 }
 #---------------------------------------------------------------------------------------
@@ -620,7 +623,7 @@ sub file_append {
     my $filename = shift;
     my $content = shift;
 
-    $mode = ">>";
+    my $mode = ">>";
 
     open FILE, "$mode$filename" or die "Cannot open the file $filename: $!";
     print FILE "$content";
