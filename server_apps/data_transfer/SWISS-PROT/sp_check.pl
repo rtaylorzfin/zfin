@@ -137,7 +137,7 @@ sub main {
             }
 
             # if the line is a relevant line, append it to the temp buffer
-            $temp_buffer .= capturePassThroughLine($line);
+            capturePassThroughLine($line, $temp_buffer);
 
             if (handleAcLine($line, $problem_buffer)) {
                 next;
@@ -155,96 +155,18 @@ sub main {
             # if GenPept matching is not sufficient, use GenBank to furthur sort
             # the records.
             # This assumes all the EMBL lines are together so the above clause gets executed all times before this clause.
-            if ($after_embl && !$qual_check) {
-                ($no, $good) = Embl_Check();
+            handlePostEmblLinesMatching($line, $problem_buffer, $temp_buffer);
 
-                if (!$no && $good) {
-                    $fileno = "0";
-                }
-                elsif (!$no && !$good) {
-                    $fileno = "2"; #GenPept matching shows conflicts
-                }
-                else {
-                    #GenBank acc check
-                    @EMBL = ();
-                    $count = 0;
-                    foreach my $embl_genbank_acc (@embl_nt) {
-                        my @embl_match = Embl_Match($embl_genbank_acc, "GenBank");
-                        my $num_match = @embl_match;
-                        if (@embl_match) {
-                            push @embl_nt_matched, $embl_genbank_acc;
-                            $problem_buffer .= "\tGB match: @embl_match\n"; #!!this line is used in the sp_parser.pl
-                        }
-                        @EMBL = (@EMBL, @embl_match); # collect all the matches for each record
-                        if ($num_match) {
-                            $count++; # count for matched ones
-                            if ($num_match == 1) {
-                                $one_match = pop(@embl_match); # record the one match in ZFIN
-                                $temp_buffer .= "\t\tGB match: $one_match\n";
-                            }
-                        }
-                    }
-
-                    ($no, $good) = Embl_Check();
-
-                    if ($no) {
-                        if (!$num_pub) {
-                            $fileno = "6";
-                        }
-                        else {
-                            $fileno = PubMed_Check() ? "5" : "6";
-                        }
-                    }
-                    elsif (!$good) {
-                        $fileno = "3";
-                    }
-                    else {
-                        $fileno = Embl_Genomic_Check() ? "4" : "0";
-                    }
-                }
-                $qual_check = 1;
-
-            }
-
-            if (/^DR\s+ZFIN;\s+(.*);/) {
-                # check for ZFIN acc number, parse it
-                $fileno = "00" if (!$fileno && $one_match && ($1 ne $one_match));
-                $problem_buffer .= $line;
-                $temp_buffer .= $line;
+            if (handleZfinLine($line, $problem_buffer, $temp_buffer)) {
                 next;
             }
 
-            if (/^DR/ || /^KW/) {
-                $temp_buffer .= $line;
+            if (handleDrKwLine($line, $temp_buffer)) {
                 next;
             }
 
-            if (/^\/\//) {
-                # end of one record
+            handleCloseRecord($line, $problem_buffer, $temp_buffer);
 
-                $problem_buffer .= "//\n";
-                $temp_buffer .= "//\n";
-
-                open (OK, ">>okfile");
-                if ($fileno eq "0") {
-                    #append temp_buffer to okfile
-                    print OK $temp_buffer;
-                    $num_ok++;
-                }
-                elsif ($fileno eq "00") {
-                    #those disagrees go to both okfile and prob0.
-                    print OK $temp_buffer;
-                    file_append('prob0', $problem_buffer);
-                    $num_ok++;
-                }
-                else {
-                    $probfile = "prob" . $fileno;
-                    file_append($probfile, $problem_buffer);
-                    file_append("problemfile", $temp_buffer);
-                    $num_prob++;
-                }
-                close OK;
-            }
         } # foreach loop for one record
 
     } # for loop for SP file
@@ -437,10 +359,11 @@ sub PubMed_Check() {
 
 sub capturePassThroughLine {
     my $line = shift;
-    if ($line =~ /^AC/ || /^GN/ || /^CC/ || /^ID/ || /^DE/) {
-        return $line;
+    my $temp_buffer = $_[0];
+
+    if ($line =~ /^AC/ || $line =~ /^GN/ || $line =~ /^CC/ || $line =~ /^ID/ || $line =~ /^DE/) {
+        $_[0] .= $line;
     }
-    return "";
 }
 
 sub handleAcLine {
@@ -460,6 +383,35 @@ sub handleRxLine {
         # now only PubMed in zfin
         push @rx, $_;
         $num_pub = 1;
+        return 1;
+    }
+    return 0;
+}
+
+sub handleZfinLine {
+    my $line = shift;
+    my $problem_buffer = $_[0];
+    my $temp_buffer = $_[1];
+
+    if (/^DR\s+ZFIN;\s+(.*);/) {
+        # check for ZFIN acc number, parse it
+        $fileno = "00" if (!$fileno && $one_match && ($1 ne $one_match));
+        $problem_buffer .= $line;
+        $temp_buffer .= $line;
+
+        $_[0] = $problem_buffer;
+        $_[1] = $temp_buffer;
+        return 1;
+    }
+    return 0;
+}
+
+sub handleDrKwLine {
+    my $line = shift;
+    my $temp_buffer = $_[0];
+    if (/^DR/ || /^KW/) {
+        $temp_buffer .= $line;
+        $_[0] = $temp_buffer;
         return 1;
     }
     return 0;
@@ -512,6 +464,102 @@ sub handleMatchingAgainstEmblLines {
         return 1;
     }
     return 0;
+}
+
+# after the EMBL lines and ZFIN line, check the GenPept matching,
+# if GenPept matching is not sufficient, use GenBank to furthur sort
+# the records.
+# This assumes all the EMBL lines are together so the above clause gets executed all times before this clause.
+sub handlePostEmblLinesMatching {
+    my $line = shift;
+    my $problem_buffer = $_[0];
+    my $temp_buffer = $_[1];
+
+    if ($after_embl && !$qual_check) {
+        ($no, $good) = Embl_Check();
+
+        if (!$no && $good) {
+            $fileno = "0";
+        }
+        elsif (!$no && !$good) {
+            $fileno = "2"; #GenPept matching shows conflicts
+        }
+        else {
+            #GenBank acc check
+            @EMBL = ();
+            $count = 0;
+            foreach my $embl_genbank_acc (@embl_nt) {
+                my @embl_match = Embl_Match($embl_genbank_acc, "GenBank");
+                my $num_match = @embl_match;
+                if (@embl_match) {
+                    push @embl_nt_matched, $embl_genbank_acc;
+                    $problem_buffer .= "\tGB match: @embl_match\n"; #!!this line is used in the sp_parser.pl
+                }
+                @EMBL = (@EMBL, @embl_match); # collect all the matches for each record
+                if ($num_match) {
+                    $count++; # count for matched ones
+                    if ($num_match == 1) {
+                        $one_match = pop(@embl_match); # record the one match in ZFIN
+                        $temp_buffer .= "\t\tGB match: $one_match\n";
+                    }
+                }
+            }
+
+            ($no, $good) = Embl_Check();
+
+            if ($no) {
+                if (!$num_pub) {
+                    $fileno = "6";
+                }
+                else {
+                    $fileno = PubMed_Check() ? "5" : "6";
+                }
+            }
+            elsif (!$good) {
+                $fileno = "3";
+            }
+            else {
+                $fileno = Embl_Genomic_Check() ? "4" : "0";
+            }
+        }
+        $qual_check = 1;
+    }
+
+    $_[0] = $problem_buffer;
+    $_[1] = $temp_buffer;
+}
+
+sub handleCloseRecord {
+    my $line = shift;
+    my $problem_buffer = $_[0];
+    my $temp_buffer = $_[1];
+
+    if ($line =~ /^\/\//) {
+        # end of one record
+
+        $problem_buffer .= "//\n";
+        $temp_buffer .= "//\n";
+
+        open (OK, ">>okfile");
+        if ($fileno eq "0") {
+            #append temp_buffer to okfile
+            print OK $temp_buffer;
+            $num_ok++;
+        }
+        elsif ($fileno eq "00") {
+            #those disagrees go to both okfile and prob0.
+            print OK $temp_buffer;
+            file_append('prob0', $problem_buffer);
+            $num_ok++;
+        }
+        else {
+            $probfile = "prob" . $fileno;
+            file_append($probfile, $problem_buffer);
+            file_append("problemfile", $temp_buffer);
+            $num_prob++;
+        }
+        close OK;
+    }
 }
 
 # Initialize the final output files for the checked SP records
