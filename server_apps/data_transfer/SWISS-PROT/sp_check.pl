@@ -47,7 +47,7 @@ my $embl_exist;
 my $fileno;
 my $good;
 my $match;
-my $no;
+my $is_empty_embl_list;
 my $num_pub;
 my $one_match;
 my $probfile;
@@ -62,6 +62,8 @@ my @zfin;
 my $last_percent = 0;
 my $progress_count = 0;
 my $record_count = 0;
+my $use_refseq_match = 0;
+
 
 sub main {
     # Take a SP file as input (content format restricted).
@@ -96,31 +98,9 @@ sub main {
         # they go to one of the prob# files for curator review.
         my $problem_buffer = "";
 
-        # TODO: simplify by removing the legacy logic and retaining the elsif clause as an if clause
-        if ($ENV{"USE_LEGACY_LOGIC"} && $record !~ /DR\s*EMBL;/) {
-            # if no EMBL line
-            file_append("prob7", $record);
-            file_append("problemfile", $record);
+        next if handleMissingEmblAndRefSeqRecord($record);
 
-            $num_prob++;
-            next;
-        } elsif (!$ENV{"USE_LEGACY_LOGIC"} && $record !~ /DR\s*EMBL;/ && $record !~ /DR\s*RefSeq;/) {
-            # if no EMBL line
-            file_append("prob7", $record);
-            file_append("problemfile", $record);
-
-            $num_prob++;
-            next;
-        }
-
-        if (/DR\s*ZFIN;.*\nDR\s*ZFIN;/) {
-            # if >1 ZFIN lines
-            file_append("prob8", $record);
-            file_append("problemfile", $record);
-
-            $num_prob++;
-            next;
-        }
+        next if handleDoubleZfinRecord($record);
 
         # record in tempfile contains AC, GN, CC, ID, DE, DR, KW,
         # it goes to "okfile" and "problemfile". Some record from problemfile
@@ -134,7 +114,7 @@ sub main {
 
             next if isIgnoreLine($line);
 
-            # if the line is a relevant line, append it to the temp buffer
+            # if the line is a relevant line, append it to the temp buffer for future output to okfile
             capturePassThroughLine($line, $temp_buffer);
 
             next if handleAcLine($line, $problem_buffer);
@@ -144,10 +124,12 @@ sub main {
             next if handleMatchingAgainstEmblLines($line, $problem_buffer, $temp_buffer);
 
             # after the EMBL lines and ZFIN line, check the GenPept matching,
-            # if GenPept matching is not sufficient, use GenBank to furthur sort
+            # if GenPept matching is not sufficient, use GenBank to further sort
             # the records.
             # This assumes all the EMBL lines are together so the above clause gets executed all times before this clause.
             handlePostEmblLinesMatching($line, $problem_buffer, $temp_buffer);
+
+            # next if handleRefSeqMatching($line, $problem_buffer, $temp_buffer);
 
             next if handleZfinLine($line, $problem_buffer, $temp_buffer);
 
@@ -157,7 +139,7 @@ sub main {
 
         } # foreach loop for one record
 
-    } # for loop for SP file
+    } # for loop for zfin.dat file
     close UNPT;
 
     close PUB;
@@ -173,8 +155,6 @@ sub main {
     print CHECKREP "\t ok percentage   : $ok_percent%\n";
     close CHECKREP;
 }
-#---------------------------------------------------------------------------------------
-#
 
 sub init_var() {
 
@@ -191,11 +171,12 @@ sub init_var() {
     $num_pub = 0;
     $embl_exist = 0;
     $count = 0;
-    $no = 0;
+    $is_empty_embl_list = 0;
     $good = 0;
     $fileno = 0;
     $after_embl = 0;
     $qual_check = 0;
+    $use_refseq_match = 0;
 }
 
 # Check whether at least one EMBL numbers are in ZFIN database, 
@@ -268,6 +249,61 @@ sub Embl_Genomic_Check() {
     return ($all_genomic);
 }
 
+sub RefSeq_Match {
+    my $np_acc = shift;
+    my $nm_acc = shift;
+
+    # remove version number
+    $np_acc =~ s/\.\d+$//;
+
+    my $sth = $dbh->prepare("select distinct dblink_linked_recid
+                             from db_link
+                             where
+                             dblink_acc_num = ?");
+    $sth->execute($np_acc);
+    my $geneZdbId = $sth->fetchrow_array;
+    if ($geneZdbId) {
+        print "RefSeq_Match: $np_acc matched to $geneZdbId \n";
+    }
+}
+
+sub handleMissingEmblAndRefSeqRecord {
+    my $record = shift;
+
+    # TODO: simplify by removing the legacy logic and retaining the elsif clause as an if clause
+    if ($ENV{"USE_LEGACY_LOGIC"} && $record !~ /DR\s*EMBL;/) {
+        # if no EMBL line
+        file_append("prob7", $record);
+        file_append("problemfile", $record);
+
+        $num_prob++;
+        return 1;
+    } elsif (!$ENV{"USE_LEGACY_LOGIC"} && $record !~ /DR\s*EMBL;/ && $record !~ /DR\s*RefSeq;/) {
+        # if no EMBL line
+        file_append("prob7", $record);
+        file_append("problemfile", $record);
+
+        $num_prob++;
+        return 1;
+    } elsif (!$ENV{"USE_LEGACY_LOGIC"} && $record !~ /DR\s*EMBL;/ && $record =~ /DR\s*RefSeq;/) {
+        $use_refseq_match = 1;
+    }
+    return 0;
+}
+
+sub handleDoubleZfinRecord {
+    my $record = shift;
+    if (/DR\s*ZFIN;.*\nDR\s*ZFIN;/) {
+        # if >1 ZFIN lines
+        file_append("prob8", $record);
+        file_append("problemfile", $record);
+
+        $num_prob++;
+        return 1;
+    }
+    return 0;
+}
+
 sub isIgnoreLine {
     my $line = shift;
     my $isRelevantLine = ($line =~ /^AC/ ||
@@ -289,24 +325,30 @@ sub isIgnoreLine {
 
 sub Embl_Check() {
 
-    my $none = 0; #whether at least one EMBL# matches in ZFIN
+    my $is_empty_embl_list = 0;
     my $same = 0; #whether all EMBL#s in ZFIN associated with the same marker
+    my $matches_buffer = "";
     if (!@EMBL) {
-        $none = 1;
+        $is_empty_embl_list = 1;
     } else {
         if ($one_match) {
 
             while ($match = pop @EMBL) {
+                $matches_buffer .= "$match,"; #for debugging
                 if ($match eq $one_match) { #whether the one-match appears in all the
                     $count--;               #other matches.
                 }
             }
             if (!$count) {
                 $same = 1;
+            } else {
+                file_append("spcheck.dbg.log", "DEBUG Embl_Check: one_match ($one_match) is truthy, but not all matches are the same ($matches_buffer).\n");
             }
+        } else {
+            file_append("spcheck.dbg.log", "DEBUG Embl_Check: one_match is not truthy. \@EMBL is @EMBL.\n")
         }
     }
-    return ($none, $same);
+    return ($is_empty_embl_list, $same);
 }
 
 
@@ -405,6 +447,10 @@ sub handleDrKwLine {
     return 0;
 }
 
+# @EMBL is a global array that gets built up line by line with each record (then reset for the next record)
+# In the post processing subroutine, there are some checks that are done on the @EMBL array to ensure that
+# it only contains one unique ZFIN ID.
+#
 sub handleMatchingAgainstEmblLines {
     my $line = shift;
     my $problem_buffer = $_[0];
@@ -415,7 +461,7 @@ sub handleMatchingAgainstEmblLines {
 
         my $dr = $line;
         chop($dr); #the '\n' appended above could only be choped, not chomped.
-        $problem_buffer .= "$dr";
+        $problem_buffer .= $dr;
         $embl_exist = 1;
         my $embl_genbank_acc = $1;
         push @embl_nt, $embl_genbank_acc;
@@ -464,12 +510,12 @@ sub handlePostEmblLinesMatching {
     my $temp_buffer = $_[1];
 
     if ($after_embl && !$qual_check) {
-        ($no, $good) = Embl_Check();
+        ($is_empty_embl_list, $good) = Embl_Check();
 
-        if (!$no && $good) {
+        if (!$is_empty_embl_list && $good) {
             $fileno = "0";
         }
-        elsif (!$no && !$good) {
+        elsif (!$is_empty_embl_list && !$good) {
             $fileno = "2"; #GenPept matching shows conflicts
         }
         else {
@@ -493,9 +539,9 @@ sub handlePostEmblLinesMatching {
                 }
             }
 
-            ($no, $good) = Embl_Check();
+            ($is_empty_embl_list, $good) = Embl_Check();
 
-            if ($no) {
+            if ($is_empty_embl_list) {
                 if (!$num_pub) {
                     $fileno = "6";
                 }
@@ -511,6 +557,22 @@ sub handlePostEmblLinesMatching {
             }
         }
         $qual_check = 1;
+    }
+
+    $_[0] = $problem_buffer;
+    $_[1] = $temp_buffer;
+}
+
+
+sub handleRefSeqMatching {
+    my $line = shift;
+    my $problem_buffer = $_[0];
+    my $temp_buffer = $_[1];
+
+    if ($line =~ /DR   RefSeq; (.*); (.*)\./ ) {
+        my $np = $1;
+        my $nm = $2;
+        my $refseq_match = RefSeq_Match($np, $nm);
     }
 
     $_[0] = $problem_buffer;
