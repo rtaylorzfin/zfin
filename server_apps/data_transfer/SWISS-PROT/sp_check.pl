@@ -132,24 +132,16 @@ sub main {
             $_ = $_ . "\n";
             my $line = $_;
 
-            if (isIgnoreLine($line)) {
-                next;
-            }
+            next if isIgnoreLine($line);
 
             # if the line is a relevant line, append it to the temp buffer
             capturePassThroughLine($line, $temp_buffer);
 
-            if (handleAcLine($line, $problem_buffer)) {
-                next;
-            }
+            next if handleAcLine($line, $problem_buffer);
 
-            if (handleRxLine($line, $problem_buffer)) {
-                next;
-            }
+            next if handleRxLine($line, $problem_buffer);
 
-            if (handleMatchingAgainstEmblLines($line, $problem_buffer, $temp_buffer)) {
-                next;
-            }
+            next if handleMatchingAgainstEmblLines($line, $problem_buffer, $temp_buffer);
 
             # after the EMBL lines and ZFIN line, check the GenPept matching,
             # if GenPept matching is not sufficient, use GenBank to furthur sort
@@ -157,13 +149,9 @@ sub main {
             # This assumes all the EMBL lines are together so the above clause gets executed all times before this clause.
             handlePostEmblLinesMatching($line, $problem_buffer, $temp_buffer);
 
-            if (handleZfinLine($line, $problem_buffer, $temp_buffer)) {
-                next;
-            }
+            next if handleZfinLine($line, $problem_buffer, $temp_buffer);
 
-            if (handleDrKwLine($line, $temp_buffer)) {
-                next;
-            }
+            next if handleDrKwLine($line, $temp_buffer);
 
             handleCloseRecord($line, $problem_buffer, $temp_buffer);
 
