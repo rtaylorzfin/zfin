@@ -38,27 +38,20 @@ my $dbh = DBI->connect("DBI:Pg:dbname=$dbname;host=$dbhost", $username, $passwor
     or die "Cannot connect to PostgreSQL database: $DBI::errstr\n";
 
 ### Globals
-my @embl_match;
-
 ### TODO: move these to local scope if possible.
 my $after_embl;
 my $count;
-my $dr;
 my $dr_zfin;
 my $embl_ac;
 my $embl_exist;
-my $embl_gp;
-my $embl_genbank_acc;
 my $fileno;
 my $good;
 my $match;
 my $no;
-my $num_match;
 my $num_pub;
 my $one_match;
 my $probfile;
 my $qual_check;
-my $sp_id;
 my $zfin_ac;
 my @EMBL;
 my @embl_nt;
@@ -103,7 +96,15 @@ sub main {
         # they go to one of the prob# files for curator review.
         my $problem_buffer = "";
 
-        if ($record !~ /DR\s*EMBL;/ && $record !~ /DR\s*RefSeq;/) {
+        # TODO: simplify by removing the legacy logic and retaining the elsif clause as an if clause
+        if ($ENV{"USE_LEGACY_LOGIC"} && $record !~ /DR\s*EMBL;/) {
+            # if no EMBL line
+            file_append("prob7", $record);
+            file_append("problemfile", $record);
+
+            $num_prob++;
+            next;
+        } elsif (!$ENV{"USE_LEGACY_LOGIC"} && $record !~ /DR\s*EMBL;/ && $record !~ /DR\s*RefSeq;/) {
             # if no EMBL line
             file_append("prob7", $record);
             file_append("problemfile", $record);
@@ -135,69 +136,25 @@ sub main {
                 next;
             }
 
-            if (/^AC/ || /^GN/ || /^CC/ || /^ID/ || /^DE/) {
-                $temp_buffer .= $line;
-            }
+            # if the line is a relevant line, append it to the temp buffer
+            $temp_buffer .= capturePassThroughLine($line);
 
-            if (/^ID\s+(\w+)/) {
-                $sp_id = $1;
+            if (handleAcLine($line, $problem_buffer)) {
                 next;
             }
 
-            if (/^AC/) {
-                $problem_buffer .= $line;
+            if (handleRxLine($line, $problem_buffer)) {
                 next;
             }
 
-            if (/^RX\s+MEDLINE=\d+.*PubMed=(\d+)/) {
-                # now only PubMed in zfin
-                push @rx, $_;
-                $num_pub = 1;
-                next;
-            }
-
-            if (/^DR\s+EMBL;\s+(\w+);\s+(\w+)\./) {
-                # check for EMBL acc number, parse it
-
-                $dr = $_;
-                chop($dr); #the '\n' appended above could only be choped, not chomped.
-                $problem_buffer .= "$dr";
-                $embl_exist = 1;
-                $embl_genbank_acc = $1;
-                push @embl_nt, $embl_genbank_acc;
-
-                # use GenPept acc for matching, storing results in @EMBL
-                $embl_gp = $2;
-                @embl_match = Embl_Match($embl_gp, "GenPept"); # first try the polypeptide accession
-                $num_match = @embl_match;                      # record number of genes directly or indirectly associated
-
-                if (@embl_match) {
-                    $problem_buffer .= "\tGP match: @embl_match\n";
-                }
-                else {
-                    $problem_buffer .= "\n";
-                }
-
-                @EMBL = (@EMBL, @embl_match); # collect all the matches for each record
-
-                if ($num_match > 1) {
-                    $fileno = "1";
-                }
-                elsif (!$num_match) {
-                    $temp_buffer .= "$dr  GP_NO_MATCH\n";
-                }
-                else {
-                    $one_match = pop(@embl_match);
-                    $temp_buffer .= "$dr  GP match: $one_match\n"; # the gene id is used in the parser
-                    $count++;                                # only count the one match
-                }
-                $after_embl = 1;
+            if (handleMatchingAgainstEmblLines($line, $problem_buffer, $temp_buffer)) {
                 next;
             }
 
             # after the EMBL lines and ZFIN line, check the GenPept matching,
             # if GenPept matching is not sufficient, use GenBank to furthur sort
             # the records.
+            # This assumes all the EMBL lines are together so the above clause gets executed all times before this clause.
             if ($after_embl && !$qual_check) {
                 ($no, $good) = Embl_Check();
 
@@ -211,9 +168,9 @@ sub main {
                     #GenBank acc check
                     @EMBL = ();
                     $count = 0;
-                    foreach $embl_genbank_acc (@embl_nt) {
-                        @embl_match = Embl_Match($embl_genbank_acc, "GenBank");
-                        $num_match = @embl_match;
+                    foreach my $embl_genbank_acc (@embl_nt) {
+                        my @embl_match = Embl_Match($embl_genbank_acc, "GenBank");
+                        my $num_match = @embl_match;
                         if (@embl_match) {
                             push @embl_nt_matched, $embl_genbank_acc;
                             $problem_buffer .= "\tGB match: @embl_match\n"; #!!this line is used in the sp_parser.pl
@@ -317,14 +274,12 @@ sub init_var() {
     @zfin = ();
     @embl_nt = ();
     @embl_nt_matched = ();
-    @embl_match = ();
     $embl_ac = '';
     $zfin_ac = '';
     $one_match = '';
     $dr_zfin = '';
     $num_pub = 0;
     $embl_exist = 0;
-    $num_match = 0;
     $count = 0;
     $no = 0;
     $good = 0;
@@ -342,7 +297,7 @@ sub Embl_Match($$) {
     my ($embl_ac, $dbname, $sth, $geneZdbId, $sql);
     $embl_ac = $_[0];
     $dbname = $_[1];
-    @embl_match = ();
+    my @embl_match = ();
     $sql = "";
     if ($dbname eq "GenPept") {
         $sql = "  select distinct dblink_linked_recid
@@ -480,6 +435,84 @@ sub PubMed_Check() {
     return $match;
 }
 
+sub capturePassThroughLine {
+    my $line = shift;
+    if ($line =~ /^AC/ || /^GN/ || /^CC/ || /^ID/ || /^DE/) {
+        return $line;
+    }
+    return "";
+}
+
+sub handleAcLine {
+    my $line = shift;
+    my $problem_buffer = $_[0];
+    if ($line =~ /^AC/) {
+        $problem_buffer .= $line;
+        $_[0] = $problem_buffer;
+        return 1;
+    }
+    return 0;
+}
+
+sub handleRxLine {
+    my $line = shift;
+    if ($line =~ /^RX\s+MEDLINE=\d+.*PubMed=(\d+)/) {
+        # now only PubMed in zfin
+        push @rx, $_;
+        $num_pub = 1;
+        return 1;
+    }
+    return 0;
+}
+
+sub handleMatchingAgainstEmblLines {
+    my $line = shift;
+    my $problem_buffer = $_[0];
+    my $temp_buffer = $_[1];
+
+    if ($line =~ /^DR\s+EMBL;\s+(\w+);\s+(\w+)\./) {
+        # check for EMBL acc number, parse it
+
+        my $dr = $line;
+        chop($dr); #the '\n' appended above could only be choped, not chomped.
+        $problem_buffer .= "$dr";
+        $embl_exist = 1;
+        my $embl_genbank_acc = $1;
+        push @embl_nt, $embl_genbank_acc;
+
+        # use GenPept acc for matching, storing results in @EMBL
+        my $embl_gp = $2;
+        my @embl_match = Embl_Match($embl_gp, "GenPept"); # first try the polypeptide accession
+        my $num_match = @embl_match;                      # record number of genes directly or indirectly associated
+
+        if (@embl_match) {
+            $problem_buffer .= "\tGP match: @embl_match\n";
+        }
+        else {
+            $problem_buffer .= "\n";
+        }
+
+        @EMBL = (@EMBL, @embl_match); # collect all the matches for each record
+
+        if ($num_match > 1) {
+            $fileno = "1";
+        }
+        elsif (!$num_match) {
+            $temp_buffer .= "$dr  GP_NO_MATCH\n";
+        }
+        else {
+            $one_match = pop(@embl_match);
+            $temp_buffer .= "$dr  GP match: $one_match\n"; # the gene id is used in the parser
+            $count++;                                # only count the one match
+        }
+        $after_embl = 1;
+
+        $_[0] = $problem_buffer;
+        $_[1] = $temp_buffer;
+        return 1;
+    }
+    return 0;
+}
 
 # Initialize the final output files for the checked SP records
 sub init_files() {
