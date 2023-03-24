@@ -129,7 +129,7 @@ sub main {
             # This assumes all the EMBL lines are together so the above clause gets executed all times before this clause.
             handlePostEmblLinesMatching($line, $problem_buffer, $temp_buffer);
 
-            # next if handleRefSeqMatching($line, $problem_buffer, $temp_buffer);
+            next if handleRefSeqMatching($line, $problem_buffer, $temp_buffer);
 
             next if handleZfinLine($line, $problem_buffer, $temp_buffer);
 
@@ -258,13 +258,22 @@ sub RefSeq_Match {
 
     my $sth = $dbh->prepare("select distinct dblink_linked_recid
                              from db_link
-                             where
-                             dblink_acc_num = ?");
+                             where dblink_fdbcont_zdb_id in (
+                                'ZDB-FDBCONT-040412-38',
+                                'ZDB-FDBCONT-040412-39',
+                                'ZDB-FDBCONT-040527-1',
+                                'ZDB-FDBCONT-041217-2'
+                             )
+                                and dblink_linked_recid like 'ZDB-GENE-%'
+                                and dblink_acc_num = ?");
     $sth->execute($np_acc);
-    my $geneZdbId = $sth->fetchrow_array;
-    if ($geneZdbId) {
-        print "RefSeq_Match: $np_acc matched to $geneZdbId \n";
+    my @embl_match = ();
+    while (my $geneZdbId = $sth->fetchrow_array) {
+        if ($geneZdbId =~ /ZDB-GENE/) {
+            push @embl_match, $geneZdbId;
+        }
     }
+    return (@embl_match); #matches in ZFIN db for each EMBL number
 }
 
 sub handleMissingEmblAndRefSeqRecord {
@@ -286,6 +295,7 @@ sub handleMissingEmblAndRefSeqRecord {
         $num_prob++;
         return 1;
     } elsif (!$ENV{"USE_LEGACY_LOGIC"} && $record !~ /DR\s*EMBL;/ && $record =~ /DR\s*RefSeq;/) {
+        print "No EMBL line, but has RefSeq line\n";
         $use_refseq_match = 1;
     }
     return 0;
@@ -568,11 +578,12 @@ sub handleRefSeqMatching {
     my $line = shift;
     my $problem_buffer = $_[0];
     my $temp_buffer = $_[1];
-
-    if ($line =~ /DR   RefSeq; (.*); (.*)\./ ) {
+    my $refseq_match;
+    my @refseq_matches;
+    if ($use_refseq_match && $line =~ /DR   RefSeq; (.*); (.*)\./ ) {
         my $np = $1;
         my $nm = $2;
-        my $refseq_match = RefSeq_Match($np, $nm);
+        @refseq_matches = RefSeq_Match($np, $nm);
     }
 
     $_[0] = $problem_buffer;
