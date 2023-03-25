@@ -63,6 +63,7 @@ my $last_percent = 0;
 my $progress_count = 0;
 my $record_count = 0;
 my $use_refseq_match = 0;
+my $is_current_record_refseq_processed = 0;
 
 
 sub main {
@@ -129,7 +130,7 @@ sub main {
             # This assumes all the EMBL lines are together so the above clause gets executed all times before this clause.
             handlePostEmblLinesMatching($line, $problem_buffer, $temp_buffer);
 
-            next if handleRefSeqMatching($line, $problem_buffer, $temp_buffer);
+            next if handleRefSeqMatching($record, $line, $problem_buffer, $temp_buffer);
 
             next if handleZfinLine($line, $problem_buffer, $temp_buffer);
 
@@ -177,6 +178,7 @@ sub init_var() {
     $after_embl = 0;
     $qual_check = 0;
     $use_refseq_match = 0;
+    $is_current_record_refseq_processed = 0;
 }
 
 # Check whether at least one EMBL numbers are in ZFIN database, 
@@ -250,11 +252,10 @@ sub Embl_Genomic_Check() {
 }
 
 sub RefSeq_Match {
-    my $np_acc = shift;
-    my $nm_acc = shift;
+    my $refseq_accession = shift;
 
     # remove version number
-    $np_acc =~ s/\.\d+$//;
+    $refseq_accession =~ s/\.\d+$//;
 
     my $sth = $dbh->prepare("select distinct dblink_linked_recid
                              from db_link
@@ -266,7 +267,7 @@ sub RefSeq_Match {
                              )
                                 and dblink_linked_recid like 'ZDB-GENE-%'
                                 and dblink_acc_num = ?");
-    $sth->execute($np_acc);
+    $sth->execute($refseq_accession);
     my @embl_match = ();
     while (my $geneZdbId = $sth->fetchrow_array) {
         if ($geneZdbId =~ /ZDB-GENE/) {
@@ -294,8 +295,8 @@ sub handleMissingEmblAndRefSeqRecord {
 
         $num_prob++;
         return 1;
-    } elsif (!$ENV{"USE_LEGACY_LOGIC"} && $record !~ /DR\s*EMBL;/ && $record =~ /DR\s*RefSeq;/) {
-        print "No EMBL line, but has RefSeq line\n";
+    } elsif (!$ENV{"USE_LEGACY_LOGIC"} && $record !~ /DR\s*EMBL;/ && $record =~ /DR\s*RefSeq; (.*)/) {
+        print "No EMBL line, but has RefSeq line: $1\n";
         $use_refseq_match = 1;
     }
     return 0;
@@ -573,21 +574,65 @@ sub handlePostEmblLinesMatching {
     $_[1] = $temp_buffer;
 }
 
-
+# If no embl lines have been found, the record is marked to process by refseq ($use_refseq_match).
+# It is run once per record as opposed to some of the other line-handling methods.
+# It matches against ALL refseq accessions in the record. If there are multiple matches, they must
+# all be the same, otherwise the record goes to problem file (using $fileno global).
+#
 sub handleRefSeqMatching {
+    my $record = shift;
     my $line = shift;
     my $problem_buffer = $_[0];
     my $temp_buffer = $_[1];
-    my $refseq_match;
-    my @refseq_matches;
+    my @refseq_accessions;
+    my $return_value = 0;
+
     if ($use_refseq_match && $line =~ /DR   RefSeq; (.*); (.*)\./ ) {
-        my $np = $1;
-        my $nm = $2;
-        @refseq_matches = RefSeq_Match($np, $nm);
+        $temp_buffer .= $line;
+        if ($is_current_record_refseq_processed) {
+            $return_value = 1;
+        } else {
+            #Get all the refseq matches in the record
+            @refseq_accessions = RefSeq_Accessions_For_Record($record);
+
+            if (@refseq_accessions) {
+                Process_RefSeq_Accessions(\@refseq_accessions, \$problem_buffer, \$temp_buffer );
+            } else {
+                #If there are no matches, then add this record to a problemfile
+                $problem_buffer .= "\tRefSeq_NO_MATCH";
+                $fileno = "12";
+            }
+
+            $is_current_record_refseq_processed = 1;
+            $return_value = 1;
+        }
     }
 
     $_[0] = $problem_buffer;
     $_[1] = $temp_buffer;
+    return $return_value;
+}
+
+# This method is called by handleRefSeqMatching. It takes an array of refseq accessions for a record
+# and appends the matching gene to the first refseq line if there is a single match.
+# If there are multiple matches, they must all be the same, otherwise the record goes to problem file (using $fileno global).
+sub Process_RefSeq_Accessions {
+    my $refseq_accessions_ref = shift;
+    my $problem_buffer_ref = shift;
+    my $temp_buffer_ref = shift;
+
+    #remove trailing newline from temp_buffer
+    $$temp_buffer_ref =~ s/\n$//;
+
+    #are the entries unique
+    if(allElementsSame($refseq_accessions_ref)) {
+        my $accession = $refseq_accessions_ref->[0];
+        $$temp_buffer_ref .= "\tREFSEQ match: $accession\n";
+    } else {
+        #conflicting matches go to a problem file
+        $$problem_buffer_ref .= "\tREFSEQ_CONFLICTING_MATCHES\n";
+        $fileno = "10";
+    }
 }
 
 sub handleCloseRecord {
@@ -601,15 +646,14 @@ sub handleCloseRecord {
         $problem_buffer .= "//\n";
         $temp_buffer .= "//\n";
 
-        open (OK, ">>okfile");
         if ($fileno eq "0") {
             #append temp_buffer to okfile
-            print OK $temp_buffer;
+            file_append('okfile', $temp_buffer);
             $num_ok++;
         }
         elsif ($fileno eq "00") {
             #those disagrees go to both okfile and prob0.
-            print OK $temp_buffer;
+            file_append('okfile', $temp_buffer);
             file_append('prob0', $problem_buffer);
             $num_ok++;
         }
@@ -619,8 +663,54 @@ sub handleCloseRecord {
             file_append("problemfile", $temp_buffer);
             $num_prob++;
         }
-        close OK;
     }
+}
+
+sub RefSeq_Accessions_For_Record {
+    my $record = shift;
+
+    my @refseq_accessions = getRefSeqAccessions($record);
+    my @all_refseq_matches = ();
+
+    for my $refseq_acc (@refseq_accessions) {
+        my @refseq_matches = RefSeq_Match($refseq_acc);
+        if (@refseq_matches) {
+            push(@all_refseq_matches, @refseq_matches);
+        }
+    }
+
+    return @all_refseq_matches;
+}
+
+sub allElementsSame {
+    my @array = @{$_[0]};
+
+    my $first_element = $array[0];
+    for my $element (@array) {
+        if ($element ne $first_element) {
+            return 0;
+        }
+    }
+    return 1;
+}
+# Get all the refseq accessions from a record, first protein, then nucleotide
+sub getRefSeqAccessions {
+    my $record = shift;
+
+    #parse out relevant RefSeq lines from $record text
+    my @lines = split /\n/, $record;
+    my @matching_lines = grep { /DR   RefSeq; (.*); (.*)\./ } @lines;
+    my @refseq_accs1 = ();
+    my @refseq_accs2 = ();
+
+    #add the refseq accs to the array
+    for my $line (@matching_lines) {
+        $line =~ /DR   RefSeq; (.*); (.*)\./;
+        push(@refseq_accs1, $1);
+        push(@refseq_accs2, $2);
+    }
+
+    return (@refseq_accs1, @refseq_accs2);
 }
 
 # Initialize the final output files for the checked SP records
