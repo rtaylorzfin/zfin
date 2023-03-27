@@ -1,9 +1,6 @@
 #!/opt/zfin/bin/perl 
 
-# $Id: sp_check.pl,v 1.0 2023/03/27 rtaylor $
-# CHECKSUM: if you replace the checksum below with #00000000000000000000000000000000
-#           then do an md5sum of this file, the checksum should match the md5 that was replaced
-# CHECKSUM: #878cd475a14641a7688e335e3da1a24f
+# $Id: sp_check.pl,v 1.001 2023/03/27 rtaylor $
 
 # sp_check.pl
 #
@@ -591,24 +588,34 @@ sub handleRefSeqMatching {
     my $line = shift;
     my $problem_buffer = $_[0];
     my $temp_buffer = $_[1];
+    my @refseq_matching_accessions;
     my @refseq_accessions;
     my $return_value = 0;
 
-    if ($use_refseq_match && $line =~ /DR   RefSeq; (.*); (.*)\./ ) {
+    #Add line to problem buffer as passthrough line for potential output to prob9 or prob10
+    if ($line !~ /^\/\// && ($use_refseq_match || $is_current_record_refseq_processed)) {
         $temp_buffer .= $line;
+        $problem_buffer .= $line;
+    }
+
+    if ($use_refseq_match && $line =~ /DR   RefSeq; (.*); (.*)\./ ) {
         if ($is_current_record_refseq_processed) {
-            $return_value = 1;
+            $return_value = 0;
         } else {
             #Get all the refseq matches in the record
-            @refseq_accessions = RefSeq_Accessions_For_Record($record);
+            @refseq_matching_accessions = RefSeq_Accessions_With_Match_For_Record($record);
 
-            if (@refseq_accessions) {
-                Process_RefSeq_Accessions(\@refseq_accessions, \$problem_buffer, \$temp_buffer );
+            if (@refseq_matching_accessions) {
+                Process_RefSeq_Accessions(\@refseq_matching_accessions, \$problem_buffer, \$temp_buffer );
             } else {
                 #If there are no matches, then add this record to a problemfile
-                $line =~ s/\n$//;
-                $problem_buffer .=  "$line\tRefSeq_NO_MATCH\n";
-                $fileno = "12";
+                @refseq_accessions = getRefSeqAccessions($record);
+                $problem_buffer =~ s/\n$//;
+                $temp_buffer =~ s/\n$//;
+                $problem_buffer .=  "\tREFSEQ_NO_MATCH: " . "@refseq_accessions\n";
+                $temp_buffer .=  "\tREFSEQ_NO_MATCH: " . "@refseq_accessions\n";
+
+                $fileno = "10";
             }
 
             $is_current_record_refseq_processed = 1;
@@ -640,10 +647,13 @@ sub Process_RefSeq_Accessions {
     } else {
         #remove trailing newline from temp_buffer
         $$problem_buffer_ref =~ s/\n$//;
+        $$temp_buffer_ref =~ s/\n$//;
 
         #conflicting matches go to a problem file
-        $$problem_buffer_ref .= "\tREFSEQ_CONFLICTING_MATCHES" . @$refseq_accessions_ref . "\n";
-        $fileno = "10";
+        my @unique_refseq_accessions = uniqueEntriesFromArray(@$refseq_accessions_ref);
+        $$problem_buffer_ref .= "\tREFSEQ_CONFLICTING_MATCHES: " . "@unique_refseq_accessions\n";
+        $$temp_buffer_ref .= "\tREFSEQ_CONFLICTING_MATCHES: " . "@unique_refseq_accessions\n";
+        $fileno = "9";
     }
 }
 
@@ -678,7 +688,7 @@ sub handleCloseRecord {
     }
 }
 
-sub RefSeq_Accessions_For_Record {
+sub RefSeq_Accessions_With_Match_For_Record {
     my $record = shift;
 
     my @refseq_accessions = getRefSeqAccessions($record);
@@ -723,6 +733,14 @@ sub getRefSeqAccessions {
     }
 
     return (@refseq_accs1, @refseq_accs2);
+}
+
+sub uniqueEntriesFromArray {
+    my @array = @_;
+
+    my %seen;
+    my @unique = grep { ! $seen{$_} ++ } @array;
+    return @unique;
 }
 
 # Initialize the final output files for the checked SP records
@@ -841,6 +859,30 @@ ENDDOC
 # SP records Problem 8
 #    
 #   >1 DR ZFIN lines
+#
+ENDDOC
+
+    print FILE "$title";
+    close FILE;
+
+    open FILE, ">prob9" or die "Cannot open the prob9: $!";
+    $title = <<ENDDOC;
+#--------------------------------------------
+# SP records Problem 9
+#
+#   Conflicting refseq matches
+#
+ENDDOC
+
+    print FILE "$title";
+    close FILE;
+
+    open FILE, ">prob10" or die "Cannot open the prob10: $!";
+    $title = <<ENDDOC;
+#--------------------------------------------
+# SP records Problem 10
+#
+#   No refseq matches
 #
 ENDDOC
 
