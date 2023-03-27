@@ -594,7 +594,6 @@ sub handleRefSeqMatching {
 
     #Add line to problem buffer as passthrough line for potential output to prob9 or prob10
     if ($line !~ /^\/\// && ($use_refseq_match || $is_current_record_refseq_processed)) {
-        $temp_buffer .= $line;
         $problem_buffer .= $line;
     }
 
@@ -611,8 +610,10 @@ sub handleRefSeqMatching {
                 #If there are no matches, then add this record to a problemfile
                 @refseq_accessions = getRefSeqAccessions($record);
                 $problem_buffer =~ s/\n$//;
-                $temp_buffer =~ s/\n$//;
                 $problem_buffer .=  "\tREFSEQ_NO_MATCH: " . "@refseq_accessions\n";
+
+                $temp_buffer .= $line;
+                $temp_buffer =~ s/\n$//;
                 $temp_buffer .=  "\tREFSEQ_NO_MATCH: " . "@refseq_accessions\n";
 
                 $fileno = "10";
