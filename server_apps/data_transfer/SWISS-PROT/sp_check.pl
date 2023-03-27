@@ -1,5 +1,10 @@
 #!/opt/zfin/bin/perl 
 
+# $Id: sp_check.pl,v 1.0 2023/03/27 rtaylor $
+# CHECKSUM: if you replace the checksum below with #00000000000000000000000000000000
+#           then do an md5sum of this file, the checksum should match the md5 that was replaced
+# CHECKSUM: #878cd475a14641a7688e335e3da1a24f
+
 # sp_check.pl
 #
 # This script reads Swiss-Prot file(which consists of protein records),
@@ -13,6 +18,8 @@
 # number presents and whether they all in ZFIN database. Records with problems 
 # are collected and divided into different problem files for biologists to 
 # look into.
+
+
 
 use strict;
 use warnings;
