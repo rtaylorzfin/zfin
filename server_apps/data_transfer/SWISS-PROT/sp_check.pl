@@ -300,7 +300,6 @@ sub handleMissingEmblAndRefSeqRecord {
         $num_prob++;
         return 1;
     } elsif (!$ENV{"USE_LEGACY_LOGIC"} && $record !~ /DR\s*EMBL;/ && $record =~ /DR\s*RefSeq; (.*)/) {
-        print "No EMBL line, but has RefSeq line: $1\n";
         $use_refseq_match = 1;
     }
     return 0;
@@ -328,6 +327,7 @@ sub isIgnoreLine {
         $line =~ /^DE/ ||
         $line =~ /^DR/ ||
         $line =~ /^KW/ ||
+        $line =~ /^DT/ ||
         $line =~ /\/\// ||
         $line =~ /^RX\s+MEDLINE=\d+.*PubMed=(\d+)/);
     return !$isRelevantLine;
@@ -406,7 +406,7 @@ sub capturePassThroughLine {
     my $line = shift;
     my $temp_buffer = $_[0];
 
-    if ($line =~ /^AC/ || $line =~ /^GN/ || $line =~ /^CC/ || $line =~ /^ID/ || $line =~ /^DE/) {
+    if ($line =~ /^AC/ || $line =~ /^GN/ || $line =~ /^CC/ || $line =~ /^ID/ || $line =~ /^DE/ || $line =~ /^DT/) {
         $_[0] .= $line;
     }
 }
