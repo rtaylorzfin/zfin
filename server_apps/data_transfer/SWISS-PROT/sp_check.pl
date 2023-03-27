@@ -599,7 +599,8 @@ sub handleRefSeqMatching {
                 Process_RefSeq_Accessions(\@refseq_accessions, \$problem_buffer, \$temp_buffer );
             } else {
                 #If there are no matches, then add this record to a problemfile
-                $problem_buffer .= "\tRefSeq_NO_MATCH";
+                $line =~ s/\n$//;
+                $problem_buffer .=  "$line\tRefSeq_NO_MATCH\n";
                 $fileno = "12";
             }
 
@@ -621,16 +622,20 @@ sub Process_RefSeq_Accessions {
     my $problem_buffer_ref = shift;
     my $temp_buffer_ref = shift;
 
-    #remove trailing newline from temp_buffer
-    $$temp_buffer_ref =~ s/\n$//;
 
     #are the entries unique
     if(allElementsSame($refseq_accessions_ref)) {
+        #remove trailing newline from temp_buffer
+        $$temp_buffer_ref =~ s/\n$//;
+
         my $accession = $refseq_accessions_ref->[0];
         $$temp_buffer_ref .= "\tREFSEQ match: $accession\n";
     } else {
+        #remove trailing newline from temp_buffer
+        $$problem_buffer_ref =~ s/\n$//;
+
         #conflicting matches go to a problem file
-        $$problem_buffer_ref .= "\tREFSEQ_CONFLICTING_MATCHES\n";
+        $$problem_buffer_ref .= "\tREFSEQ_CONFLICTING_MATCHES" . @$refseq_accessions_ref . "\n";
         $fileno = "10";
     }
 }
