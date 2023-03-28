@@ -68,7 +68,12 @@ my $progress_count = 0;
 my $record_count = 0;
 my $use_refseq_match = 0;
 my $is_current_record_refseq_processed = 0;
-
+my %refseq_hash;
+my $refseq_hash_initialized = 0;
+my %genpept_hash;
+my $genpept_hash_initialized = 0;
+my %genbank_hash;
+my $genbank_hash_initialized = 0;
 
 sub main {
     # Take a SP file as input (content format restricted).
@@ -190,52 +195,76 @@ sub init_var() {
 # Return two values that denotes the checking result.   
 
 sub Embl_Match($$) {
-
     my ($embl_ac, $dbname, $sth, $geneZdbId, $sql);
     $embl_ac = $_[0];
     $dbname = $_[1];
-    my @embl_match = ();
-    $sql = "";
-    if ($dbname eq "GenPept") {
-        $sql = "  select distinct dblink_linked_recid
-                  from db_link 
-                  where dblink_fdbcont_zdb_id = 'ZDB-FDBCONT-040412-42'
-                    and dblink_linked_recid like 'ZDB-GENE-%'
-                    and dblink_acc_num = ?
-                  union
-                  select mrel_mrkr_1_zdb_id 
-                    from marker_relationship,db_link
-                   where dblink_fdbcont_zdb_id = 'ZDB-FDBCONT-040412-42'  
-                     and mrel_type = 'gene encodes small segment'
-                     and mrel_mrkr_2_zdb_id=dblink_linked_recid 
-                     and dblink_acc_num= ?";
 
+    if (!$genbank_hash_initialized) {
+        initializeGenBankHash();
+        initializeGenPeptHash();
+    }
+
+    if ($dbname eq "GenPept") {
+        if (exists $genpept_hash{$embl_ac}) {
+            return @{$genpept_hash{$embl_ac}};
+        }
     }
     if ($dbname eq "GenBank") {
-        $sql = "  select distinct dblink_linked_recid
-                  from db_link 
+        if (exists $genbank_hash{$embl_ac}) {
+            return @{$genbank_hash{$embl_ac}};
+        }
+    }
+    return ();
+}
+
+sub initializeGenPeptHash() {
+    my $sth = $dbh->prepare("select distinct dblink_acc_num, dblink_linked_recid
+                  from db_link
+                  where dblink_fdbcont_zdb_id = 'ZDB-FDBCONT-040412-42'
+                    and dblink_linked_recid like 'ZDB-GENE-%'
+                  union
+                  select dblink_acc_num, mrel_mrkr_1_zdb_id
+                    from marker_relationship,db_link
+                   where dblink_fdbcont_zdb_id = 'ZDB-FDBCONT-040412-42'
+                     and mrel_type = 'gene encodes small segment'
+                     and mrel_mrkr_2_zdb_id = dblink_linked_recid ");
+    $sth->execute();
+    while (my ($acc, $zdbId) = $sth->fetchrow_array) {
+        my $tempArray = $genpept_hash{$acc};
+        if ($tempArray) {
+            push @$tempArray, $zdbId;
+        } else {
+            $tempArray = [$zdbId];
+        }
+        $genpept_hash{$acc} = $tempArray;
+    }
+    $genpept_hash_initialized = 1;
+}
+
+sub initializeGenBankHash() {
+    my $sth = $dbh->prepare("select distinct dblink_acc_num, dblink_linked_recid
+                  from db_link
                   where dblink_fdbcont_zdb_id in ('ZDB-FDBCONT-040412-36',
                                                   'ZDB-FDBCONT-040412-37')
                     and dblink_linked_recid like 'ZDB-GENE-%'
-                    and dblink_acc_num = ?
                   union
-                  select mrel_mrkr_1_zdb_id 
+                  select dblink_acc_num, mrel_mrkr_1_zdb_id
                     from marker_relationship,db_link
                    where dblink_fdbcont_zdb_id in ('ZDB-FDBCONT-040412-37',
                                                   'ZDB-FDBCONT-040412-36')
                      and mrel_type = 'gene encodes small segment'
-                     and mrel_mrkr_2_zdb_id=dblink_linked_recid 
-                     and dblink_acc_num= ?";
-    }
-    $sth = $dbh->prepare($sql);
-    $sth->execute($embl_ac, $embl_ac);
-
-    while ($geneZdbId = $sth->fetchrow_array) {
-        if ($geneZdbId =~ /ZDB-GENE/) {
-            push @embl_match, $geneZdbId;
+                     and mrel_mrkr_2_zdb_id=dblink_linked_recid ");
+    $sth->execute();
+    while (my ($acc, $zdbId) = $sth->fetchrow_array) {
+        my $tempArray = $genbank_hash{$acc};
+        if ($tempArray) {
+            push @$tempArray, $zdbId;
+        } else {
+            $tempArray = [$zdbId];
         }
+        $genbank_hash{$acc} = $tempArray;
     }
-    return (@embl_match); #matches in ZFIN db for each EMBL number
+    $genbank_hash_initialized = 1;
 }
 
 sub Embl_Genomic_Check() {
@@ -261,7 +290,22 @@ sub RefSeq_Match {
     # remove version number
     $refseq_accession =~ s/\.\d+$//;
 
-    my $sth = $dbh->prepare("select distinct dblink_linked_recid
+    if (!$refseq_hash_initialized) {
+        initializeRefSeqHash();
+    }
+
+    my @embl_match = ();
+
+    my $geneZdbId = $refseq_hash{$refseq_accession};
+    if ($geneZdbId) {
+        push @embl_match, $geneZdbId;
+    }
+
+    return (@embl_match); #matches in ZFIN db for each EMBL number
+}
+
+sub initializeRefSeqHash {
+    my $sth = $dbh->prepare("select distinct dblink_acc_num, dblink_linked_recid
                              from db_link
                              where dblink_fdbcont_zdb_id in (
                                 'ZDB-FDBCONT-040412-38',
@@ -269,16 +313,16 @@ sub RefSeq_Match {
                                 'ZDB-FDBCONT-040527-1',
                                 'ZDB-FDBCONT-041217-2'
                              )
-                                and dblink_linked_recid like 'ZDB-GENE-%'
-                                and dblink_acc_num = ?");
-    $sth->execute($refseq_accession);
-    my @embl_match = ();
-    while (my $geneZdbId = $sth->fetchrow_array) {
-        if ($geneZdbId =~ /ZDB-GENE/) {
-            push @embl_match, $geneZdbId;
+                                and dblink_linked_recid like 'ZDB-GENE-%'");
+    $sth->execute();
+    while (my ($refseq_accession, $geneZdbId) = $sth->fetchrow_array) {
+        if ($refseq_hash{$refseq_accession}) {
+            print "ERROR: duplicate refseq accession $refseq_accession, $geneZdbId\n";
+            die;
         }
+        $refseq_hash{$refseq_accession} = $geneZdbId;
     }
-    return (@embl_match); #matches in ZFIN db for each EMBL number
+    $refseq_hash_initialized = 1;
 }
 
 sub handleMissingEmblAndRefSeqRecord {
@@ -604,6 +648,10 @@ sub handleRefSeqMatching {
             #Get all the refseq matches in the record
             @refseq_matching_accessions = RefSeq_Accessions_With_Match_For_Record($record);
 
+            $temp_buffer .= $line;
+            #remove trailing newline from temp_buffer
+            $temp_buffer =~ s/\n$//;
+
             if (@refseq_matching_accessions) {
                 Process_RefSeq_Accessions(\@refseq_matching_accessions, \$problem_buffer, \$temp_buffer );
             } else {
@@ -612,10 +660,7 @@ sub handleRefSeqMatching {
                 $problem_buffer =~ s/\n$//;
                 $problem_buffer .=  "\tREFSEQ_NO_MATCH: " . "@refseq_accessions\n";
 
-                $temp_buffer .= $line;
-                $temp_buffer =~ s/\n$//;
                 $temp_buffer .=  "\tREFSEQ_NO_MATCH: " . "@refseq_accessions\n";
-
                 $fileno = "10";
             }
 
@@ -637,18 +682,13 @@ sub Process_RefSeq_Accessions {
     my $problem_buffer_ref = shift;
     my $temp_buffer_ref = shift;
 
-
     #are the entries unique
     if(allElementsSame($refseq_accessions_ref)) {
-        #remove trailing newline from temp_buffer
-        $$temp_buffer_ref =~ s/\n$//;
-
         my $accession = $refseq_accessions_ref->[0];
         $$temp_buffer_ref .= "\tREFSEQ match: $accession\n";
     } else {
         #remove trailing newline from temp_buffer
         $$problem_buffer_ref =~ s/\n$//;
-        $$temp_buffer_ref =~ s/\n$//;
 
         #conflicting matches go to a problem file
         my @unique_refseq_accessions = uniqueEntriesFromArray(@$refseq_accessions_ref);

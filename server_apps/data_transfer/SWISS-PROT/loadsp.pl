@@ -251,7 +251,8 @@ runCmdOrFail("psql -v ON_ERROR_STOP=1 -d $ENV{'DB_NAME'} -a -f sp_delete.sql >de
 # good records for loading
 # concatenate okfile ok2file
 
-system("cat ok2file >> okfile");
+# system("cat ok2file >> okfile");
+print "Skipping ok2file, uncomment to re-use ok2file\n";
 
 
 # ----------- Parse the SWISS-PROT file ----------------
