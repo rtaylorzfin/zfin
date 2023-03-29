@@ -16,7 +16,8 @@
 # are collected and divided into different problem files for biologists to 
 # look into.
 
-
+# TODO: If a record has an embl id, but doesn't match anything, we should try a refseq match.
+#       Currently we only try a refseq match if there is no embl id at all
 
 use strict;
 use warnings;
