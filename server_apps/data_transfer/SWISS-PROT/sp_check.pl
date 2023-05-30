@@ -337,14 +337,14 @@ sub handleMissingEmblAndRefSeqRecord {
 
         $num_prob++;
         return 1;
-    } elsif (!$ENV{"USE_LEGACY_LOGIC"} && $record !~ /DR\s*EMBL;/ && $record !~ /DR\s*RefSeq;/) {
+    } elsif (!$ENV{"USE_LEGACY_LOGIC"} && $record !~ /^DR\s+EMBL;\s+(\w+);\s+(\w+)\./ && $record !~ /DR\s*RefSeq;/) {
         # if no EMBL line
         file_append("prob7", $record);
         file_append("problemfile", $record);
 
         $num_prob++;
         return 1;
-    } elsif (!$ENV{"USE_LEGACY_LOGIC"} && $record !~ /DR\s*EMBL;/ && $record =~ /DR\s*RefSeq; (.*)/) {
+    } elsif (!$ENV{"USE_LEGACY_LOGIC"} && $record !~ /^DR\s+EMBL;\s+(\w+);\s+(\w+)\./ && $record =~ /DR\s*RefSeq; (.*)/) {
         $use_refseq_match = 1;
     }
     return 0;
