@@ -2081,19 +2081,24 @@ sub addReverseMappedGenesFromNCBItoZFINFromSupplementaryLoad {
     # Read the results
     #
     my $file = $ENV{'SOURCEROOT'} . "/ncbi_matches_through_ensembl.csv";
+    print LOG "Reading $file\n";
+
     open(FILE, "<$file") or die "Can't open $file: $!\n";
     my $line = <FILE>; # skip header (ncbi_id, zdb_id, ensembl_id, symbol, dblinks, publications, rna_accessions)
     my $ncbiSupplementMapCount = 0;
     while ($line = <FILE>) {
         chomp $line;
+        print LOG "Supplemental mapping: $line\n";
         my ($ncbi_id, $zdb_id, $ensembl_id, $symbol, $dblinks, $publications, $rna_accessions) = split(/,/, $line);
         if (exists($mappedReversed{$ncbi_id}) || exists($mapped{$zdb_id})) {
+            print LOG "Skip $ncbi_id, $zdb_id, $ensembl_id, $symbol, $dblinks, $publications, $rna_accessions\n";
             next;
         }
 
         # only add the mapping if the RNA accessions are empty or the ZFIN ID is a miRNA
         # see ZFIN-8517 comments for details
         if ($rna_accessions ne "" && $zdb_id !~ /ZDB-MIRNAG-/) {
+            print LOG "Skip NON-blank NON-MIRNAG: $ncbi_id, $zdb_id, $ensembl_id, $symbol, $dblinks, $publications, $rna_accessions\n";
             next;
         }
 
