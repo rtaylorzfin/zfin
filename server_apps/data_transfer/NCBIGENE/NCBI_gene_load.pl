@@ -2088,9 +2088,10 @@ sub addReverseMappedGenesFromNCBItoZFINFromSupplementaryLoad {
     my $ncbiSupplementMapCount = 0;
     while ($line = <FILE>) {
         chomp $line;
+        $line = trim($line);
         print LOG "Supplemental mapping: $line\n";
         my ($ncbi_id, $zdb_id, $ensembl_id, $symbol, $dblinks, $publications, $rna_accessions) = split(/,/, $line);
-        print LOG "rna_accessions: --$rna_accessions--\n";
+
         if (exists($mappedReversed{$ncbi_id}) || exists($mapped{$zdb_id})) {
             print LOG "Skip $ncbi_id, $zdb_id, $ensembl_id, $symbol, $dblinks, $publications, $rna_accessions\n";
             next;
