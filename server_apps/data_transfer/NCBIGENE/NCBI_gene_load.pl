@@ -43,7 +43,7 @@ our $debug = 1;
 #########################
 our $pubMappedbasedOnRNA = "ZDB-PUB-020723-3";
 our $pubMappedbasedOnVega = "ZDB-PUB-130725-2";
-our $pubMappedbasedOnNCBISupplement = "ZDB-PUB-230531-1";
+our $pubMappedbasedOnNCBISupplement = "ZDB-PUB-230516-87";
 
 our $fdcontNCBIgeneId = "ZDB-FDBCONT-040412-1";
 our $fdcontVega = "ZDB-FDBCONT-040412-14";
@@ -2080,7 +2080,7 @@ sub addReverseMappedGenesFromNCBItoZFINFromSupplementaryLoad {
     #
     # Read the results
     #
-    my $file = "ncbi_matches_through_ensembl.csv";
+    my $file = $ENV{'SOURCEROOT'} . "/ncbi_matches_through_ensembl.csv";
     open(FILE, "<$file") or die "Can't open $file: $!\n";
     my $line = <FILE>; # skip header (ncbi_id, zdb_id, ensembl_id, symbol, dblinks, publications, rna_accessions)
     my $ncbiSupplementMapCount = 0;
