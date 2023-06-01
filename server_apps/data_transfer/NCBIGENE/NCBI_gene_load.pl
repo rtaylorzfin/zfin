@@ -2062,7 +2062,20 @@ sub prepare2WayMappingResults {
 sub addReverseMappedGenesFromNCBItoZFINFromSupplementaryLoad {
     #
     # Run the report of genes that are mapped from NCBI to ZFIN without being mapped back from ZFIN to NCBI
-    #
+    # Enable this load with LOAD_NCBI_ONE_WAY_GENES=1 environment variable
+    # (ZFIN-8517)
+
+    if ("1" ne $ENV{'LOAD_NCBI_ONE_WAY_GENES'}) {
+        print LOG "Skipping the load of genes that are mapped from NCBI to ZFIN without being mapped back from ZFIN to NCBI\n";
+        print LOG "Enable by setting LOAD_NCBI_ONE_WAY_GENES=1 environment variable\n";
+        return;
+    }
+    print LOG "Running the load of genes that are mapped from NCBI to ZFIN without being mapped back from ZFIN to NCBI\n";
+    print LOG "Enabled by LOAD_NCBI_ONE_WAY_GENES=1 environment variable\n";
+    print LOG "More information in debug15 file\n";
+
+    my $debugBuffer = "";
+
     my $currentDir = cwd;
 
     # Set the JAVA_HOME path to override the jenkins one
@@ -2089,18 +2102,18 @@ sub addReverseMappedGenesFromNCBItoZFINFromSupplementaryLoad {
     while ($line = <FILE>) {
         chomp $line;
         $line = trim($line);
-        print LOG "Supplemental mapping: $line\n";
+        $debugBuffer .= "Supplemental mapping: $line\n";
         my ($ncbi_id, $zdb_id, $ensembl_id, $symbol, $dblinks, $publications, $rna_accessions) = split(/,/, $line);
 
         if (exists($mappedReversed{$ncbi_id}) || exists($mapped{$zdb_id})) {
-            print LOG "Skip $ncbi_id, $zdb_id, $ensembl_id, $symbol, $dblinks, $publications, $rna_accessions\n";
+            $debugBuffer .= "Skip $ncbi_id, $zdb_id, $ensembl_id, $symbol, $dblinks, $publications, $rna_accessions\n";
             next;
         }
 
         # only add the mapping if the RNA accessions are empty or the ZFIN ID is a miRNA
         # see ZFIN-8517 comments for details
         if ($rna_accessions ne "" && $zdb_id !~ /ZDB-MIRNAG-/) {
-            print LOG "Skip NON-blank NON-MIRNAG: $ncbi_id, $zdb_id, $ensembl_id, $symbol, $dblinks, $publications, $rna_accessions\n";
+            $debugBuffer .= "Skip NON-blank NON-MIRNAG: $ncbi_id, $zdb_id, $ensembl_id, $symbol, $dblinks, $publications, $rna_accessions\n";
             next;
         }
 
@@ -2110,6 +2123,14 @@ sub addReverseMappedGenesFromNCBItoZFINFromSupplementaryLoad {
     }
     close FILE;
     print LOG "ncbiSupplementMapCount = $ncbiSupplementMapCount\n";
+    $debugBuffer .= "ncbiSupplementMapCount = $ncbiSupplementMapCount\n";
+
+    if ($debug) {
+        open(DBG15, ">debug15") || die "Cannot open debug15 : $!\n";
+        print DBG15 "$debugBuffer\n";
+        close DBG15;
+    }
+
 }
 
 sub writeNCBIgeneIdsMappedBasedOnGenBankRNA {
@@ -2131,6 +2152,9 @@ sub writeNCBIgeneIdsMappedBasedOnSupplementaryLoad {
     # Globals:
     #  %ncbiSupplementMap
     #  $ctToLoad
+    if ("1" ne $ENV{'LOAD_NCBI_ONE_WAY_GENES'}) {
+        return;
+    }
 
     foreach my $zdbId (sort keys %ncbiSupplementMap) {
         my $mappedNCBIgeneId = $ncbiSupplementMap{$zdbId};
