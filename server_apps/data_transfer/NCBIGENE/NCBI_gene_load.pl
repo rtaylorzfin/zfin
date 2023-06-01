@@ -2090,7 +2090,10 @@ sub addReverseMappedGenesFromNCBItoZFINFromSupplementaryLoad {
         if (exists($mappedReversed{$ncbi_id}) || exists($mapped{$zdb_id})) {
             next;
         }
-        if ($rna_accessions ne "") {
+
+        # only add the mapping if the RNA accessions are empty or the ZFIN ID is a miRNA
+        # see ZFIN-8517 comments for details
+        if ($rna_accessions ne "" && $zdb_id !~ /ZDB-MIRNAG-/) {
             next;
         }
 
