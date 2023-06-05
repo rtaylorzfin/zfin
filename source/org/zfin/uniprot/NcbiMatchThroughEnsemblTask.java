@@ -92,7 +92,7 @@ public class NcbiMatchThroughEnsemblTask extends AbstractScriptWrapper {
             //progress
             System.out.print(".");
 
-            ncbiMatchReportRow.setRnaAccessions(String.join(",", rnaAccessions));
+            ncbiMatchReportRow.setRnaAccessions(String.join(";", rnaAccessions));
         }
 
         HibernateUtil.flushAndCommitCurrentSession();

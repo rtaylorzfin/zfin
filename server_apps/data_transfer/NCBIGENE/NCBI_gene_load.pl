@@ -2102,11 +2102,10 @@ sub addReverseMappedGenesFromNCBItoZFINFromSupplementaryLoad {
     while ($line = <FILE>) {
         chomp $line;
         $line = trim($line);
-        $debugBuffer .= "Supplemental mapping: $line\n";
         my ($ncbi_id, $zdb_id, $ensembl_id, $symbol, $dblinks, $publications, $rna_accessions) = split(/,/, $line);
 
         if (exists($mappedReversed{$ncbi_id}) || exists($mapped{$zdb_id})) {
-            $debugBuffer .= "Skip $ncbi_id, $zdb_id, $ensembl_id, $symbol, $dblinks, $publications, $rna_accessions\n";
+            $debugBuffer .= "Skip Duplicate: $ncbi_id, $zdb_id, $ensembl_id, $symbol, $dblinks, $publications, $rna_accessions\n";
             next;
         }
 
@@ -2116,6 +2115,7 @@ sub addReverseMappedGenesFromNCBItoZFINFromSupplementaryLoad {
             $debugBuffer .= "Skip NON-blank NON-MIRNAG: $ncbi_id, $zdb_id, $ensembl_id, $symbol, $dblinks, $publications, $rna_accessions\n";
             next;
         }
+        $debugBuffer .= "Supplemental mapping: $line\n";
 
         $ncbiSupplementMap{$zdb_id} = $ncbi_id;
         $ncbiSupplementMapReversed{$ncbi_id} = $zdb_id;
