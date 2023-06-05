@@ -2065,13 +2065,13 @@ sub addReverseMappedGenesFromNCBItoZFINFromSupplementaryLoad {
     # Enable this load with LOAD_NCBI_ONE_WAY_GENES=1 environment variable
     # (ZFIN-8517)
 
-    if ("1" ne $ENV{'LOAD_NCBI_ONE_WAY_GENES'}) {
+    if ("true" ne $ENV{'LOAD_NCBI_ONE_WAY_GENES'}) {
         print LOG "Skipping the load of genes that are mapped from NCBI to ZFIN without being mapped back from ZFIN to NCBI\n";
-        print LOG "Enable by setting LOAD_NCBI_ONE_WAY_GENES=1 environment variable\n";
+        print LOG "Enable by setting LOAD_NCBI_ONE_WAY_GENES=true environment variable. (LOAD_NCBI_ONE_WAY_GENES='" . $ENV{'LOAD_NCBI_ONE_WAY_GENES'} . "')\n";
         return;
     }
     print LOG "Running the load of genes that are mapped from NCBI to ZFIN without being mapped back from ZFIN to NCBI\n";
-    print LOG "Enabled by LOAD_NCBI_ONE_WAY_GENES=1 environment variable\n";
+    print LOG "Enabled by LOAD_NCBI_ONE_WAY_GENES=true environment variable\n";
     print LOG "More information in debug15 file\n";
 
     my $debugBuffer = "";
@@ -2152,7 +2152,7 @@ sub writeNCBIgeneIdsMappedBasedOnSupplementaryLoad {
     # Globals:
     #  %ncbiSupplementMap
     #  $ctToLoad
-    if ("1" ne $ENV{'LOAD_NCBI_ONE_WAY_GENES'}) {
+    if ("true" ne $ENV{'LOAD_NCBI_ONE_WAY_GENES'}) {
         return;
     }
 
