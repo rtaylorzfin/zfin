@@ -2095,7 +2095,7 @@ sub addReverseMappedGenesFromNCBItoZFINFromSupplementaryLoad {
     #
     my $file = $ENV{'SOURCEROOT'} . "/ncbi_matches_through_ensembl.csv";
     print LOG "Reading $file\n";
-
+    doSystemCommand("cp $file .");
     open(FILE, "<$file") or die "Can't open $file: $!\n";
     my $line = <FILE>; # skip header (ncbi_id, zdb_id, ensembl_id, symbol, dblinks, publications, rna_accessions)
     my $ncbiSupplementMapCount = 0;
