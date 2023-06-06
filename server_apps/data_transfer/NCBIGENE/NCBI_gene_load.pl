@@ -2070,6 +2070,19 @@ sub prepare2WayMappingResults {
         }
     }
 
+    if ($debug) {
+        open (DBG17, ">debug17") ||  die "Cannot open debug17 : $!\n";
+        print DBG17 "ZFIN to NCBI\n===================\n";
+        foreach my $zdbId (sort keys %mapped) {
+            print DBG17 "$zdbId\t$mapped{$zdbId}\n";
+        }
+        print DBG17 "\n\nNCBI to ZFIN\n===================\n";
+        foreach my $ncbiId (sort keys %mappedReversed) {
+            print DBG17 "$ncbiId\t$mappedReversed{$ncbiId}\n";
+        }
+        close DBG17;
+    }
+
     print LOG "\n ctAllpotentialOneToOneNCBI = $ctAllpotentialOneToOneNCBI \n ctOneToOneNCBI = $ctOneToOneNCBI\n\n";
     print STATS "\nMapping result statistics: number of 1:1 based on GenBank RNA - $ctOneToOneNCBI\n\n";
 }
@@ -2132,6 +2145,11 @@ sub addReverseMappedGenesFromNCBItoZFINFromSupplementaryLoad {
         }
         $debugBuffer .= "Supplemental mapping: $line\n";
 
+        # add to the regular mapping?
+        $mapped{$zdb_id} = $ncbi_id;
+        $mappedReversed{$ncbi_id} = $zdb_id;
+
+        # add to the supplemental mapping
         $ncbiSupplementMap{$zdb_id} = $ncbi_id;
         $ncbiSupplementMapReversed{$ncbi_id} = $zdb_id;
         $ncbiSupplementMapCount++;
