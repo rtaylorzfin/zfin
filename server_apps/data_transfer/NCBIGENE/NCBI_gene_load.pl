@@ -1384,11 +1384,8 @@ sub parseGene2AccessionFile {
 
     while (<GENE2ACC>) {
         chomp;
-
         if ($_) {
-
             $ctlines++;
-
             undef @fields;
             @fields = split("\t");
 
@@ -1398,11 +1395,8 @@ sub parseGene2AccessionFile {
             next if $taxId ne "7955";
 
             $ctZebrafishGene2accession++;
-
             $NCBIgeneId = $fields[1];
-
             $status = $fields[2];
-
 
             if ($status eq "-") {
                 if (ZFINPerlModules->stringStartsWithLetter($fields[3])) {
@@ -1415,40 +1409,26 @@ sub parseGene2AccessionFile {
                     }
 
                     ## if the array of the GenBank RNA accession(s) supporting the NCBI gene Id has not been created yet
-
                     if (!exists($supportedGeneNCBI{$NCBIgeneId})) {
-
                         ## then create it with this supporting GenBank RNA accession
-
                         $ref_arrayAccs = [$GenBankRNAaccNCBI];
-
                         $supportedGeneNCBI{$NCBIgeneId} = $ref_arrayAccs;
-
                     } else {  ## otherwise, add this supporting GenBank RNA accession into the array
-
                         $ref_arrayAccs = $supportedGeneNCBI{$NCBIgeneId};
-
                         # add it only when it is not the same as the last item
                         push(@$ref_arrayAccs, $GenBankRNAaccNCBI) if $supportedGeneNCBI{$NCBIgeneId}[-1] ne $GenBankRNAaccNCBI;
                     }
 
                     ## if the array of NCBI gene Ids supported by this GenBank RNA accession has not been created yet
-
                     if (!exists($supportingAccNCBI{$GenBankRNAaccNCBI})) {
-
                         ## then create it with the first element (the supported NCBI gene id)
-
                         $ref_arrayGenes = [$NCBIgeneId];
                         $supportingAccNCBI{$GenBankRNAaccNCBI} = $ref_arrayGenes;
-
                     } else {  ## otherwise, add this supported NCBI gene Id into the array
-
                         $ref_arrayGenes = $supportingAccNCBI{$GenBankRNAaccNCBI};
-
                         # add it only when it is not the same as the last item
                         push(@$ref_arrayGenes, $NCBIgeneId) if $supportingAccNCBI{$GenBankRNAaccNCBI}[-1] ne $NCBIgeneId;
                     }
-
                 }  ## ending if (stringStartsWithLetter$fields[3]))
 
                 if (ZFINPerlModules->stringStartsWithLetter($fields[5])) {
