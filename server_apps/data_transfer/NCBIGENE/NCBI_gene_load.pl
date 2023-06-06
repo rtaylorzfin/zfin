@@ -1376,7 +1376,7 @@ sub parseGene2AccessionFile {
     my $RefPeptAcc;
     my $RefSeqDNAacc;
 
-    print LOG "\nParsing NCBI gene2accession file ... \n\n";
+    print LOG "\nParsing NCBI gene2accession file at " . strftime("%Y-%m-%d %H:%M:%S", localtime(time())) . " \n";
 
     open(GENE2ACC, "cat gene2accession.gz | gunzip -c | grep '^7955' |") || die("Cannot open gene2accession.gz : $!\n");
 
