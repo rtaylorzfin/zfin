@@ -1378,7 +1378,7 @@ sub parseGene2AccessionFile {
 
     print LOG "\nParsing NCBI gene2accession file ... \n\n";
 
-    open(GENE2ACC, "cat gene2accession.gz | gunzip -c | grep 7955 |") || die("Cannot open gene2accession.gz : $!\n");
+    open(GENE2ACC, "cat gene2accession.gz | gunzip -c | grep '^7955' |") || die("Cannot open gene2accession.gz : $!\n");
 
     ##Format: tax_id GeneID status RNA_nucleotide_accession.version RNA_nucleotide_gi protein_accession.version protein_gi genomic_nucleotide_accession.version genomic_nucleotide_gi start_position_on_the_genomic_accession end_position_on_the_genomic_accession orientation assembly mature_peptide_accession.version mature_peptide_gi Symbol
 
@@ -1524,9 +1524,41 @@ sub parseGene2AccessionFile {
 
     print LOG "\n\nNumber of lines on gene2accession file:  $ctlines\n\n";
     print LOG "\nctZebrafishGene2accession:  $ctZebrafishGene2accession\n\n";
-
-
     print LOG "\nctNoLength = $ctNoLength\nctNoLengthRefSeq = $ctNoLengthRefSeq\n\n";
+
+    if ($debug) {
+        open (DBG16, ">debug16") ||  die "Cannot open debug16 : $!\n";
+
+        print DBG16 "GenBankDNAncbiGeneIds\n";
+        print DBG16 "==================================================\n";
+        foreach my $acc (keys %GenBankDNAncbiGeneIds) {print DBG16 "$acc\t$GenBankDNAncbiGeneIds{$acc}\n";}
+
+        print DBG16 "GenPeptNCBIgeneIds\n";
+        print DBG16 "==================================================\n";
+        foreach my $acc (keys %GenPeptNCBIgeneIds) {print DBG16 "$acc\t$GenPeptNCBIgeneIds{$acc}\n";}
+
+        print DBG16 "RefPeptNCBIgeneIds\n";
+        print DBG16 "==================================================\n";
+        foreach my $acc (keys %RefPeptNCBIgeneIds) {print DBG16 "$acc\t$RefPeptNCBIgeneIds{$acc}\n";}
+
+        print DBG16 "RefSeqDNAncbiGeneIds\n";
+        print DBG16 "==================================================\n";
+        foreach my $acc (keys %RefSeqDNAncbiGeneIds) {print DBG16 "$acc\t$RefSeqDNAncbiGeneIds{$acc}\n";}
+
+        print DBG16 "RefSeqRNAncbiGeneIds\n";
+        print DBG16 "==================================================\n";
+        foreach my $acc (keys %RefSeqRNAncbiGeneIds) {print DBG16 "$acc\t$RefSeqRNAncbiGeneIds{$acc}\n";}
+
+        print DBG16 "supportedGeneNCBI\n";
+        print DBG16 "==================================================\n";
+        foreach my $acc (keys %supportedGeneNCBI) {print DBG16 "$acc\t$supportedGeneNCBI{$acc}\n";}
+
+        print DBG16 "supportingAccNCBI\n";
+        print DBG16 "==================================================\n";
+        foreach my $acc (keys %supportingAccNCBI) {print DBG16 "$acc\t$supportingAccNCBI{$acc}\n";}
+
+        close DBG16;
+    }
 
 }
 
