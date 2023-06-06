@@ -1529,37 +1529,40 @@ sub parseGene2AccessionFile {
     if ($debug) {
         open (DBG16, ">debug16") ||  die "Cannot open debug16 : $!\n";
 
-        print DBG16 "GenBankDNAncbiGeneIds\n";
-        print DBG16 "==================================================\n";
-        foreach my $acc (keys %GenBankDNAncbiGeneIds) {print DBG16 "$acc\t$GenBankDNAncbiGeneIds{$acc}\n";}
+        print DBG16 "\nGenBankDNAncbiGeneIds\n==================================================\n";
+        foreach my $acc (keys %GenBankDNAncbiGeneIds) {print DBG16 "$acc\t" . joinElementsFromMaybeArray($GenBankDNAncbiGeneIds{$acc}) . "\n";}
 
-        print DBG16 "GenPeptNCBIgeneIds\n";
-        print DBG16 "==================================================\n";
-        foreach my $acc (keys %GenPeptNCBIgeneIds) {print DBG16 "$acc\t$GenPeptNCBIgeneIds{$acc}\n";}
+        print DBG16 "\nGenPeptNCBIgeneIds\n==================================================\n";
+        foreach my $acc (keys %GenPeptNCBIgeneIds) {print DBG16 "$acc\t" . joinElementsFromMaybeArray($GenPeptNCBIgeneIds{$acc}) . "\n";}
 
-        print DBG16 "RefPeptNCBIgeneIds\n";
-        print DBG16 "==================================================\n";
-        foreach my $acc (keys %RefPeptNCBIgeneIds) {print DBG16 "$acc\t$RefPeptNCBIgeneIds{$acc}\n";}
+        print DBG16 "\nRefPeptNCBIgeneIds\n==================================================\n";
+        foreach my $acc (keys %RefPeptNCBIgeneIds) {print DBG16 "$acc\t" . joinElementsFromMaybeArray($RefPeptNCBIgeneIds{$acc}) . "\n";}
 
-        print DBG16 "RefSeqDNAncbiGeneIds\n";
-        print DBG16 "==================================================\n";
-        foreach my $acc (keys %RefSeqDNAncbiGeneIds) {print DBG16 "$acc\t$RefSeqDNAncbiGeneIds{$acc}\n";}
+        print DBG16 "\nRefSeqDNAncbiGeneIds\n==================================================\n";
+        foreach my $acc (keys %RefSeqDNAncbiGeneIds) {print DBG16 "$acc\t" . joinElementsFromMaybeArray($RefSeqDNAncbiGeneIds{$acc}) . "\n";}
 
-        print DBG16 "RefSeqRNAncbiGeneIds\n";
-        print DBG16 "==================================================\n";
-        foreach my $acc (keys %RefSeqRNAncbiGeneIds) {print DBG16 "$acc\t$RefSeqRNAncbiGeneIds{$acc}\n";}
+        print DBG16 "\nRefSeqRNAncbiGeneIds\n==================================================\n";
+        foreach my $acc (keys %RefSeqRNAncbiGeneIds) {print DBG16 "$acc\t" . joinElementsFromMaybeArray($RefSeqRNAncbiGeneIds{$acc}) . "\n";}
 
-        print DBG16 "supportedGeneNCBI\n";
-        print DBG16 "==================================================\n";
-        foreach my $acc (keys %supportedGeneNCBI) {print DBG16 "$acc\t$supportedGeneNCBI{$acc}\n";}
+        print DBG16 "\nsupportedGeneNCBI\n==================================================\n";
+        foreach my $acc (keys %supportedGeneNCBI) {print DBG16 "$acc\t" . joinElementsFromMaybeArray($supportedGeneNCBI{$acc}) . "\n";}
 
-        print DBG16 "supportingAccNCBI\n";
-        print DBG16 "==================================================\n";
-        foreach my $acc (keys %supportingAccNCBI) {print DBG16 "$acc\t$supportingAccNCBI{$acc}\n";}
+        print DBG16 "\nsupportingAccNCBI\n==================================================\n";
+        foreach my $acc (keys %supportingAccNCBI) {print DBG16 "$acc\t" . joinElementsFromMaybeArray($supportingAccNCBI{$acc}) . "\n";}
 
         close DBG16;
     }
 
+}
+
+sub joinElementsFromMaybeArray {
+    my $acc = shift;
+
+    if (ref($acc) eq "ARRAY") {
+        return join(";", @$acc);
+    } else {
+        return $acc;
+    }
 }
 
 sub countNCBIGenesWithSupportingGenBankRNA {
