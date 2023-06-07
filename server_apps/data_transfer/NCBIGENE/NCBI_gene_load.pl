@@ -2146,8 +2146,8 @@ sub addReverseMappedGenesFromNCBItoZFINFromSupplementaryLoad {
         $debugBuffer .= "Supplemental mapping: $line\n";
 
         # add to the regular mapping?
-        $mapped{$zdb_id} = $ncbi_id;
-        $mappedReversed{$ncbi_id} = $zdb_id;
+        # $mapped{$zdb_id} = $ncbi_id;
+        # $mappedReversed{$ncbi_id} = $zdb_id;
 
         # add to the supplemental mapping
         $ncbiSupplementMap{$zdb_id} = $ncbi_id;
@@ -2191,7 +2191,9 @@ sub writeNCBIgeneIdsMappedBasedOnSupplementaryLoad {
 
     foreach my $zdbId (sort keys %ncbiSupplementMap) {
         my $mappedNCBIgeneId = $ncbiSupplementMap{$zdbId};
+
         print TOLOAD "$zdbId|$mappedNCBIgeneId|||$fdcontNCBIgeneId|$pubMappedbasedOnNCBISupplement\n";
+
         $ctToLoad++;
     }
 }
@@ -2831,6 +2833,14 @@ sub writeGenBankRNAaccessionsWithMappedGenesToLoad {
                 $geneAccFdbcont{$zdbGeneId . $GenBankRNA . $fdcontGenBankRNA} = 1;
                 $ctToLoad++;
             }
+        } elsif (exists($ncbiSupplementMapReversed{$NCBIgeneId})) {
+            $zdbGeneId = $ncbiSupplementMapReversed{$NCBIgeneId};
+            if (!exists($geneAccFdbcont{$zdbGeneId . $GenBankRNA . $fdcontGenBankRNA})) {
+                my $length = exists($sequenceLength{$GenBankRNA}) ? $sequenceLength{$GenBankRNA} : '';
+                print TOLOAD "$zdbGeneId|$GenBankRNA||$length|$fdcontGenBankRNA|$pubMappedbasedOnNCBISupplement\n";
+                $geneAccFdbcont{$zdbGeneId . $GenBankRNA . $fdcontGenBankRNA} = 1;
+                $ctToLoad++;
+            }
         }
     }
 }
@@ -3135,6 +3145,14 @@ sub writeRefSeqRNAaccessionsWithMappedGenesToLoad {
                 $geneAccFdbcont{$zdbGeneId . $RefSeqRNA . $fdcontRefSeqRNA} = 1;
                 $ctToLoad++;
             }
+        } elsif (exists($ncbiSupplementMapReversed{$NCBIgeneId})) {
+            $zdbGeneId = $ncbiSupplementMapReversed{$NCBIgeneId};
+            if (!exists($geneAccFdbcont{$zdbGeneId . $RefSeqRNA . $fdcontRefSeqRNA})) {
+                my $length = exists($sequenceLength{$RefSeqRNA}) ? $sequenceLength{$RefSeqRNA} : '';
+                print TOLOAD "$zdbGeneId|$RefSeqRNA||$length|$fdcontRefSeqRNA|$pubMappedbasedOnNCBISupplement\n";
+                $geneAccFdbcont{$zdbGeneId . $RefSeqRNA . $fdcontRefSeqRNA} = 1;
+                $ctToLoad++;
+            }
         }
     }
 }
@@ -3189,6 +3207,10 @@ sub writeRefSeqDNAaccessionsWithMappedGenesToLoad {
     #  $ctToLoad
     #  $fdcontRefSeqDNA
     #  %oneToOneViaVega
+    #
+    # Iterate over all the RefSeq DNA accessions that have been mapped to an NCBI gene ID.
+    # Check if the NCBI gene ID has been mapped to a ZFIN gene ID via either %mappedReversed or %oneToOneViaVega.
+    # If so, write the ZFIN gene ID and the RefSeq DNA accession to toLoad.unl with the appropriate pub attribution.
 
     foreach my $RefSeqDNA (sort keys %RefSeqDNAncbiGeneIds) {
         my $NCBIgeneId = $RefSeqDNAncbiGeneIds{$RefSeqDNA};
@@ -3206,6 +3228,14 @@ sub writeRefSeqDNAaccessionsWithMappedGenesToLoad {
             if (!exists($geneAccFdbcont{$zdbGeneId . $RefSeqDNA . $fdcontRefSeqDNA})) {
                 my $length = exists($sequenceLength{$RefSeqDNA}) ? $sequenceLength{$RefSeqDNA} : '';
                 print TOLOAD "$zdbGeneId|$RefSeqDNA||$length|$fdcontRefSeqDNA|$pubMappedbasedOnVega\n";
+                $geneAccFdbcont{$zdbGeneId . $RefSeqDNA . $fdcontRefSeqDNA} = 1;
+                $ctToLoad++;
+            }
+        } elsif (exists($ncbiSupplementMapReversed{$NCBIgeneId})) {
+            $zdbGeneId = $ncbiSupplementMapReversed{$NCBIgeneId};
+            if (!exists($geneAccFdbcont{$zdbGeneId . $RefSeqDNA . $fdcontRefSeqDNA})) {
+                my $length = exists($sequenceLength{$RefSeqDNA}) ? $sequenceLength{$RefSeqDNA} : '';
+                print TOLOAD "$zdbGeneId|$RefSeqDNA||$length|$fdcontRefSeqDNA|$pubMappedbasedOnNCBISupplement\n";
                 $geneAccFdbcont{$zdbGeneId . $RefSeqDNA . $fdcontRefSeqDNA} = 1;
                 $ctToLoad++;
             }
