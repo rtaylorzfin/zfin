@@ -2966,6 +2966,27 @@ sub processGenBankAccessionsAssociatedToNonLoadPubs {
                     $ctToAttribute++;
                 }
             }
+        } elsif (exists($ncbiSupplementMapReversed{$NCBIgeneId})) {
+            $zdbGeneId = $ncbiSupplementMapReversed{$NCBIgeneId};
+            if (!exists($geneAccFdbcont{$zdbGeneId . $GenPept . $fdcontGenPept})) {
+                my $length = exists($sequenceLength{$GenPept}) ? $sequenceLength{$GenPept} : '';
+                print TOLOAD "$zdbGeneId|$GenPept||$length|$fdcontGenPept|$pubMappedbasedOnNCBISupplement\n";
+                $geneAccFdbcont{$zdbGeneId . $GenPept . $fdcontGenPept} = 1;
+                $ctToLoad++;
+                $GenPeptsToLoad{$GenPept} = $zdbGeneId;
+            } else {
+                if (exists($GenPeptAttributedToNonLoadPub{$GenPept}) && exists($GenPeptDbLinkIdAttributedToNonLoadPub{$GenPept})) {
+                    $moreToDelete = $GenPeptDbLinkIdAttributedToNonLoadPub{$GenPept};
+                    print MORETODELETE "$moreToDelete\n";
+                    $toDelete{$moreToDelete} = 1;
+                    my $length = exists($sequenceLength{$GenPept}) ? $sequenceLength{$GenPept} : '';
+                    print TOLOAD "$zdbGeneId|$GenPept||$length|$fdcontGenPept|$pubMappedbasedOnNCBISupplement\n";
+                    $geneAccFdbcont{$zdbGeneId . $GenPept . $fdcontGenPept} = 1;
+                    $ctToLoad++;
+                    print LOG "$GenPept\t$zdbGeneId\t$GenPeptAttributedToNonLoadPub{$GenPept}\t$pubMappedbasedOnNCBISupplement\n";
+                    $ctToAttribute++;
+                }
+            }
         }
     }
 
