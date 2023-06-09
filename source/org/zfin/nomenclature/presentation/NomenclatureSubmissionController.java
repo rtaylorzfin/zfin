@@ -52,6 +52,23 @@ public class NomenclatureSubmissionController {
         return "nomenclature/history-view";
     }
 
+    @RequestMapping(value = "/historyp/{zdbID}")
+    public String getHistoryPrototypeView(@PathVariable("zdbID") String zdbID,
+                                 Model model) {
+        if (zdbID == null) {
+            return LookupStrings.RECORD_NOT_FOUND_PAGE;
+        }
+        Marker marker = RepositoryFactory.getMarkerRepository().getMarkerByID(zdbID);
+        if (marker == null) {
+            model.addAttribute(LookupStrings.ZDB_ID, "No marker with ID " + zdbID + " found");
+        }
+        model.addAttribute("marker", marker);
+        model.addAttribute("markerHistoryReasonCodes", MarkerHistory.Reason.values());
+
+        model.addAttribute(LookupStrings.DYNAMIC_TITLE, "Marker History");
+        return "nomenclature/history-prototype-view";
+    }
+
     @RequestMapping(value = "/view/{zdbID}")
     public String getView(@PathVariable("zdbID") String zdbID,
                           Model model) {

@@ -101,22 +101,6 @@
             <zfin2:nomenclature showReason="true"/>
 
             <script>
-                function openEditNomenclature(nomenID) {
-                    alert("ID: " + nomenID);
-                    $('#nomenclature-modal')
-                            .modal({
-                                escapeClose: true,
-                                clickClose: true,
-                                showClose: true,
-                                fadeDuration: 100
-                            })
-                            .on($.modal.AFTER_CLOSE, function () {
-                                //control.document.nomenID = nomenID;
-                            });
-                }
-            </script>
-
-            <script>
                 function showAll(all) {
                     if (all) {
                         jQuery("tr[id^='all_']").show();
