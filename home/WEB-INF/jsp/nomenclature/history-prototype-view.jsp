@@ -9,18 +9,36 @@
                        editURL="javascript:editNomenclature();"/>
 
     <script>
-            markerID = '${marker.zdbID}';
+        window.markerID = '${marker.zdbID}';
 
-            var reasonList = [];
-            <c:forEach items="${markerHistoryReasonCodes}" var="reason" varStatus="status">
-                reasonList.push('${reason.toString()}');
-            </c:forEach>
+        window.reasonList = [
+        <c:forEach items="${markerHistoryReasonCodes}" var="reason" varStatus="status">
+            '${reason.toString()}',
+        </c:forEach>
+        ];
 
-
-
-            <authz:authorize access="hasRole('root')">
-                window.hasRoot = true;
-            </authz:authorize>
+        window.markerHistory = [
+        <c:forEach var="markerHistory" items="${marker.markerHistory}" varStatus="loop">
+            {
+                eventName: '${markerHistory.event.toString()}',
+                eventDisplay: '${markerHistory.event.display}',
+                zdbID: '${markerHistory.zdbID}',
+                reason: '${markerHistory.reason.toString()}',
+                newValue: '${markerHistory.newValue}',
+                oldSymbol: '${markerHistory.oldSymbol}',
+                date: '<fmt:formatDate value="${markerHistory.date}" pattern="yyyy-MM-dd"/>',
+                comments: '${markerHistory.comments}',
+                <c:if test="${!empty markerHistory.attributions }">
+                    attributionsSize: '${markerHistory.attributions.size()}',
+                    firstPublication: '${markerHistory.attributions.iterator().next().publication.zdbID}',
+                </c:if>
+            },
+        </c:forEach>
+        ];
+            
+        <authz:authorize access="hasRole('root')">
+            window.hasRoot = true;
+        </authz:authorize>
     </script>
 
     <div class="__react-root"
