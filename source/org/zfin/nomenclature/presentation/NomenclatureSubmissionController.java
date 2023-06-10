@@ -1,6 +1,9 @@
 package org.zfin.nomenclature.presentation;
 
+import com.fasterxml.jackson.core.JsonProcessingException;
+import com.fasterxml.jackson.databind.ObjectWriter;
 import org.apache.commons.collections4.CollectionUtils;
+import org.apache.commons.lang3.StringEscapeUtils;
 import org.apache.commons.lang3.StringUtils;
 import org.apache.logging.log4j.LogManager; import org.apache.logging.log4j.Logger;
 import org.hibernate.HibernateException;
@@ -17,17 +20,17 @@ import org.zfin.gwt.root.server.DTOConversionService;
 import org.zfin.infrastructure.PublicationAttribution;
 import org.zfin.marker.Marker;
 import org.zfin.marker.MarkerHistory;
+import org.zfin.marker.MarkerHistoryDTO;
 import org.zfin.nomenclature.*;
 import org.zfin.properties.ZfinPropertiesEnum;
 import org.zfin.publication.Publication;
 import org.zfin.repository.RepositoryFactory;
 
-import java.util.ArrayList;
-import java.util.Arrays;
-import java.util.Collection;
-import java.util.List;
+import java.util.*;
+import java.util.stream.Collectors;
 
 import static org.zfin.repository.RepositoryFactory.*;
+import com.fasterxml.jackson.databind.ObjectMapper;
 
 @Controller
 @RequestMapping("/nomenclature")
@@ -66,6 +69,12 @@ public class NomenclatureSubmissionController {
         model.addAttribute("markerHistoryReasonCodes", MarkerHistory.Reason.values());
 
         model.addAttribute(LookupStrings.DYNAMIC_TITLE, "Marker History");
+
+        //convert to JSON with jackson
+        String markerHistoryJson = convertMarkerHistoryToJson(marker.getMarkerHistory());
+        model.addAttribute("markerHistoryJson", StringEscapeUtils.escapeHtml4(markerHistoryJson));
+        model.addAttribute("markerHistoryJsonRaw", markerHistoryJson);
+
         return "nomenclature/history-prototype-view";
     }
 
@@ -291,5 +300,16 @@ public class NomenclatureSubmissionController {
         return "ZFIN Confirmation for " + submission.getSubjectLine();
     }
 
-
+    private String convertMarkerHistoryToJson(Set<MarkerHistory> markerHistories) {
+        ObjectMapper objectMapper = new ObjectMapper();
+        ObjectWriter writer = objectMapper.writer();
+//        ObjectWriter writer = objectMapper.writer(new DefaultPrettyPrinter());
+        Set<MarkerHistoryDTO> jsonList = markerHistories.stream().map(MarkerHistoryDTO::fromMarkerHistory).collect(Collectors.toSet());
+        try {
+            return writer.writeValueAsString(jsonList);
+        } catch (JsonProcessingException e) {
+            LOG.error("Error converting marker history to json", e);
+            return null;
+        }
+    }
 }
