@@ -65,9 +65,11 @@ public class NomenclatureSubmissionController {
         if (marker == null) {
             model.addAttribute(LookupStrings.ZDB_ID, "No marker with ID " + zdbID + " found");
         }
-        model.addAttribute("marker", marker);
-        model.addAttribute("markerHistoryReasonCodes", MarkerHistory.Reason.values());
+        model.addAttribute("markerZdbID", marker.getZdbID());
 
+        List<String> markerHistoryReasonCodes = Arrays.stream(MarkerHistory.Reason.values()).map(MarkerHistory.Reason::toString).toList();
+        String markerHistoryReasonCodesJson = "[\"" + String.join("\",\"", markerHistoryReasonCodes) + "\"]";
+        model.addAttribute("markerHistoryReasonCodesJson", StringEscapeUtils.escapeHtml4(markerHistoryReasonCodesJson));
         model.addAttribute(LookupStrings.DYNAMIC_TITLE, "Marker History");
 
         //convert to JSON with jackson

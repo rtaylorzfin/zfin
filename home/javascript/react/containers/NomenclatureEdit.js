@@ -2,14 +2,14 @@ import React, {useState} from 'react';
 import PropTypes from 'prop-types';
 
 
-const NomenclatureEdit = ({markerId, markerHistoryJson, markerReasons, hasRoot}) => {
-
+const NomenclatureEdit = ({markerId, markerHistoryJson, markerReasonsJson, hasRoot}) => {
+    console.log('markerReasonsJson', markerReasonsJson);
     const [showAllEvents, setShowAllEvents] = useState(false);
-
-    console.log('markerHistory', markerHistoryJson);
-
     const [markerHistory, setMarkerHistory] = useState(JSON.parse(markerHistoryJson));
+    const [markerReasons, setMarkerReasons] = useState(JSON.parse(markerReasonsJson));
+
     console.log('markerHistory', markerHistory);
+    console.log('markerReasons', markerReasons);
 
     function toggleShowAllEvents(event) {
         event.preventDefault();
@@ -20,7 +20,7 @@ const NomenclatureEdit = ({markerId, markerHistoryJson, markerReasons, hasRoot})
 
         <table className="data_manager">
             <tbody>
-            <tr><td><b>ZFIN ID:</b> ZDB-TODO</td>
+            <tr><td><b>ZFIN ID:</b> {markerId}</td>
                 <td><a href="#javascript:editNomenclature();" className="root">Edit</a></td>
                 <td><a href="/action/updates/ZDB-GENE-990415-8">Last Update:</a></td>
             </tr>
@@ -82,7 +82,7 @@ const NomenclatureEdit = ({markerId, markerHistoryJson, markerReasons, hasRoot})
 NomenclatureEdit.propTypes = {
     markerId: PropTypes.string,
     markerHistoryJson: PropTypes.string,
-    markerReasons: PropTypes.array,
+    markerReasonsJson: PropTypes.string,
     hasRoot: PropTypes.string,
 }
 
