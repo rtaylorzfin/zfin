@@ -1,5 +1,6 @@
 import React, {useState} from 'react';
 import PropTypes from 'prop-types';
+import EditNomenclatureModal from "../components/EditNomenclatureModal";
 
 
 const NomenclatureEdit = ({markerId, markerHistoryJson, markerReasonsJson, hasRoot}) => {
@@ -7,13 +8,32 @@ const NomenclatureEdit = ({markerId, markerHistoryJson, markerReasonsJson, hasRo
     const [showAllEvents, setShowAllEvents] = useState(false);
     const [markerHistory, setMarkerHistory] = useState(JSON.parse(markerHistoryJson));
     const [markerReasons, setMarkerReasons] = useState(JSON.parse(markerReasonsJson));
+    const [rootAccess, setRootAccess] = useState(!!hasRoot);
+    const [enableEditing, setEnableEditing] = useState(false);
+    const [showModal, setShowModal] = useState(false);
+
+    if (markerHistory === null) {
+        setMarkerHistory([]);
+    }
 
     console.log('markerHistory', markerHistory);
     console.log('markerReasons', markerReasons);
+    console.log('hasRoot', hasRoot);
+    console.log('rootAccess', rootAccess);
 
     function toggleShowAllEvents(event) {
         event.preventDefault();
         setShowAllEvents(!showAllEvents);
+    }
+
+    function handleEnableEditingClick(event) {
+        event.preventDefault();
+        setEnableEditing(!enableEditing);
+    }
+
+    function handleEditClicked(event) {
+        event.preventDefault();
+        setShowModal(true);
     }
 
     return <>
@@ -21,24 +41,24 @@ const NomenclatureEdit = ({markerId, markerHistoryJson, markerReasonsJson, hasRo
         <table className="data_manager">
             <tbody>
             <tr><td><b>ZFIN ID:</b> {markerId}</td>
-                <td><a href="#javascript:editNomenclature();" className="root">Edit</a></td>
-                <td><a href="/action/updates/ZDB-GENE-990415-8">Last Update:</a></td>
+                {rootAccess && <td><a href="#" onClick={handleEnableEditingClick} className="root">Edit</a></td>}
+                <td><a href={'/action/updates/' + markerId}>Last Update: { markerHistory.length > 0 ? markerHistory[markerHistory.length - 1].date : '' }</a></td>
             </tr>
             </tbody>
         </table>
 
         <div className="summaryTitle">Nomenclature History</div>
 
-        {hasRoot &&
-            showAllEvents ?
+        {rootAccess &&
+            (showAllEvents ?
                 <span id="showReducedEventsToggle"><a href="#" onClick={toggleShowAllEvents}>Hide Naming Events</a></span> :
-                <span id="showAllEventsToggle"><a href="#" onClick={toggleShowAllEvents}>Show All Events</a></span>
+                <span id="showAllEventsToggle"><a href="#" onClick={toggleShowAllEvents}>Show All Events</a></span>)
         }
 
         <table className="summary sortable">
             <thead>
                 <tr>
-                    <th id="edit_" style={{display: 'none'}}>Edit</th>
+                    {enableEditing && <th>Edit</th>}
                     <th>New Value</th>
                     <th>Event</th>
                     <th>Old Value</th>
@@ -51,9 +71,10 @@ const NomenclatureEdit = ({markerId, markerHistoryJson, markerReasonsJson, hasRo
 
             {markerHistory.filter(h => showAllEvents || h.eventName !== 'renamed').map((history, index) => (
                 <tr key={history.zdbID} id={'all_' + index}>
-                    <td id={'edit_' + index} style={{display: 'none'}}>
-                        <span onClick={() => alert('TODO: open editor')}><a href='#'>Edit</a></span>
-                    </td>
+                    {enableEditing &&
+                    <td>
+                        <span><a onClick={handleEditClicked} href='#'>Edit</a></span>
+                    </td>}
                     <td><span className="genedom">{history.newValue}</span></td>
                     <td>{history.eventDisplay}</td>
                     <td>
@@ -76,6 +97,7 @@ const NomenclatureEdit = ({markerId, markerHistoryJson, markerReasonsJson, hasRo
 
             </tbody>
         </table>
+        <EditNomenclatureModal show={showModal} onHide={() => {}} />
     </>;
 };
 
