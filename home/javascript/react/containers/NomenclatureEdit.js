@@ -11,6 +11,7 @@ const NomenclatureEdit = ({markerId, markerHistoryJson, markerReasonsJson, hasRo
     const [rootAccess, setRootAccess] = useState(!!hasRoot);
     const [enableEditing, setEnableEditing] = useState(false);
     const [showModal, setShowModal] = useState(false);
+    const [nomenclatureToEdit, setNomenclatureToEdit] = useState(null);
 
     if (markerHistory === null) {
         setMarkerHistory([]);
@@ -31,9 +32,10 @@ const NomenclatureEdit = ({markerId, markerHistoryJson, markerReasonsJson, hasRo
         setEnableEditing(!enableEditing);
     }
 
-    function handleEditClicked(event) {
+    function handleEditClicked(event, history) {
         event.preventDefault();
         setShowModal(true);
+        setNomenclatureToEdit(history);
     }
 
     return <>
@@ -73,7 +75,7 @@ const NomenclatureEdit = ({markerId, markerHistoryJson, markerReasonsJson, hasRo
                 <tr key={history.zdbID} id={'all_' + index}>
                     {enableEditing &&
                     <td>
-                        <span><a onClick={handleEditClicked} href='#'>Edit</a></span>
+                        <span><a onClick={(e) => {handleEditClicked(e, history)}} href='#'>Edit</a></span>
                     </td>}
                     <td><span className="genedom">{history.newValue}</span></td>
                     <td>{history.eventDisplay}</td>
@@ -97,7 +99,7 @@ const NomenclatureEdit = ({markerId, markerHistoryJson, markerReasonsJson, hasRo
 
             </tbody>
         </table>
-        <EditNomenclatureModal show={showModal} onHide={() => {}} />
+        <EditNomenclatureModal show={showModal} nomenclature={nomenclatureToEdit} onHide={() => {}} />
     </>;
 };
 

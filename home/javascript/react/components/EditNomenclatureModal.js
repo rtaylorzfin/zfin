@@ -1,7 +1,7 @@
 import React, {useState, useEffect} from 'react';
 import PropTypes from 'prop-types';
 import Modal from './Modal';
-const EditNomenclatureModal = ({markerId, show, onEdit, onClose}) => {
+const EditNomenclatureModal = ({nomenclature, show, onEdit, onClose}) => {
 
     const [showEditNomenclatureModal, setShowEditNomenclatureModal] = useState(show);
     const [validationErrors, setValidationErrors] = useState({});
@@ -82,7 +82,7 @@ const EditNomenclatureModal = ({markerId, show, onEdit, onClose}) => {
 }
 
 EditNomenclatureModal.propTypes = {
-    markerId: PropTypes.string,
+    nomenclature: PropTypes.object,
     show: PropTypes.object,
     onEdit: PropTypes.func,
     onClose: PropTypes.func,
