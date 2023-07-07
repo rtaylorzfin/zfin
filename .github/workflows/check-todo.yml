@@ -1,0 +1,23 @@
+name: TODO Check on Pull Request
+
+on:
+  pull_request:
+    branches:
+      - actions
+
+jobs:
+  changed-files:
+    runs-on: ubuntu-latest
+    steps:
+    - name: Checkout Repository
+      uses: actions/checkout@v2
+      with:
+        fetch-depth: 0 # this is required to get the full git history
+
+    - name: Get All TODO Lines
+      id: todo
+      run: |
+        echo "::set-output name=all::$(git diff -G'^TODO' ${{ github.event.pull_request.base.sha }}..${{ github.event.pull_request.head.sha }})"
+        
+    - name: Output All TODO Lines
+      run: echo "Lines containing TODO: ${{ steps.todo.outputs.all }}"
