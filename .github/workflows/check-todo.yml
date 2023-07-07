@@ -20,4 +20,5 @@ jobs:
         echo "::set-output name=all::$(git diff -G'^TODO' ${{ github.event.pull_request.base.sha }}..${{ github.event.pull_request.head.sha }})"
         
     - name: Output All TODO Lines
-      run: echo "Lines containing TODO: ${{ steps.todo.outputs.all }}"
+      run: |
+        echo "Lines containing TODO: ${{ steps.todo.outputs.all }}"
