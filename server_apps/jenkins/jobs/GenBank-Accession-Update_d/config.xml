@@ -25,7 +25,7 @@ original flat file are moved to /research/zblastfiles/files/daily for weekly BLA
   </builders>
   <publishers>
     <hudson.tasks.ArtifactArchiver>
-      <artifacts>server_apps/data_transfer/Genbank/acc_update.report</artifacts>
+      <artifacts>server_apps/data_transfer/Genbank/acc_update.report,server_apps/data_transfer/Genbank/relevant_organisms.gz,server_apps/data_transfer/Genbank/*.unl</artifacts>
       <latestOnly>false</latestOnly>
       <allowEmptyArchive>true</allowEmptyArchive>
     </hudson.tasks.ArtifactArchiver>
@@ -71,3 +71,4 @@ original flat file are moved to /research/zblastfiles/files/daily for weekly BLA
     </hudson.plugins.build__timeout.BuildTimeoutWrapper>
   </buildWrappers>
 </project>
+

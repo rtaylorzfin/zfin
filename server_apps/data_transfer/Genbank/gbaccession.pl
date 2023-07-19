@@ -65,6 +65,15 @@ if (!(-e "$newfile")) {
     die "failed to download genbank file" ;
 }
 
+
+#check if file contains zebrafish, mouse, human records
+system ("perl checkOrganismsInGzip.pl $newfile") && die("checkOrganismsInGzip.pl failed to find relevant organism.");
+
+#copy the file to relevant_organisms.gz for archiving
+system("/bin/cp $newfile relevant_organisms.gz");
+
+
+
 #decompress files
 $count = 0;
 #wait until the files are decompressed
@@ -72,7 +81,7 @@ while( !(-e "$unzipfile") ) {
     $count++;
     if ($count < 10){
         print "Extracting $newfile to $unzipfile \n";
-        system("/local/bin/gunzip -c $newfile > $unzipfile") && die("gunzip failed");
+        system("gunzip -c $newfile > $unzipfile") ;
     }
 }
 
@@ -86,7 +95,7 @@ print "File extracted to: $unzipfile\n";
 # also parse out flat file into several fasta files for blast db update
 
 print "Running parseDaily.pl on $unzipfile \n";
-system ("parseDaily.pl $unzipfile")  &&  &writeReport("parseDaily.pl failed.");
+system ("perl parseDaily.pl $unzipfile")  &&  &writeReport("parseDaily.pl failed.");
 
 
 # only move the FASTA files and flat files to development_machine if that script
@@ -112,7 +121,7 @@ if (! system ("/bin/mv $accfile nc_zf_acc.unl")) {
 
     # load the updates into accesson_bank and db_link
     try {
-        ZFINPerlModules->doSystemCommand("$ENV{'PGBINDIR'}/psql --echo-all -v ON_ERROR_STOP=1 $ENV{'DB_NAME'} < GenBank-Accession-Update_d.sql >> $report 2>&1");
+        ZFINPerlModules->doSystemCommand("psql --echo-all -v ON_ERROR_STOP=1 $ENV{'DB_NAME'} < GenBank-Accession-Update_d.sql >> $report 2>&1");
 
     } catch {
         warn "Failed at GenBank-Accession-Update_d.sql - $_";
@@ -159,5 +168,4 @@ sub sendReport() {
     close (REPORT);
     close (MAIL);
   }
-
 
