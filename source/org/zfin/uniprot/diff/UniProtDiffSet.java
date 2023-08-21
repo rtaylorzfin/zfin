@@ -1,10 +1,8 @@
 package org.zfin.uniprot.diff;
 
-import com.fasterxml.jackson.databind.annotation.JsonSerialize;
 import lombok.Getter;
 import lombok.Setter;
 import org.biojavax.bio.seq.RichSequence;
-import org.zfin.uniprot.serialize.UniProtDiffSetSerializer;
 
 import java.util.*;
 
@@ -12,7 +10,6 @@ import static org.zfin.uniprot.UniProtTools.getDateUpdatedFromNotes;
 
 @Getter
 @Setter
-@JsonSerialize(using = UniProtDiffSetSerializer.class)
 public class UniProtDiffSet {
 
     private List<RichSequence> addedSequences = new ArrayList<>();
