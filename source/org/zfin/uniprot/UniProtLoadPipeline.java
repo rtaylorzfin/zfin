@@ -3,6 +3,7 @@ package org.zfin.uniprot;
 import lombok.Getter;
 import lombok.Setter;
 import org.biojavax.bio.seq.RichSequence;
+import org.zfin.uniprot.handlers.UniProtLoadHandler;
 
 import java.util.ArrayList;
 import java.util.List;

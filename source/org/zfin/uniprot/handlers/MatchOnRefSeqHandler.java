@@ -1,51 +1,33 @@
-package org.zfin.uniprot;
+package org.zfin.uniprot.handlers;
 
-import org.apache.commons.collections4.MultiValuedMap;
-import org.apache.commons.collections4.multimap.ArrayListValuedHashMap;
 import org.biojavax.bio.seq.RichSequence;
+import org.zfin.uniprot.UniProtLoadAction;
+import org.zfin.uniprot.UniProtLoadContext;
 import org.zfin.uniprot.dto.UniProtContextSequenceDTO;
 
 import java.util.*;
+import java.util.stream.Collectors;
 
 public class MatchOnRefSeqHandler implements UniProtLoadHandler {
     @Override
     public void handle(Map<String, RichSequence> uniProtRecords, List<UniProtLoadAction> actions, UniProtLoadContext context) {
 
-        Set<String> accessionsInUniprotLoadFile = uniProtRecords.keySet();
-
-        Set<String> uniprotAccessionsInDB = context.getUniprotDbLinks().keySet();
-        System.out.println("uniprotAccessionsInDB: " + uniprotAccessionsInDB.size());
-
-        Set<String> refseqAccessionsInDb = context.getRefseqDbLinks().keySet();
-        System.out.println("refseqAccessionsInDb: " + refseqAccessionsInDb.size());
-
-        Set<String> accessionsInDBButNotInLoadFile = new HashSet<>(uniprotAccessionsInDB);
-        accessionsInDBButNotInLoadFile.removeAll(accessionsInUniprotLoadFile);
-
-        Set<String> accessionsInLoadFileButNotInDB = new HashSet<>(accessionsInUniprotLoadFile);
-        accessionsInLoadFileButNotInDB.removeAll(uniprotAccessionsInDB);
-
-        System.out.println("accessionsInDBButNotInLoadFile: " + accessionsInDBButNotInLoadFile.size());
-        System.out.println("accessionsInLoadFileButNotInDB: " + accessionsInLoadFileButNotInDB.size());
+        Map<String, List<UniProtContextSequenceDTO>> refseqsInDb = context.getRefseqDbLinks();
 
         MatchOnRefSeqResults matchResults = new MatchOnRefSeqResults();
 
         //build up all the cases where we can match on RefSeq
         //build up data structure that links accession to gene(s) with list of matched refseqs
         //something like {"A0A0R4IKB2":[{"ZDB-GENE-030131-5416":["XP_005170963", "XP_005170964"]}, {"ZDB-GENE-030131-5417":["XP..."]}, ...]}
-        for (String accession : accessionsInLoadFileButNotInDB) {
+        for (String accession : uniProtRecords.keySet()) {
 
             //all refseqs in the load file for this accession
             List<String> refseqs = getRefSeqsFromRichSequence(uniProtRecords.get(accession));
 
-            //find matches to populate inner map
             List<UniProtContextSequenceDTO> matchedAccessions = new ArrayList<>();
             for(String refseq : refseqs) {
-                if (refseqAccessionsInDb.contains(refseq)) {
-                    List<UniProtContextSequenceDTO> refseqDBLinks = context.getRefseqDbLinks().get(refseq).stream().toList();
-
-                    //add to the inner map
-                    for(UniProtContextSequenceDTO dto : refseqDBLinks) {
+                if (refseqsInDb.containsKey(refseq)) {
+                    for(UniProtContextSequenceDTO dto : refseqsInDb.get(refseq)) {
                         matchResults.put(accession, dto);
                     }
                 }
@@ -53,21 +35,48 @@ public class MatchOnRefSeqHandler implements UniProtLoadHandler {
         }
 
         //now we have a map of all the cases where we can match on RefSeq
+        //let's flag the cases where we have multiple genes for a single accession
+        StringBuilder errorCases = new StringBuilder();
+        StringBuilder okayCases = new StringBuilder();
         for( Map.Entry<String, MatchOnRefSeqResult> item: matchResults.results.entrySet() ) {
             String uniprotAccession = item.getKey();
             MatchOnRefSeqResult result = item.getValue();
 
-            System.out.println("uniprotAccession: " + uniprotAccession);
-            for( Map.Entry<String, MatchOnRefSeqResultSubItem> subItem: result.subItems.entrySet() ) {
-                String geneZdbID = subItem.getKey();
-                MatchOnRefSeqResultSubItem subResult = subItem.getValue();
-                System.out.println("\tgeneZdbID: " + geneZdbID + " (" + subResult.refseqs.get(0).getMarkerAbbreviation() + ")");
-                for(UniProtContextSequenceDTO refseq : subResult.refseqs) {
-                    System.out.println("\t\trefseq: " + refseq.getAccession());
-                }
+            if (result.hasMultipleGeneMatches()) {
+                System.out.println("uniprotAccession: " + uniprotAccession + " has multiple gene matches");
+                UniProtLoadAction action = new UniProtLoadAction();
+                action.setAccession(uniprotAccession);
+                action.setDetails("has multiple gene matches: " + result.getGeneZdbIDs());
+                action.setType(UniProtLoadAction.Type.ERROR);
+                actions.add(action);
+                errorCases.append(accessionWithMatchingGeneAndRefSeqToString(uniprotAccession, result)).append("\n");
+            } else {
+                //add the gene to the uniprot record
+                UniProtLoadAction action = new UniProtLoadAction();
+                action.setAccession(uniprotAccession);
+                action.setDetails("has single gene match: " + result.getGeneZdbIDs());
+                action.setType(UniProtLoadAction.Type.LOAD);
+                actions.add(action);
+                okayCases.append(accessionWithMatchingGeneAndRefSeqToString(uniprotAccession, result)).append("\n");
             }
         }
+        System.out.println("ERROR CASES:\nMultiple Genes per RefSeq:\n" + errorCases.toString());
+        System.out.println("OKAY CASES:\nSingle Gene per RefSeq:\n" + okayCases.toString());
 
+    }
+
+    private static String accessionWithMatchingGeneAndRefSeqToString(String uniprotAccession, MatchOnRefSeqResult result) {
+        StringBuilder sb = new StringBuilder();
+        sb.append("uniprotAccession: " + uniprotAccession + "\n");
+        for( Map.Entry<String, MatchOnRefSeqResultSubItem> subItem: result.subItems.entrySet() ) {
+            String geneZdbID = subItem.getKey();
+            MatchOnRefSeqResultSubItem subResult = subItem.getValue();
+            sb.append("\tgeneZdbID: " + geneZdbID + " (" + subResult.refseqs.get(0).getMarkerAbbreviation() + ")\n");
+            for(UniProtContextSequenceDTO refseq : subResult.refseqs) {
+                sb.append("\t\trefseq: " + refseq.getAccession() + "\n");
+            }
+        }
+        return sb.toString();
     }
 
     private static List<String> getRefSeqsFromRichSequence(RichSequence richSequence) {
@@ -78,6 +87,9 @@ public class MatchOnRefSeqHandler implements UniProtLoadHandler {
         return refseqs;
     }
 
+    /**
+     * These 3 classes are used to build up a data structure that links accession to gene(s) with list of matched refseqs
+     */
     private class MatchOnRefSeqResults {
         public Map<String, MatchOnRefSeqResult> results = new HashMap<>();
         public void put(String uniprotAccession, UniProtContextSequenceDTO refseq) {
@@ -106,6 +118,14 @@ public class MatchOnRefSeqHandler implements UniProtLoadHandler {
             }
             subItem.add(refseq);
             subItems.put(refseq.getDataZdbID(), subItem);
+        }
+
+        public boolean hasMultipleGeneMatches() {
+            return subItems.size() > 1;
+        }
+
+        public String getGeneZdbIDs() {
+            return subItems.keySet().stream().collect(Collectors.joining(", "));
         }
     }
 
