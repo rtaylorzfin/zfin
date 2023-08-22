@@ -64,6 +64,19 @@ public class UniProtLoadTask extends AbstractScriptWrapper {
         List<UniProtLoadAction> actions = pipeline.execute();
 
         //do something with the actions
+        writeActions(actions);
+
+    }
+
+    private void writeActions(List<UniProtLoadAction> actions) {
+        String tempFileName = "/tmp/uniprot_load_report_" + System.currentTimeMillis() + ".json";
+        System.out.println("report tempfile: " + tempFileName);
+        ObjectMapper mapper = new ObjectMapper();
+        try {
+            mapper.writeValue(new File(tempFileName), actions);
+        } catch (IOException e) {
+            e.printStackTrace();
+        }
     }
 
     private void calculateContext() {

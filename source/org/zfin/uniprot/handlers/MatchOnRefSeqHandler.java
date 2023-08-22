@@ -24,7 +24,6 @@ public class MatchOnRefSeqHandler implements UniProtLoadHandler {
             //all refseqs in the load file for this accession
             List<String> refseqs = getRefSeqsFromRichSequence(uniProtRecords.get(accession));
 
-            List<UniProtContextSequenceDTO> matchedAccessions = new ArrayList<>();
             for(String refseq : refseqs) {
                 if (refseqsInDb.containsKey(refseq)) {
                     for(UniProtContextSequenceDTO dto : refseqsInDb.get(refseq)) {
@@ -41,23 +40,26 @@ public class MatchOnRefSeqHandler implements UniProtLoadHandler {
         for( Map.Entry<String, MatchOnRefSeqResult> item: matchResults.results.entrySet() ) {
             String uniprotAccession = item.getKey();
             MatchOnRefSeqResult result = item.getValue();
+            String details = accessionWithMatchingGeneAndRefSeqToString(uniprotAccession, result);
 
             if (result.hasMultipleGeneMatches()) {
                 System.out.println("uniprotAccession: " + uniprotAccession + " has multiple gene matches");
                 UniProtLoadAction action = new UniProtLoadAction();
                 action.setAccession(uniprotAccession);
-                action.setDetails("has multiple gene matches: " + result.getGeneZdbIDs());
+                action.setTitle("Multiple Genes per RefSeq");
+                action.setDetails(details);
                 action.setType(UniProtLoadAction.Type.ERROR);
                 actions.add(action);
-                errorCases.append(accessionWithMatchingGeneAndRefSeqToString(uniprotAccession, result)).append("\n");
+                errorCases.append(details).append("\n");
             } else {
                 //add the gene to the uniprot record
                 UniProtLoadAction action = new UniProtLoadAction();
                 action.setAccession(uniprotAccession);
-                action.setDetails("has single gene match: " + result.getGeneZdbIDs());
+                action.setTitle("Single Gene per RefSeq");
+                action.setDetails(details);
                 action.setType(UniProtLoadAction.Type.LOAD);
                 actions.add(action);
-                okayCases.append(accessionWithMatchingGeneAndRefSeqToString(uniprotAccession, result)).append("\n");
+                okayCases.append(details).append("\n");
             }
         }
         System.out.println("ERROR CASES:\nMultiple Genes per RefSeq:\n" + errorCases.toString());

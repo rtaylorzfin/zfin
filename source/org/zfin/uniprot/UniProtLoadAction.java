@@ -7,15 +7,10 @@ import org.biojavax.bio.seq.RichSequence;
 @Getter
 @Setter
 public class UniProtLoadAction {
+    private String title;
     private String accession;
     private String details;
     private Type type;
-
-    public UniProtLoadAction(String accession, String details, Type type) {
-        this.accession = accession;
-        this.details = details;
-        this.type = type;
-    }
 
     public UniProtLoadAction() {
     }
