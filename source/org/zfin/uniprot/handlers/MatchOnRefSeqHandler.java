@@ -1,5 +1,6 @@
 package org.zfin.uniprot.handlers;
 
+import org.biojavax.RankedCrossRef;
 import org.biojavax.bio.seq.RichSequence;
 import org.zfin.uniprot.UniProtLoadAction;
 import org.zfin.uniprot.UniProtLoadContext;
@@ -101,8 +102,8 @@ public class MatchOnRefSeqHandler implements UniProtLoadHandler {
 
     private static List<String> getRefSeqsFromRichSequence(RichSequence richSequence) {
         List<String> refseqs = richSequence.getRankedCrossRefs().stream()
-                .filter(rc -> rc.getCrossRef().getDbname().equals("RefSeq"))
-                .map(rc -> rc.getCrossRef().getAccession())
+                .filter(rc -> ((RankedCrossRef)rc).getCrossRef().getDbname().equals("RefSeq"))
+                .map(rc -> ((RankedCrossRef)rc).getCrossRef().getAccession())
                 .toList();
         return refseqs;
     }
