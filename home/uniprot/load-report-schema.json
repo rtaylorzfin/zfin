@@ -17,6 +17,27 @@
             "type": {
                 "type": "string",
                 "enum": ["LOAD", "ERROR"]
+            },
+            "links": {
+                "type": "array",
+                "items": {
+                    "type": "object",
+                    "properties": {
+                        "title": {
+                            "type": "string",
+                            "description": "The title of the link."
+                        },
+                        "href": {
+                            "type": "string",
+                            "description": "The URL for the link.",
+                            "format": "uri"
+                        }
+                    },
+                    "required": [
+                        "title",
+                        "href"
+                    ]
+                }
             }
         }
     }

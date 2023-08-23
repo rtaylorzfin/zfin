@@ -4,6 +4,9 @@ import lombok.Getter;
 import lombok.Setter;
 import org.biojavax.bio.seq.RichSequence;
 
+import java.util.ArrayList;
+import java.util.List;
+
 @Getter
 @Setter
 public class UniProtLoadAction {
@@ -12,11 +15,9 @@ public class UniProtLoadAction {
     private String details;
     private Type type;
 
-    public UniProtLoadAction() {
-    }
+    private List<UniProtLoadLink> links = new ArrayList<>();
 
-    public static UniProtLoadAction determineAction(RichSequence entry) {
-        return null;
+    public UniProtLoadAction() {
     }
 
     public enum Type {LOAD, INFO, ERROR}

@@ -2,6 +2,7 @@ package org.zfin.uniprot;
 
 import com.fasterxml.jackson.databind.ObjectMapper;
 import lombok.extern.log4j.Log4j2;
+import org.apache.commons.io.FileUtils;
 import org.biojava.bio.BioException;
 import org.biojavax.bio.seq.RichSequence;
 import org.zfin.ontology.datatransfer.AbstractScriptWrapper;
@@ -9,9 +10,11 @@ import org.zfin.ontology.datatransfer.AbstractScriptWrapper;
 import java.io.BufferedReader;
 import java.io.File;
 import java.io.IOException;
+import java.nio.file.Files;
 import java.sql.SQLException;
 import java.util.*;
 
+import org.zfin.properties.ZfinPropertiesEnum;
 import org.zfin.uniprot.handlers.IgnoreAccessionsAlreadyInDatabaseHandler;
 import org.zfin.uniprot.handlers.IgnoreSpecificAccessionsHandler;
 import org.zfin.uniprot.handlers.MatchOnRefSeqHandler;
@@ -65,19 +68,44 @@ public class UniProtLoadTask extends AbstractScriptWrapper {
 
         //do something with the actions
         writeActions(actions);
-
+        writeOutputReportFile(actions);
     }
 
     private void writeActions(List<UniProtLoadAction> actions) {
         String tempFileName = "/tmp/uniprot_load_report_" + System.currentTimeMillis() + ".json";
         System.out.println("report tempfile: " + tempFileName);
+        try {
+            FileUtils.writeStringToFile(new File(tempFileName), actionsToJson(actions));
+        } catch (IOException e) {
+            log.error("Error writing report file: " + tempFileName, e);
+        }
+    }
+
+    private String actionsToJson(List<UniProtLoadAction> actions) {
         ObjectMapper mapper = new ObjectMapper();
         try {
-            mapper.writeValue(new File(tempFileName), actions);
+            return mapper.writeValueAsString(actions);
         } catch (IOException e) {
             e.printStackTrace();
         }
+        return null;
     }
+
+    private void writeOutputReportFile(List<UniProtLoadAction> actions) {
+        String reportfile = "/tmp/uniprot_load_" + System.currentTimeMillis() + ".report.html";
+
+        System.out.println("Creating report file: " + reportfile);
+        try {
+            String jsonContents = actionsToJson(actions);
+            String template = ZfinPropertiesEnum.SOURCEROOT.value() + "/home/uniprot/load-report.html";
+            String templateContents = FileUtils.readFileToString(new File(template));
+            String filledTemplate = templateContents.replace("JSON_GOES_HERE", jsonContents);
+            FileUtils.writeStringToFile(new File(reportfile), filledTemplate);
+        } catch (IOException e) {
+            System.err.println("Error creating report (" + reportfile + ") from template\n" + e.getMessage());
+        }
+    }
+
 
     private void calculateContext() {
         context = UniProtLoadContext.createFromDBConnection();

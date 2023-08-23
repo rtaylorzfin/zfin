@@ -203,7 +203,6 @@ public class UniProtCompareTask extends AbstractScriptWrapper {
         } catch (IOException e) {
             System.err.println("Error creating report (" + reportfile + ") from template (" + outputFilename + ")\n" + e.getMessage());
         }
-
     }
 
 }

@@ -3,6 +3,7 @@ package org.zfin.uniprot.handlers;
 import org.biojavax.bio.seq.RichSequence;
 import org.zfin.uniprot.UniProtLoadAction;
 import org.zfin.uniprot.UniProtLoadContext;
+import org.zfin.uniprot.UniProtLoadLink;
 import org.zfin.uniprot.dto.UniProtContextSequenceDTO;
 
 import java.util.*;
@@ -46,18 +47,20 @@ public class MatchOnRefSeqHandler implements UniProtLoadHandler {
                 System.out.println("uniprotAccession: " + uniprotAccession + " has multiple gene matches");
                 UniProtLoadAction action = new UniProtLoadAction();
                 action.setAccession(uniprotAccession);
-                action.setTitle("Multiple Genes per RefSeq");
+                action.setTitle("Multiple Genes per Accession");
                 action.setDetails(details);
                 action.setType(UniProtLoadAction.Type.ERROR);
+                setActionLinks(action, result);
                 actions.add(action);
                 errorCases.append(details).append("\n");
             } else {
                 //add the gene to the uniprot record
                 UniProtLoadAction action = new UniProtLoadAction();
                 action.setAccession(uniprotAccession);
-                action.setTitle("Single Gene per RefSeq");
+                action.setTitle("Matched via RefSeq: Single Gene per Accession");
                 action.setDetails(details);
                 action.setType(UniProtLoadAction.Type.LOAD);
+                setActionLinks(action, result);
                 actions.add(action);
                 okayCases.append(details).append("\n");
             }
@@ -67,16 +70,31 @@ public class MatchOnRefSeqHandler implements UniProtLoadHandler {
 
     }
 
+    private void setActionLinks(UniProtLoadAction action, MatchOnRefSeqResult result) {
+        List<UniProtLoadLink> links = new ArrayList<>();
+        links.add(new UniProtLoadLink("UniProtKB: " + result.uniprotAccession, "https://www.uniprot.org/uniprot/" + result.uniprotAccession));
+
+        for (String refseq: result.refSeqAccessions()) {
+            links.add(new UniProtLoadLink("RefSeq: " + refseq, "https://www.ncbi.nlm.nih.gov/protein/" + refseq));
+        }
+
+        for (String geneZdbID: result.getGeneZdbIDs()) {
+            links.add(new UniProtLoadLink("ZFIN: " + geneZdbID, "https://zfin.org/" + geneZdbID));
+        }
+        action.setLinks(links);
+    }
+
     private static String accessionWithMatchingGeneAndRefSeqToString(String uniprotAccession, MatchOnRefSeqResult result) {
         StringBuilder sb = new StringBuilder();
-        sb.append("uniprotAccession: " + uniprotAccession + "\n");
+        sb.append("UniProt Accession: " + uniprotAccession + "\n");
+        sb.append("==========================\n");
         for( Map.Entry<String, MatchOnRefSeqResultSubItem> subItem: result.subItems.entrySet() ) {
             String geneZdbID = subItem.getKey();
             MatchOnRefSeqResultSubItem subResult = subItem.getValue();
-            sb.append("\tgeneZdbID: " + geneZdbID + " (" + subResult.refseqs.get(0).getMarkerAbbreviation() + ")\n");
-            for(UniProtContextSequenceDTO refseq : subResult.refseqs) {
-                sb.append("\t\trefseq: " + refseq.getAccession() + "\n");
-            }
+            sb.append("Matched ZFIN Gene ID: " + geneZdbID + " (" + subResult.refseqs.get(0).getMarkerAbbreviation() + ")\n");
+            sb.append("Based on the RefSeq(s): ");
+            sb.append(String.join(", ", subResult.refSeqAccessions()));
+            sb.append("\n");
         }
         return sb.toString();
     }
@@ -126,8 +144,15 @@ public class MatchOnRefSeqHandler implements UniProtLoadHandler {
             return subItems.size() > 1;
         }
 
-        public String getGeneZdbIDs() {
-            return subItems.keySet().stream().collect(Collectors.joining(", "));
+        public String getGeneZdbIDsString() {
+            return String.join(", ", getGeneZdbIDs());
+        }
+        public List<String> getGeneZdbIDs() {
+            return subItems.keySet().stream().toList();
+        }
+
+        public List<String> refSeqAccessions() {
+            return subItems.values().stream().flatMap(s -> s.refSeqAccessions().stream()).collect(Collectors.toList());
         }
     }
 
@@ -148,6 +173,10 @@ public class MatchOnRefSeqHandler implements UniProtLoadHandler {
 
         public boolean contains(UniProtContextSequenceDTO refseq) {
             return refseqs.stream().anyMatch(r -> r.getAccession().equals(refseq.getAccession()));
+        }
+
+        public List<String> refSeqAccessions() {
+            return refseqs.stream().map(UniProtContextSequenceDTO::getAccession).toList();
         }
     }
 }

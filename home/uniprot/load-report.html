@@ -34,6 +34,14 @@
 
         #right-content {
             width: 730px;
+            padding-left: 50px;
+        }
+
+        .error::before {
+            content: "\274C";
+        }
+        .success::before {
+            content: "\2705";
         }
     </style>
 </head>
@@ -70,7 +78,6 @@
             const [activeDetails, setActiveDetails] = useState('');
 
             useEffect(() => {
-                console.log('useffe');
                 if (reportData) {
                     // setReportSummary([{type: 'test', count: 1}]);
                     let counts = {};
@@ -82,15 +89,24 @@
             }, []);
 
             function handleSummaryClick(type) {
-                console.log('handleSummaryClick', type);
                 setShowTypeData(type);
                 setActiveTab('list');
             }
 
             function handleListClick(item) {
-                console.log('handleListClick', item);
                 setActiveTab('details');
                 setActiveDetails(item);
+            }
+
+            function detailSummary(item) {
+                if (!item) {
+                    return '';
+                }
+                if (item.type == 'ERROR') {
+                    return html`<div className="error"> This accession was marked as having an error so won't be loaded.</div>`;
+                } else if (item.type == 'LOAD') {
+                    return html`<div className="success"> This accession will be loaded.</div>`;
+                }
             }
 
             if (!reportData || !reportSummary) {
@@ -108,12 +124,14 @@
                     <div id='content'>
                         <div id="left-nav">
                             <h2>Summary</h2>
+                            <p>These are the types of actions that will be performed by the load.</p>
                             <${ReportSummary} reportSummary=${reportSummary} onSummaryClick=${handleSummaryClick}/>
                         </div>
                         <div id="right-content">
                             ${activeTab == 'list' && html`
                             <div>
                                 <h2>List of Load Actions by Accession</h2>
+                                <p>This is the list of actions that will be performed for each accession that was encountered.</p>
                                 <ul>
                                     ${reportData.map(i => {
                                         if (showTypeData && i.type !== showTypeData) {
@@ -127,9 +145,14 @@
                             ${activeTab == 'details' && html`
                             <div>
                                 <h2>Details for Accession</h2>
-                                <h3>${activeDetails.title}</h3>
                                 <h3>${activeDetails.accession}</h3>
+                                <p>${detailSummary(activeDetails)}</p>
+                                <h3>${activeDetails.title}</h3>
                                 <pre>${activeDetails.details}</pre>
+                                <h4>Links</h4>
+                                <ul>
+                                    ${activeDetails.links.map(link => html`<li><a target="_blank" href="${link.href}">${link.title}</a></li>`)}
+                                </ul>
                             </div>
                             `}
                         </div>
