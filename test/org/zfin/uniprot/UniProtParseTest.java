@@ -12,6 +12,8 @@ import org.zfin.uniprot.handlers.RemoveVersionHandler;
 import java.io.FileNotFoundException;
 import java.io.IOException;
 import java.util.Map;
+import java.util.Set;
+import java.util.TreeSet;
 
 import static org.junit.Assert.assertEquals;
 import static org.junit.Assert.fail;
@@ -49,6 +51,17 @@ public class UniProtParseTest {
         } catch (Exception e) {
             fail("Should not have thrown an exception");
         }
+    }
+
+    @Test
+    public void comparatorTest() {
+        Set<UniProtLoadLink> links = new TreeSet<>();
+        UniProtLoadLink link1 = new UniProtLoadLink("ZFIN", "https://zfin.org");
+        UniProtLoadLink link2 = new UniProtLoadLink("ZFIN", "https://zfin.org");
+        links.add(link1);
+        links.add(link2);
+        assertEquals(1, links.size());
+
     }
 
     private String testBareBonesDat() {

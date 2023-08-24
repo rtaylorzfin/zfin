@@ -15,16 +15,26 @@ import org.biojavax.bio.seq.io.RichSequenceFormat;
 import org.biojavax.bio.seq.io.RichStreamReader;
 import org.biojavax.bio.seq.io.RichStreamWriter;
 import org.biojavax.ontology.ComparableTerm;
+import org.zfin.infrastructure.RecordAttribution;
+import org.zfin.sequence.DBLink;
+import org.zfin.uniprot.dto.UniProtContextSequenceDTO;
 
 import java.io.*;
-import java.lang.reflect.InvocationTargetException;
 import java.lang.reflect.Method;
 import java.text.SimpleDateFormat;
 import java.util.*;
 import java.util.function.Function;
 
+import static org.zfin.repository.RepositoryFactory.getInfrastructureRepository;
+import static org.zfin.repository.RepositoryFactory.getSequenceRepository;
+
 public class UniProtTools {
     private static final int MAX_LINE_WIDTH = 500;
+    public static final String MANUAL_CURATION_OF_PROTEIN_IDS = "ZDB-PUB-170131-9";
+    public static final String UNIPROT_ID_LOAD_FROM_ENSEMBL = "ZDB-PUB-170502-16";
+    public static final String MANUAL_CURATION_OF_UNIPROT_IDS = "ZDB-PUB-220705-2";
+
+    public static final String[] NON_LOAD_PUBS = new String[]{MANUAL_CURATION_OF_PROTEIN_IDS, UNIPROT_ID_LOAD_FROM_ENSEMBL, MANUAL_CURATION_OF_UNIPROT_IDS};
 
     public static RichStreamReader getRichStreamReaderForUniprotDatFile(String inputFileName, boolean elideSymbols) throws FileNotFoundException, BioException {
         BufferedReader br = new BufferedReader(new FileReader(inputFileName));
@@ -168,5 +178,37 @@ public class UniProtTools {
         } catch (Exception e) {
             throw new RuntimeException(e);
         }
+    }
+
+    public static List<String> getAttributionsSupportingGeneAccessionRelationship(String geneID, String accession) {
+        DBLink dblink = getSequenceRepository().getDBLink(geneID, accession);
+        if (dblink != null) {
+            List<RecordAttribution> attributions = getInfrastructureRepository().getRecordAttributions(dblink.getZdbID());
+            List<String> attributionPubIDs = attributions.stream().map(attribution -> attribution.getSourceZdbID()).toList();
+            return attributionPubIDs;
+        } else {
+            return null;
+        }
+    }
+
+    public static boolean isGeneAccessionRelationshipSupportedByNonLoadPublication(String geneID, String accession) {
+        List<String> attributionPubIDs = getAttributionsSupportingGeneAccessionRelationship(geneID, accession);
+        if (attributionPubIDs == null) {
+            return false;
+        }
+        return attributionPubIDs.stream().anyMatch(pubID -> isNonLoadPublication(pubID));
+    }
+
+    public static boolean isGeneAccessionRelationshipSupportedByNonLoadPublication(UniProtContextSequenceDTO sequence) {
+        return isGeneAccessionRelationshipSupportedByNonLoadPublication(sequence.getDataZdbID(), sequence.getAccession());
+    }
+
+    public static boolean isAnyGeneAccessionRelationshipSupportedByNonLoadPublication(String accession, List<String> geneIDs) {
+        return geneIDs.stream().anyMatch(geneID -> isGeneAccessionRelationshipSupportedByNonLoadPublication(geneID, accession));
+    }
+
+
+    private static boolean isNonLoadPublication(String pubID) {
+        return List.of(NON_LOAD_PUBS).contains(pubID);
     }
 }

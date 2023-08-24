@@ -12,6 +12,9 @@ import org.zfin.uniprot.dto.UniProtContextSequenceDTO;
 import java.util.*;
 import java.util.stream.Collectors;
 
+import static org.zfin.uniprot.UniProtTools.isAnyGeneAccessionRelationshipSupportedByNonLoadPublication;
+
+
 public class MatchOnRefSeqHandler implements UniProtLoadHandler {
 
     @Override
@@ -40,8 +43,6 @@ public class MatchOnRefSeqHandler implements UniProtLoadHandler {
 
         //now we have a map of all the cases where we can match on RefSeq
         //let's flag the cases where we have multiple genes for a single accession
-        StringBuilder errorCases = new StringBuilder();
-        StringBuilder okayCases = new StringBuilder();
         for( Map.Entry<String, MatchOnRefSeqResult> item: matchResults.results.entrySet() ) {
             String uniprotAccession = item.getKey();
             MatchOnRefSeqResult result = item.getValue();
@@ -54,14 +55,18 @@ public class MatchOnRefSeqHandler implements UniProtLoadHandler {
             actions.add(action);
 
             if (result.hasMultipleGeneMatches()) {
-                action.setTitle(UniProtLoadAction.MatchTitle.MULTIPLE_GENES_PER_ACCESSION.toString());
-                action.setType(UniProtLoadAction.Type.ERROR);
-                errorCases.append(details).append("\n");
+                if (isAnyGeneAccessionRelationshipSupportedByNonLoadPublication(result.uniprotAccession, result.getGeneZdbIDs())) {
+                    action.setTitle(UniProtLoadAction.MatchTitle.MULTIPLE_GENES_PER_ACCESSION_BUT_APPROVED.getValue());
+                    action.setType(UniProtLoadAction.Type.WARNING);
+                    action.setDetails("This UniProt accession has multiple genes associated with it, but at least one of the gene associations is supported by a non-load publication.\n\n" + details);
+                } else {
+                    action.setTitle(UniProtLoadAction.MatchTitle.MULTIPLE_GENES_PER_ACCESSION.getValue());
+                    action.setType(UniProtLoadAction.Type.ERROR);
+                }
             } else {
-                action.setTitle(UniProtLoadAction.MatchTitle.MATCH_BY_REFSEQ.toString());
+                action.setTitle(UniProtLoadAction.MatchTitle.MATCH_BY_REFSEQ.getValue());
                 action.setType(UniProtLoadAction.Type.LOAD);
                 action.setGeneZdbID(result.getGeneZdbIDs().get(0));
-                okayCases.append(details).append("\n");
             }
 
         }
@@ -78,7 +83,7 @@ public class MatchOnRefSeqHandler implements UniProtLoadHandler {
         for (String geneZdbID: result.getGeneZdbIDs()) {
             links.add(new UniProtLoadLink("ZFIN: " + geneZdbID, "https://zfin.org/" + geneZdbID));
         }
-        action.setLinks(links);
+        action.addLinks(links);
     }
 
     private static String accessionWithMatchingGeneAndRefSeqToString(String uniprotAccession, MatchOnRefSeqResult result) {
