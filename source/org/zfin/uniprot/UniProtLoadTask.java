@@ -15,10 +15,7 @@ import java.sql.SQLException;
 import java.util.*;
 
 import org.zfin.properties.ZfinPropertiesEnum;
-import org.zfin.uniprot.handlers.IgnoreAccessionsAlreadyInDatabaseHandler;
-import org.zfin.uniprot.handlers.IgnoreSpecificAccessionsHandler;
-import org.zfin.uniprot.handlers.MatchOnRefSeqHandler;
-import org.zfin.uniprot.handlers.RemoveVersionHandler;
+import org.zfin.uniprot.handlers.*;
 
 import static org.zfin.uniprot.UniProtFilterTask.readAllZebrafishEntriesFromSourceIntoMap;
 import static org.zfin.uniprot.UniProtTools.getArgOrEnvironmentVar;
@@ -62,6 +59,13 @@ public class UniProtLoadTask extends AbstractScriptWrapper {
         pipeline.setUniProtRecords(entries);
         pipeline.addHandler(new RemoveVersionHandler());
         pipeline.addHandler(new IgnoreSpecificAccessionsHandler());
+
+        //these two work together to get list of genes that would lose accessions
+        pipeline.addHandler(new MatchOnRefSeqHandler());
+        pipeline.addHandler(new ReportLostUniProtsHandler());
+
+        //reset everything back to the beginning
+        pipeline.addHandler(new ResetLoadActionsHandler());
         pipeline.addHandler(new IgnoreAccessionsAlreadyInDatabaseHandler());
         pipeline.addHandler(new MatchOnRefSeqHandler());
         List<UniProtLoadAction> actions = pipeline.execute();

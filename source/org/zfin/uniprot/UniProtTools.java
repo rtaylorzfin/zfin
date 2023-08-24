@@ -6,6 +6,7 @@ import org.biojava.bio.seq.Sequence;
 import org.biojava.bio.seq.io.SymbolTokenization;
 import org.biojava.bio.symbol.AlphabetManager;
 import org.biojava.bio.symbol.FiniteAlphabet;
+import org.biojavax.CrossRef;
 import org.biojavax.Note;
 import org.biojavax.SimpleRichAnnotation;
 import org.biojavax.bio.seq.RichSequence;
@@ -13,12 +14,14 @@ import org.biojavax.bio.seq.io.RichSequenceBuilderFactory;
 import org.biojavax.bio.seq.io.RichSequenceFormat;
 import org.biojavax.bio.seq.io.RichStreamReader;
 import org.biojavax.bio.seq.io.RichStreamWriter;
+import org.biojavax.ontology.ComparableTerm;
 
 import java.io.*;
+import java.lang.reflect.InvocationTargetException;
+import java.lang.reflect.Method;
 import java.text.SimpleDateFormat;
-import java.util.ArrayList;
-import java.util.Date;
-import java.util.List;
+import java.util.*;
+import java.util.function.Function;
 
 public class UniProtTools {
     private static final int MAX_LINE_WIDTH = 500;
@@ -45,13 +48,32 @@ public class UniProtTools {
                 null);
     }
 
-    public static RichStreamWriter getRichStreamWriterForUniprotDatFile(String outfile) throws FileNotFoundException {
+    public static RichStreamReader getRichStreamReaderForUniprotDatString(String inputString, boolean elideSymbols) throws FileNotFoundException, BioException {
+        BufferedReader br = new BufferedReader(new StringReader(inputString));
+        return getRichStreamReaderForUniprotDatFile(br, elideSymbols);
+    }
+
+
+        public static RichStreamWriter getRichStreamWriterForUniprotDatFile(String outfile) throws FileNotFoundException {
         return getRichStreamWriterForUniprotDatFile(new FileOutputStream(outfile));
     }
 
     public static RichStreamWriter getRichStreamWriterForUniprotDatFile(OutputStream out) throws FileNotFoundException {
         RichSequenceFormat format = getUniProtFormatForWriting();
         return new RichStreamWriter(out, format);
+    }
+
+    public static Map<String, RichSequence> getMapOfAccessionsToSequencesFromStreamReader(RichStreamReader richStreamReader) throws BioException {
+        Map<String, RichSequence> sequences = new TreeMap<String, RichSequence>();
+        populateSequenceMap(richStreamReader, sequences);
+        return sequences;
+    }
+
+    public static void populateSequenceMap(RichStreamReader richStreamReader, Map<String, RichSequence> sequences) throws BioException {
+        while (richStreamReader.hasNext()) {
+            RichSequence seq = richStreamReader.nextRichSequence();
+            sequences.put(seq.getAccession(), seq);
+        }
     }
 
     public static UniProtFormatZFIN getUniProtFormatForWriting() {
@@ -70,6 +92,25 @@ public class UniProtTools {
         Note[] keywords = seq1NoteSet.getProperties(RichSequence.Terms.getKeywordTerm());
         return List.of(keywords);
     }
+
+    public static List<Note> getAdditionalAccessionTermNotes(CrossRef crossRef) {
+        ComparableTerm term = (ComparableTerm) UniProtFormatZFIN.Terms.getAdditionalAccessionTerm();
+        SimpleRichAnnotation sequenceNoteSet = new SimpleRichAnnotation();
+        sequenceNoteSet.setNoteSet(crossRef.getNoteSet());
+        Note[] notes = sequenceNoteSet.getProperties(term);
+        return List.of(notes);
+    }
+
+    //use passed in lambda expression to transform the notes
+    public static void transformCrossRefNoteSetByTerm(CrossRef crossRef, ComparableTerm term, Function<String, String> transformer) {
+        Set<Note> notes = crossRef.getNoteSet();
+        for (Note note : notes) {
+            if (note.getTerm().equals(term)) {
+                note.setValue(transformer.apply(note.getValue()));
+            }
+        }
+    }
+
 
     public static Date getDateUpdatedFromNotes(RichSequence seq1) {
         SimpleRichAnnotation seq1NoteSet = new SimpleRichAnnotation();
@@ -115,5 +156,17 @@ public class UniProtTools {
         }
 
         return result;
+    }
+
+    public static void setAccession(CrossRef xref, String accession) {
+        //CrossRef doesn't allow setting accession, so we have to use reflection
+        try {
+            Method method = null;
+            method = xref.getClass().getDeclaredMethod("setAccession", String.class);
+            method.setAccessible(true);
+            method.invoke(xref, accession);
+        } catch (Exception e) {
+            throw new RuntimeException(e);
+        }
     }
 }

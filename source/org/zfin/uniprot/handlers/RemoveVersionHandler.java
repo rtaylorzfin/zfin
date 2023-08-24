@@ -1,10 +1,9 @@
 package org.zfin.uniprot.handlers;
 
-import org.biojavax.CrossRef;
-import org.biojavax.RankedCrossRef;
-import org.biojavax.SimpleCrossRef;
-import org.biojavax.SimpleRankedCrossRef;
+import org.biojavax.*;
 import org.biojavax.bio.seq.RichSequence;
+import org.biojavax.ontology.ComparableTerm;
+import org.zfin.uniprot.UniProtFormatZFIN;
 import org.zfin.uniprot.UniProtLoadAction;
 import org.zfin.uniprot.UniProtLoadContext;
 
@@ -12,6 +11,9 @@ import java.util.List;
 import java.util.Map;
 import java.util.Set;
 import java.util.TreeSet;
+
+import static org.zfin.uniprot.UniProtTools.setAccession;
+import static org.zfin.uniprot.UniProtTools.transformCrossRefNoteSetByTerm;
 
 public class RemoveVersionHandler implements UniProtLoadHandler {
     @Override
@@ -22,19 +24,22 @@ public class RemoveVersionHandler implements UniProtLoadHandler {
 
             //transform the RefSeq accessions to omit the version number
             Set<RankedCrossRef> rankedXrefs = loadFileSequence.getRankedCrossRefs();
-            Set<RankedCrossRef> transformedXrefs = new TreeSet<>();
 
             for (RankedCrossRef rankedXref : rankedXrefs) {
                 if (rankedXref.getCrossRef().getDbname().equals("RefSeq")) {
                     CrossRef xref = rankedXref.getCrossRef();
                     String refSeqAccession = xref.getAccession();
+                    //change the refseq accession to omit the version number
                     String refSeqAccessionWithoutVersion = refSeqAccession.replaceAll("\\.\\d+$", "");
-                    CrossRef newXref = new SimpleCrossRef(xref.getDbname(), refSeqAccessionWithoutVersion, 0);
-                    RankedCrossRef newRankedXref = new SimpleRankedCrossRef(newXref, rankedXref.getRank());
-                    transformedXrefs.add(newRankedXref);
+
+                    //do the same thing for the noteset which is where additional accessions are stored
+                    Set<Note> noteset = xref.getNoteSet();
+                    setAccession(xref, refSeqAccessionWithoutVersion);
+                    transformCrossRefNoteSetByTerm(xref, (ComparableTerm) UniProtFormatZFIN.Terms.getAdditionalAccessionTerm(),
+                            s -> s.replaceAll("\\.\\d+$", ""));
+
                 }
             }
-            loadFileSequence.setRankedCrossRefs(transformedXrefs);
 
             uniProtRecords.put(acc, loadFileSequence);
         }

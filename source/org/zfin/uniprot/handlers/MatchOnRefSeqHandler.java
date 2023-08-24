@@ -1,7 +1,9 @@
 package org.zfin.uniprot.handlers;
 
+import org.biojavax.Note;
 import org.biojavax.RankedCrossRef;
 import org.biojavax.bio.seq.RichSequence;
+import org.zfin.uniprot.UniProtFormatZFIN;
 import org.zfin.uniprot.UniProtLoadAction;
 import org.zfin.uniprot.UniProtLoadContext;
 import org.zfin.uniprot.UniProtLoadLink;
@@ -11,6 +13,7 @@ import java.util.*;
 import java.util.stream.Collectors;
 
 public class MatchOnRefSeqHandler implements UniProtLoadHandler {
+
     @Override
     public void handle(Map<String, RichSequence> uniProtRecords, List<UniProtLoadAction> actions, UniProtLoadContext context) {
 
@@ -44,31 +47,24 @@ public class MatchOnRefSeqHandler implements UniProtLoadHandler {
             MatchOnRefSeqResult result = item.getValue();
             String details = accessionWithMatchingGeneAndRefSeqToString(uniprotAccession, result);
 
+            UniProtLoadAction action = new UniProtLoadAction();
+            action.setAccession(uniprotAccession);
+            action.setDetails(details);
+            setActionLinks(action, result);
+            actions.add(action);
+
             if (result.hasMultipleGeneMatches()) {
-                System.out.println("uniprotAccession: " + uniprotAccession + " has multiple gene matches");
-                UniProtLoadAction action = new UniProtLoadAction();
-                action.setAccession(uniprotAccession);
-                action.setTitle("Multiple Genes per Accession");
-                action.setDetails(details);
+                action.setTitle(UniProtLoadAction.MatchTitle.MULTIPLE_GENES_PER_ACCESSION.toString());
                 action.setType(UniProtLoadAction.Type.ERROR);
-                setActionLinks(action, result);
-                actions.add(action);
                 errorCases.append(details).append("\n");
             } else {
-                //add the gene to the uniprot record
-                UniProtLoadAction action = new UniProtLoadAction();
-                action.setAccession(uniprotAccession);
-                action.setTitle("Matched via RefSeq: Single Gene per Accession");
-                action.setDetails(details);
+                action.setTitle(UniProtLoadAction.MatchTitle.MATCH_BY_REFSEQ.toString());
                 action.setType(UniProtLoadAction.Type.LOAD);
-                setActionLinks(action, result);
-                actions.add(action);
+                action.setGeneZdbID(result.getGeneZdbIDs().get(0));
                 okayCases.append(details).append("\n");
             }
-        }
-        System.out.println("ERROR CASES:\nMultiple Genes per RefSeq:\n" + errorCases.toString());
-        System.out.println("OKAY CASES:\nSingle Gene per RefSeq:\n" + okayCases.toString());
 
+        }
     }
 
     private void setActionLinks(UniProtLoadAction action, MatchOnRefSeqResult result) {
@@ -105,7 +101,20 @@ public class MatchOnRefSeqHandler implements UniProtLoadHandler {
                 .filter(rc -> ((RankedCrossRef)rc).getCrossRef().getDbname().equals("RefSeq"))
                 .map(rc -> ((RankedCrossRef)rc).getCrossRef().getAccession())
                 .toList();
-        return refseqs;
+
+        List<String> additionalRefseqs = richSequence.getRankedCrossRefs().stream()
+                .filter(rc -> ((RankedCrossRef) rc).getCrossRef().getDbname().equals("RefSeq"))
+                .flatMap(rc -> ((RankedCrossRef) rc).getCrossRef().getNoteSet().stream())
+                .filter(note -> note.getTerm().equals(UniProtFormatZFIN.Terms.getAdditionalAccessionTerm()))
+                .map(note -> note.getValue())
+                .toList();
+
+        //return union
+        List<String> combined = new ArrayList<>();
+        combined.addAll(refseqs);
+        combined.addAll(additionalRefseqs);
+        return combined;
+
     }
 
     /**
