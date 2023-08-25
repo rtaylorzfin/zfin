@@ -5,9 +5,9 @@ import lombok.Setter;
 
 @Getter
 @Setter
-public class UniProtContextSequenceDTO {
+public class DBLinkSlimDTO {
     private String accession;
     private String dataZdbID;
-
     private String markerAbbreviation;
+    private String dbName;
 }

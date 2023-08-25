@@ -1,12 +1,11 @@
 package org.zfin.uniprot.handlers;
 
-import org.biojavax.bio.seq.RichSequence;
 import org.zfin.uniprot.UniProtLoadAction;
 import org.zfin.uniprot.UniProtLoadContext;
 import org.zfin.uniprot.UniProtLoadLink;
 import org.zfin.uniprot.adapter.RichSequenceAdapter;
 import org.zfin.uniprot.datfiles.DatFileWriter;
-import org.zfin.uniprot.dto.UniProtContextSequenceDTO;
+import org.zfin.uniprot.dto.DBLinkSlimDTO;
 
 import java.util.*;
 import java.util.stream.Collectors;
@@ -27,7 +26,7 @@ public class ReportLostUniProtsHandler implements UniProtLoadHandler {
         System.out.println("ReportLostUniProtsHandler.handle. Filtered count of actions: " + actionsMatchedOnRefSeq.size());
 
         //all genes with existing uniprot associations
-        List<UniProtContextSequenceDTO> sequencesForGenesWithExistingUniprotAssociations = context.getUniprotDbLinks()
+        List<DBLinkSlimDTO> sequencesForGenesWithExistingUniprotAssociations = context.getUniprotDbLinks()
                 .values()
                 .stream()
                 .flatMap(List::stream)
@@ -41,8 +40,8 @@ public class ReportLostUniProtsHandler implements UniProtLoadHandler {
         Set<String> alreadyEncounteredThisGeneID = new HashSet<>();
 
         //build up a list of genes that have existing uniprot associations but are not matched by RefSeq in load file
-        List<UniProtContextSequenceDTO> lostUniProts = new ArrayList<>();
-        for(UniProtContextSequenceDTO sequenceDTO : sequencesForGenesWithExistingUniprotAssociations) {
+        List<DBLinkSlimDTO> lostUniProts = new ArrayList<>();
+        for(DBLinkSlimDTO sequenceDTO : sequencesForGenesWithExistingUniprotAssociations) {
             if (!genesWithMatchesInLoad.contains(sequenceDTO.getDataZdbID())) {
 
                 //no duplicates
@@ -55,15 +54,15 @@ public class ReportLostUniProtsHandler implements UniProtLoadHandler {
         }
 
         //do some filtering based on attributions for lost UniProts
-        List<UniProtContextSequenceDTO> filteredLostUniProts = new ArrayList<>();
-        for(UniProtContextSequenceDTO lostUniProt: lostUniProts) {
+        List<DBLinkSlimDTO> filteredLostUniProts = new ArrayList<>();
+        for(DBLinkSlimDTO lostUniProt: lostUniProts) {
             if (!isGeneAccessionRelationshipSupportedByNonLoadPublication(lostUniProt)) {
                 filteredLostUniProts.add(lostUniProt);
             }
         }
 
         //create actions for lost UniProts
-        for(UniProtContextSequenceDTO lostUniProt: filteredLostUniProts) {
+        for(DBLinkSlimDTO lostUniProt: filteredLostUniProts) {
             UniProtLoadAction action = new UniProtLoadAction();
 
             String sequenceDetails = "";

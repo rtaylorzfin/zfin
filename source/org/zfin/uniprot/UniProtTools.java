@@ -2,12 +2,10 @@ package org.zfin.uniprot;
 
 import org.biojavax.CrossRef;
 import org.biojavax.Note;
-import org.biojavax.SimpleRichAnnotation;
 import org.biojavax.ontology.ComparableTerm;
 import org.zfin.infrastructure.RecordAttribution;
 import org.zfin.sequence.DBLink;
-import org.zfin.uniprot.datfiles.UniProtFormatZFIN;
-import org.zfin.uniprot.dto.UniProtContextSequenceDTO;
+import org.zfin.uniprot.dto.DBLinkSlimDTO;
 
 import java.lang.reflect.Method;
 import java.util.*;
@@ -79,7 +77,7 @@ public class UniProtTools {
         return attributionPubIDs.stream().anyMatch(pubID -> isNonLoadPublication(pubID));
     }
 
-    public static boolean isGeneAccessionRelationshipSupportedByNonLoadPublication(UniProtContextSequenceDTO sequence) {
+    public static boolean isGeneAccessionRelationshipSupportedByNonLoadPublication(DBLinkSlimDTO sequence) {
         return isGeneAccessionRelationshipSupportedByNonLoadPublication(sequence.getDataZdbID(), sequence.getAccession());
     }
 
