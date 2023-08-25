@@ -57,6 +57,7 @@ public class UniProtLoadContext {
                 sequenceDTO.setDataZdbID(markerDBLink.getDataZdbID());
                 sequenceDTO.setMarkerAbbreviation(markerDBLink.getMarker().getAbbreviation());
                 sequenceDTO.setDbName(markerDBLink.getReferenceDatabase().getForeignDB().getDbName().name());
+                sequenceDTO.setPublicationIDs( markerDBLink.getPublicationIdsAsList() );
                 sequenceDTOs.add(sequenceDTO);
             }
             transformedMap.put(key, sequenceDTOs);

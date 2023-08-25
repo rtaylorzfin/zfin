@@ -10,8 +10,6 @@ import org.zfin.uniprot.dto.DBLinkSlimDTO;
 import java.util.*;
 import java.util.stream.Collectors;
 
-import static org.zfin.uniprot.UniProtTools.isGeneAccessionRelationshipSupportedByNonLoadPublication;
-
 /**
  *
  */
@@ -56,7 +54,7 @@ public class ReportLostUniProtsHandler implements UniProtLoadHandler {
         //do some filtering based on attributions for lost UniProts
         List<DBLinkSlimDTO> filteredLostUniProts = new ArrayList<>();
         for(DBLinkSlimDTO lostUniProt: lostUniProts) {
-            if (!isGeneAccessionRelationshipSupportedByNonLoadPublication(lostUniProt)) {
+            if (!lostUniProt.containsNonLoadPublication()) {
                 filteredLostUniProts.add(lostUniProt);
             }
         }
