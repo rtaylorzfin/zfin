@@ -9,7 +9,7 @@ import org.zfin.uniprot.dto.DBLinkSlimDTO;
 import java.util.*;
 import java.util.stream.Collectors;
 
-import static org.zfin.uniprot.UniProtTools.isAnyDBLinkSupportedByNonLoadPublication;
+import static org.zfin.uniprot.UniProtTools.isAnyGeneAccessionRelationshipSupportedByNonLoadPublication;
 
 
 public class MatchOnRefSeqHandler implements UniProtLoadHandler {
@@ -52,7 +52,7 @@ public class MatchOnRefSeqHandler implements UniProtLoadHandler {
             actions.add(action);
 
             if (result.hasMultipleGeneMatches()) {
-                if (isAnyDBLinkSupportedByNonLoadPublication(result.getDBLinkSlimDTOs())) {
+                if (isAnyGeneAccessionRelationshipSupportedByNonLoadPublication(uniprotAccession, result.getGeneZdbIDs())) {
                     action.setTitle(UniProtLoadAction.MatchTitle.MULTIPLE_GENES_PER_ACCESSION_BUT_APPROVED.getValue());
                     action.setType(UniProtLoadAction.Type.WARNING);
                     action.setDetails("This UniProt accession has multiple genes associated with it, but at least one of the gene associations is supported by a non-load publication.\n\n" + details);

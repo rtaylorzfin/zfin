@@ -59,12 +59,8 @@ public class UniProtLoadTask extends AbstractScriptWrapper {
         pipeline.addHandler(new RemoveVersionHandler());
         pipeline.addHandler(new IgnoreSpecificAccessionsHandler());
 
-        //these two work together to get list of genes that would lose accessions
-        pipeline.addHandler(new MatchOnRefSeqHandler());
-        pipeline.addHandler(new ReportLostUniProtsHandler());
+        pipeline.addHandler(new ReportWouldBeLostHandler());
 
-        //reset everything back to the beginning
-        pipeline.addHandler(new ResetLoadActionsHandler());
         pipeline.addHandler(new IgnoreAccessionsAlreadyInDatabaseHandler());
         pipeline.addHandler(new MatchOnRefSeqHandler());
         List<UniProtLoadAction> actions = pipeline.execute();

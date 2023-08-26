@@ -63,8 +63,26 @@ public class UniProtTools {
         }
     }
 
-    public static boolean isAnyDBLinkSupportedByNonLoadPublication(List<DBLinkSlimDTO> dblink) {
-        return dblink.stream().anyMatch(dbLinkSlimDTO -> dbLinkSlimDTO.containsNonLoadPublication());
+    public static List<String> getAttributionsSupportingGeneAccessionRelationship(String geneID, String accession) {
+        DBLink dblink = getSequenceRepository().getDBLink(geneID, accession);
+        if (dblink != null) {
+            List<RecordAttribution> attributions = getInfrastructureRepository().getRecordAttributions(dblink.getZdbID());
+            return attributions.stream().map(RecordAttribution::getSourceZdbID).toList();
+        } else {
+            return null;
+        }
+    }
+
+    public static boolean isGeneAccessionRelationshipSupportedByNonLoadPublication(String geneID, String accession) {
+        List<String> attributionPubIDs = getAttributionsSupportingGeneAccessionRelationship(geneID, accession);
+        if (attributionPubIDs == null) {
+            return false;
+        }
+        return attributionPubIDs.stream().anyMatch(pubID -> isNonLoadPublication(pubID));
+    }
+
+    public static boolean isAnyGeneAccessionRelationshipSupportedByNonLoadPublication(String accession, List<String> geneIDs) {
+        return geneIDs.stream().anyMatch(geneID -> isGeneAccessionRelationshipSupportedByNonLoadPublication(geneID, accession));
     }
 
     public static boolean isLoadPublication(String pubID) {return List.of(LOAD_PUBS).contains(pubID);}
