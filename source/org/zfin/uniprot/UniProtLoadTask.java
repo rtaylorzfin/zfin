@@ -1,5 +1,7 @@
 package org.zfin.uniprot;
 
+import com.fasterxml.jackson.core.exc.StreamReadException;
+import com.fasterxml.jackson.databind.DatabindException;
 import com.fasterxml.jackson.databind.ObjectMapper;
 import lombok.extern.log4j.Log4j2;
 import org.apache.commons.io.FileUtils;
@@ -63,6 +65,8 @@ public class UniProtLoadTask extends AbstractScriptWrapper {
 
         pipeline.addHandler(new IgnoreAccessionsAlreadyInDatabaseHandler());
         pipeline.addHandler(new MatchOnRefSeqHandler());
+
+        //TODO: remove this handler
         pipeline.addHandler(new UniqueActionsHandler());
         Set<UniProtLoadAction> actions = pipeline.execute();
 
@@ -110,16 +114,25 @@ public class UniProtLoadTask extends AbstractScriptWrapper {
     private void calculateContext() {
         context = UniProtLoadContext.createFromDBConnection();
 
-        //create temp file
-        try {
-            String tempFileName = "/tmp/uniprot_load_" + System.currentTimeMillis() + ".tmp";
-            System.out.println("tempFileName: " + tempFileName);
-            File tempFile = new File(tempFileName);
-            ObjectMapper mapper = new ObjectMapper();
-            mapper.writeValue(tempFile, context);
-        } catch (IOException e) {
-            e.printStackTrace();
-        }
+        //TODO: convert to handling these temp files according to arguments or env vars
+//        //create temp file
+//        String tempFileName = "/tmp/uniprot_load_" + System.currentTimeMillis() + ".tmp";
+//        ObjectMapper mapper = new ObjectMapper();
+//        try {
+//            System.out.println("tempFileName: " + tempFileName);
+//            File tempFile = new File(tempFileName);
+//            mapper.writeValue(tempFile, context);
+//        } catch (IOException e) {
+//            e.printStackTrace();
+//        }
+//
+//        //load from temp file
+//        try {
+//            UniProtLoadContext newContext = mapper.readValue(new File(tempFileName), UniProtLoadContext.class);
+//            System.out.println("newContext: refseqs size: " + newContext.getRefseqDbLinks().size());
+//        } catch (Exception e) {
+//            throw new RuntimeException(e);
+//        }
 
     }
 }

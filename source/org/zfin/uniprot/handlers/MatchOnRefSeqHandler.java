@@ -51,7 +51,10 @@ public class MatchOnRefSeqHandler implements UniProtLoadHandler {
             setActionLinks(action, result);
 
             if (result.hasMultipleGeneMatches()) {
-                boolean isWarning = isAnyGeneAccessionRelationshipSupportedByNonLoadPublication(uniprotAccession, result.getGeneZdbIDs());
+                boolean isWarning = isAnyGeneAccessionRelationshipSupportedByNonLoadPublication(uniprotAccession,
+                        result.getGeneZdbIDs(),
+                        context.getUniprotDbLinks().get(uniprotAccession));
+
                 if (isWarning) {
                     action.setTitle(UniProtLoadAction.MatchTitle.MULTIPLE_GENES_PER_ACCESSION_BUT_APPROVED.getValue());
                     action.setType(UniProtLoadAction.Type.WARNING);

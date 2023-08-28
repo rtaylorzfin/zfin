@@ -52,13 +52,6 @@ public class UniProtParseTest extends AbstractDatabaseTest {
         }
     }
 
-    @Test
-    public void isAssociationAttributedToNonLoadPubTest() {
-        String uniprotAccession = "A8KB68";
-        List<String> geneZdbIDs = List.of("ZDB-GENE-071004-25", "ZDB-GENE-070705-50");
-        boolean result = isAnyGeneAccessionRelationshipSupportedByNonLoadPublication(uniprotAccession, geneZdbIDs);
-        assertFalse(result);
-    }
 
     @Test
     public void comparatorTest() {

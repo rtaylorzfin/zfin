@@ -64,26 +64,42 @@ public class UniProtTools {
         }
     }
 
-    public static List<String> getAttributionsSupportingGeneAccessionRelationship(String geneID, String accession) {
-        DBLink dblink = getSequenceRepository().getDBLink(geneID, accession);
-        if (dblink != null) {
-            List<RecordAttribution> attributions = getInfrastructureRepository().getRecordAttributions(dblink.getZdbID());
-            return attributions.stream().map(RecordAttribution::getSourceZdbID).toList();
-        } else {
-            return null;
+    public static List<String> getAttributionsSupportingGeneAccessionRelationship(String geneID, String accession, List<DBLinkSlimDTO> dbLinkSlimDTOs) {
+        if (accession.equals("Q6PI20")) {
+            System.out.println("debug");
         }
+        if (dbLinkSlimDTOs == null) {
+            return Collections.emptyList();
+        }
+
+        return dbLinkSlimDTOs.stream()
+                .filter(dbLinkSlimDTO -> dbLinkSlimDTO.getAccession().equals(accession) && dbLinkSlimDTO.getDataZdbID().equals(geneID))
+                .flatMap(dbLinkSlimDTO -> dbLinkSlimDTO.getPublicationIDs().stream())
+                .toList();
     }
 
-    public static boolean isGeneAccessionRelationshipSupportedByNonLoadPublication(String geneID, String accession) {
-        List<String> attributionPubIDs = getAttributionsSupportingGeneAccessionRelationship(geneID, accession);
+//    public static List<String> _getAttributionsSupportingGeneAccessionRelationship(String geneID, String accession) {
+//        DBLink dblink = getSequenceRepository().getDBLink(geneID, accession);
+//        if (dblink != null) {
+//            List<RecordAttribution> attributions = getInfrastructureRepository().getRecordAttributions(dblink.getZdbID());
+//            return attributions.stream().map(RecordAttribution::getSourceZdbID).toList();
+//        } else {
+//            return null;
+//        }
+//    }
+
+    public static boolean isGeneAccessionRelationshipSupportedByNonLoadPublication(String geneID, String accession, List<DBLinkSlimDTO> dbLinkSlimDTOs) {
+        List<String> attributionPubIDs = getAttributionsSupportingGeneAccessionRelationship(geneID, accession, dbLinkSlimDTOs);
         if (attributionPubIDs == null) {
             return false;
         }
         return attributionPubIDs.stream().anyMatch(pubID -> isNonLoadPublication(pubID));
     }
 
-    public static boolean isAnyGeneAccessionRelationshipSupportedByNonLoadPublication(String accession, List<String> geneIDs) {
-        return geneIDs.stream().anyMatch(geneID -> isGeneAccessionRelationshipSupportedByNonLoadPublication(geneID, accession));
+    public static boolean isAnyGeneAccessionRelationshipSupportedByNonLoadPublication(String accession,
+                                                                                      List<String> geneIDs,
+                                                                                      List<DBLinkSlimDTO> dbLinkSlimDTOs) {
+        return geneIDs.stream().anyMatch(geneID -> isGeneAccessionRelationshipSupportedByNonLoadPublication(geneID, accession, dbLinkSlimDTOs));
     }
 
     public static boolean isLoadPublication(String pubID) {return List.of(LOAD_PUBS).contains(pubID);}
