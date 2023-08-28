@@ -15,7 +15,7 @@ import static org.zfin.uniprot.UniProtTools.isAnyGeneAccessionRelationshipSuppor
 public class MatchOnRefSeqHandler implements UniProtLoadHandler {
 
     @Override
-    public void handle(Map<String, RichSequenceAdapter> uniProtRecords, List<UniProtLoadAction> actions, UniProtLoadContext context) {
+    public void handle(Map<String, RichSequenceAdapter> uniProtRecords, Set<UniProtLoadAction> actions, UniProtLoadContext context) {
 
         Map<String, List<DBLinkSlimDTO>> refseqsInDb = context.getRefseqDbLinks();
 
@@ -49,10 +49,10 @@ public class MatchOnRefSeqHandler implements UniProtLoadHandler {
             action.setAccession(uniprotAccession);
             action.setDetails(details);
             setActionLinks(action, result);
-            actions.add(action);
 
             if (result.hasMultipleGeneMatches()) {
-                if (isAnyGeneAccessionRelationshipSupportedByNonLoadPublication(uniprotAccession, result.getGeneZdbIDs())) {
+                boolean isWarning = isAnyGeneAccessionRelationshipSupportedByNonLoadPublication(uniprotAccession, result.getGeneZdbIDs());
+                if (isWarning) {
                     action.setTitle(UniProtLoadAction.MatchTitle.MULTIPLE_GENES_PER_ACCESSION_BUT_APPROVED.getValue());
                     action.setType(UniProtLoadAction.Type.WARNING);
                     action.setDetails("This UniProt accession has multiple genes associated with it, but at least one of the gene associations is supported by a non-load publication.\n\n" + details);
@@ -65,7 +65,7 @@ public class MatchOnRefSeqHandler implements UniProtLoadHandler {
                 action.setType(UniProtLoadAction.Type.LOAD);
                 action.setGeneZdbID(result.getGeneZdbIDs().get(0));
             }
-
+            actions.add(action);
         }
     }
 

@@ -1,11 +1,13 @@
 package org.zfin.uniprot;
 
 import org.junit.Test;
+import org.zfin.AbstractDatabaseTest;
 import org.zfin.uniprot.adapter.RichSequenceAdapter;
 import org.zfin.uniprot.adapter.RichStreamReaderAdapter;
 import org.zfin.uniprot.datfiles.DatFileWriter;
 import org.zfin.uniprot.handlers.RemoveVersionHandler;
 
+import java.util.List;
 import java.util.Map;
 import java.util.Set;
 import java.util.TreeSet;
@@ -14,10 +16,11 @@ import static org.junit.Assert.assertEquals;
 import static org.junit.Assert.fail;
 import static org.junit.jupiter.api.Assertions.assertFalse;
 import static org.junit.jupiter.api.Assertions.assertTrue;
+import static org.zfin.uniprot.UniProtTools.isAnyGeneAccessionRelationshipSupportedByNonLoadPublication;
 import static org.zfin.uniprot.datfiles.DatFileReader.getRichStreamReaderForUniprotDatString;
 import static org.zfin.uniprot.datfiles.DatFileReader.getMapOfAccessionsToSequencesFromStreamReader;
 
-public class UniProtParseTest {
+public class UniProtParseTest extends AbstractDatabaseTest {
 
     @Test
     public void parseRefSeqLineCorrectly() {
@@ -47,6 +50,14 @@ public class UniProtParseTest {
         } catch (Exception e) {
             fail("Should not have thrown an exception");
         }
+    }
+
+    @Test
+    public void isAssociationAttributedToNonLoadPubTest() {
+        String uniprotAccession = "A8KB68";
+        List<String> geneZdbIDs = List.of("ZDB-GENE-071004-25", "ZDB-GENE-070705-50");
+        boolean result = isAnyGeneAccessionRelationshipSupportedByNonLoadPublication(uniprotAccession, geneZdbIDs);
+        assertFalse(result);
     }
 
     @Test

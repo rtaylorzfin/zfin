@@ -14,7 +14,7 @@ import java.util.Set;
 @Log4j2
 public class ReportWouldBeLostHandler implements UniProtLoadHandler {
     @Override
-    public void handle(Map<String, RichSequenceAdapter> uniProtRecords, List<UniProtLoadAction> actions, UniProtLoadContext context) {
+    public void handle(Map<String, RichSequenceAdapter> uniProtRecords, Set<UniProtLoadAction> actions, UniProtLoadContext context) {
 
         //combine the logic of the following handlers:
         // MatchOnRefSeqHandler (computes the set of accessions that would be added or lost)

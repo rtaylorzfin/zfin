@@ -19,9 +19,10 @@ public class UniProtTools {
     public static final String UNIPROT_ID_LOAD_FROM_ENSEMBL = "ZDB-PUB-170502-16";
     public static final String MANUAL_CURATION_OF_UNIPROT_IDS = "ZDB-PUB-220705-2";
     public static final String CURATION_OF_PROTEIN_DATABASE_LINKS = "ZDB-PUB-020723-2";
+    public static final String AUTOMATED_CURATION_OF_UNIPROT_DATABASE_LINKS = "ZDB-PUB-230615-71";
 
     public static final String[] NON_LOAD_PUBS = new String[]{MANUAL_CURATION_OF_PROTEIN_IDS, UNIPROT_ID_LOAD_FROM_ENSEMBL, MANUAL_CURATION_OF_UNIPROT_IDS};
-    public static final String[] LOAD_PUBS = new String[]{CURATION_OF_PROTEIN_DATABASE_LINKS};
+    public static final String[] LOAD_PUBS = new String[]{CURATION_OF_PROTEIN_DATABASE_LINKS, AUTOMATED_CURATION_OF_UNIPROT_DATABASE_LINKS};
 
 
     //use passed in lambda expression to transform the notes

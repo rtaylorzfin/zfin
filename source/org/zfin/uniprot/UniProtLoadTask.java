@@ -63,14 +63,15 @@ public class UniProtLoadTask extends AbstractScriptWrapper {
 
         pipeline.addHandler(new IgnoreAccessionsAlreadyInDatabaseHandler());
         pipeline.addHandler(new MatchOnRefSeqHandler());
-        List<UniProtLoadAction> actions = pipeline.execute();
+        pipeline.addHandler(new UniqueActionsHandler());
+        Set<UniProtLoadAction> actions = pipeline.execute();
 
         //do something with the actions
         writeActions(actions);
         writeOutputReportFile(actions);
     }
 
-    private void writeActions(List<UniProtLoadAction> actions) {
+    private void writeActions(Set<UniProtLoadAction> actions) {
         String tempFileName = "/tmp/uniprot_load_report_" + System.currentTimeMillis() + ".json";
         System.out.println("report tempfile: " + tempFileName);
         try {
@@ -80,7 +81,7 @@ public class UniProtLoadTask extends AbstractScriptWrapper {
         }
     }
 
-    private String actionsToJson(List<UniProtLoadAction> actions) {
+    private String actionsToJson(Set<UniProtLoadAction> actions) {
         ObjectMapper mapper = new ObjectMapper();
         try {
             return mapper.writeValueAsString(actions);
@@ -90,7 +91,7 @@ public class UniProtLoadTask extends AbstractScriptWrapper {
         return null;
     }
 
-    private void writeOutputReportFile(List<UniProtLoadAction> actions) {
+    private void writeOutputReportFile(Set<UniProtLoadAction> actions) {
         String reportfile = "/tmp/uniprot_load_" + System.currentTimeMillis() + ".report.html";
 
         System.out.println("Creating report file: " + reportfile);
