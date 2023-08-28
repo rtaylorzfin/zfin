@@ -46,6 +46,7 @@
         .error::before {
             content: "\274C";
         }
+
         .success::before {
             content: "\2705";
         }
@@ -133,7 +134,6 @@
                 if (items) {
                     let counts = {};
                     const filteredItems = items.filter( item => item.type === type && item.title === subtype);
-                    console.log('filteredItems', filteredItems);
                     setSubTypeItems(filteredItems);
                 }
             }, [items, type, subtype]);
@@ -193,7 +193,6 @@
             }
 
             function activeTitle() {
-                console.log('activeTab', activeTab);
                 if (activeTab == '') {
                     return 'Home';
                 } else if (activeTab == 'list') {
