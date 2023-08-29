@@ -39,8 +39,8 @@ public class UniProtReleaseCheckTask extends AbstractScriptWrapper {
 
 //    private static final String DOWNLOAD_URL_1 = "http://localhost:8080/uniprot_sprot_vertebrates.dat.gz";
 //    private static final String DOWNLOAD_URL_2 = "http://localhost:8080/uniprot_trembl_vertebrates.dat.gz";
-    private static final String DOWNLOAD_URL_1 = ZfinPropertiesEnum.UNIPROT_SPROT_FILE_URL.value();
-    private static final String DOWNLOAD_URL_2 = ZfinPropertiesEnum.UNIPROT_TREMBL_FILE_URL.value();
+    private String DOWNLOAD_URL_1;
+    private String DOWNLOAD_URL_2;
     private static final String COMBINED_FILE_NAME = "pre_zfin.dat";
 
     //Alternative URLs
@@ -62,6 +62,7 @@ public class UniProtReleaseCheckTask extends AbstractScriptWrapper {
 
     public void runTask() throws IOException, BioException, SQLException {
         initAll();
+        initIO();
 
         //get the timestamp of the file on server
         Date releaseDate = getLatestReleaseTimestamp();
@@ -264,5 +265,9 @@ public class UniProtReleaseCheckTask extends AbstractScriptWrapper {
         }
     }
 
+    private void initIO() {
+        this.DOWNLOAD_URL_1 = ZfinPropertiesEnum.UNIPROT_TREMBL_FILE_URL.value();
+        this.DOWNLOAD_URL_2 = ZfinPropertiesEnum.UNIPROT_SPROT_FILE_URL.value();
+    }
 
 }

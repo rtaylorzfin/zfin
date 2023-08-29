@@ -7,12 +7,7 @@ Send alert there is a new release and if the download was successful.
   </description>
   <keepDependencies>false</keepDependencies>
 
-  <properties>
-    <hudson.model.ParametersDefinitionProperty>
-      <parameterDefinitions>
-      </parameterDefinitions>
-    </hudson.model.ParametersDefinitionProperty>
-  </properties>
+  <properties></properties>
 
   <scm class="hudson.scm.NullSCM"/>
   <canRoam>true</canRoam>
