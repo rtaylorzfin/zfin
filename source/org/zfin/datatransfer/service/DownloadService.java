@@ -9,6 +9,7 @@ import org.springframework.stereotype.Service;
 
 import java.io.File;
 import java.io.FileOutputStream;
+import java.io.IOException;
 import java.io.InputStream;
 import java.net.SocketException;
 import java.net.URL;
@@ -54,28 +55,11 @@ public class DownloadService {
      */
     protected File downloadFileFtp(File localFile, URL remoteFile, boolean useExistingFile, boolean isGzip) {
         try {
-            FTPClient ftpClient = new FTPClient();
-            ftpClient.setDataTimeout(FTP_TIMEOUT);
-            ftpClient.connect(remoteFile.getHost());
-            ftpClient.setBufferSize(BUFFER_SIZE);
-            ftpClient.login(ANONYMOUS_USERNAME, ANONYMOUS_PASSWORD);
+            FTPClient ftpClient = getFtpClient(remoteFile);
+            FTPFile ftpFile = getSingleFTPFile(remoteFile, ftpClient);
+            long remoteFileSize = ftpFile.getSize();
 
-            ftpClient.changeWorkingDirectory(remoteFile.getPath());
-
-            ftpClient.enterLocalPassiveMode();
-            FTPFile[] ftpFiles = ftpClient.listFiles(remoteFile.getPath());
-
-            if (ftpFiles.length != 1) {
-                String errorText = "Problem retrieving file from server of name: " +
-                        remoteFile.toExternalForm();
-                logger.error(errorText);
-                throw new RuntimeException(errorText);
-            }
-
-            FTPFile ftpFile = ftpFiles[0];
-
-            long remoteFileSize = ftpFile.getSize(); // this file is gzipped
-            long localFileSize = localFile.length(); // ths file is not
+            long localFileSize = localFile.length(); // ths file is not gzipped
 
             // do we have a local file?
             logger.info("downloaded file should be here: " + localFile.getAbsolutePath());
@@ -217,4 +201,65 @@ public class DownloadService {
             throw new RuntimeException("Failed to download file properly, bailing out of load for file: " + localFile.getName(), e);
         }
     }
+
+    public long fileSizeFtp(URL remoteFile) {
+        try {
+            FTPClient ftpClient = getFtpClient(remoteFile);
+            FTPFile ftpFile = getSingleFTPFile(remoteFile, ftpClient);
+
+            long remoteFileSize = ftpFile.getSize(); // this file is gzipped
+
+            ftpClient.logout();
+            return remoteFileSize;
+        } catch (SocketException socketException) {
+            logger.error("Failed to connect for file size" );
+            throw new RuntimeException(socketException);
+        } catch (IOException e) {
+            throw new RuntimeException(e);
+        }
+    }
+
+    public Date fileDateFtp(URL remoteFile) {
+        try {
+            FTPClient ftpClient = getFtpClient(remoteFile);
+            FTPFile ftpFile = getSingleFTPFile(remoteFile, ftpClient);
+
+            Date remoteFileDate = ftpFile.getTimestamp().getTime(); // this file is gzipped
+
+            ftpClient.logout();
+            return remoteFileDate;
+        } catch (SocketException socketException) {
+            logger.error("Failed to connect for file size" );
+            throw new RuntimeException(socketException);
+        } catch (IOException e) {
+            throw new RuntimeException(e);
+        }
+    }
+
+
+    private FTPClient getFtpClient(URL remoteFile) throws IOException {
+        FTPClient ftpClient = new FTPClient();
+        ftpClient.setDataTimeout(FTP_TIMEOUT);
+        ftpClient.connect(remoteFile.getHost());
+        ftpClient.setBufferSize(BUFFER_SIZE);
+        ftpClient.login(ANONYMOUS_USERNAME, ANONYMOUS_PASSWORD);
+        ftpClient.changeWorkingDirectory(remoteFile.getPath());
+        ftpClient.enterLocalPassiveMode();
+        return ftpClient;
+    }
+
+    private FTPFile getSingleFTPFile(URL remoteFile, FTPClient ftpClient) throws IOException {
+        FTPFile[] ftpFiles = ftpClient.listFiles(remoteFile.getPath());
+
+        if (ftpFiles.length != 1) {
+            String errorText = "Problem retrieving file from server of name: " +
+                    remoteFile.toExternalForm();
+            logger.error(errorText);
+            throw new RuntimeException(errorText);
+        }
+
+        FTPFile ftpFile = ftpFiles[0];
+        return ftpFile;
+    }
+
 }

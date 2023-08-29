@@ -6,7 +6,10 @@ import org.apache.commons.exec.CommandLine;
 import org.apache.commons.exec.DefaultExecutor;
 import org.apache.commons.exec.ExecuteWatchdog;
 import org.apache.commons.io.FileUtils;
+import org.apache.commons.net.ftp.FTPClient;
+import org.apache.commons.net.ftp.FTPFile;
 import org.biojava.bio.BioException;
+import org.zfin.datatransfer.service.DownloadService;
 import org.zfin.ontology.datatransfer.AbstractScriptWrapper;
 import org.zfin.properties.ZfinPropertiesEnum;
 import org.zfin.uniprot.history.UniProtRelease;
@@ -15,15 +18,15 @@ import java.io.File;
 import java.io.FileInputStream;
 import java.io.IOException;
 import java.net.HttpURLConnection;
+import java.net.MalformedURLException;
 import java.net.URL;
+import java.net.URLConnection;
 import java.nio.file.Path;
 import java.nio.file.Paths;
 import java.sql.SQLException;
+import java.text.ParseException;
 import java.text.SimpleDateFormat;
-import java.util.Date;
-import java.util.HashMap;
-import java.util.List;
-import java.util.Map;
+import java.util.*;
 
 import static org.zfin.framework.HibernateUtil.currentSession;
 import static org.zfin.repository.RepositoryFactory.getInfrastructureRepository;
@@ -37,18 +40,11 @@ import static org.zfin.uniprot.UniProtReleaseDiffTask.combineAndFilterInputPathS
 @Log4j2
 public class UniProtReleaseCheckTask extends AbstractScriptWrapper {
 
-//    private static final String DOWNLOAD_URL_1 = "http://localhost:8080/uniprot_sprot_vertebrates.dat.gz";
-//    private static final String DOWNLOAD_URL_2 = "http://localhost:8080/uniprot_trembl_vertebrates.dat.gz";
     private String DOWNLOAD_URL_1;
     private String DOWNLOAD_URL_2;
     private static final String COMBINED_FILE_NAME = "pre_zfin.dat";
-
-    //Alternative URLs
-//    https://ftp.expasy.org/databases/uniprot/current_release/knowledgebase/taxonomic_divisions/uniprot_trembl_vertebrates.dat.gz
-//    https://ftp.expasy.org/databases/uniprot/current_release/knowledgebase/taxonomic_divisions/uniprot_sprot_vertebrates.dat.gz
-//    https://ftp.uniprot.org/pub/databases/uniprot/current_release/knowledgebase/taxonomic_divisions/uniprot_trembl_vertebrates.dat.gz
-//    https://ftp.uniprot.org/pub/databases/uniprot/current_release/knowledgebase/taxonomic_divisions/uniprot_sprot_vertebrates.dat.gz
-
+    private static final String UNIPROT_ARCHIVE_DIR = "/opt/research/zarchive/load_files/UniProt-archive";
+//    private static final String UNIPROT_ARCHIVE_DIR = ZfinPropertiesEnum.UNIPROT_RELEASE_ARCHIVE_DIR.value();
 
     private Path downloadedFile1;
     private Path downloadedFile2;
@@ -60,12 +56,13 @@ public class UniProtReleaseCheckTask extends AbstractScriptWrapper {
         task.runTask();
     }
 
-    public void runTask() throws IOException, BioException, SQLException {
+    public void runTask() throws IOException, ParseException, BioException, SQLException {
         initAll();
         initIO();
 
         //get the timestamp of the file on server
         Date releaseDate = getLatestReleaseTimestamp();
+
         if (releaseAlreadyLoaded(releaseDate)) {
             log.info("No new release found.");
             return;
@@ -129,27 +126,31 @@ public class UniProtReleaseCheckTask extends AbstractScriptWrapper {
         downloadFileIfNotExists(url2, downloadedFile2);
 
         //calculate path relative to base
-        Path base = Paths.get(ZfinPropertiesEnum.UNIPROT_RELEASE_ARCHIVE_DIR.value());
+        Path base = Paths.get(UNIPROT_ARCHIVE_DIR);
         Path relativePath = base.relativize(downloadedDirectory);
 
         return relativePath;
     }
 
     private void downloadFileIfNotExists(String url, Path localFile) {
-        if (localFile.toFile().exists()) {
-            log.error("File already exists: " + localFile);
-            long serverSize = getFileSizeOnServer(url);
-            long localSize = localFile.toFile().length();
-            if (serverSize == localSize) {
-                log.info("File sizes match.  Skipping download.");
-                return;
-            } else if (serverSize > localSize) {
-                log.error("Server file is larger than local file.  Downloading anyway assuming resumed download.");
-            } else {
-                throw new RuntimeException("Server file is smaller than local file.  This should not happen.");
+        try {
+            if (localFile.toFile().exists()) {
+                log.error("File already exists: " + localFile);
+                long serverSize = getFileSizeOnServer(url);
+                long localSize = localFile.toFile().length();
+                if (serverSize == localSize) {
+                    log.info("File sizes match.  Skipping download.");
+                    return;
+                } else if (serverSize > localSize) {
+                    log.error("Server file is larger than local file.  Downloading anyway assuming resumed download.");
+                } else {
+                    throw new RuntimeException("Server file is smaller than local file.  This should not happen.");
+                }
             }
+            downloadFileFromURLViaWget(url, localFile);
+        } catch (Exception e) {
+            throw new RuntimeException(e);
         }
-        downloadFileFromURLViaWget(url, localFile);
     }
 
     private static void downloadFileFromURLViaWget(String url, Path destination)  {
@@ -194,7 +195,7 @@ public class UniProtReleaseCheckTask extends AbstractScriptWrapper {
         String timestamp = new SimpleDateFormat("yyyy-MM-dd").format(releaseDate);
 
         Path directoryDestination = Paths.get(
-                ZfinPropertiesEnum.UNIPROT_RELEASE_ARCHIVE_DIR.value(),
+                UNIPROT_ARCHIVE_DIR,
                 timestamp);
 
         //make directory if it doesn't exist
@@ -223,51 +224,90 @@ public class UniProtReleaseCheckTask extends AbstractScriptWrapper {
         return true;
     }
 
-    private Date getLatestReleaseTimestamp() {
+    private Date getLatestReleaseTimestamp() throws IOException {
         String url = DOWNLOAD_URL_1;
         if (url == null) {
             throw new RuntimeException("No URL found for uniprot release file.");
         }
 
-        //make web HEAD request to get the last modified date
-        try {
-            HttpURLConnection httpUrlConnection = (HttpURLConnection) new URL(url).openConnection();
-            httpUrlConnection.setRequestMethod("HEAD");
-            String lastModified = httpUrlConnection.getHeaderField("Last-Modified");
+        Date lastModified = getLastModifiedOnServer(url);
 
-            int responseCode = httpUrlConnection.getResponseCode();
-            log.debug("Response Code: " + responseCode);
+        //if before 2023, throw exception
+        Calendar cal = Calendar.getInstance();
+        cal.setTime(lastModified);
+        if (cal.get(Calendar.YEAR) < 2023) {
+            throw new RuntimeException("Release date is before 2023.  This is not allowed.");
+        }
 
-            log.debug("Headers:");
-            Map<String, List<String>> headers = httpUrlConnection.getHeaderFields();
-            for (Map.Entry<String, List<String>> entry : headers.entrySet()) {
-                log.debug(entry.getKey() + ": " + entry.getValue());
-            }
+        return lastModified;
+    }
 
-            SimpleDateFormat sdf = new SimpleDateFormat("EEE, dd MMM yyyy HH:mm:ss zzz");
-            return sdf.parse(lastModified);
-        } catch (Exception e) {
-            e.printStackTrace();
-            log.error("Error getting last modified date for " + url);
-            throw new RuntimeException(e);
+    private Date getLastModifiedOnServer(String url) throws IOException {
+        if (url.startsWith("ftp://")) {
+            return getDateFromFTPServer(url);
+        } else {
+            return getDateFromHTTPServer(url);
         }
     }
 
-    private long getFileSizeOnServer(String url) {
-        try {
-            HttpURLConnection httpUrlConnection = (HttpURLConnection) new URL(url).openConnection();
-            httpUrlConnection.setRequestMethod("HEAD");
-            return httpUrlConnection.getContentLengthLong();
-        } catch (Exception e) {
-            e.printStackTrace();
-            log.error("Error getting file size for " + url);
-            throw new RuntimeException(e);
+    private Date getDateFromHTTPServer(String url) throws IOException {
+        URLConnection urlConnection = new URL(url).openConnection();
+        urlConnection.connect();
+        long lastModifiedLong = urlConnection.getLastModified();
+
+        Date lastModified = new Date(lastModifiedLong);
+        return lastModified;
+    }
+
+    private long getFileSizeOnServer(String url) throws IOException {
+        if (url.startsWith("ftp://")) {
+            return getFileSizeOnFTPServer(url);
+        } else {
+            return getFileSizeOnHTTPServer(url);
         }
+    }
+
+    private Date getDateFromFTPServer(String url) throws IOException {
+        return (new DownloadService()).fileDateFtp(new URL(url));
+    }
+
+    private long getFileSizeOnFTPServer(String urlString) throws IOException {
+        return (new DownloadService()).fileSizeFtp(new URL(urlString));
+    }
+
+    private long getFileSizeOnHTTPServer(String url) throws IOException {
+        URLConnection urlConnection = new URL(url).openConnection();
+        urlConnection.connect();
+        return urlConnection.getContentLengthLong();
     }
 
     private void initIO() {
-        this.DOWNLOAD_URL_1 = ZfinPropertiesEnum.UNIPROT_TREMBL_FILE_URL.value();
-        this.DOWNLOAD_URL_2 = ZfinPropertiesEnum.UNIPROT_SPROT_FILE_URL.value();
+        List<String> tremblUrlsToTry = List.of(
+                ZfinPropertiesEnum.UNIPROT_TREMBL_FILE_URL.value(),
+                ZfinPropertiesEnum.UNIPROT_TREMBL_FILE_URL_ALT1.value(),
+                ZfinPropertiesEnum.UNIPROT_TREMBL_FILE_URL_ALT2.value(),
+                ZfinPropertiesEnum.UNIPROT_TREMBL_FILE_URL_ALT3.value()
+        );
+
+        List<String> sprotUrlsToTry = List.of(
+                ZfinPropertiesEnum.UNIPROT_SPROT_FILE_URL.value(),
+                ZfinPropertiesEnum.UNIPROT_SPROT_FILE_URL_ALT1.value(),
+                ZfinPropertiesEnum.UNIPROT_SPROT_FILE_URL_ALT2.value(),
+                ZfinPropertiesEnum.UNIPROT_SPROT_FILE_URL_ALT3.value()
+        );
+
+        for(int i = 0; i < tremblUrlsToTry.size(); i++) {
+            try {
+                this.DOWNLOAD_URL_1 = tremblUrlsToTry.get(i);
+                this.DOWNLOAD_URL_2 = sprotUrlsToTry.get(i);
+                long size = getFileSizeOnServer(DOWNLOAD_URL_1);
+                return;
+            } catch (IOException e) {
+                log.error("Could not get file size for URL: " + DOWNLOAD_URL_1);
+            }
+        }
+
+        throw new RuntimeException("Could not find a valid URL for uniprot release file.");
     }
 
 }
