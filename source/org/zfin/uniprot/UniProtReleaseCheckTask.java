@@ -235,8 +235,8 @@ public class UniProtReleaseCheckTask extends AbstractScriptWrapper {
         //if before 2023, throw exception
         Calendar cal = Calendar.getInstance();
         cal.setTime(lastModified);
-        if (cal.get(Calendar.YEAR) < 2023) {
-            throw new RuntimeException("Release date is before 2023.  This is not allowed.");
+        if (cal.get(Calendar.YEAR) < 2021) {
+            throw new RuntimeException("Release date of " + cal.get(Calendar.YEAR) + " is before 2023.  This is not allowed.");
         }
 
         return lastModified;
