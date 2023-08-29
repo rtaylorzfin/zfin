@@ -43,8 +43,9 @@ public class UniProtReleaseCheckTask extends AbstractScriptWrapper {
     private String DOWNLOAD_URL_1;
     private String DOWNLOAD_URL_2;
     private static final String COMBINED_FILE_NAME = "pre_zfin.dat";
-    private static final String UNIPROT_ARCHIVE_DIR = "/opt/research/zarchive/load_files/UniProt-archive";
-//    private static final String UNIPROT_ARCHIVE_DIR = ZfinPropertiesEnum.UNIPROT_RELEASE_ARCHIVE_DIR.value();
+
+//    private static final String UNIPROT_ARCHIVE_DIR = "/opt/research/zarchive/load_files/UniProt-archive";
+    private static final String UNIPROT_ARCHIVE_DIR = ZfinPropertiesEnum.UNIPROT_RELEASE_ARCHIVE_DIR.value();
 
     private Path downloadedFile1;
     private Path downloadedFile2;
@@ -303,9 +304,11 @@ public class UniProtReleaseCheckTask extends AbstractScriptWrapper {
                 long size = getFileSizeOnServer(DOWNLOAD_URL_1);
                 return;
             } catch (IOException e) {
-                log.error("Could not get file size for URL: " + DOWNLOAD_URL_1);
+                log.debug("Could not get file size for URL: " + DOWNLOAD_URL_1);
             }
         }
+
+        log.debug("Using URLS: " + DOWNLOAD_URL_1 + " and " + DOWNLOAD_URL_2);
 
         throw new RuntimeException("Could not find a valid URL for uniprot release file.");
     }
