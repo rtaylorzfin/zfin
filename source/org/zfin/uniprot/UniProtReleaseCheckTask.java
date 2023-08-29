@@ -195,6 +195,8 @@ public class UniProtReleaseCheckTask extends AbstractScriptWrapper {
     private static Path createPathForDownloadDestination(Date releaseDate) {
         String timestamp = new SimpleDateFormat("yyyy-MM-dd").format(releaseDate);
 
+        System.out.println("Saving to directory: " + UNIPROT_ARCHIVE_DIR);
+
         Path directoryDestination = Paths.get(
                 UNIPROT_ARCHIVE_DIR,
                 timestamp);
