@@ -39,11 +39,9 @@ public class UniProtReleaseCheckTask extends AbstractScriptWrapper {
 
 //    private static final String DOWNLOAD_URL_1 = "http://localhost:8080/uniprot_sprot_vertebrates.dat.gz";
 //    private static final String DOWNLOAD_URL_2 = "http://localhost:8080/uniprot_trembl_vertebrates.dat.gz";
-//    private static final String DOWNLOAD_URL_1 = ZfinPropertiesEnum.UNIPROT_SPROT_FILE_URL.value();
-//    private static final String DOWNLOAD_URL_2 = ZfinPropertiesEnum.UNIPROT_TREMBL_FILE_URL.value();
-
-    private static final String DOWNLOAD_URL_1 = "https://ftp.expasy.org/databases/uniprot/current_release/knowledgebase/taxonomic_divisions/uniprot_trembl_vertebrates.dat.gz";
-    private static final String DOWNLOAD_URL_2 = "https://ftp.expasy.org/databases/uniprot/current_release/knowledgebase/taxonomic_divisions/uniprot_sprot_vertebrates.dat.gz";
+    private static final String DOWNLOAD_URL_1 = ZfinPropertiesEnum.UNIPROT_SPROT_FILE_URL.value();
+    private static final String DOWNLOAD_URL_2 = ZfinPropertiesEnum.UNIPROT_TREMBL_FILE_URL.value();
+    private static final String COMBINED_FILE_NAME = "pre_zfin.dat";
 
     //Alternative URLs
 //    https://ftp.expasy.org/databases/uniprot/current_release/knowledgebase/taxonomic_divisions/uniprot_trembl_vertebrates.dat.gz
@@ -76,8 +74,8 @@ public class UniProtReleaseCheckTask extends AbstractScriptWrapper {
         Path relativeDownloadDirectory = downloadFiles(releaseDate);
 
         //process the files
-        log.info("Processing files to create pre_zfin.dat ...");
-        Path destinationPath = downloadedDirectory.resolve("pre_zfin.dat");
+        log.info("Processing files to create " + COMBINED_FILE_NAME + " ...");
+        Path destinationPath = downloadedDirectory.resolve(COMBINED_FILE_NAME);
         combineAndFilterInputPathSet(
                 List.of(downloadedFile1, downloadedFile2),
                  destinationPath );
@@ -225,7 +223,7 @@ public class UniProtReleaseCheckTask extends AbstractScriptWrapper {
     }
 
     private Date getLatestReleaseTimestamp() {
-        String url = ZfinPropertiesEnum.UNIPROT_SPROT_FILE_URL.value();
+        String url = DOWNLOAD_URL_1;
         if (url == null) {
             throw new RuntimeException("No URL found for uniprot release file.");
         }
