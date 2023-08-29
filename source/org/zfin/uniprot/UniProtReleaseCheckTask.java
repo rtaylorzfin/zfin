@@ -309,6 +309,7 @@ public class UniProtReleaseCheckTask extends AbstractScriptWrapper {
         }
 
         log.debug("Using URLS: " + DOWNLOAD_URL_1 + " and " + DOWNLOAD_URL_2);
+        log.debug("Saving to directory: " + UNIPROT_ARCHIVE_DIR);
 
         throw new RuntimeException("Could not find a valid URL for uniprot release file.");
     }
