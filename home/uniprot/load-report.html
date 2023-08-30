@@ -50,6 +50,19 @@
         .success::before {
             content: "\2705";
         }
+
+        .prev, .next {
+            width: 100px;
+        }
+
+        .prev::before {
+            content: "\2190 ";
+        }
+
+        .next::after {
+            content: " \2192";
+        }
+
         #breadcrumb {
             height: 2em;
         }
@@ -152,7 +165,7 @@
             `;
         }
 
-        function DetailDisplay({item}) {
+        function DetailDisplay({item, prevClick, nextClick}) {
             function detailSummary(item) {
                 if (!item) {
                     return '';
@@ -167,6 +180,7 @@
             return html`
                 <div>
                     <h2>Details for Accession</h2>
+                    <div><button href="#" onClick="${() => prevClick()}" className="prev">Prev</button>  <button href="#" onClick="${() => nextClick()}" className="next">Next</button></div>
                     <h3>${item.accession}</h3>
                     <p>${detailSummary(item)}</p>
                     <h3>${item.title}</h3>
@@ -264,6 +278,38 @@
                 }
             }
 
+            function previousDetail() {
+                const index = reportData.findIndex(item => item.accession == activeDetails.accession);
+                console.log("found index", index);
+                if (index > 0) {
+
+                    //find the previous item that matches subtype
+                    for(let i = index - 1; i >= 0; i--) {
+                        if (reportData[i].title == subTypeName) {
+                            setActiveDetails(reportData[i]);
+                            return;
+                        }
+                    }
+                }
+            }
+
+            function nextDetail() {
+                const index = reportData.findIndex(item => item.accession == activeDetails.accession);
+                console.log("found n index", index);
+
+                if (index === -1) {
+                    return;
+                }
+
+                //find the next item that matches subtype
+                for(let i = index + 1; i < reportData.length; i++) {
+                    if (reportData[i].title == subTypeName) {
+                        setActiveDetails(reportData[i]);
+                        return;
+                    }
+                }
+            }
+
             if (!reportData || !reportSummary) {
                 return html`
                     <div>
@@ -291,7 +337,7 @@
                                 <${SubTypeListing} items="${reportData}" type="${showTypeData}" subtype="${subTypeName}" onClick="${(item) => itemClicked(item)}" />
                             `}
                             ${activeTab == 'details' && html`
-                                <${DetailDisplay} item="${activeDetails}" />
+                                <${DetailDisplay} item="${activeDetails}" prevClick="${previousDetail}" nextClick="${nextDetail}" />
                             `}
                         </div>
                     </div>
