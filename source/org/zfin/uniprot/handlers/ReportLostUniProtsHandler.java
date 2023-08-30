@@ -1,5 +1,6 @@
 package org.zfin.uniprot.handlers;
 
+import lombok.extern.log4j.Log4j2;
 import org.zfin.uniprot.UniProtLoadAction;
 import org.zfin.uniprot.UniProtLoadContext;
 import org.zfin.uniprot.UniProtLoadLink;
@@ -14,8 +15,10 @@ import static org.zfin.uniprot.UniProtLoadAction.MatchTitle.LOST_UNIPROT_PREV_MA
 import static org.zfin.uniprot.UniProtLoadAction.MatchTitle.LOST_UNIPROT_PREV_MATCH_BY_GP;
 
 /**
- *
+ * This handler creates error actions that let curators know about any genes that currently have uniprot associations, but
+ * are not matched by RefSeq in the load file -- therefore will lose their uniprot associations.
  */
+@Log4j2
 public class ReportLostUniProtsHandler implements UniProtLoadHandler {
 
     @Override
@@ -23,8 +26,8 @@ public class ReportLostUniProtsHandler implements UniProtLoadHandler {
         //actions should contain all cases where we have a match based on RefSeq
         List<UniProtLoadAction> actionsMatchedOnRefSeq = actions.stream().filter(action -> action.getTitle().equals(UniProtLoadAction.MatchTitle.MATCH_BY_REFSEQ.getValue())).toList();
 
-        System.out.println("ReportLostUniProtsHandler.handle. Count of actions: " + actions.size());
-        System.out.println("ReportLostUniProtsHandler.handle. Filtered count of actions: " + actionsMatchedOnRefSeq.size());
+        log.debug("ReportLostUniProtsHandler - Count of actions: " + actions.size());
+        log.debug("ReportLostUniProtsHandler - Filtered count of actions: " + actionsMatchedOnRefSeq.size());
 
         //all genes with existing uniprot associations
         List<DBLinkSlimDTO> sequencesForGenesWithExistingUniprotAssociations = context.getUniprotDbLinks()
@@ -118,6 +121,13 @@ public class ReportLostUniProtsHandler implements UniProtLoadHandler {
 
     }
 
+    /**
+     * This is a special case where we have a UniProt association that is based on a GenPept or GenBank sequence (based on old load logic).
+     * In the future, we may want to remove this because over time they should get manually attributed.
+     *
+     * @param lostUniProt
+     * @param action
+     */
     private void setActionTitleAndDetailsForGenPeptGenBank(DBLinkSlimDTO lostUniProt, UniProtLoadAction action) {
         Map<String, String> genBankMap = new HashMap<>();
         genBankMap.put("A0PGL6","ZDB-GENE-060818-12");
