@@ -45,7 +45,8 @@ public class UniProtReleaseCheckTask extends AbstractScriptWrapper {
     private static final String COMBINED_FILE_NAME = "pre_zfin.dat";
 
 //    private static final String UNIPROT_ARCHIVE_DIR = "/opt/research/zarchive/load_files/UniProt-archive";
-    private static final String UNIPROT_ARCHIVE_DIR = ZfinPropertiesEnum.UNIPROT_RELEASE_ARCHIVE_DIR.value();
+//    private static final String UNIPROT_ARCHIVE_DIR = ZfinPropertiesEnum.UNIPROT_RELEASE_ARCHIVE_DIR.value();
+    private static final String UNIPROT_ARCHIVE_DIR = "/research/zarchive/load_files/UniProt-archive";
 
     private Path downloadedFile1;
     private Path downloadedFile2;
