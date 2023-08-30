@@ -38,7 +38,9 @@ public class UniProtLoadAction implements Comparable<UniProtLoadAction> {
         MULTIPLE_GENES_PER_ACCESSION("Multiple Genes per Accession"),
         MULTIPLE_GENES_PER_ACCESSION_BUT_APPROVED("Multiple Genes per Accession: Contains Approved Accession"),
         MATCH_BY_REFSEQ("Matched via RefSeq: Single Gene per Accession"),
-        LOST_UNIPROT("ZFIN Gene Losing UniProt Accession");
+        LOST_UNIPROT("ZFIN Gene Losing UniProt Accession"),
+        LOST_UNIPROT_PREV_MATCH_BY_GB("Previously Matched by GenBank: ZFIN Gene Losing UniProt Accession"),
+        LOST_UNIPROT_PREV_MATCH_BY_GP("Previously Matched by GenPept: ZFIN Gene Losing UniProt Accession");
 
         private String value;
 
