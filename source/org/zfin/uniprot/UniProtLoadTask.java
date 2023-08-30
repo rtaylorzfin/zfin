@@ -23,8 +23,8 @@ import static org.zfin.uniprot.UniProtFilterTask.readAllZebrafishEntriesFromSour
 import static org.zfin.uniprot.UniProtTools.getArgOrEnvironmentVar;
 
 /**
- * This class is used to perform a load of uniprot dat file.
- *
+ * The UniProtLoadTask class loads UniProt data from a given dat file,
+ * processes it using a pipeline, and then generates an output report.
  */
 @Log4j2
 @Getter
@@ -51,7 +51,6 @@ public class UniProtLoadTask extends AbstractScriptWrapper {
         }
     }
 
-
     public UniProtLoadTask(BufferedReader bufferedReader, String outputJsonName, String outputReportName) {
         this.inputFileReader = bufferedReader;
         this.outputJsonName = outputJsonName;
@@ -70,6 +69,12 @@ public class UniProtLoadTask extends AbstractScriptWrapper {
         calculateContext();
     }
 
+    private Map<String, RichSequenceAdapter> readUniProtEntries() throws BioException, IOException {
+        Map<String, RichSequenceAdapter> entries = readAllZebrafishEntriesFromSourceIntoMap(inputFileReader);
+        log.debug("Finished reading file: " + entries.size() + " entries read.");
+        return entries;
+    }
+
     private Set<UniProtLoadAction> executePipeline(Map<String, RichSequenceAdapter> entries) {
         // data entry pipeline
         UniProtLoadPipeline pipeline = new UniProtLoadPipeline();
@@ -83,16 +88,6 @@ public class UniProtLoadTask extends AbstractScriptWrapper {
 
         Set<UniProtLoadAction> actions = pipeline.execute();
         return actions;
-    }
-
-    private Map<String, RichSequenceAdapter> readUniProtEntries() throws BioException, IOException {
-        Map<String, RichSequenceAdapter> entries = readAllZebrafishEntriesFromSourceIntoMap(inputFileReader);
-        log.debug("Finished reading file: " + entries.size() + " entries read.");
-        return entries;
-    }
-
-    private String actionsToJson(Set<UniProtLoadAction> actions) throws JsonProcessingException {
-        return (new ObjectMapper()).writeValueAsString(actions);
     }
 
     private void writeOutputReportFile(Set<UniProtLoadAction> actions) {
@@ -111,6 +106,10 @@ public class UniProtLoadTask extends AbstractScriptWrapper {
         } catch (IOException e) {
             log.error("Error creating report (" + reportFile + ") from template\n" + e.getMessage(), e);
         }
+    }
+
+    private String actionsToJson(Set<UniProtLoadAction> actions) throws JsonProcessingException {
+        return (new ObjectMapper()).writeValueAsString(actions);
     }
 
 
