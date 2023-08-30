@@ -1,4 +1,4 @@
-package org.zfin.uniprot.history;
+package org.zfin.uniprot.persistence;
 
 import lombok.Getter;
 import lombok.Setter;
