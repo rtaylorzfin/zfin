@@ -57,6 +57,18 @@ Send alert there is a new release and if the download was successful.
       <saveOutput>false</saveOutput>
     </hudson.plugins.emailext.ExtendedEmailPublisher>
 
+
+
+    <hudson.tasks.BuildTrigger>
+      <childProjects>Check-Recent-UniProt-Releases_d</childProjects>
+      <threshold>
+        <name>FAILURE</name>
+        <ordinal>2</ordinal>
+        <color>RED</color>
+        <completeBuild>true</completeBuild>
+      </threshold>
+    </hudson.tasks.BuildTrigger>
+
   </publishers>
   <buildWrappers/>
 </project>
