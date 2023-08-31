@@ -15,8 +15,13 @@ import static org.zfin.uniprot.UniProtLoadAction.MatchTitle.LOST_UNIPROT_PREV_MA
 import static org.zfin.uniprot.UniProtLoadAction.MatchTitle.LOST_UNIPROT_PREV_MATCH_BY_GP;
 
 /**
- * This handler creates error actions that let curators know about any genes that currently have uniprot associations, but
- * are not matched by RefSeq in the load file -- therefore will lose their uniprot associations.
+ * This handler creates DELETE actions that let curators know about any genes that currently have uniprot associations,
+ * but are not matched by RefSeq in the load file -- therefore will lose their uniprot associations.
+ *
+ * Exceptions:
+ * 1.   If the uniprot association is attributed to a non-load publication, then it is not considered a lost uniprot--so don't delete it.
+ * 2.   If the uniprot association is due to a previous match by GP or GB, then it is not considered a lost uniprot--so don't delete it.
+ *      (Note: these are still recorded as INFO action items so curators can review them if they'd like)
  */
 @Log4j2
 public class ReportLostUniProtsHandler implements UniProtLoadHandler {
@@ -44,7 +49,7 @@ public class ReportLostUniProtsHandler implements UniProtLoadHandler {
         Set<String> alreadyEncounteredThisGeneID = new HashSet<>();
 
         //build up a list of genes that have existing uniprot associations but are not matched by RefSeq in load file
-        List<DBLinkSlimDTO> lostUniProts = new ArrayList<>();
+        List<DBLinkSlimDTO> genesThatLostUniProts = new ArrayList<>();
         for(DBLinkSlimDTO sequenceDTO : sequencesForGenesWithExistingUniprotAssociations) {
             if (!genesWithMatchesInLoad.contains(sequenceDTO.getDataZdbID())) {
 
@@ -52,14 +57,14 @@ public class ReportLostUniProtsHandler implements UniProtLoadHandler {
                 if (alreadyEncounteredThisGeneID.contains(sequenceDTO.getDataZdbID())) {
                     continue;
                 }
-                lostUniProts.add(sequenceDTO);
+                genesThatLostUniProts.add(sequenceDTO);
                 alreadyEncounteredThisGeneID.add(sequenceDTO.getDataZdbID());
             }
         }
 
         //do some filtering based on attributions for lost UniProts
         List<DBLinkSlimDTO> filteredLostUniProts = new ArrayList<>();
-        for(DBLinkSlimDTO lostUniProt: lostUniProts) {
+        for(DBLinkSlimDTO lostUniProt: genesThatLostUniProts) {
             if (!lostUniProt.containsNonLoadPublication()) {
                 filteredLostUniProts.add(lostUniProt);
             }
@@ -94,7 +99,7 @@ public class ReportLostUniProtsHandler implements UniProtLoadHandler {
 
                 sequenceDetails = lostUniProt.getDataZdbID() + " (" + lostUniProt.getMarkerAbbreviation() + ") would lose its UniProt association with " + lostUniProt.getAccession() + ".\n";
                 if (affectedGenes.size() > 1) {
-                        sequenceDetails += "Compare these affected genes: " + String.join(", ", affectedGenes) + "\n";
+                        sequenceDetails += "These genes currently have links to " + lostUniProt.getAccession() + " : " + String.join(", ", affectedGenes) + "\n";
                 }
                 sequenceDetails += "\n";
                 sequenceDetails += sequenceDatFileDetails;
@@ -105,13 +110,13 @@ public class ReportLostUniProtsHandler implements UniProtLoadHandler {
 
             action.setGeneZdbID(lostUniProt.getDataZdbID());
             action.setTitle(UniProtLoadAction.MatchTitle.LOST_UNIPROT.getValue());
-            action.setType(UniProtLoadAction.Type.ERROR);
+            action.setType(UniProtLoadAction.Type.DELETE);
             action.setAccession(lostUniProt.getAccession());
             action.setDetails("This gene currently has a UniProt association, but when we run the latest\n" +
                     "UniProt release through our matching pipeline, we don't find a match.\n" +
-                    "Perhaps this UniProt accession should be removed?\n\n" + sequenceDetails);
+                    "This UniProt link will be removed.\n\n" + sequenceDetails);
 
-            action.addLink(new UniProtLoadLink("ZFIN: " + lostUniProt.getDataZdbID(), "https://zfin.org/" + lostUniProt.getDataZdbID()));
+            action.addLink(new UniProtLoadLink("ZFIN: " + lostUniProt.getDataZdbID(), "https://zfin.org/" + lostUniProt.getDataZdbID() + "#sequences" + ":~:text=" + lostUniProt.getAccession()));
             action.addLink(new UniProtLoadLink("UniProt: " + lostUniProt.getAccession(), "https://www.uniprot.org/uniprot/" + lostUniProt.getAccession()));
 
             setActionTitleAndDetailsForGenPeptGenBank(lostUniProt, action);
@@ -205,11 +210,13 @@ public class ReportLostUniProtsHandler implements UniProtLoadHandler {
         if (genBankMap.containsKey(accession) && genBankMap.get(accession).equals(gene)) {
             action.setTitle(LOST_UNIPROT_PREV_MATCH_BY_GB.getValue());
             action.setDetails("UniProt accession " + accession + " previously matched gene " + gene + " by GenBank.\n" + action.getDetails());
+            action.setType(UniProtLoadAction.Type.INFO);
         }
 
         if (genPeptMap.containsKey(accession) && genPeptMap.get(accession).equals(gene)) {
             action.setTitle(LOST_UNIPROT_PREV_MATCH_BY_GP.getValue());
             action.setDetails("UniProt accession " + accession + " previously matched gene " + gene + " by GenPept.\n" + action.getDetails());
+            action.setType(UniProtLoadAction.Type.INFO);
         }
 
     }
