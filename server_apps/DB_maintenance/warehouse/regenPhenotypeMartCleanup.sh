@@ -7,5 +7,12 @@ if ($? != 0) then
 exit 1;
 endif
 
+echo "start regen_genox_finish_marker_cleanup()";
+echo "select regen_genox_finish_marker_cleanup();" | ${PGBINDIR}/psql -v ON_ERROR_STOP=1 $DBNAME;
+if ($? != 0) then
+   echo "regen_genox_finish_marker_cleanup failed";
+exit 1;
+endif
+
 date;
 echo "done with regen_genofig_finish_cleanup()";
