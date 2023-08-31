@@ -1,7 +1,6 @@
-create or replace function regen_clean_expression() 
+create or replace function regen_clean_expression()
 returns int as $log$
-
-
+DECLARE clean_expression_fast_search_rename_to text;
   begin 
 
 
