@@ -1,5 +1,6 @@
 package org.zfin.uniprot;
 
+import lombok.extern.log4j.Log4j2;
 import org.biojava.bio.BioException;
 import org.biojavax.RankedCrossRef;
 import org.biojavax.bio.seq.io.RichStreamWriter;
@@ -25,6 +26,7 @@ import static org.zfin.uniprot.datfiles.DatFileWriter.getRichStreamWriterForUnip
  * 3. RefSeq (eg. DR   RefSeq; XP_003199568.1; XM_003199520.5.
  *
  */
+@Log4j2
 public class UniProtFilterTask extends AbstractScriptWrapper {
     private BufferedReader inputFileReader = null;
     private BufferedReader filteredInputFileReader = null;
@@ -41,7 +43,7 @@ public class UniProtFilterTask extends AbstractScriptWrapper {
         List<RichSequenceAdapter> outputEntries = getFilteredRichSequences();
 
         if (outputFileWriter != null) {
-            System.out.println("Starting to write file: ");
+            log.info("Starting to write file: ");
             writeOutputFile(outputEntries, outputFileWriter);
         }
     }
@@ -50,9 +52,9 @@ public class UniProtFilterTask extends AbstractScriptWrapper {
         initIO();
         initAll();
 
-        System.out.println("Starting to read file: " );
+        log.info("Starting to read file: " );
         List<RichSequenceAdapter> outputEntries = readAndFilterSequencesFromStream();
-        System.out.println("Finished reading file: " + outputEntries.size() + " entries read.");
+        log.info("Finished reading file: " + outputEntries.size() + " entries read.");
         return outputEntries;
     }
 
@@ -73,7 +75,7 @@ public class UniProtFilterTask extends AbstractScriptWrapper {
                 RichSequenceAdapter seq = richStreamReader.nextRichSequence();
                 count++;
                 if (count % 1000 == 0) {
-                    System.out.println("Read " + count + " sequences.");
+                    log.info("Read " + count + " sequences.");
                 }
 
                 if (!seq.isDanioRerioOrRelated()) {
