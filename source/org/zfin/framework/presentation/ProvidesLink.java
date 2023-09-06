@@ -5,7 +5,7 @@ package org.zfin.framework.presentation;
  */
 public interface ProvidesLink {
 
-    String getLink();
+    Hyperlink getLink();
     String getLinkWithAttribution();
     String getLinkWithAttributionAndOrderThis() ;
 }

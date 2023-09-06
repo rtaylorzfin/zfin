@@ -69,6 +69,7 @@ import javax.servlet.jsp.tagext.BodyTagSupport;
 import javax.servlet.jsp.tagext.Tag;
 import java.io.IOException;
 import java.util.Collection;
+import org.zfin.framework.presentation.Hyperlink;
 
 /**
  * This tag class needs to be expanded to support a "type" attribute which allows it to be used for any
@@ -103,7 +104,7 @@ public class CreateLinkTag extends BodyTagSupport {
             return "";
         }
 
-        String link = null;
+        Hyperlink link = null;
         if (o instanceof String) {
             Object entity = InfrastructureService.getEntityById((String) o);
             if (entity != null)
