@@ -4,9 +4,6 @@ import org.apache.commons.csv.CSVFormat;
 import org.apache.commons.csv.CSVPrinter;
 import org.apache.commons.lang3.tuple.ImmutablePair;
 import org.biojava.bio.BioException;
-import org.biojava.bio.seq.io.SymbolTokenization;
-import org.biojava.bio.symbol.AlphabetManager;
-import org.biojava.bio.symbol.FiniteAlphabet;
 import org.biojavax.RankedCrossRef;
 import org.biojavax.bio.seq.RichSequence;
 import org.biojavax.bio.seq.io.*;
@@ -26,8 +23,6 @@ import java.nio.file.Paths;
 import java.sql.SQLException;
 import java.util.ArrayList;
 import java.util.List;
-import java.util.Set;
-import java.util.stream.Collectors;
 
 /**
  * This class is used to analyze the uniprot problem7 file data.
@@ -75,22 +70,26 @@ public class UniProtAnalysisTask extends AbstractScriptWrapper {
     public void runTask() throws IOException, BioException, SQLException {
         initAll();
 
-        String inputFileName = getInputFileName();
-        RichStreamReader sr = getRichStreamReaderForUniprotDatFile(inputFileName);
+        System.out.println("This method has been disabled temporarily");
+        System.err.println("This method has been disabled temporarily");
+        System.exit(1);
 
-        System.out.println("Starting to read file: " + inputFileName);
-        List<ImmutablePair<String, String>> pairs = getUniProtRefSeqPairs(sr);
-        System.out.println("Finished file: " + pairs.size());
-
-        System.out.println("Writing to temp file");
-        File tempFile = writePairsToTemporaryFile(pairs);
-        System.out.println("Finished writing to temp file: " + tempFile.getAbsolutePath());
-
-        writeFileToTemporaryTable(tempFile);
-        generateReport();
-        System.out.println("Finished writing report to file: " + CSV_FILE);
-
-        dropTemporaryTable();
+//        String inputFileName = getInputFileName();
+//        RichStreamReaderWrapper richStreamReader = getRichStreamReaderForUniprotDatFile(inputFileName, true);
+//
+//        System.out.println("Starting to read file: " + inputFileName);
+//        List<ImmutablePair<String, String>> pairs = getUniProtRefSeqPairs(richStreamReader);
+//        System.out.println("Finished file: " + pairs.size());
+//
+//        System.out.println("Writing to temp file");
+//        File tempFile = writePairsToTemporaryFile(pairs);
+//        System.out.println("Finished writing to temp file: " + tempFile.getAbsolutePath());
+//
+//        writeFileToTemporaryTable(tempFile);
+//        generateReport();
+//        System.out.println("Finished writing report to file: " + CSV_FILE);
+//
+//        dropTemporaryTable();
     }
 
     private String getInputFileName() {
@@ -102,35 +101,17 @@ public class UniProtAnalysisTask extends AbstractScriptWrapper {
         return inputFile;
     }
 
-    private RichStreamReader getRichStreamReaderForUniprotDatFile(String inputFileName) throws FileNotFoundException, BioException {
-        BufferedReader br = new BufferedReader(new FileReader(inputFileName));
-        RichSequenceFormat inFormat = new UniProtFormatZFIN();
-
-        //skips parsing of certain sections that otherwise would throw exceptions
-        inFormat.setElideFeatures(true);
-        inFormat.setElideReferences(true);
-        inFormat.setElideSymbols(true);
-
-        FiniteAlphabet alpha = (FiniteAlphabet) AlphabetManager.alphabetForName("PROTEIN");
-        SymbolTokenization tokenization = alpha.getTokenization("default");
-
-        return new RichStreamReader(
-                br, inFormat, tokenization,
-                RichSequenceBuilderFactory.THRESHOLD,
-                null);
-    }
-
     private List<ImmutablePair<String, String>> getUniProtRefSeqPairs(RichStreamReader richStreamReader) throws BioException {
         List<ImmutablePair<String, String>> UniProtRefSeqPairs = new ArrayList<>();
         while (richStreamReader.hasNext()) {
             RichSequence seq = richStreamReader.nextRichSequence();
 
-            UniProtRefSeqPairs.addAll (((Set<RankedCrossRef>)seq.getRankedCrossRefs())
+            UniProtRefSeqPairs.addAll (seq.getRankedCrossRefs()
                     .stream()
-                    .filter(rankedXref -> "RefSeq".equals(rankedXref.getCrossRef().getDbname()))
+                    .filter(rankedXref -> "RefSeq".equals(((RankedCrossRef)rankedXref).getCrossRef().getDbname()))
                     .map(rankedXref -> new ImmutablePair<>(
                             seq.getAccession(),
-                            rankedXref.getCrossRef().getAccession().replaceAll("\\.\\d*", "")
+                            ((RankedCrossRef)rankedXref).getCrossRef().getAccession().replaceAll("\\.\\d*", "")
                     ))
                     .toList());
         }
