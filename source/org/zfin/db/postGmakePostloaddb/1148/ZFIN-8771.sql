@@ -10,7 +10,7 @@ CREATE TABLE uniprot_release (
     upr_download_date timestamp without time zone,
     upr_release_number character varying(20),
     upr_notes text,
-
+    upr_processed_date timestamp without time zone,
     CONSTRAINT uniprot_release_pkey PRIMARY KEY (upr_id)
 );
 
