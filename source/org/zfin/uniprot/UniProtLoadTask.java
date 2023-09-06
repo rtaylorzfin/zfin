@@ -55,6 +55,7 @@ public class UniProtLoadTask extends AbstractScriptWrapper {
 
         UniProtLoadTask task = new UniProtLoadTask(inputFileName, outputJsonName, outputReportName, "true".equals(commitChanges));
         log.debug("Starting UniProtLoadTask for file " + inputFileName + " with output files " + outputJsonName + " and " + outputReportName + ".");
+        log.debug("Commit changes: " + commitChanges + ".");
         task.runTask();
     }
 
