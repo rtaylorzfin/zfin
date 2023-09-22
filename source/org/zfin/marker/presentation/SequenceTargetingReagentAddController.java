@@ -1,5 +1,6 @@
 package org.zfin.marker.presentation;
 
+import com.fasterxml.jackson.databind.ObjectMapper;
 import org.apache.commons.lang.StringUtils;
 import org.apache.logging.log4j.LogManager; import org.apache.logging.log4j.Logger;
 import org.hibernate.HibernateException;
@@ -53,15 +54,15 @@ public class SequenceTargetingReagentAddController {
     @Autowired
     MarkerSolrService markerSolrService;
 
+    @Autowired
+    private HttpServletRequest request;
+
     @ModelAttribute("formBean")
     private SequenceTargetingReagentAddBean getDefaultSearchForm(@RequestParam(value = "sequenceTargetingReagentType", required = false) String type,
                                                                  @RequestParam(value = "sequenceTargetingReagentPublicationZdbID", required = false) String pubZdbID) {
         SequenceTargetingReagentAddBean sequenceTargetingReagentBean = new SequenceTargetingReagentAddBean();
 
-        Map<String, String> strTypes = new HashMap<>(3);
-        strTypes.put(Marker.Type.CRISPR.name(), "CRISPR");
-        strTypes.put(Marker.Type.MRPHLNO.name(), "Morpholino");
-        strTypes.put(Marker.Type.TALEN.name(), "TALEN");
+        Map<String, String> strTypes = getStrTypesMap();
         sequenceTargetingReagentBean.setStrTypes(strTypes);
 
         sequenceTargetingReagentBean.setStrType(type);
@@ -73,9 +74,6 @@ public class SequenceTargetingReagentAddController {
         return sequenceTargetingReagentBean;
     }
 
-    @Autowired
-    private HttpServletRequest request;
-
     @InitBinder("formBean")
     protected void initBinder(WebDataBinder binder) {
         binder.setValidator(new SequenceTargetingReagentAddBeanValidator());
@@ -83,9 +81,15 @@ public class SequenceTargetingReagentAddController {
 
     @RequestMapping(value = "/sequence-targeting-reagent-add", method = RequestMethod.GET)
     protected String showForm(Model model) throws Exception {
-
         model.addAttribute(LookupStrings.DYNAMIC_TITLE, "Add Sequence Targeting Reagent");
         return "marker/sequence-targeting-reagent-add";
+    }
+
+    @RequestMapping(value = "/sequence-targeting-reagent-add-react", method = RequestMethod.GET)
+    protected String showFormReact(Model model) throws Exception {
+        model.addAttribute("strTypesJson", new ObjectMapper().writeValueAsString(getStrTypesMap()));
+        model.addAttribute(LookupStrings.DYNAMIC_TITLE, "Add Sequence Targeting Reagent");
+        return "marker/sequence-targeting-reagent-add-react";
     }
 
     @RequestMapping(value = "/sequence-targeting-reagent-add", method = RequestMethod.POST)
@@ -214,6 +218,16 @@ public class SequenceTargetingReagentAddController {
 
         return mr.getRelationshipTargetsForString(lookupString);
     }
+
+
+    private static Map<String, String> getStrTypesMap() {
+        Map<String, String> strTypes = new HashMap<>(3);
+        strTypes.put(Marker.Type.CRISPR.name(), "CRISPR");
+        strTypes.put(Marker.Type.MRPHLNO.name(), "Morpholino");
+        strTypes.put(Marker.Type.TALEN.name(), "TALEN");
+        return strTypes;
+    }
+
 }
 
 
