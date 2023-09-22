@@ -22,6 +22,7 @@ import org.zfin.marker.repository.MarkerRepository;
 import org.zfin.marker.service.MarkerService;
 import org.zfin.marker.service.MarkerSolrService;
 import org.zfin.mutant.SequenceTargetingReagent;
+import org.zfin.mutant.repository.MutantRepository;
 import org.zfin.profile.Organization;
 import org.zfin.profile.repository.ProfileRepository;
 import org.zfin.publication.Publication;
@@ -35,9 +36,10 @@ import org.zfin.sequence.repository.SequenceRepository;
 
 import javax.servlet.http.HttpServletRequest;
 import javax.validation.Valid;
-import java.util.HashMap;
-import java.util.List;
-import java.util.Map;
+import java.util.*;
+import java.util.regex.Matcher;
+import java.util.regex.Pattern;
+import java.util.stream.Collectors;
 
 @Controller
 @RequestMapping("/marker")
@@ -46,6 +48,7 @@ public class SequenceTargetingReagentAddController {
     private static Logger LOG = LogManager.getLogger(SequenceTargetingReagentAddController.class);
 
     private static MarkerRepository mr = RepositoryFactory.getMarkerRepository();
+    private static MutantRepository mur = RepositoryFactory.getMutantRepository();
     private static PublicationRepository pr = RepositoryFactory.getPublicationRepository();
     private static InfrastructureRepository ir = RepositoryFactory.getInfrastructureRepository();
     private static SequenceRepository sr = RepositoryFactory.getSequenceRepository();
@@ -87,7 +90,8 @@ public class SequenceTargetingReagentAddController {
 
     @RequestMapping(value = "/sequence-targeting-reagent-add-react", method = RequestMethod.GET)
     protected String showFormReact(Model model) throws Exception {
-        model.addAttribute("strTypesJson", new ObjectMapper().writeValueAsString(getStrTypesMap()));
+        String strTypesJson = new ObjectMapper().writeValueAsString(getStrTypesMap()).replaceAll("\"", "&quot;");
+        model.addAttribute("strTypesJson", strTypesJson);
         model.addAttribute(LookupStrings.DYNAMIC_TITLE, "Add Sequence Targeting Reagent");
         return "marker/sequence-targeting-reagent-add-react";
     }
@@ -219,6 +223,39 @@ public class SequenceTargetingReagentAddController {
         return mr.getRelationshipTargetsForString(lookupString);
     }
 
+    @RequestMapping(value = "/propose-name-by-type-and-genes", method = RequestMethod.GET)
+    public
+    @ResponseBody
+    String proposeNameByTypeAndGenes(@RequestParam("type") String type, @RequestParam("genes") String genes) {
+        Set<String> geneSet = Set.of(genes.split(","));
+        List<Marker> strList = mr.getMarkerWithRelationshipsBySecondMarkers(geneSet);
+
+        //filtered by type
+        strList = strList.stream().filter(str -> str.getMarkerType().getName().equals(type)).toList();
+
+        Integer maxIndex = 0;
+        if (!strList.isEmpty()) {
+            //use regex to extract number from eg. CRISPR3-abc,def,ghi
+            maxIndex = strList.stream().map(
+                            (str) -> {
+                                Pattern pattern = Pattern.compile("[A-Z]+(\\d+)");
+                                Matcher matcher = pattern.matcher(str.getAbbreviation());
+                                matcher.find();
+                                return matcher.group(1);
+                            })
+                    .map(Integer::parseInt)
+                    .max(Integer::compareTo).orElse(0);
+        }
+        return "" + type + (maxIndex + 1) + "-" + geneSet.stream().sorted().collect(Collectors.joining(","));
+    }
+
+    @RequestMapping(value = "/find-count-by-type-and-genes-2", method = RequestMethod.GET)
+    public
+    @ResponseBody
+    String lookupCountByTypeAndGene2() {
+        Marker mrkr = mr.getMarkerByName("rubis");
+        return "2";
+    }
 
     private static Map<String, String> getStrTypesMap() {
         Map<String, String> strTypes = new HashMap<>(3);

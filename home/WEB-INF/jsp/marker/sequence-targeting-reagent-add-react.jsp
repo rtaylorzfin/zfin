@@ -10,7 +10,7 @@
              id="NewSequenceTargetingReagentForm"
              data-pub-id="${formBean.publicationID}"
              data-str-type="${formBean.strType}"
-             data-str-types="${strTypes}"
+             data-str-types-json="${strTypesJson}"
         >
         </div>
     </div>
