@@ -1,6 +1,9 @@
 import React, {useEffect, useState} from "react";
 import PropTypes from "prop-types";
 import MarkerInput from "../components/form/MarkerInput";
+import SequenceTargetingReagentNewSequence from "./SequenceTargetingReagentNewSequence";
+import {useForm} from "react-form";
+import http from "../utils/http";
 
 const NewSequenceTargetingReagentForm = ({ pubId: defaultPubId, strType: defaultStrType, strTypesJson }) => {
     const strTypes = JSON.parse(strTypesJson);
@@ -47,7 +50,7 @@ const NewSequenceTargetingReagentForm = ({ pubId: defaultPubId, strType: default
     }, [strType, targetGenes]);
 
     return (
-        <form id="str-form" className="form-horizontal" action="sequence-targeting-reagent-add" method="post">
+        <>
             <div className="form-group row">
                 <label htmlFor="publicationID" className="col-md-2 col-form-label">Reference</label>
                 <div className="col-md-4">
@@ -103,7 +106,22 @@ const NewSequenceTargetingReagentForm = ({ pubId: defaultPubId, strType: default
 
                 </div>
             </div>
-            <div><h2>TODO: add sequence info</h2></div>
+
+
+
+
+            <div className="form-group row">
+                <label className="col-md-2 col-form-label">Target Sequence</label>
+                <div className="col-md-6">
+                    <SequenceTargetingReagentNewSequence strType={strType} />
+                </div>
+            </div>
+
+
+
+
+
+
             <div className="form-group row">
                 <label htmlFor="publicNote" className="col-md-2 col-form-label">Public Note</label>
                 <div className="col-md-6">
@@ -121,7 +139,7 @@ const NewSequenceTargetingReagentForm = ({ pubId: defaultPubId, strType: default
                     <button type="submit" className="btn btn-primary">Submit</button>
                 </div>
             </div>
-        </form>
+        </>
     );
 }
 

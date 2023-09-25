@@ -36,6 +36,7 @@ const SequenceTargetingReagentSequenceFields = ({
     complementedField,
     displayedSequenceField,
     setDisplayedSequence,
+    newRow = false,
 }) => {
     useEffect(() => {
         let sequence = values[reportedSequenceField].toUpperCase();
@@ -48,11 +49,13 @@ const SequenceTargetingReagentSequenceFields = ({
         setDisplayedSequence(sequence);
     }, [values[reportedSequenceField], values[reversedField], values[complementedField]]);
 
+    const inputFieldRowClass = newRow ? 'col-md-12' : 'col-md-8';
+
     return (
         <>
             <div className='form-group row'>
                 <label htmlFor='reportedSequence1' className='col-md-2 col-form-label'>{reportedLabel}</label>
-                <div className='col-md-8'>
+                <div className={inputFieldRowClass}>
                     <InputField
                         field={reportedSequenceField}
                         id={reportedSequenceField}
@@ -92,7 +95,7 @@ const SequenceTargetingReagentSequenceFields = ({
                 field={displayedSequenceField}
                 id={displayedSequenceField}
                 tag={SequenceInput}
-                inputClassName='col-md-8'
+                inputClassName={inputFieldRowClass}
                 disabled
             />
         </>
@@ -109,6 +112,7 @@ SequenceTargetingReagentSequenceFields.propTypes = {
     complementedField: PropTypes.string,
     displayedSequenceField: PropTypes.string,
     setDisplayedSequence: PropTypes.func,
+    newRow: PropTypes.bool,
 };
 
 export default SequenceTargetingReagentSequenceFields;
