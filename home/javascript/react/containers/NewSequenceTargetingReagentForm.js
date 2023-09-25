@@ -1,9 +1,8 @@
 import React, {useEffect, useState} from "react";
 import PropTypes from "prop-types";
 import MarkerInput from "../components/form/MarkerInput";
-import SequenceTargetingReagentNewSequence from "./SequenceTargetingReagentNewSequence";
 import {useForm} from "react-form";
-import http from "../utils/http";
+import SequenceTargetingReagentSequenceFields from "../components/marker-edit/SequenceTargetingReagentSequenceFields";
 
 const NewSequenceTargetingReagentForm = ({ pubId: defaultPubId, strType: defaultStrType, strTypesJson }) => {
     const strTypes = JSON.parse(strTypesJson);
@@ -49,8 +48,41 @@ const NewSequenceTargetingReagentForm = ({ pubId: defaultPubId, strType: default
         computeName(strType, targetGenes);
     }, [strType, targetGenes]);
 
+    const [strValues, setStrValues] = useState({
+        reportedSequence1: '',
+        sequence1: '',
+        reversed1: false,
+        complemented1: false,
+        reportedSequence2: '',
+        sequence2: '',
+        reversed2: false,
+        complemented2: false,
+    });
+
+    const {
+        Form,
+        reset,
+        setFieldValue,
+        setMeta,
+        values,
+        meta: { isValid, isSubmitting, isSubmitted, serverError }
+    } = useForm({
+        defaultValues: strValues,
+        onSubmit: async (values) => {
+            console.log('onSubmit', values);
+        },
+    });
+
+    const isTalen = strType === 'TALEN';
+    let validBases = 'ATGC';
+    if (isTalen) {
+        validBases += 'R';
+    }
+    const reportedLabel = isTalen ? 'Target Sequence 1 Reported' : 'Reported';
+
+
     return (
-        <>
+        <Form>
             <div className="form-group row">
                 <label htmlFor="publicationID" className="col-md-2 col-form-label">Reference</label>
                 <div className="col-md-4">
@@ -113,7 +145,48 @@ const NewSequenceTargetingReagentForm = ({ pubId: defaultPubId, strType: default
             <div className="form-group row">
                 <label className="col-md-2 col-form-label">Target Sequence</label>
                 <div className="col-md-6">
-                    <SequenceTargetingReagentNewSequence strType={strType} />
+
+
+
+
+
+
+
+                    <SequenceTargetingReagentSequenceFields
+                        complementedField='complemented1'
+                        displayedSequenceField='sequence1'
+                        reportedLabel={reportedLabel}
+                        displayedLabel='Displayed'
+                        reportedSequenceField='reportedSequence1'
+                        reversedField='reversed1'
+                        validBases={validBases}
+                        values={values}
+                        setDisplayedSequence={value => setFieldValue('sequence1', value)}
+                        newRow={true}
+                    />
+
+                    {isTalen &&
+                        <div className='mt-4'>
+                            <SequenceTargetingReagentSequenceFields
+                                complementedField='complemented2'
+                                displayedSequenceField='sequence2'
+                                reportedLabel='Target Sequence 2 Reported'
+                                displayedLabel='Displayed'
+                                reportedSequenceField='reportedSequence2'
+                                reversedField='reversed2'
+                                validBases={validBases}
+                                values={values}
+                                setDisplayedSequence={value => setFieldValue('sequence2', value)}
+                                newRow={true}
+                            />
+                        </div>
+                    }
+
+
+
+
+
+
                 </div>
             </div>
 
@@ -139,7 +212,7 @@ const NewSequenceTargetingReagentForm = ({ pubId: defaultPubId, strType: default
                     <button type="submit" className="btn btn-primary">Submit</button>
                 </div>
             </div>
-        </>
+        </Form>
     );
 }
 
