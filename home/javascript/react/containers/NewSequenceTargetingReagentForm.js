@@ -1,6 +1,5 @@
 import React, {useEffect, useState} from "react";
 import PropTypes from "prop-types";
-import FormGroup from "../components/form/FormGroup";
 import MarkerInput from "../components/form/MarkerInput";
 
 const NewSequenceTargetingReagentForm = ({ pubId: defaultPubId, strType: defaultStrType, strTypesJson }) => {
@@ -9,25 +8,43 @@ const NewSequenceTargetingReagentForm = ({ pubId: defaultPubId, strType: default
     const [pubId, setPubId] = useState(defaultPubId);
     const [computedName, setComputedName] = useState("");
     const [alias, setAlias] = useState("");
+    const [targetGenes, setTargetGenes] = useState([]);
     const [targetGene, setTargetGene] = useState("");
-    const [typeCount, setTypeCount] = useState(1);
+    const [stagedGene, setStagedGene] = useState("");
 
     function handleGeneChange(event) {
-        if (event.type !== "typeahead:select") {
-            return;
+        console.log('handleGeneChange targetGenes');
+        if (event.type === "typeahead:select") {
+            setStagedGene(event.target.value);
+            setTargetGene("");
+        } else {
+            setTargetGene(event.target.value);
         }
-        setTargetGene(event.target.value);
     }
 
-    function computeName() {
-        fetch(`/action/marker/propose-name-by-type-and-genes?type=${strType}&genes=${targetGene}`)
+    function handleGeneDelete(event, gene) {
+        event.preventDefault();
+        setTargetGenes(targetGenes.filter(g => g !== gene));
+    }
+
+    function computeName(newType, newGenes) {
+        const combinedGenes = newGenes.join(',');
+        fetch(`/action/marker/propose-name-by-type-and-genes?type=${newType}&genes=${combinedGenes}`)
             .then(response => response.text())
             .then(data => setComputedName(data));
     }
 
     useEffect(() => {
-        computeName();
-    }, [strType, targetGene]);
+        if (stagedGene === "") {
+            return;
+        }
+        setTargetGenes([...targetGenes, stagedGene]);
+        setStagedGene("");
+    }, [stagedGene]);
+
+    useEffect(() => {
+        computeName(strType, targetGenes);
+    }, [strType, targetGenes]);
 
     return (
         <form id="str-form" className="form-horizontal" action="sequence-targeting-reagent-add" method="post">
@@ -51,10 +68,24 @@ const NewSequenceTargetingReagentForm = ({ pubId: defaultPubId, strType: default
             </div>
 
             <div className="form-group row">
-                <label htmlFor="targetGene" className="col-md-2 col-form-label">Target Gene</label>
+                <label htmlFor="targetGene" className="col-md-2 col-form-label">Target Gene(s)</label>
                 <div className="col-md-4">
-                    <MarkerInput typeGroup={'GENEDOM_AND_NTR'} typeGroup2={'GENEDOM_AND_NTR'} id="targetGene" name="targetGene" className="form-control"
-                                    onChange={handleGeneChange} />
+                    <MarkerInput typeGroup={'GENEDOM_AND_NTR'}
+                                 typeGroup2={'GENEDOM_AND_NTR'}
+                                 id="targetGene"
+                                 name="targetGene"
+                                 className="form-control"
+                                 value={targetGene}
+                                 onChange={(e) => {handleGeneChange(e)}} />
+                </div>
+            </div>
+            <div className="row">
+                <div className="col-md-2">
+                </div>
+                <div className="col-md-4">
+                    <ul className="list-unstyled">
+                        {targetGenes.map(gene => <li key={gene}>{gene} <a href='#' onClick={e => {handleGeneDelete(e, gene)}}><i className='fa fa-trash'/></a></li>)}
+                    </ul>
                 </div>
             </div>
 
