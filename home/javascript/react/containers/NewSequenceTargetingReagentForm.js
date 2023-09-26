@@ -1,4 +1,4 @@
-import React, {useEffect, useState} from "react";
+import React, {useEffect, useState, useRef} from "react";
 import PropTypes from "prop-types";
 import MarkerInput from "../components/form/MarkerInput";
 import {useForm} from "react-form";
@@ -29,6 +29,8 @@ const NewSequenceTargetingReagentForm = ({ pubId: defaultPubId, strType: default
         complemented2: false,
     });
 
+    const formChildRef = useRef(null);
+
     const {
         Form,
         reset,
@@ -39,7 +41,8 @@ const NewSequenceTargetingReagentForm = ({ pubId: defaultPubId, strType: default
     } = useForm({
         defaultValues: defaultFormValues,
         onSubmit: async (values) => {
-            console.log('onSubmit', values);
+            //TODO: add validation for target genes
+            formElement().submit();
         },
     });
 
@@ -70,6 +73,10 @@ const NewSequenceTargetingReagentForm = ({ pubId: defaultPubId, strType: default
             });
     }
 
+    function formElement() {
+        return formChildRef.current.parentElement;
+    }
+
     useEffect(() => {
         if (stagedGene === "") {
             return;
@@ -90,7 +97,7 @@ const NewSequenceTargetingReagentForm = ({ pubId: defaultPubId, strType: default
 
     return (
         <Form>
-            <div className="form-group row">
+            <div className="form-group row" ref={formChildRef}>
                 <label htmlFor="publicationID" className="col-md-2 col-form-label">Reference</label>
                 <div className="col-md-4">
                     <InputField
@@ -134,7 +141,7 @@ const NewSequenceTargetingReagentForm = ({ pubId: defaultPubId, strType: default
                                  onChange={(e) => {handleGeneChange(e)}} />
                 </div>
             </div>
-            <div className="row">
+            <div className="row mb-3">
                 <div className="col-md-2">
                 </div>
                 <div className="col-md-4">
