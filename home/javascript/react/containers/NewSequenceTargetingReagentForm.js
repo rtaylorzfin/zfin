@@ -3,52 +3,22 @@ import PropTypes from "prop-types";
 import MarkerInput from "../components/form/MarkerInput";
 import {useForm} from "react-form";
 import SequenceTargetingReagentSequenceFields from "../components/marker-edit/SequenceTargetingReagentSequenceFields";
+import InputField from "../components/form/InputField";
 
 const NewSequenceTargetingReagentForm = ({ pubId: defaultPubId, strType: defaultStrType, strTypesJson }) => {
     const strTypes = JSON.parse(strTypesJson);
-    const [strType, setStrType] = useState(defaultStrType);
-    const [pubId, setPubId] = useState(defaultPubId);
-    const [computedName, setComputedName] = useState("");
-    const [alias, setAlias] = useState("");
     const [targetGenes, setTargetGenes] = useState([]);
     const [targetGene, setTargetGene] = useState("");
     const [stagedGene, setStagedGene] = useState("");
+    const [strType, setStrType] = useState(defaultStrType);
 
-    function handleGeneChange(event) {
-        console.log('handleGeneChange targetGenes');
-        if (event.type === "typeahead:select") {
-            setStagedGene(event.target.value);
-            setTargetGene("");
-        } else {
-            setTargetGene(event.target.value);
-        }
-    }
-
-    function handleGeneDelete(event, gene) {
-        event.preventDefault();
-        setTargetGenes(targetGenes.filter(g => g !== gene));
-    }
-
-    function computeName(newType, newGenes) {
-        const combinedGenes = newGenes.join(',');
-        fetch(`/action/marker/propose-name-by-type-and-genes?type=${newType}&genes=${combinedGenes}`)
-            .then(response => response.text())
-            .then(data => setComputedName(data));
-    }
-
-    useEffect(() => {
-        if (stagedGene === "") {
-            return;
-        }
-        setTargetGenes([...targetGenes, stagedGene]);
-        setStagedGene("");
-    }, [stagedGene]);
-
-    useEffect(() => {
-        computeName(strType, targetGenes);
-    }, [strType, targetGenes]);
-
-    const [strValues, setStrValues] = useState({
+    const [defaultFormValues, setDefaultFormValues] = useState({
+        reference: defaultPubId,
+        strType: defaultStrType,
+        publicNote: '',
+        curatorNote: '',
+        alias: '',
+        name: '',
         reportedSequence1: '',
         sequence1: '',
         reversed1: false,
@@ -67,38 +37,88 @@ const NewSequenceTargetingReagentForm = ({ pubId: defaultPubId, strType: default
         values,
         meta: { isValid, isSubmitting, isSubmitted, serverError }
     } = useForm({
-        defaultValues: strValues,
+        defaultValues: defaultFormValues,
         onSubmit: async (values) => {
             console.log('onSubmit', values);
         },
     });
 
-    const isTalen = strType === 'TALEN';
-    let validBases = 'ATGC';
-    if (isTalen) {
-        validBases += 'R';
-    }
-    const reportedLabel = isTalen ? 'Target Sequence 1 Reported' : 'Reported';
+    function isTalen() { return strType === 'TALEN' };
+    function validBases() { return isTalen() ? 'ATGCR' : 'ATGC' };
+    function reportedLabel() { return isTalen() ? 'Target Sequence 1 Reported' : 'Reported' };
 
+    function handleGeneChange(event) {
+        if (event.type === "typeahead:select") {
+            setStagedGene(event.target.value);
+            setTargetGene("");
+        } else {
+            setTargetGene(event.target.value);
+        }
+    }
+
+    function handleGeneDelete(event, gene) {
+        event.preventDefault();
+        setTargetGenes(targetGenes.filter(g => g !== gene));
+    }
+
+    function computeName(newType, newGenes) {
+        const combinedGenes = newGenes.join(',');
+        fetch(`/action/marker/propose-name-by-type-and-genes?type=${newType}&genes=${combinedGenes}`)
+            .then(response => response.text())
+            .then(data => {
+                setFieldValue('name', data);
+            });
+    }
+
+    useEffect(() => {
+        if (stagedGene === "") {
+            return;
+        }
+        setTargetGenes([...targetGenes, stagedGene]);
+        setStagedGene("");
+    }, [stagedGene]);
+
+    useEffect(() => {
+        computeName(strType, targetGenes);
+    }, [strType, targetGenes]);
+
+    useEffect(() => {
+        if (values.strType !== strType) {
+            setStrType(values.strType);
+        }
+    }, [values]);
 
     return (
         <Form>
             <div className="form-group row">
                 <label htmlFor="publicationID" className="col-md-2 col-form-label">Reference</label>
                 <div className="col-md-4">
-                    <input id="publicationID" name="publicationID" placeholder="ZDB-PUB-123456-7"
-                           className="form-control" type="text" value={pubId} onChange={e => setPubId(e.target.value)}
-                    />
+                    <InputField
+                        id='publicationID'
+                        name='publicationID'
+                        placeholder='ZDB-PUB-123456-7'
+                        field='reference'
+                        validate={value => {
+                            if (value === '') {
+                                return 'Reference is required';
+                            }
+                            return false;
+                        }}
+                        />
                 </div>
             </div>
             <div className="form-group row">
                 <label htmlFor="strType" className="col-md-2 col-form-label">Type</label>
                 <div className="col-md-4">
-                    <select id="strType" name="strType" className="form-control"
-                            value={strType} onChange={e => setStrType(e.target.value)}>
+                    <InputField
+                        id="strType"
+                        name="strType"
+                        field="strType"
+                        tag="select"
+                    >
                         <option value="" disabled="disabled">Select...</option>
                         {Object.keys(strTypes).map(key => <option key={key} value={key}>{strTypes[key]}</option>)}
-                    </select>
+                    </InputField>
                 </div>
             </div>
 
@@ -127,45 +147,49 @@ const NewSequenceTargetingReagentForm = ({ pubId: defaultPubId, strType: default
             <div className="form-group row">
                 <label htmlFor="name" className="col-md-2 col-form-label">Name</label>
                 <div className="col-md-4">
-                    <input id="name" name="name" className="form-control" type="text" value={computedName} readOnly={true}/>
-
+                    <InputField
+                        id="name"
+                        name="name"
+                        field="name"
+                        readOnly={true}
+                    />
                 </div>
             </div>
             <div className="form-group row">
                 <label htmlFor="alias" className="col-md-2 col-form-label">Alias</label>
                 <div className="col-md-4">
-                    <input id="alias" name="alias" className="form-control" type="text" value={alias} onChange={e => setAlias(e.target.value)}/>
-
+                    <InputField
+                        id="alias"
+                        name="alias"
+                        field="alias"
+                        validate={value => {
+                            if (value === '') {
+                                return 'Alias is required';
+                            }
+                            return false;
+                        }}
+                    />
                 </div>
             </div>
-
-
-
 
             <div className="form-group row">
                 <label className="col-md-2 col-form-label">Target Sequence</label>
                 <div className="col-md-6">
 
-
-
-
-
-
-
                     <SequenceTargetingReagentSequenceFields
                         complementedField='complemented1'
                         displayedSequenceField='sequence1'
-                        reportedLabel={reportedLabel}
+                        reportedLabel={reportedLabel()}
                         displayedLabel='Displayed'
                         reportedSequenceField='reportedSequence1'
                         reversedField='reversed1'
-                        validBases={validBases}
+                        validBases={validBases()}
                         values={values}
                         setDisplayedSequence={value => setFieldValue('sequence1', value)}
                         newRow={true}
                     />
 
-                    {isTalen &&
+                    {isTalen() &&
                         <div className='mt-4'>
                             <SequenceTargetingReagentSequenceFields
                                 complementedField='complemented2'
@@ -174,7 +198,7 @@ const NewSequenceTargetingReagentForm = ({ pubId: defaultPubId, strType: default
                                 displayedLabel='Displayed'
                                 reportedSequenceField='reportedSequence2'
                                 reversedField='reversed2'
-                                validBases={validBases}
+                                validBases={validBases()}
                                 values={values}
                                 setDisplayedSequence={value => setFieldValue('sequence2', value)}
                                 newRow={true}
@@ -182,29 +206,31 @@ const NewSequenceTargetingReagentForm = ({ pubId: defaultPubId, strType: default
                         </div>
                     }
 
-
-
-
-
-
                 </div>
             </div>
-
-
-
-
-
 
             <div className="form-group row">
                 <label htmlFor="publicNote" className="col-md-2 col-form-label">Public Note</label>
                 <div className="col-md-6">
-                    <textarea id="publicNote" name="publicNote" className="form-control" rows="3"></textarea>
+                    <InputField
+                        id="publicNote"
+                        name="publicNote"
+                        field="publicNote"
+                        tag="textarea"
+                        rows="3"
+                    />
                 </div>
             </div>
             <div className="form-group row">
                 <label htmlFor="curatorNote" className="col-md-2 col-form-label">Curator Note</label>
                 <div className="col-md-6">
-                    <textarea id="curatorNote" name="curatorNote" className="form-control" rows="3"></textarea>
+                    <InputField
+                        id="curatorNote"
+                        name="curatorNote"
+                        field="curatorNote"
+                        tag="textarea"
+                        rows="3"
+                    />
                 </div>
             </div>
             <div className="form-group row">
