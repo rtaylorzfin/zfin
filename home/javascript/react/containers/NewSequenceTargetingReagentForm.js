@@ -13,16 +13,16 @@ const NewSequenceTargetingReagentForm = ({ pubId: defaultPubId, strType: default
     const [strType, setStrType] = useState(defaultStrType);
 
     const [defaultFormValues, setDefaultFormValues] = useState({
-        reference: defaultPubId,
+        publicationID: defaultPubId,
         strType: defaultStrType,
         publicNote: '',
         curatorNote: '',
         alias: '',
         name: '',
-        reportedSequence1: '',
-        sequence1: '',
-        reversed1: false,
-        complemented1: false,
+        reportedSequence: '',
+        sequence: '',
+        reversed: false,
+        complemented: false,
         reportedSequence2: '',
         sequence2: '',
         reversed2: false,
@@ -97,7 +97,7 @@ const NewSequenceTargetingReagentForm = ({ pubId: defaultPubId, strType: default
                         id='publicationID'
                         name='publicationID'
                         placeholder='ZDB-PUB-123456-7'
-                        field='reference'
+                        field='publicationID'
                         validate={value => {
                             if (value === '') {
                                 return 'Reference is required';
@@ -177,15 +177,15 @@ const NewSequenceTargetingReagentForm = ({ pubId: defaultPubId, strType: default
                 <div className="col-md-6">
 
                     <SequenceTargetingReagentSequenceFields
-                        complementedField='complemented1'
-                        displayedSequenceField='sequence1'
+                        complementedField='complemented'
+                        displayedSequenceField='sequence'
                         reportedLabel={reportedLabel()}
                         displayedLabel='Displayed'
-                        reportedSequenceField='reportedSequence1'
-                        reversedField='reversed1'
+                        reportedSequenceField='reportedSequence'
+                        reversedField='reversed'
                         validBases={validBases()}
                         values={values}
-                        setDisplayedSequence={value => setFieldValue('sequence1', value)}
+                        setDisplayedSequence={value => setFieldValue('sequence', value)}
                         newRow={true}
                     />
 

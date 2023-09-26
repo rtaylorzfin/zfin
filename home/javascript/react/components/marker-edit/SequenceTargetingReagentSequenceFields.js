@@ -60,6 +60,7 @@ const SequenceTargetingReagentSequenceFields = ({
                         field={reportedSequenceField}
                         id={reportedSequenceField}
                         tag={SequenceInput}
+                        style={{ textTransform: 'uppercase' }}
                         validate={value => {
                             if (!value) {
                                 return 'A sequence is required';
@@ -74,13 +75,13 @@ const SequenceTargetingReagentSequenceFields = ({
                         <InputCheckbox
                             field={reversedField}
                             id={reversedField}
-                        /><label className='form-check-label' htmlFor='reversed1'>Reverse</label>
+                        /><label className='form-check-label' htmlFor={reversedField}>Reverse</label>
                     </div>
                     <div className='form-check form-check-inline'>
                         <InputCheckbox
                             field={complementedField}
                             id={complementedField}
-                        /><label className='form-check-label' htmlFor='complemented1'>Complement</label>
+                        /><label className='form-check-label' htmlFor={complementedField}>Complement</label>
                     </div>
                     {(values[reversedField] || values[complementedField]) &&
                         <div className='text-muted'>
