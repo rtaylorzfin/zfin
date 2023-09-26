@@ -84,12 +84,6 @@ public class SequenceTargetingReagentAddController {
 
     @RequestMapping(value = "/sequence-targeting-reagent-add", method = RequestMethod.GET)
     protected String showForm(Model model) throws Exception {
-        model.addAttribute(LookupStrings.DYNAMIC_TITLE, "Add Sequence Targeting Reagent");
-        return "marker/sequence-targeting-reagent-add";
-    }
-
-    @RequestMapping(value = "/sequence-targeting-reagent-add-react", method = RequestMethod.GET)
-    protected String showFormReact(Model model) throws Exception {
         String strTypesJson = new ObjectMapper().writeValueAsString(getStrTypesMap()).replaceAll("\"", "&quot;");
         model.addAttribute("strTypesJson", strTypesJson);
         model.addAttribute(LookupStrings.DYNAMIC_TITLE, "Add Sequence Targeting Reagent");
@@ -97,7 +91,7 @@ public class SequenceTargetingReagentAddController {
     }
 
     @RequestMapping(value = "/sequence-targeting-reagent-add", method = RequestMethod.POST)
-    public String addSequenceTargetingReagent(Model model,
+    public String addSequenceTargetingReagentReact(Model model,
                                               @Valid @ModelAttribute("formBean") SequenceTargetingReagentAddBean formBean,
                                               BindingResult result) throws Exception {
 

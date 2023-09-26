@@ -41,7 +41,13 @@ const NewSequenceTargetingReagentForm = ({ pubId: defaultPubId, strType: default
     } = useForm({
         defaultValues: defaultFormValues,
         onSubmit: async (values) => {
-            //TODO: add validation for target genes
+            //validation for target genes
+            if (targetGenes.length === 0) {
+                alert('Please enter a target gene.');
+                return;
+            }
+
+            formElement().elements['targetGeneSymbol'].value = targetGenes.join(',');
             formElement().submit();
         },
     });
@@ -96,7 +102,7 @@ const NewSequenceTargetingReagentForm = ({ pubId: defaultPubId, strType: default
     }, [values]);
 
     return (
-        <Form>
+        <Form method="POST">
             <div className="form-group row" ref={formChildRef}>
                 <label htmlFor="publicationID" className="col-md-2 col-form-label">Reference</label>
                 <div className="col-md-4">
@@ -130,12 +136,12 @@ const NewSequenceTargetingReagentForm = ({ pubId: defaultPubId, strType: default
             </div>
 
             <div className="form-group row">
-                <label htmlFor="targetGene" className="col-md-2 col-form-label">Target Gene(s)</label>
+                <label htmlFor="targetGeneSymbol" className="col-md-2 col-form-label">Target Gene(s)</label>
                 <div className="col-md-4">
                     <MarkerInput typeGroup={'GENEDOM_AND_NTR'}
                                  typeGroup2={'GENEDOM_AND_NTR'}
-                                 id="targetGene"
-                                 name="targetGene"
+                                 id="targetGeneSymbol"
+                                 name="targetGeneSymbol"
                                  className="form-control"
                                  value={targetGene}
                                  onChange={(e) => {handleGeneChange(e)}} />
