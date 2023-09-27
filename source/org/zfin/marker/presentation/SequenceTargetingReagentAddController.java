@@ -87,7 +87,7 @@ public class SequenceTargetingReagentAddController {
         String strTypesJson = new ObjectMapper().writeValueAsString(getStrTypesMap()).replaceAll("\"", "&quot;");
         model.addAttribute("strTypesJson", strTypesJson);
         model.addAttribute(LookupStrings.DYNAMIC_TITLE, "Add Sequence Targeting Reagent");
-        return "marker/sequence-targeting-reagent-add-react";
+        return "marker/sequence-targeting-reagent-add";
     }
 
     @RequestMapping(value = "/sequence-targeting-reagent-add", method = RequestMethod.POST)
