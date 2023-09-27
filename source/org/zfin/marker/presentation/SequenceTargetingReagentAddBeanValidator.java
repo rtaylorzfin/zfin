@@ -11,6 +11,8 @@ import org.zfin.publication.presentation.PublicationValidator;
 import org.zfin.repository.RepositoryFactory;
 import org.zfin.util.ZfinStringUtils;
 
+import java.util.List;
+
 public class SequenceTargetingReagentAddBeanValidator implements Validator {
 
     private MarkerRepository mr = RepositoryFactory.getMarkerRepository();
@@ -40,8 +42,15 @@ public class SequenceTargetingReagentAddBeanValidator implements Validator {
         String targetGeneSymbol = formBean.getTargetGeneSymbol();
         if (StringUtils.isEmpty(targetGeneSymbol)) {
             errors.rejectValue("targetGeneSymbol", "str.target.empty");
+        } else if (targetGeneSymbol.contains(",")) {
+            List<String> geneSymbols = List.of(targetGeneSymbol.split(","));
+            for(String geneSymbol : geneSymbols){
+                if (mr.getMarkerByAbbreviation(geneSymbol) == null) {
+                    errors.rejectValue("targetGeneSymbol", "str.target.notfound");
+                }
+            }
+            formBean.setTargetGeneSymbols(geneSymbols);
         } else if (mr.getMarkerByAbbreviation(targetGeneSymbol) == null) {
-
             errors.rejectValue("targetGeneSymbol", "str.target.notfound");
         }
         if (type == Marker.Type.MRPHLNO) {

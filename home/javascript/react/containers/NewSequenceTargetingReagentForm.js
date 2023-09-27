@@ -1,15 +1,15 @@
-import React, {useEffect, useState, useRef} from "react";
-import PropTypes from "prop-types";
-import MarkerInput from "../components/form/MarkerInput";
-import {useForm} from "react-form";
-import SequenceTargetingReagentSequenceFields from "../components/marker-edit/SequenceTargetingReagentSequenceFields";
-import InputField from "../components/form/InputField";
+import React, {useEffect, useState, useRef} from 'react';
+import PropTypes from 'prop-types';
+import MarkerInput from '../components/form/MarkerInput';
+import {useForm} from 'react-form';
+import SequenceTargetingReagentSequenceFields from '../components/marker-edit/SequenceTargetingReagentSequenceFields';
+import InputField from '../components/form/InputField';
 
 const NewSequenceTargetingReagentForm = ({ pubId: defaultPubId, strType: defaultStrType, strTypesJson }) => {
     const strTypes = JSON.parse(strTypesJson);
     const [targetGenes, setTargetGenes] = useState([]);
-    const [targetGene, setTargetGene] = useState("");
-    const [stagedGene, setStagedGene] = useState("");
+    const [targetGene, setTargetGene] = useState('');
+    const [stagedGene, setStagedGene] = useState('');
     const [strType, setStrType] = useState(defaultStrType);
 
     const [defaultFormValues, setDefaultFormValues] = useState({
@@ -57,9 +57,9 @@ const NewSequenceTargetingReagentForm = ({ pubId: defaultPubId, strType: default
     function reportedLabel() { return isTalen() ? 'Target Sequence 1 Reported' : 'Reported' };
 
     function handleGeneChange(event) {
-        if (event.type === "typeahead:select") {
+        if (event.type === 'typeahead:select') {
             setStagedGene(event.target.value);
-            setTargetGene("");
+            setTargetGene('');
         } else {
             setTargetGene(event.target.value);
         }
@@ -84,11 +84,11 @@ const NewSequenceTargetingReagentForm = ({ pubId: defaultPubId, strType: default
     }
 
     useEffect(() => {
-        if (stagedGene === "") {
+        if (stagedGene === '') {
             return;
         }
         setTargetGenes([...targetGenes, stagedGene]);
-        setStagedGene("");
+        setStagedGene('');
     }, [stagedGene]);
 
     useEffect(() => {
@@ -102,10 +102,10 @@ const NewSequenceTargetingReagentForm = ({ pubId: defaultPubId, strType: default
     }, [values]);
 
     return (
-        <Form method="POST">
-            <div className="form-group row" ref={formChildRef}>
-                <label htmlFor="publicationID" className="col-md-2 col-form-label">Reference</label>
-                <div className="col-md-4">
+        <Form method='POST'>
+            <div className='form-group row' ref={formChildRef}>
+                <label htmlFor='publicationID' className='col-md-2 col-form-label'>Reference</label>
+                <div className='col-md-4'>
                     <InputField
                         id='publicationID'
                         name='publicationID'
@@ -120,74 +120,68 @@ const NewSequenceTargetingReagentForm = ({ pubId: defaultPubId, strType: default
                         />
                 </div>
             </div>
-            <div className="form-group row">
-                <label htmlFor="strType" className="col-md-2 col-form-label">Type</label>
-                <div className="col-md-4">
+            <div className='form-group row'>
+                <label htmlFor='strType' className='col-md-2 col-form-label'>Type</label>
+                <div className='col-md-4'>
                     <InputField
-                        id="strType"
-                        name="strType"
-                        field="strType"
-                        tag="select"
+                        id='strType'
+                        name='strType'
+                        field='strType'
+                        tag='select'
                     >
-                        <option value="" disabled="disabled">Select...</option>
+                        <option value='' disabled='disabled'>Select...</option>
                         {Object.keys(strTypes).map(key => <option key={key} value={key}>{strTypes[key]}</option>)}
                     </InputField>
                 </div>
             </div>
 
-            <div className="form-group row">
-                <label htmlFor="targetGeneSymbol" className="col-md-2 col-form-label">Target Gene(s)</label>
-                <div className="col-md-4">
+            <div className='form-group row'>
+                <label htmlFor='targetGeneSymbol' className='col-md-2 col-form-label'>Target Gene(s)</label>
+                <div className='col-md-4'>
                     <MarkerInput typeGroup={'GENEDOM_AND_NTR'}
                                  typeGroup2={'GENEDOM_AND_NTR'}
-                                 id="targetGeneSymbol"
-                                 name="targetGeneSymbol"
-                                 className="form-control"
+                                 id='targetGeneSymbol'
+                                 name='targetGeneSymbol'
+                                 className='form-control'
                                  value={targetGene}
                                  onChange={(e) => {handleGeneChange(e)}} />
                 </div>
             </div>
-            <div className="row mb-3">
-                <div className="col-md-2">
+            <div className='row mb-3'>
+                <div className='col-md-2'>
                 </div>
-                <div className="col-md-4">
-                    <ul className="list-unstyled">
+                <div className='col-md-4'>
+                    <ul className='list-unstyled'>
                         {targetGenes.map(gene => <li key={gene}>{gene} <a href='#' onClick={e => {handleGeneDelete(e, gene)}}><i className='fa fa-trash'/></a></li>)}
                     </ul>
                 </div>
             </div>
 
-            <div className="form-group row">
-                <label htmlFor="name" className="col-md-2 col-form-label">Name</label>
-                <div className="col-md-4">
+            <div className='form-group row'>
+                <label htmlFor='name' className='col-md-2 col-form-label'>Name</label>
+                <div className='col-md-4'>
                     <InputField
-                        id="name"
-                        name="name"
-                        field="name"
+                        id='name'
+                        name='name'
+                        field='name'
                         readOnly={true}
                     />
                 </div>
             </div>
-            <div className="form-group row">
-                <label htmlFor="alias" className="col-md-2 col-form-label">Alias</label>
-                <div className="col-md-4">
+            <div className='form-group row'>
+                <label htmlFor='alias' className='col-md-2 col-form-label'>Alias</label>
+                <div className='col-md-4'>
                     <InputField
-                        id="alias"
-                        name="alias"
-                        field="alias"
-                        validate={value => {
-                            if (value === '') {
-                                return 'Alias is required';
-                            }
-                            return false;
-                        }}
+                        id='alias'
+                        name='alias'
+                        field='alias'
                     />
                 </div>
             </div>
 
-            <div className="form-group row">
-                <label className="col-md-2 col-form-label">Target Sequence</label>
-                <div className="col-md-6">
+            <div className='form-group row'>
+                <label className='col-md-2 col-form-label'>Target Sequence</label>
+                <div className='col-md-6'>
 
                     <SequenceTargetingReagentSequenceFields
                         complementedField='complemented'
@@ -222,33 +216,33 @@ const NewSequenceTargetingReagentForm = ({ pubId: defaultPubId, strType: default
                 </div>
             </div>
 
-            <div className="form-group row">
-                <label htmlFor="publicNote" className="col-md-2 col-form-label">Public Note</label>
-                <div className="col-md-6">
+            <div className='form-group row'>
+                <label htmlFor='publicNote' className='col-md-2 col-form-label'>Public Note</label>
+                <div className='col-md-6'>
                     <InputField
-                        id="publicNote"
-                        name="publicNote"
-                        field="publicNote"
-                        tag="textarea"
-                        rows="3"
+                        id='publicNote'
+                        name='publicNote'
+                        field='publicNote'
+                        tag='textarea'
+                        rows='3'
                     />
                 </div>
             </div>
-            <div className="form-group row">
-                <label htmlFor="curatorNote" className="col-md-2 col-form-label">Curator Note</label>
-                <div className="col-md-6">
+            <div className='form-group row'>
+                <label htmlFor='curatorNote' className='col-md-2 col-form-label'>Curator Note</label>
+                <div className='col-md-6'>
                     <InputField
-                        id="curatorNote"
-                        name="curatorNote"
-                        field="curatorNote"
-                        tag="textarea"
-                        rows="3"
+                        id='curatorNote'
+                        name='curatorNote'
+                        field='curatorNote'
+                        tag='textarea'
+                        rows='3'
                     />
                 </div>
             </div>
-            <div className="form-group row">
-                <div className="offset-md-2 col-md-10">
-                    <button type="submit" className="btn btn-primary">Submit</button>
+            <div className='form-group row'>
+                <div className='offset-md-2 col-md-10'>
+                    <button type='submit' className='btn btn-primary'>Submit</button>
                 </div>
             </div>
         </Form>
