@@ -12,7 +12,7 @@ const NewSequenceTargetingReagentForm = ({ pubId: defaultPubId, strType: default
     const [stagedGene, setStagedGene] = useState('');
     const [strType, setStrType] = useState(defaultStrType);
 
-    const [defaultFormValues, setDefaultFormValues] = useState({
+    const defaultFormValues = {
         publicationID: defaultPubId,
         strType: defaultStrType,
         publicNote: '',
@@ -27,34 +27,34 @@ const NewSequenceTargetingReagentForm = ({ pubId: defaultPubId, strType: default
         sequence2: '',
         reversed2: false,
         complemented2: false,
-    });
+    };
 
     const formChildRef = useRef(null);
 
     const {
         Form,
-        reset,
         setFieldValue,
-        setMeta,
         values,
-        meta: { isValid, isSubmitting, isSubmitted, serverError }
     } = useForm({
         defaultValues: defaultFormValues,
-        onSubmit: async (values) => {
+        onSubmit: async () => {
             //validation for target genes
             if (targetGenes.length === 0) {
+                //ignore lint error because we want to alert the user
+                // eslint-disable-next-line no-alert
                 alert('Please enter a target gene.');
                 return;
             }
 
+            //put all the elements of the targetGenes array into the form
             formElement().elements['targetGeneSymbol'].value = targetGenes.join(',');
             formElement().submit();
         },
     });
 
-    function isTalen() { return strType === 'TALEN' };
-    function validBases() { return isTalen() ? 'ATGCR' : 'ATGC' };
-    function reportedLabel() { return isTalen() ? 'Target Sequence 1 Reported' : 'Reported' };
+    function isTalen() { return strType === 'TALEN' }
+    function validBases() { return isTalen() ? 'ATGCR' : 'ATGC' }
+    function reportedLabel() { return isTalen() ? 'Target Sequence 1 Reported' : 'Reported' }
 
     function handleGeneChange(event) {
         if (event.type === 'typeahead:select') {
@@ -117,7 +117,7 @@ const NewSequenceTargetingReagentForm = ({ pubId: defaultPubId, strType: default
                             }
                             return false;
                         }}
-                        />
+                    />
                 </div>
             </div>
             <div className='form-group row'>
@@ -138,18 +138,19 @@ const NewSequenceTargetingReagentForm = ({ pubId: defaultPubId, strType: default
             <div className='form-group row'>
                 <label htmlFor='targetGeneSymbol' className='col-md-2 col-form-label'>Target Gene(s)</label>
                 <div className='col-md-4'>
-                    <MarkerInput typeGroup={'GENEDOM_AND_NTR'}
-                                 typeGroup2={'GENEDOM_AND_NTR'}
-                                 id='targetGeneSymbol'
-                                 name='targetGeneSymbol'
-                                 className='form-control'
-                                 value={targetGene}
-                                 onChange={(e) => {handleGeneChange(e)}} />
+                    <MarkerInput
+                        typeGroup={'GENEDOM_AND_NTR'}
+                        typeGroup2={'GENEDOM_AND_NTR'}
+                        id='targetGeneSymbol'
+                        name='targetGeneSymbol'
+                        className='form-control'
+                        value={targetGene}
+                        onChange={(e) => {handleGeneChange(e)}}
+                    />
                 </div>
             </div>
             <div className='row mb-3'>
-                <div className='col-md-2'>
-                </div>
+                <div className='col-md-2'/>
                 <div className='col-md-4'>
                     <ul className='list-unstyled'>
                         {targetGenes.map(gene => <li key={gene}>{gene} <a href='#' onClick={e => {handleGeneDelete(e, gene)}}><i className='fa fa-trash'/></a></li>)}
