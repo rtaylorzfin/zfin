@@ -12,7 +12,7 @@ const NewSequenceTargetingReagentForm = ({ pubId: defaultPubId, strType: default
     const [stagedGene, setStagedGene] = useState('');
     const [strType, setStrType] = useState(defaultStrType);
 
-    const defaultFormValues = {
+    const [defaultFormValues] = useState({
         publicationID: defaultPubId,
         strType: defaultStrType,
         publicNote: '',
@@ -27,7 +27,7 @@ const NewSequenceTargetingReagentForm = ({ pubId: defaultPubId, strType: default
         sequence2: '',
         reversed2: false,
         complemented2: false,
-    };
+    });
 
     const formChildRef = useRef(null);
 
@@ -39,18 +39,23 @@ const NewSequenceTargetingReagentForm = ({ pubId: defaultPubId, strType: default
         defaultValues: defaultFormValues,
         onSubmit: async () => {
             //validation for target genes
-            console.log('targetGene', targetGene);
-            if (targetGene !== '' && targetGenes.length === 0) {
-                setTargetGenes([targetGene]);
-            } else if (targetGenes.length === 0) {
+            let genes = [...targetGenes];
+            let targetGeneSymbol = genes.join(',');
+            let name = values.name;
+
+            if (targetGene !== '' && genes.length === 0) {
+                name = name + targetGene;
+                targetGeneSymbol = targetGene;
+            } else if (genes.length === 0) {
                 //ignore lint error because we want to alert the user
                 // eslint-disable-next-line no-alert
                 alert('Please enter a target gene.');
                 return;
             }
 
-            //put all the elements of the targetGenes array into the form
-            formElement().elements['targetGeneSymbol'].value = targetGenes.join(',');
+            //put all the elements of the genes array into the form
+            formElement().elements['targetGeneSymbol'].value = targetGeneSymbol;
+            formElement().elements['name'].value = name;
             formElement().submit();
         },
     });
