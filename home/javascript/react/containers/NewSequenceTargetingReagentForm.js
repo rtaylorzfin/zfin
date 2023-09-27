@@ -39,7 +39,10 @@ const NewSequenceTargetingReagentForm = ({ pubId: defaultPubId, strType: default
         defaultValues: defaultFormValues,
         onSubmit: async () => {
             //validation for target genes
-            if (targetGenes.length === 0) {
+            console.log('targetGene', targetGene);
+            if (targetGene !== '' && targetGenes.length === 0) {
+                setTargetGenes([targetGene]);
+            } else if (targetGenes.length === 0) {
                 //ignore lint error because we want to alert the user
                 // eslint-disable-next-line no-alert
                 alert('Please enter a target gene.');
