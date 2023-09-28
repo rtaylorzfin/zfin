@@ -11,6 +11,7 @@
              data-pub-id="${formBean.publicationID}"
              data-str-type="${formBean.strType}"
              data-str-types-json="${strTypesJson}"
+             data-field-errors-json="${fieldErrorsJson}"
         >
         </div>
     </div>

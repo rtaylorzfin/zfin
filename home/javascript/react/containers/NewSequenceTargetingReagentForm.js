@@ -5,8 +5,9 @@ import {useForm} from 'react-form';
 import SequenceTargetingReagentSequenceFields from '../components/marker-edit/SequenceTargetingReagentSequenceFields';
 import InputField from '../components/form/InputField';
 
-const NewSequenceTargetingReagentForm = ({ pubId: defaultPubId, strType: defaultStrType, strTypesJson }) => {
+const NewSequenceTargetingReagentForm = ({ pubId: defaultPubId, strType: defaultStrType, strTypesJson, fieldErrorsJson }) => {
     const strTypes = JSON.parse(strTypesJson);
+    const fieldErrors = fieldErrorsJson === '' ? [] : JSON.parse(fieldErrorsJson);
     const [targetGenes, setTargetGenes] = useState([]);
     const [targetGene, setTargetGene] = useState('');
     const [stagedGene, setStagedGene] = useState('');
@@ -110,151 +111,158 @@ const NewSequenceTargetingReagentForm = ({ pubId: defaultPubId, strType: default
     }, [values]);
 
     return (
-        <Form method='POST'>
-            <div className='form-group row' ref={formChildRef}>
-                <label htmlFor='publicationID' className='col-md-2 col-form-label'>Reference</label>
-                <div className='col-md-4'>
-                    <InputField
-                        id='publicationID'
-                        name='publicationID'
-                        placeholder='ZDB-PUB-123456-7'
-                        field='publicationID'
-                        validate={value => {
-                            if (value === '') {
-                                return 'Reference is required';
-                            }
-                            return false;
-                        }}
-                    />
+        <>
+            {fieldErrors.length > 0 &&
+                <ul className={'alert alert-danger'}>
+                    {fieldErrors.map(error => <li key={error.message}>{error.message + (error.rejectedValue ? ' (' + error.rejectedValue + ')' : '')}</li>)}
+                </ul>
+            }
+            <Form method='POST'>
+                <div className='form-group row' ref={formChildRef}>
+                    <label htmlFor='publicationID' className='col-md-2 col-form-label'>Reference</label>
+                    <div className='col-md-4'>
+                        <InputField
+                            id='publicationID'
+                            name='publicationID'
+                            placeholder='ZDB-PUB-123456-7'
+                            field='publicationID'
+                            validate={value => {
+                                if (value === '') {
+                                    return 'Reference is required';
+                                }
+                                return false;
+                            }}
+                        />
+                    </div>
                 </div>
-            </div>
-            <div className='form-group row'>
-                <label htmlFor='strType' className='col-md-2 col-form-label'>Type</label>
-                <div className='col-md-4'>
-                    <InputField
-                        id='strType'
-                        name='strType'
-                        field='strType'
-                        tag='select'
-                    >
-                        <option value='' disabled='disabled'>Select...</option>
-                        {Object.keys(strTypes).map(key => <option key={key} value={key}>{strTypes[key]}</option>)}
-                    </InputField>
+                <div className='form-group row'>
+                    <label htmlFor='strType' className='col-md-2 col-form-label'>Type</label>
+                    <div className='col-md-4'>
+                        <InputField
+                            id='strType'
+                            name='strType'
+                            field='strType'
+                            tag='select'
+                        >
+                            <option value='' disabled='disabled'>Select...</option>
+                            {Object.keys(strTypes).map(key => <option key={key} value={key}>{strTypes[key]}</option>)}
+                        </InputField>
+                    </div>
                 </div>
-            </div>
 
-            <div className='form-group row'>
-                <label htmlFor='targetGeneSymbol' className='col-md-2 col-form-label'>Target Gene(s)</label>
-                <div className='col-md-4'>
-                    <MarkerInput
-                        typeGroup={'GENEDOM_AND_NTR'}
-                        typeGroup2={'GENEDOM_AND_NTR'}
-                        id='targetGeneSymbol'
-                        name='targetGeneSymbol'
-                        className='form-control'
-                        value={targetGene}
-                        onChange={(e) => {handleGeneChange(e)}}
-                    />
+                <div className='form-group row'>
+                    <label htmlFor='targetGeneSymbol' className='col-md-2 col-form-label'>Target Gene(s)</label>
+                    <div className='col-md-4'>
+                        <MarkerInput
+                            typeGroup={'GENEDOM_AND_NTR'}
+                            typeGroup2={'GENEDOM_AND_NTR'}
+                            id='targetGeneSymbol'
+                            name='targetGeneSymbol'
+                            className='form-control'
+                            value={targetGene}
+                            onChange={(e) => {handleGeneChange(e)}}
+                        />
+                    </div>
                 </div>
-            </div>
-            <div className='row mb-3'>
-                <div className='col-md-2'/>
-                <div className='col-md-4'>
-                    <ul className='list-unstyled'>
-                        {targetGenes.map(gene => <li key={gene}>{gene} <a href='#' onClick={e => {handleGeneDelete(e, gene)}}><i className='fa fa-trash'/></a></li>)}
-                    </ul>
+                <div className='row mb-3'>
+                    <div className='col-md-2'/>
+                    <div className='col-md-4'>
+                        <ul className='list-unstyled'>
+                            {targetGenes.map(gene => <li key={gene}>{gene} <a href='#' onClick={e => {handleGeneDelete(e, gene)}}><i className='fa fa-trash'/></a></li>)}
+                        </ul>
+                    </div>
                 </div>
-            </div>
 
-            <div className='form-group row'>
-                <label htmlFor='name' className='col-md-2 col-form-label'>Name</label>
-                <div className='col-md-4'>
-                    <InputField
-                        id='name'
-                        name='name'
-                        field='name'
-                        readOnly={true}
-                    />
+                <div className='form-group row'>
+                    <label htmlFor='name' className='col-md-2 col-form-label'>Name</label>
+                    <div className='col-md-4'>
+                        <InputField
+                            id='name'
+                            name='name'
+                            field='name'
+                            readOnly={true}
+                        />
+                    </div>
                 </div>
-            </div>
-            <div className='form-group row'>
-                <label htmlFor='alias' className='col-md-2 col-form-label'>Alias</label>
-                <div className='col-md-4'>
-                    <InputField
-                        id='alias'
-                        name='alias'
-                        field='alias'
-                    />
+                <div className='form-group row'>
+                    <label htmlFor='alias' className='col-md-2 col-form-label'>Alias</label>
+                    <div className='col-md-4'>
+                        <InputField
+                            id='alias'
+                            name='alias'
+                            field='alias'
+                        />
+                    </div>
                 </div>
-            </div>
 
-            <div className='form-group row'>
-                <label className='col-md-2 col-form-label'>Target Sequence</label>
-                <div className='col-md-6'>
+                <div className='form-group row'>
+                    <label className='col-md-2 col-form-label'>Target Sequence</label>
+                    <div className='col-md-6'>
 
-                    <SequenceTargetingReagentSequenceFields
-                        complementedField='complemented'
-                        displayedSequenceField='sequence'
-                        reportedLabel={reportedLabel()}
-                        displayedLabel='Displayed'
-                        reportedSequenceField='reportedSequence'
-                        reversedField='reversed'
-                        validBases={validBases()}
-                        values={values}
-                        setDisplayedSequence={value => setFieldValue('sequence', value)}
-                        newRow={true}
-                    />
+                        <SequenceTargetingReagentSequenceFields
+                            complementedField='complemented'
+                            displayedSequenceField='sequence'
+                            reportedLabel={reportedLabel()}
+                            displayedLabel='Displayed'
+                            reportedSequenceField='reportedSequence'
+                            reversedField='reversed'
+                            validBases={validBases()}
+                            values={values}
+                            setDisplayedSequence={value => setFieldValue('sequence', value)}
+                            newRow={true}
+                        />
 
-                    {isTalen() &&
-                        <div className='mt-4'>
-                            <SequenceTargetingReagentSequenceFields
-                                complementedField='complemented2'
-                                displayedSequenceField='sequence2'
-                                reportedLabel='Target Sequence 2 Reported'
-                                displayedLabel='Displayed'
-                                reportedSequenceField='reportedSequence2'
-                                reversedField='reversed2'
-                                validBases={validBases()}
-                                values={values}
-                                setDisplayedSequence={value => setFieldValue('sequence2', value)}
-                                newRow={true}
-                            />
-                        </div>
-                    }
+                        {isTalen() &&
+                            <div className='mt-4'>
+                                <SequenceTargetingReagentSequenceFields
+                                    complementedField='complemented2'
+                                    displayedSequenceField='sequence2'
+                                    reportedLabel='Target Sequence 2 Reported'
+                                    displayedLabel='Displayed'
+                                    reportedSequenceField='reportedSequence2'
+                                    reversedField='reversed2'
+                                    validBases={validBases()}
+                                    values={values}
+                                    setDisplayedSequence={value => setFieldValue('sequence2', value)}
+                                    newRow={true}
+                                />
+                            </div>
+                        }
 
+                    </div>
                 </div>
-            </div>
 
-            <div className='form-group row'>
-                <label htmlFor='publicNote' className='col-md-2 col-form-label'>Public Note</label>
-                <div className='col-md-6'>
-                    <InputField
-                        id='publicNote'
-                        name='publicNote'
-                        field='publicNote'
-                        tag='textarea'
-                        rows='3'
-                    />
+                <div className='form-group row'>
+                    <label htmlFor='publicNote' className='col-md-2 col-form-label'>Public Note</label>
+                    <div className='col-md-6'>
+                        <InputField
+                            id='publicNote'
+                            name='publicNote'
+                            field='publicNote'
+                            tag='textarea'
+                            rows='3'
+                        />
+                    </div>
                 </div>
-            </div>
-            <div className='form-group row'>
-                <label htmlFor='curatorNote' className='col-md-2 col-form-label'>Curator Note</label>
-                <div className='col-md-6'>
-                    <InputField
-                        id='curatorNote'
-                        name='curatorNote'
-                        field='curatorNote'
-                        tag='textarea'
-                        rows='3'
-                    />
+                <div className='form-group row'>
+                    <label htmlFor='curatorNote' className='col-md-2 col-form-label'>Curator Note</label>
+                    <div className='col-md-6'>
+                        <InputField
+                            id='curatorNote'
+                            name='curatorNote'
+                            field='curatorNote'
+                            tag='textarea'
+                            rows='3'
+                        />
+                    </div>
                 </div>
-            </div>
-            <div className='form-group row'>
-                <div className='offset-md-2 col-md-10'>
-                    <button type='submit' className='btn btn-primary'>Submit</button>
+                <div className='form-group row'>
+                    <div className='offset-md-2 col-md-10'>
+                        <button type='submit' className='btn btn-primary'>Submit</button>
+                    </div>
                 </div>
-            </div>
-        </Form>
+            </Form>
+        </>
     );
 }
 
@@ -263,6 +271,7 @@ NewSequenceTargetingReagentForm.propTypes = {
     pubId: PropTypes.string,
     strType: PropTypes.string,
     strTypesJson: PropTypes.string,
+    fieldErrorsJson: PropTypes.string,
 };
 
 export default NewSequenceTargetingReagentForm;

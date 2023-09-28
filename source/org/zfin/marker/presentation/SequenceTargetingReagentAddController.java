@@ -5,9 +5,11 @@ import org.apache.commons.lang.StringUtils;
 import org.apache.logging.log4j.LogManager; import org.apache.logging.log4j.Logger;
 import org.hibernate.HibernateException;
 import org.springframework.beans.factory.annotation.Autowired;
+import org.springframework.context.support.ResourceBundleMessageSource;
 import org.springframework.stereotype.Controller;
 import org.springframework.ui.Model;
 import org.springframework.validation.BindingResult;
+import org.springframework.validation.FieldError;
 import org.springframework.web.bind.WebDataBinder;
 import org.springframework.web.bind.annotation.*;
 import org.zfin.framework.HibernateUtil;
@@ -55,6 +57,9 @@ public class SequenceTargetingReagentAddController {
     private static ProfileRepository profileRepository = RepositoryFactory.getProfileRepository();
 
     @Autowired
+    private ResourceBundleMessageSource messageSource;
+
+    @Autowired
     MarkerSolrService markerSolrService;
 
     @Autowired
@@ -96,6 +101,9 @@ public class SequenceTargetingReagentAddController {
                                               BindingResult result) throws Exception {
 
         if (result.hasErrors()) {
+            model.addAttribute("fieldErrorsJson",
+                    new ObjectMapper().writeValueAsString(
+                            mapFieldErrors(result.getFieldErrors())).replaceAll("\"", "&quot;"));
             return showForm(model);
         }
 
@@ -143,6 +151,9 @@ public class SequenceTargetingReagentAddController {
             }
 
             List<String> targetGeneAbbrs = formBean.getTargetGeneSymbols();
+            if (targetGeneAbbrs == null) {
+                targetGeneAbbrs = Collections.emptyList();
+            }
             for (String targetGeneAbbr : targetGeneAbbrs) {
                 Marker targetGene = mr.getMarkerByAbbreviation(targetGeneAbbr);
 
@@ -260,6 +271,26 @@ public class SequenceTargetingReagentAddController {
         return strTypes;
     }
 
+    /**
+     * Translating fieldErrors to json for the client.
+     * The result should be something like: [{message: "error message...", rejectedValue: "the bad value", field: "publicationID"},{...},...]
+     * @param fieldErrors
+     * @return a list of maps (each map to be translated to a json object)
+     */
+    private List<Map<String, String>> mapFieldErrors(List<FieldError> fieldErrors) {
+        List<Map<String,String>> mappedErrors = new ArrayList<>();
+        for (FieldError error : fieldErrors) {
+            Map<String, String> map = new HashMap<>();
+            String message = messageSource.getMessage(error.getCode(), error.getArguments(), Locale.getDefault());
+            map.put("message", message);
+            if (!StringUtils.isEmpty((String)error.getRejectedValue())) {
+                map.put("rejectedValue", (String)error.getRejectedValue());
+            }
+            map.put("field", error.getField());
+            mappedErrors.add(map);
+        }
+        return mappedErrors;
+    }
 }
 
 
