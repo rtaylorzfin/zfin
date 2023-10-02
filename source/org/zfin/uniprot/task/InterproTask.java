@@ -5,8 +5,10 @@ import lombok.Setter;
 import lombok.extern.log4j.Log4j2;
 import org.biojava.bio.BioException;
 import org.zfin.ontology.datatransfer.AbstractScriptWrapper;
+import org.zfin.uniprot.UniProtLoadAction;
 import org.zfin.uniprot.adapter.CrossRefAdapter;
 import org.zfin.uniprot.adapter.RichSequenceAdapter;
+import org.zfin.uniprot.interpro.*;
 import org.zfin.uniprot.persistence.UniProtRelease;
 
 import java.io.BufferedReader;
@@ -15,6 +17,7 @@ import java.sql.SQLException;
 import java.util.Collection;
 import java.util.Map;
 import java.util.Optional;
+import java.util.Set;
 
 import static org.zfin.repository.RepositoryFactory.getInfrastructureRepository;
 import static org.zfin.uniprot.UniProtFilterTask.readAllZebrafishEntriesFromSourceIntoMap;
@@ -47,7 +50,17 @@ public class InterproTask extends AbstractScriptWrapper {
         try (BufferedReader inputFileReader = new BufferedReader(new java.io.FileReader(inputFileName))) {
             Map<String, RichSequenceAdapter> entries = readUniProtEntries(inputFileReader);
             log.debug("Finished reading file: " + entries.size() + " entries read.");
+            Set<InterproLoadAction> actions = executePipeline(entries);
+
         }
+    }
+
+    private Set<InterproLoadAction> executePipeline(Map<String, RichSequenceAdapter> entries) {
+        InterproLoadPipeline pipeline = new InterproLoadPipeline();
+        pipeline.setInterproRecords(entries);
+        pipeline.setContext(InterproLoadContext.createFromDBConnection());
+        pipeline.addHandler(new RemoveFromLostUniProtsHandler());
+        return pipeline.execute();
     }
 
     public void initialize() {
