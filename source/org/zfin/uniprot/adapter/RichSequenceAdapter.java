@@ -8,6 +8,7 @@ import org.zfin.uniprot.datfiles.UniProtFormatZFIN;
 
 import java.text.SimpleDateFormat;
 import java.util.*;
+import java.util.stream.Collectors;
 
 public class RichSequenceAdapter {
     private final RichSequence originalRichSequence;
@@ -112,4 +113,8 @@ public class RichSequenceAdapter {
         return this.wo().getNoteSet();
     }
 
+    public Collection<CrossRefAdapter> getRankedCrossRefsByDatabase(String dbName) {
+        Set<RankedCrossRef> matches = getRankedCrossRefs().stream().filter(rc -> rc.getCrossRef().getDbname().equals(dbName)).collect(Collectors.toSet());
+        return CrossRefAdapter.fromRankedCrossRefs(matches);
+    }
 }
