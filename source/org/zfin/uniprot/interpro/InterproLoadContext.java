@@ -2,6 +2,7 @@ package org.zfin.uniprot.interpro;
 
 import lombok.Getter;
 import lombok.Setter;
+import lombok.extern.log4j.Log4j2;
 import org.zfin.sequence.MarkerDBLink;
 import org.zfin.sequence.ReferenceDatabase;
 import org.zfin.uniprot.dto.DBLinkSlimDTO;
@@ -11,7 +12,9 @@ import java.util.*;
 import static org.zfin.Species.Type.ZEBRAFISH;
 import static org.zfin.repository.RepositoryFactory.getSequenceRepository;
 import static org.zfin.sequence.ForeignDB.AvailableName.*;
+import static org.zfin.sequence.ForeignDBDataType.DataType.DOMAIN;
 import static org.zfin.sequence.ForeignDBDataType.DataType.POLYPEPTIDE;
+import static org.zfin.sequence.ForeignDBDataType.SuperType.PROTEIN;
 import static org.zfin.sequence.ForeignDBDataType.SuperType.SEQUENCE;
 
 /**
@@ -20,23 +23,49 @@ import static org.zfin.sequence.ForeignDBDataType.SuperType.SEQUENCE;
  */
 @Getter
 @Setter
+@Log4j2
 public class InterproLoadContext {
 
     private Map<String, List<DBLinkSlimDTO>> uniprotDbLinks;
     private Map<String, List<DBLinkSlimDTO>> interproDbLinks;
 
+    private Map<String, List<DBLinkSlimDTO>> uniprotDbLinksByGeneZdbID;
+
     public static InterproLoadContext createFromDBConnection() {
         InterproLoadContext interproLoadContext = new InterproLoadContext();
 
+        log.debug("Step 1.");
         ReferenceDatabase uniprotRefDB = getSequenceRepository().getReferenceDatabase(UNIPROTKB, POLYPEPTIDE, SEQUENCE, ZEBRAFISH);
         interproLoadContext.setUniprotDbLinks( convertToDTO(getSequenceRepository().getMarkerDBLinks(uniprotRefDB)) );
 
-        ReferenceDatabase interproRefDB = getSequenceRepository().getReferenceDatabase(INTERPRO, POLYPEPTIDE, SEQUENCE, ZEBRAFISH);
-
+        log.debug("Step 1.5.");
+        ReferenceDatabase interproRefDB = getSequenceRepository().getReferenceDatabase(INTERPRO, DOMAIN, PROTEIN, ZEBRAFISH);
         Map<String, Collection<MarkerDBLink>> markerDBLinks = getSequenceRepository().getMarkerDBLinks(interproRefDB);
+
+        log.debug("Step 2.");
         interproLoadContext.setInterproDbLinks( convertToDTO(markerDBLinks));
 
+        log.debug("Step 3.");
+        interproLoadContext.createUniprotDbLinksByGeneZdbID();
+
+        log.debug("Step 4.");
         return interproLoadContext;
+    }
+
+    private void createUniprotDbLinksByGeneZdbID() {
+        log.debug("Creating uniprotDbLinksByGeneZdbID");
+        this.uniprotDbLinks.values().stream().flatMap(Collection::stream).forEach(uniprotDbLink -> {
+            if(uniprotDbLink.getDataZdbID() != null) {
+                if(uniprotDbLinksByGeneZdbID == null) {
+                    uniprotDbLinksByGeneZdbID = new HashMap<>();
+                }
+                if(!uniprotDbLinksByGeneZdbID.containsKey(uniprotDbLink.getDataZdbID())) {
+                    uniprotDbLinksByGeneZdbID.put(uniprotDbLink.getDataZdbID(), new ArrayList<>());
+                }
+                uniprotDbLinksByGeneZdbID.get(uniprotDbLink.getDataZdbID()).add(uniprotDbLink);
+            }
+        });
+        log.debug("Finished Creating uniprotDbLinksByGeneZdbID");
     }
 
     private static Map<String, List<DBLinkSlimDTO>> convertToDTO(Map<String, Collection<MarkerDBLink>> markerDBLinks) {
@@ -57,5 +86,9 @@ public class InterproLoadContext {
             transformedMap.put(key, sequenceDTOs);
         }
         return transformedMap;
+    }
+
+    public DBLinkSlimDTO getUniprotByGene(String dataZdbID) {
+        return uniprotDbLinksByGeneZdbID.get(dataZdbID) == null ? null : uniprotDbLinksByGeneZdbID.get(dataZdbID).stream().findFirst().orElse(null);
     }
 }
