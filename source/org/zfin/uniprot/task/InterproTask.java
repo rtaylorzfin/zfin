@@ -102,7 +102,6 @@ public class InterproTask extends AbstractScriptWrapper {
         log.debug("Finished reading file: " + entries.size() + " entries read.");
 
         RichSequenceAdapter rsa = entries.values().stream().findFirst().get();
-        Collection<CrossRefAdapter> interproIds = rsa.getRankedCrossRefsByDatabase("InterPro");
 
         return entries;
     }
