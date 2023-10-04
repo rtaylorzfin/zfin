@@ -34,21 +34,18 @@ public class InterproLoadContext {
     public static InterproLoadContext createFromDBConnection() {
         InterproLoadContext interproLoadContext = new InterproLoadContext();
 
-        log.debug("Step 1.");
+        log.debug("Interpro Context Step 1/3: Getting Existing Uniprot DB Links");
         ReferenceDatabase uniprotRefDB = getSequenceRepository().getReferenceDatabase(UNIPROTKB, POLYPEPTIDE, SEQUENCE, ZEBRAFISH);
         interproLoadContext.setUniprotDbLinks( convertToDTO(getSequenceRepository().getMarkerDBLinks(uniprotRefDB)) );
 
-        log.debug("Step 1.5.");
+        log.debug("Interpro Context Step 2/3: Getting Existing Interpro DB Links");
         ReferenceDatabase interproRefDB = getSequenceRepository().getReferenceDatabase(INTERPRO, DOMAIN, PROTEIN, ZEBRAFISH);
         Map<String, Collection<MarkerDBLink>> markerDBLinks = getSequenceRepository().getMarkerDBLinks(interproRefDB);
-
-        log.debug("Step 2.");
         interproLoadContext.setInterproDbLinks( convertToDTO(markerDBLinks));
 
-        log.debug("Step 3.");
+        log.debug("Interpro Context Step 3/3: Creating Index of Uniprot DB Links by Gene ZDB ID");
         interproLoadContext.createUniprotDbLinksByGeneZdbID();
 
-        log.debug("Step 4.");
         return interproLoadContext;
     }
 
@@ -90,5 +87,21 @@ public class InterproLoadContext {
 
     public DBLinkSlimDTO getUniprotByGene(String dataZdbID) {
         return uniprotDbLinksByGeneZdbID.get(dataZdbID) == null ? null : uniprotDbLinksByGeneZdbID.get(dataZdbID).stream().findFirst().orElse(null);
+    }
+
+    public List<DBLinkSlimDTO> getGeneByUniprot(String dataZdbID) {
+        return this.uniprotDbLinks.get(dataZdbID);
+    }
+
+    public DBLinkSlimDTO getInterproByGene(String geneID, String accession) {
+        List<DBLinkSlimDTO> dblinks = interproDbLinks.get(accession);
+        if(dblinks == null) {
+            return null;
+        }
+        return dblinks
+                .stream()
+                .filter(dbLinkSlimDTO -> dbLinkSlimDTO.getDataZdbID().equals(geneID))
+                .findFirst()
+                .orElse(null);
     }
 }

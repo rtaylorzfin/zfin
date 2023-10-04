@@ -79,6 +79,7 @@ public class InterproTask extends AbstractScriptWrapper {
         pipeline.setInterproRecords(entries);
         pipeline.setContext(InterproLoadContext.createFromDBConnection());
         pipeline.addHandler(new RemoveFromLostUniProtsHandler());
+        pipeline.addHandler(new AddNewFromUniProtsHandler());
         return pipeline.execute();
     }
 
