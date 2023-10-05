@@ -3,8 +3,10 @@ package org.zfin.uniprot.interpro;
 import lombok.Getter;
 import lombok.Setter;
 import lombok.extern.log4j.Log4j2;
+import org.zfin.sequence.ForeignDB;
 import org.zfin.sequence.MarkerDBLink;
 import org.zfin.sequence.ReferenceDatabase;
+import org.zfin.sequence.repository.SequenceRepository;
 import org.zfin.uniprot.dto.DBLinkSlimDTO;
 
 import java.util.*;
@@ -28,22 +30,47 @@ public class InterproLoadContext {
 
     private Map<String, List<DBLinkSlimDTO>> uniprotDbLinks;
     private Map<String, List<DBLinkSlimDTO>> interproDbLinks;
+    private Map<String, List<DBLinkSlimDTO>> ecDbLinks;
+    private Map<String, List<DBLinkSlimDTO>> prositeDbLinks;
+    private Map<String, List<DBLinkSlimDTO>> pfamDbLinks;
 
     private Map<String, List<DBLinkSlimDTO>> uniprotDbLinksByGeneZdbID;
 
     public static InterproLoadContext createFromDBConnection() {
         InterproLoadContext interproLoadContext = new InterproLoadContext();
+        SequenceRepository sr = getSequenceRepository();
 
-        log.debug("Interpro Context Step 1/3: Getting Existing Uniprot DB Links");
-        ReferenceDatabase uniprotRefDB = getSequenceRepository().getReferenceDatabase(UNIPROTKB, POLYPEPTIDE, SEQUENCE, ZEBRAFISH);
-        interproLoadContext.setUniprotDbLinks( convertToDTO(getSequenceRepository().getMarkerDBLinks(uniprotRefDB)) );
+        log.debug("Interpro Context Step 1: Getting Existing Uniprot DB Links");
+        interproLoadContext.setUniprotDbLinks(
+                convertToDTO(
+                        sr.getMarkerDBLinks(
+                                sr.getReferenceDatabase(UNIPROTKB, POLYPEPTIDE, SEQUENCE, ZEBRAFISH))));
 
-        log.debug("Interpro Context Step 2/3: Getting Existing Interpro DB Links");
-        ReferenceDatabase interproRefDB = getSequenceRepository().getReferenceDatabase(INTERPRO, DOMAIN, PROTEIN, ZEBRAFISH);
-        Map<String, Collection<MarkerDBLink>> markerDBLinks = getSequenceRepository().getMarkerDBLinks(interproRefDB);
-        interproLoadContext.setInterproDbLinks( convertToDTO(markerDBLinks));
+        log.debug("Interpro Context Step 2: Getting Existing Interpro DB Links");
+        interproLoadContext.setInterproDbLinks(
+                convertToDTO(
+                        sr.getMarkerDBLinks(
+                                sr.getReferenceDatabase(INTERPRO, DOMAIN, PROTEIN, ZEBRAFISH))));
 
-        log.debug("Interpro Context Step 3/3: Creating Index of Uniprot DB Links by Gene ZDB ID");
+        log.debug("Interpro Context Step 3: Getting Existing EC DB Links");
+        interproLoadContext.setEcDbLinks(
+                convertToDTO(
+                        sr.getMarkerDBLinks(
+                                sr.getReferenceDatabase(EC, DOMAIN, PROTEIN, ZEBRAFISH))));
+
+        log.debug("Interpro Context Step 4: Getting Existing PFAM DB Links");
+        interproLoadContext.setPfamDbLinks(
+                convertToDTO(
+                        sr.getMarkerDBLinks(
+                                sr.getReferenceDatabase(PFAM, DOMAIN, PROTEIN, ZEBRAFISH))));
+
+        log.debug("Interpro Context Step 5: Getting Existing PROSITE DB Links");
+        interproLoadContext.setPrositeDbLinks(
+                convertToDTO(
+                        sr.getMarkerDBLinks(
+                                sr.getReferenceDatabase(PROSITE, DOMAIN, PROTEIN, ZEBRAFISH))));
+
+        log.debug("Interpro Context Step 6: Creating Index of Uniprot DB Links by Gene ZDB ID");
         interproLoadContext.createUniprotDbLinksByGeneZdbID();
 
         return interproLoadContext;
@@ -95,6 +122,35 @@ public class InterproLoadContext {
 
     public DBLinkSlimDTO getInterproByGene(String geneID, String accession) {
         List<DBLinkSlimDTO> dblinks = interproDbLinks.get(accession);
+        if(dblinks == null) {
+            return null;
+        }
+        return dblinks
+                .stream()
+                .filter(dbLinkSlimDTO -> dbLinkSlimDTO.getDataZdbID().equals(geneID))
+                .findFirst()
+                .orElse(null);
+    }
+
+    public Map<String, List<DBLinkSlimDTO>> getDbLinksByDbName(ForeignDB.AvailableName dbName) {
+        switch (dbName) {
+            case INTERPRO:
+                return getInterproDbLinks();
+            case EC:
+                return getEcDbLinks();
+            case PFAM:
+                return getPfamDbLinks();
+            case PROSITE:
+                return getPrositeDbLinks();
+            case UNIPROTKB:
+                return getUniprotDbLinks();
+            default:
+                return null;
+        }
+    }
+
+    public DBLinkSlimDTO getDbLinkByGeneAndAccession(ForeignDB.AvailableName dbName, String geneID, String accession) {
+        List<DBLinkSlimDTO> dblinks = getDbLinksByDbName(dbName).get(accession);
         if(dblinks == null) {
             return null;
         }

@@ -19,6 +19,7 @@ import java.text.SimpleDateFormat;
 import java.util.*;
 
 import static org.zfin.repository.RepositoryFactory.getInfrastructureRepository;
+import static org.zfin.sequence.ForeignDB.AvailableName.*;
 import static org.zfin.uniprot.UniProtFilterTask.readAllZebrafishEntriesFromSourceIntoMap;
 import static org.zfin.uniprot.UniProtTools.getArgOrEnvironmentVar;
 
@@ -78,8 +79,20 @@ public class InterproTask extends AbstractScriptWrapper {
         InterproLoadPipeline pipeline = new InterproLoadPipeline();
         pipeline.setInterproRecords(entries);
         pipeline.setContext(InterproLoadContext.createFromDBConnection());
-        pipeline.addHandler(new RemoveFromLostUniProtsHandler());
-        pipeline.addHandler(new AddNewFromUniProtsHandler());
+
+
+        pipeline.addHandler(new RemoveFromLostUniProtsHandler(INTERPRO));
+        pipeline.addHandler(new AddNewFromUniProtsHandler(INTERPRO));
+
+        pipeline.addHandler(new RemoveFromLostUniProtsHandler(EC));
+        pipeline.addHandler(new AddNewFromUniProtsHandler(EC));
+
+        pipeline.addHandler(new RemoveFromLostUniProtsHandler(PFAM));
+        pipeline.addHandler(new AddNewFromUniProtsHandler(PFAM));
+
+        pipeline.addHandler(new RemoveFromLostUniProtsHandler(PROSITE));
+        pipeline.addHandler(new AddNewFromUniProtsHandler(PROSITE));
+
         return pipeline.execute();
     }
 

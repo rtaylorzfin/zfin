@@ -5,6 +5,7 @@ import lombok.Builder;
 import lombok.Getter;
 import lombok.Setter;
 import org.apache.commons.lang3.ObjectUtils;
+import org.zfin.sequence.ForeignDB;
 import org.zfin.uniprot.UniProtLoadLink;
 
 import java.util.Collection;
@@ -18,6 +19,8 @@ import java.util.TreeSet;
 public class InterproLoadAction implements Comparable<InterproLoadAction> {
     private Type type;
     private SubType subType;
+
+    private ForeignDB.AvailableName dbName;
     private String accession;
     private String geneZdbID;
     private String details;
@@ -30,7 +33,7 @@ public class InterproLoadAction implements Comparable<InterproLoadAction> {
         links = new TreeSet<>();
     }
 
-    public InterproLoadAction(Type type, SubType subType, String accession, String geneZdbID, String details, int length, Set<UniProtLoadLink> links) {
+    public InterproLoadAction(Type type, SubType subType, ForeignDB.AvailableName dbName, String accession, String geneZdbID, String details, int length, Set<UniProtLoadLink> links) {
         this.type = type;
         this.subType = subType;
         this.accession = accession;
@@ -38,6 +41,7 @@ public class InterproLoadAction implements Comparable<InterproLoadAction> {
         this.details = details;
         this.length = length;
         this.links = links;
+        this.dbName = dbName;
     }
 
     public void addLink(UniProtLoadLink uniProtLoadLink) {

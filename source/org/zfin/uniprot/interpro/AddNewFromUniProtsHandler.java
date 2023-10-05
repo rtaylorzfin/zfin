@@ -2,17 +2,24 @@ package org.zfin.uniprot.interpro;
 
 import lombok.extern.log4j.Log4j2;
 import org.apache.commons.collections4.CollectionUtils;
+import org.zfin.sequence.ForeignDB;
 import org.zfin.uniprot.adapter.CrossRefAdapter;
 import org.zfin.uniprot.adapter.RichSequenceAdapter;
 import org.zfin.uniprot.dto.DBLinkSlimDTO;
 
-import java.util.Collection;
 import java.util.List;
 import java.util.Map;
 import java.util.Set;
 
 @Log4j2
 public class AddNewFromUniProtsHandler implements InterproLoadHandler {
+
+    private final ForeignDB.AvailableName dbName;
+
+    public AddNewFromUniProtsHandler(ForeignDB.AvailableName dbName) {
+        this.dbName = dbName;
+    }
+
     @Override
     public void handle(Map<String, RichSequenceAdapter> uniProtRecords, Set<InterproLoadAction> actions, InterproLoadContext context) {
         //if there is an interpro in the load file, but not in the DB for the corresponding gene, add it.
@@ -33,19 +40,21 @@ public class AddNewFromUniProtsHandler implements InterproLoadHandler {
             //so we should load any interpros for that gene
 
             RichSequenceAdapter record = uniProtRecords.get(uniprot);
-            for(CrossRefAdapter iplink : record.getRankedCrossRefsByDatabase("InterPro")) {
+
+            for(CrossRefAdapter iplink : record.getCrossRefsByDatabase(dbName.toString())) {
                 iplink.getAccession();
 
                 //does it already exist?
-                DBLinkSlimDTO interproLink = context.getInterproByGene(geneID, iplink.getAccession());
+                DBLinkSlimDTO interproLink = context.getDbLinkByGeneAndAccession(dbName, geneID, iplink.getAccession());
                 boolean alreadyExists = interproLink != null;
 
                 //if not, add it
                 if(!alreadyExists) {
-                    log.info("Adding interpro " + iplink.getAccession() + " to gene " + geneID + " in context of " + uniprot + " uniprot");
+                    log.info("Adding " + dbName + " " + iplink.getAccession() + " to gene " + geneID + " in context of " + uniprot + " uniprot");
                     actions.add(InterproLoadAction.builder().type(InterproLoadAction.Type.LOAD)
                             .subType(InterproLoadAction.SubType.PLACEHOLDER1)
                             .accession(iplink.getAccession())
+                            .dbName(dbName)
                             .geneZdbID(geneID)
                             .build());
                     newlyAddedCount++;
