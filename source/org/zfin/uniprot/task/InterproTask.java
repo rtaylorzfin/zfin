@@ -6,13 +6,13 @@ import lombok.Setter;
 import lombok.extern.log4j.Log4j2;
 import org.biojava.bio.BioException;
 import org.zfin.ontology.datatransfer.AbstractScriptWrapper;
-import org.zfin.uniprot.adapter.CrossRefAdapter;
 import org.zfin.uniprot.adapter.RichSequenceAdapter;
 import org.zfin.uniprot.interpro.*;
 import org.zfin.uniprot.persistence.UniProtRelease;
 
 import java.io.BufferedReader;
 import java.io.File;
+import java.io.FileNotFoundException;
 import java.io.IOException;
 import java.sql.SQLException;
 import java.text.SimpleDateFormat;
@@ -29,12 +29,14 @@ import static org.zfin.uniprot.UniProtTools.getArgOrEnvironmentVar;
 public class InterproTask extends AbstractScriptWrapper {
     private String inputFileName;
     private final String outputJsonName;
+    private final String ipToGoTranslationFile;
     private UniProtRelease release;
 
     public static void main(String[] args) throws Exception {
         String inputFileName = getArgOrEnvironmentVar(args, 0, "UNIPROT_INPUT_FILE", "");
-        String outputJsonName = getArgOrEnvironmentVar(args, 1, "UNIPROT_OUTPUT_FILE", defaultOutputFileName(inputFileName));
-        InterproTask task = new InterproTask(inputFileName, outputJsonName);
+        String ipToGoTranslationFile = getArgOrEnvironmentVar(args, 1, "IP2GO_FILE", "");
+        String outputJsonName = getArgOrEnvironmentVar(args, 2, "UNIPROT_OUTPUT_FILE", defaultOutputFileName(inputFileName));
+        InterproTask task = new InterproTask(inputFileName, outputJsonName, ipToGoTranslationFile);
         task.runTask();
     }
 
@@ -47,9 +49,10 @@ public class InterproTask extends AbstractScriptWrapper {
         return Optional.ofNullable(getInfrastructureRepository().getLatestUnprocessedUniProtRelease());
     }
 
-    public InterproTask(String inputFileName, String outputJsonName) {
+    public InterproTask(String inputFileName, String outputJsonName, String ipToGoTranslationFile) {
         this.inputFileName = inputFileName;
         this.outputJsonName = outputJsonName;
+        this.ipToGoTranslationFile = ipToGoTranslationFile;
     }
 
     public void runTask() throws IOException, BioException, SQLException {
@@ -99,7 +102,18 @@ public class InterproTask extends AbstractScriptWrapper {
     public void initialize() {
         initAll();
         setInputFileName();
+        loadTranslationFiles();
     }
+
+    private void loadTranslationFiles() {
+        try {
+            List<InterPro2GoTerm> ipToGoRecords = InterPro2GoTermTranslator.convertTranslationFileToUnloadFile(ipToGoTranslationFile);
+        } catch (FileNotFoundException e) {
+            log.error("Failed to load translation file: " + ipToGoTranslationFile, e);
+            throw new RuntimeException(e);
+        }
+    }
+
 
     private void setInputFileName() {
         Optional<UniProtRelease> releaseOptional = getLatestUnprocessedUniProtRelease();
