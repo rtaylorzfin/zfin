@@ -31,7 +31,7 @@ public class RemoveFromLostUniProtsHandler implements InterproLoadHandler {
             if(uniprot == null) {
                 log.info("Removing " + this.dbName + " "  + iplink.getAccession() + " from gene " + iplink.getDataZdbID() + " lost uniprots");
                 actions.add(InterproLoadAction.builder().type(InterproLoadAction.Type.DELETE)
-                        .subType(InterproLoadAction.SubType.PLACEHOLDER1)
+                        .subType(InterproLoadAction.SubType.DB_LINK)
                         .accession(iplink.getAccession())
                         .geneZdbID(iplink.getDataZdbID())
                         .build());

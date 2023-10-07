@@ -22,7 +22,10 @@ public class InterproLoadAction implements Comparable<InterproLoadAction> {
 
     private ForeignDB.AvailableName dbName;
     private String accession;
+    private String goID;
+    private String goTermZdbID;
     private String geneZdbID;
+//    private String pubZdbID;
     private String details;
     private int length;
 
@@ -33,10 +36,12 @@ public class InterproLoadAction implements Comparable<InterproLoadAction> {
         links = new TreeSet<>();
     }
 
-    public InterproLoadAction(Type type, SubType subType, ForeignDB.AvailableName dbName, String accession, String geneZdbID, String details, int length, Set<UniProtLoadLink> links) {
+    public InterproLoadAction(Type type, SubType subType, ForeignDB.AvailableName dbName, String accession, String goID, String goTermZdbID, String geneZdbID, String details, int length, Set<UniProtLoadLink> links) {
         this.type = type;
         this.subType = subType;
         this.accession = accession;
+        this.goID = goID;
+        this.goTermZdbID = goTermZdbID;
         this.geneZdbID = geneZdbID;
         this.details = details;
         this.length = length;
@@ -55,8 +60,8 @@ public class InterproLoadAction implements Comparable<InterproLoadAction> {
     public enum Type {LOAD, INFO, WARNING, ERROR, DELETE, IGNORE, DUPES}
 
     public enum SubType {
-        PLACEHOLDER1("Subtype1"),
-        PLACEHOLDER2("Subtype2");
+        MARKER_GO_TERM_EVIDENCE("MarkerGoTermEvidence"),
+        DB_LINK("DBLink");
 
         private final String value;
 
@@ -87,6 +92,14 @@ public class InterproLoadAction implements Comparable<InterproLoadAction> {
                 .thenComparing(obj -> obj.details, ObjectUtils::compare)
                 ;
         return comparator.compare(this, o);
+    }
+
+    public String toString() {
+        return "InterproLoadAction: " + " action=" + type + " subtype=" + subType + " accession=" + accession + " goID=" + goID + " goTermZdbID=" + goTermZdbID + " geneZdbID=" + geneZdbID + " details=" + details + " length=" + length + " links=" + links;
+    }
+
+    public String markerGoTermEvidenceRepresentation() {
+        return geneZdbID + "," + goTermZdbID + "," + goID + "," + dbName + ":" + this.accession;
     }
 
 }

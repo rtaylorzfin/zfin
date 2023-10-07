@@ -61,6 +61,8 @@ public interface OntologyRepository {
      */
     GenericTerm getTermByOboID(String termID);
 
+    List<GenericTerm> getTermsInOboIDList(List<String> oboIDs, boolean preserveOrder);
+
     /**
      * @param terms
      * @return
@@ -337,6 +339,9 @@ public interface OntologyRepository {
      */
     List<GenericTerm> getActiveTermsWithoutRelationships();
 
+    List<GenericTerm> getObsoleteAndSecondaryTerms();
+    List<GenericTerm> getObsoleteAndSecondaryTerms(Ontology ontology);
+
     List<GenericTerm> getTermsInSubset(String subsetName);
 
     HumanGeneDetail getHumanGeneDetailById(String id);
@@ -365,4 +370,5 @@ public interface OntologyRepository {
 
     Set<GenericTerm> getDiseaseTermsOmimPhenotype();
 
+    Map<String, GenericTerm> getGoTermsToZdbID();
 }

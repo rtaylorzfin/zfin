@@ -5,6 +5,7 @@ import lombok.Getter;
 import lombok.Setter;
 import lombok.extern.log4j.Log4j2;
 import org.biojava.bio.BioException;
+import org.zfin.ontology.GenericTerm;
 import org.zfin.ontology.datatransfer.AbstractScriptWrapper;
 import org.zfin.uniprot.adapter.RichSequenceAdapter;
 import org.zfin.uniprot.interpro.*;
@@ -19,6 +20,7 @@ import java.text.SimpleDateFormat;
 import java.util.*;
 
 import static org.zfin.repository.RepositoryFactory.getInfrastructureRepository;
+import static org.zfin.repository.RepositoryFactory.getOntologyRepository;
 import static org.zfin.sequence.ForeignDB.AvailableName.*;
 import static org.zfin.uniprot.UniProtFilterTask.readAllZebrafishEntriesFromSourceIntoMap;
 import static org.zfin.uniprot.UniProtTools.getArgOrEnvironmentVar;
@@ -31,6 +33,7 @@ public class InterproTask extends AbstractScriptWrapper {
     private final String outputJsonName;
     private final String ipToGoTranslationFile;
     private UniProtRelease release;
+    private List<InterPro2GoTerm> ipToGoRecords;
 
     public static void main(String[] args) throws Exception {
         String inputFileName = getArgOrEnvironmentVar(args, 0, "UNIPROT_INPUT_FILE", "");
@@ -60,7 +63,6 @@ public class InterproTask extends AbstractScriptWrapper {
         log.debug("Starting UniProtLoadTask for file " + inputFileName + ".");
         try (BufferedReader inputFileReader = new BufferedReader(new java.io.FileReader(inputFileName))) {
             Map<String, RichSequenceAdapter> entries = readUniProtEntries(inputFileReader);
-            log.debug("Finished reading file: " + entries.size() + " entries read.");
             Set<InterproLoadAction> actions = executePipeline(entries);
             log.debug("Finished executing pipeline: " + actions.size() + " actions created.");
             writeActions(actions);
@@ -81,8 +83,10 @@ public class InterproTask extends AbstractScriptWrapper {
     private Set<InterproLoadAction> executePipeline(Map<String, RichSequenceAdapter> entries) {
         InterproLoadPipeline pipeline = new InterproLoadPipeline();
         pipeline.setInterproRecords(entries);
-        pipeline.setContext(InterproLoadContext.createFromDBConnection());
 
+        InterproLoadContext context = InterproLoadContext.createFromDBConnection();
+        context.setInterproTranslationRecords(ipToGoRecords);
+        pipeline.setContext(context);
 
         pipeline.addHandler(new RemoveFromLostUniProtsHandler(INTERPRO));
         pipeline.addHandler(new AddNewFromUniProtsHandler(INTERPRO));
@@ -96,6 +100,8 @@ public class InterproTask extends AbstractScriptWrapper {
         pipeline.addHandler(new RemoveFromLostUniProtsHandler(PROSITE));
         pipeline.addHandler(new AddNewFromUniProtsHandler(PROSITE));
 
+        pipeline.addHandler(new InterproToGoHandler(INTERPRO));
+
         return pipeline.execute();
     }
 
@@ -107,13 +113,12 @@ public class InterproTask extends AbstractScriptWrapper {
 
     private void loadTranslationFiles() {
         try {
-            List<InterPro2GoTerm> ipToGoRecords = InterPro2GoTermTranslator.convertTranslationFileToUnloadFile(ipToGoTranslationFile);
+            ipToGoRecords = InterPro2GoTermTranslator.convertTranslationFileToUnloadFile(ipToGoTranslationFile);
         } catch (FileNotFoundException e) {
             log.error("Failed to load translation file: " + ipToGoTranslationFile, e);
             throw new RuntimeException(e);
         }
     }
-
 
     private void setInputFileName() {
         Optional<UniProtRelease> releaseOptional = getLatestUnprocessedUniProtRelease();
@@ -128,8 +133,6 @@ public class InterproTask extends AbstractScriptWrapper {
     public Map<String, RichSequenceAdapter> readUniProtEntries(BufferedReader inputFileReader) throws BioException, IOException {
         Map<String, RichSequenceAdapter> entries = readAllZebrafishEntriesFromSourceIntoMap(inputFileReader);
         log.debug("Finished reading file: " + entries.size() + " entries read.");
-
-        RichSequenceAdapter rsa = entries.values().stream().findFirst().get();
 
         return entries;
     }

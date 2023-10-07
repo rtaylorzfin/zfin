@@ -33,8 +33,9 @@ public class InterproLoadContext {
     private Map<String, List<DBLinkSlimDTO>> ecDbLinks;
     private Map<String, List<DBLinkSlimDTO>> prositeDbLinks;
     private Map<String, List<DBLinkSlimDTO>> pfamDbLinks;
-
     private Map<String, List<DBLinkSlimDTO>> uniprotDbLinksByGeneZdbID;
+
+    private List<InterPro2GoTerm> interproTranslationRecords;
 
     public static InterproLoadContext createFromDBConnection() {
         InterproLoadContext interproLoadContext = new InterproLoadContext();

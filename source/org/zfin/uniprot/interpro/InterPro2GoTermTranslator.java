@@ -1,17 +1,35 @@
 package org.zfin.uniprot.interpro;
 
 import org.apache.commons.io.FileUtils;
+import org.zfin.ontology.GenericTerm;
+import org.zfin.ontology.Ontology;
 
 import java.io.File;
 import java.io.FileNotFoundException;
 import java.io.IOException;
 import java.util.ArrayList;
 import java.util.List;
+import java.util.Map;
 import java.util.Scanner;
+
+import static org.zfin.repository.RepositoryFactory.getOntologyRepository;
 
 public class InterPro2GoTermTranslator {
 
     public static List<InterPro2GoTerm> convertTranslationFileToUnloadFile(String ipToGoTranslationFile) throws FileNotFoundException {
+        return parseInterPro2GoTerms(ipToGoTranslationFile);
+    }
+
+    private static List<InterPro2GoTerm> parseInterPro2GoTerms(String ipToGoTranslationFile) throws FileNotFoundException {
+        List<String> badGoIDs = getOntologyRepository()
+                .getObsoleteAndSecondaryTerms()
+                .stream()
+                .map(GenericTerm::getOboID)
+                .filter(id -> id.startsWith("GO:"))
+                .toList();
+
+        Map<String, GenericTerm> allGoIDs = getOntologyRepository().getGoTermsToZdbID();
+
         StringBuilder sb = new StringBuilder();
         List<InterPro2GoTerm> results = new ArrayList<>();
         Scanner scanner = null;
@@ -28,7 +46,11 @@ public class InterPro2GoTermTranslator {
 
                 // FB case: 6392 -- not to map GO:0005515
                 if (!termId[1].equals("GO:0005515") && !termId[1].equals("GO:0005488")) {
-                    results.add(new InterPro2GoTerm(ip[1], term[1], id[1]));
+                    if (badGoIDs.contains(term[1])) {
+                        continue;
+                    }
+                    GenericTerm termObject = allGoIDs.get(termId[1]);
+                    results.add(new InterPro2GoTerm(ip[1], term[1], id[1], termObject == null ? null : termObject.getZdbID()));
                 }
             }
         }

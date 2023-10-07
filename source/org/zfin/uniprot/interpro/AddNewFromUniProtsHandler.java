@@ -52,7 +52,7 @@ public class AddNewFromUniProtsHandler implements InterproLoadHandler {
                 if(!alreadyExists) {
                     log.info("Adding " + dbName + " " + iplink.getAccession() + " to gene " + geneID + " in context of " + uniprot + " uniprot");
                     actions.add(InterproLoadAction.builder().type(InterproLoadAction.Type.LOAD)
-                            .subType(InterproLoadAction.SubType.PLACEHOLDER1)
+                            .subType(InterproLoadAction.SubType.DB_LINK)
                             .accession(iplink.getAccession())
                             .dbName(dbName)
                             .geneZdbID(geneID)
