@@ -1,0 +1,13 @@
+TODO:
+======
+- [ ] Add the marker_go_term_evidence rows for SPKW2GO and EC2GO
+- [ ] PFAM and PROSITE?
+- [ ] Implement some of the filtering logic for the GO terms in sp_load.sql
+    - [ ] WITHDRAWN
+    - [ ] gocheck_do_not_annotate
+- [ ] Inference Groups
+- [ ] Remove the marker_go_term_evidence rows if needed
+- [ ] Remove the inference groups if needed
+- [ ] Interpro domains?
+- [ ] handle cc load (https://github.com/rtaylorzfin/zfin/blob/zfin-8797/server_apps/data_transfer/SWISS-PROT/sp_load.sql#L452-L452)
+- [ ] clean up names of classes (for example some have "...Interpro..." but actually handle InterPro, EC, etc.

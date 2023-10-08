@@ -13,11 +13,11 @@ import java.util.Set;
 import static org.zfin.sequence.ForeignDB.AvailableName.INTERPRO;
 
 @Log4j2
-public class InterproToGoHandler implements InterproLoadHandler {
+public class AddNewInterproToGoHandler implements InterproLoadHandler {
 
     private final ForeignDB.AvailableName dbName;
 
-    public InterproToGoHandler(ForeignDB.AvailableName dbName) {
+    public AddNewInterproToGoHandler(ForeignDB.AvailableName dbName) {
         this.dbName = dbName;
     }
 

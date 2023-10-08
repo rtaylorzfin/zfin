@@ -5,7 +5,6 @@ import lombok.Getter;
 import lombok.Setter;
 import lombok.extern.log4j.Log4j2;
 import org.biojava.bio.BioException;
-import org.zfin.ontology.GenericTerm;
 import org.zfin.ontology.datatransfer.AbstractScriptWrapper;
 import org.zfin.uniprot.adapter.RichSequenceAdapter;
 import org.zfin.uniprot.interpro.*;
@@ -20,7 +19,6 @@ import java.text.SimpleDateFormat;
 import java.util.*;
 
 import static org.zfin.repository.RepositoryFactory.getInfrastructureRepository;
-import static org.zfin.repository.RepositoryFactory.getOntologyRepository;
 import static org.zfin.sequence.ForeignDB.AvailableName.*;
 import static org.zfin.uniprot.UniProtFilterTask.readAllZebrafishEntriesFromSourceIntoMap;
 import static org.zfin.uniprot.UniProtTools.getArgOrEnvironmentVar;
@@ -100,7 +98,8 @@ public class InterproTask extends AbstractScriptWrapper {
         pipeline.addHandler(new RemoveFromLostUniProtsHandler(PROSITE));
         pipeline.addHandler(new AddNewFromUniProtsHandler(PROSITE));
 
-        pipeline.addHandler(new InterproToGoHandler(INTERPRO));
+        pipeline.addHandler(new AddNewInterproToGoHandler(INTERPRO));
+        pipeline.addHandler(new RemoveInterproToGoHandler(INTERPRO));
 
         return pipeline.execute();
     }
