@@ -3277,6 +3277,15 @@ public class HibernateMarkerRepository implements MarkerRepository {
     }
 
     @Override
+    public List<Marker> getWithdrawnMarkers() {
+        String hql = "from Marker where mrkr_abbrev like :withdrawn ";
+        Query<Marker> query = HibernateUtil.currentSession().createQuery(hql, Marker.class);
+        query.setParameter("withdrawn", Marker.WITHDRAWN + "%");
+        return query.list();
+    }
+
+
+    @Override
     public Map<String, GenericTerm> getSoTermMapping() {
         String hql = "select so from ZfinSoTerm so " +
             "left join fetch so.soTerm";

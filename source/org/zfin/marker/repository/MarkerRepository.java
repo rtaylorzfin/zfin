@@ -527,6 +527,8 @@ public interface MarkerRepository {
      List<Transcript> getAllNonCodingTranscripts();
     List<Transcript> getTranscriptsForNonCodingGenes();
 
+    List<Marker> getWithdrawnMarkers();
+
     Map<String,GenericTerm> getSoTermMapping();
 
     void copyStrSequence(SequenceTargetingReagent str1, SequenceTargetingReagent str2);
