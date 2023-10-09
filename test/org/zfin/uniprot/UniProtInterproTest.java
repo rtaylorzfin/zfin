@@ -12,7 +12,6 @@ import org.zfin.uniprot.interpro.*;
 
 import java.io.File;
 import java.io.IOException;
-import java.util.ArrayList;
 import java.util.List;
 import java.util.Set;
 
@@ -42,7 +41,7 @@ public class UniProtInterproTest extends AbstractDatabaseTest {
 
     @Test
     public void testInterproToGoHandler() {
-        InterproToGoHandler handler = new InterproToGoHandler(ForeignDB.AvailableName.INTERPRO);
+        AddNewInterproToGoHandler handler = new AddNewInterproToGoHandler(ForeignDB.AvailableName.INTERPRO);
         ObjectMapper objectMapper = new ObjectMapper();
 
         //read from test/uniprot-data/interpro-actions.json and convert to UniProtLoadAction list
