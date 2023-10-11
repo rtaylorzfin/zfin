@@ -65,13 +65,13 @@ public class InterproTask extends AbstractScriptWrapper {
         log.debug("Starting UniProtLoadTask for file " + inputFileName + ".");
         try (BufferedReader inputFileReader = new BufferedReader(new java.io.FileReader(inputFileName))) {
             Map<String, RichSequenceAdapter> entries = readUniProtEntries(inputFileReader);
-            Set<InterproLoadAction> actions = executePipeline(entries);
+            Set<SecondaryTermLoadAction> actions = executePipeline(entries);
             log.debug("Finished executing pipeline: " + actions.size() + " actions created.");
             writeActions(actions);
         }
     }
 
-    private void writeActions(Set<InterproLoadAction> actions) {
+    private void writeActions(Set<SecondaryTermLoadAction> actions) {
         String jsonFile = this.outputJsonName;
 
         log.debug("Creating JSON file: " + jsonFile);
@@ -82,12 +82,13 @@ public class InterproTask extends AbstractScriptWrapper {
         }
     }
 
-    private Set<InterproLoadAction> executePipeline(Map<String, RichSequenceAdapter> entries) {
+    private Set<SecondaryTermLoadAction> executePipeline(Map<String, RichSequenceAdapter> entries) {
         InterproLoadPipeline pipeline = new InterproLoadPipeline();
         pipeline.setInterproRecords(entries);
 
         InterproLoadContext context = InterproLoadContext.createFromDBConnection();
         context.setInterproTranslationRecords(ipToGoRecords);
+        context.setEcTranslationRecords(ecToGoRecords);
         pipeline.setContext(context);
 
         pipeline.addHandler(new RemoveFromLostUniProtsHandler(INTERPRO));
@@ -102,8 +103,11 @@ public class InterproTask extends AbstractScriptWrapper {
         pipeline.addHandler(new RemoveFromLostUniProtsHandler(PROSITE));
         pipeline.addHandler(new AddNewFromUniProtsHandler(PROSITE));
 
-        pipeline.addHandler(new AddNewInterproToGoHandler(INTERPRO));
-        pipeline.addHandler(new RemoveInterproToGoHandler(INTERPRO));
+        pipeline.addHandler(new AddNewSecondaryTermToGoHandler(INTERPRO, ipToGoRecords));
+        pipeline.addHandler(new RemoveSecondaryTermToGoHandler(INTERPRO, ipToGoRecords));
+
+        pipeline.addHandler(new AddNewSecondaryTermToGoHandler(EC, ecToGoRecords));
+        pipeline.addHandler(new RemoveSecondaryTermToGoHandler(EC, ecToGoRecords));
 
         return pipeline.execute();
     }
@@ -118,8 +122,12 @@ public class InterproTask extends AbstractScriptWrapper {
         try {
             log.debug("Loading " + ipToGoTranslationFile);
             ipToGoRecords = SecondaryTerm2GoTermTranslator.convertTranslationFileToUnloadFile(ipToGoTranslationFile, SecondaryTerm2GoTermTranslator.SecondaryTermType.InterPro);
+            log.debug("Loaded " + ipToGoRecords.size() + " InterPro to GO records.");
+
             log.debug("Loading " + ecToGoTranslationFile);
             ecToGoRecords = SecondaryTerm2GoTermTranslator.convertTranslationFileToUnloadFile(ecToGoTranslationFile, SecondaryTerm2GoTermTranslator.SecondaryTermType.EC);
+            log.debug("Loaded " + ecToGoRecords.size() + " EC to GO records.");
+
         } catch (FileNotFoundException e) {
             log.error("Failed to load translation file: ", e);
             throw new RuntimeException(e);

@@ -18,41 +18,43 @@ import static org.zfin.repository.RepositoryFactory.getMarkerRepository;
 import static org.zfin.repository.RepositoryFactory.getOntologyRepository;
 
 @Log4j2
-public class AddNewInterproToGoHandler implements InterproLoadHandler {
+public class AddNewSecondaryTermToGoHandler implements InterproLoadHandler {
 
     private final ForeignDB.AvailableName dbName;
+    private List<SecondaryTerm2GoTerm> translationRecords;
 
-    public AddNewInterproToGoHandler(ForeignDB.AvailableName dbName) {
+    public AddNewSecondaryTermToGoHandler(ForeignDB.AvailableName dbName, List<SecondaryTerm2GoTerm> translationRecords) {
         this.dbName = dbName;
+        this.translationRecords = translationRecords;
     }
 
     @Override
-    public void handle(Map<String, RichSequenceAdapter> uniProtRecords, Set<InterproLoadAction> actions, InterproLoadContext context) {
-        List<InterproLoadAction> interproLoads = actions.stream()
-                .filter(action -> dbName.equals(action.getDbName()) && action.getType().equals(InterproLoadAction.Type.LOAD))
+    public void handle(Map<String, RichSequenceAdapter> uniProtRecords, Set<SecondaryTermLoadAction> actions, InterproLoadContext context) {
+        List<SecondaryTermLoadAction> interproLoads = actions.stream()
+                .filter(action -> dbName.equals(action.getDbName()) && action.getType().equals(SecondaryTermLoadAction.Type.LOAD))
                 .toList();
 
         //create markerGoTermEvidences from new interpro IDs
-        log.debug("Creating markerGoTermEvidences from new interpro IDs");
-        List<InterproLoadAction> markerGoTermEvidences = createMarkerGoTermEvidencesFromNewInterproIDs(interproLoads, context.getInterproTranslationRecords());
+        log.debug("Creating markerGoTermEvidences from new " + dbName + " IDs");
+        List<SecondaryTermLoadAction> markerGoTermEvidences = createMarkerGoTermEvidencesFromNewInterproIDs(interproLoads);
         log.debug("Created " + markerGoTermEvidences.size() + " markerGoTermEvidences before filtering");
 
         //filter out unknown and root terms
-        List<InterproLoadAction> filteredMarkerGoTermEvidences = filterUnknownAndRootTerms(markerGoTermEvidences);
+        List<SecondaryTermLoadAction> filteredMarkerGoTermEvidences = filterUnknownAndRootTerms(markerGoTermEvidences);
         log.debug("After first pass of filtering: " + filteredMarkerGoTermEvidences.size() + " markerGoTermEvidences");
 
         //filter out terms for WITHDRAWN markers
-        List<InterproLoadAction> filteredMarkerGoTermEvidences2 = filterWithdrawnMarkers(filteredMarkerGoTermEvidences);
+        List<SecondaryTermLoadAction> filteredMarkerGoTermEvidences2 = filterWithdrawnMarkers(filteredMarkerGoTermEvidences);
         log.debug("After second pass of filtering: " + filteredMarkerGoTermEvidences2.size() + " markerGoTermEvidences");
 
         //filter out terms not meant to be annotated
-        List<InterproLoadAction> filteredMarkerGoTermEvidences3 = filterNonAnnotatedTerms(filteredMarkerGoTermEvidences2);
+        List<SecondaryTermLoadAction> filteredMarkerGoTermEvidences3 = filterNonAnnotatedTerms(filteredMarkerGoTermEvidences2);
         log.debug("After third pass of filtering: " + filteredMarkerGoTermEvidences3.size() + " markerGoTermEvidences");
 
         actions.addAll(filteredMarkerGoTermEvidences);
     }
 
-    private List<InterproLoadAction> filterNonAnnotatedTerms(List<InterproLoadAction> markerGoTermEvidences) {
+    private List<SecondaryTermLoadAction> filterNonAnnotatedTerms(List<SecondaryTermLoadAction> markerGoTermEvidences) {
         List<Subset> subsets = getOntologyRepository().getAllSubsets();
         Subset notForAnnotations = subsets.stream().filter(subset -> subset.getInternalName().equals(GO_CHECK_DO_NOT_USE_FOR_ANNOTATIONS)).findFirst().orElse(null);
         if (notForAnnotations == null) {
@@ -64,7 +66,7 @@ public class AddNewInterproToGoHandler implements InterproLoadHandler {
                 .toList();
     }
 
-    private List<InterproLoadAction> filterWithdrawnMarkers(List<InterproLoadAction> filteredMarkerGoTermEvidences) {
+    private List<SecondaryTermLoadAction> filterWithdrawnMarkers(List<SecondaryTermLoadAction> filteredMarkerGoTermEvidences) {
         List<Marker> withdrawnMarkers = getMarkerRepository().getWithdrawnMarkers();
         List<String> withdrawnZdbIDs = withdrawnMarkers.stream()
                 .map(Marker::getZdbID)
@@ -74,7 +76,7 @@ public class AddNewInterproToGoHandler implements InterproLoadHandler {
                 .toList();
     }
 
-    private List<InterproLoadAction> filterUnknownAndRootTerms(List<InterproLoadAction> markerGoTermEvidences) {
+    private List<SecondaryTermLoadAction> filterUnknownAndRootTerms(List<SecondaryTermLoadAction> markerGoTermEvidences) {
         //unknown and root terms are not allowed
         List<String> unknownAndRootTerms = List.of("GO:0005554", "GO:0000004", "GO:0008372", "GO:0005575", "GO:0003674", "GO:0008150");
 
@@ -83,31 +85,40 @@ public class AddNewInterproToGoHandler implements InterproLoadHandler {
                 .toList();
     }
 
-    private List<InterproLoadAction> createMarkerGoTermEvidencesFromNewInterproIDs(List<InterproLoadAction> loads, List<SecondaryTerm2GoTerm> interpro2GoTranslationRecords) {
-        log.debug("Joining " + loads.size()  + " InterproLoadAction against " + interpro2GoTranslationRecords.size() + " Interpro2GoTerms ");
+    private List<SecondaryTermLoadAction> createMarkerGoTermEvidencesFromNewInterproIDs(List<SecondaryTermLoadAction> loads) {
 
-        List<InterproLoadAction> newMarkerGoTermEvidences = new ArrayList<>();
+        List<SecondaryTerm2GoTerm> translateToGoRecords = getTranslationRecords();
+
+        log.debug("Joining " + loads.size()  + " InterproLoadAction against " + translateToGoRecords.size() + " Interpro2GoTerms ");
+
+        List<SecondaryTermLoadAction> newMarkerGoTermEvidences = new ArrayList<>();
 
         //join the load actions to the interpro translation records
-        List<Tuple2<InterproLoadAction, SecondaryTerm2GoTerm>> joined = Seq.seq(loads)
-                .innerJoin(interpro2GoTranslationRecords,
-                        (action, ip2go) -> action.getAccession().equals(ip2go.interproID()))
+        List<Tuple2<SecondaryTermLoadAction, SecondaryTerm2GoTerm>> joined = Seq.seq(loads)
+                .innerJoin(translateToGoRecords,
+                        (action, item2go) -> action.getAccession().equals(item2go.interproID()))
                 .toList();
         for(var joinedRecord : joined) {
-            InterproLoadAction action = joinedRecord.v1();
-            SecondaryTerm2GoTerm ip2go = joinedRecord.v2();
-            InterproLoadAction newAction = InterproLoadAction.builder()
+            SecondaryTermLoadAction action = joinedRecord.v1();
+            SecondaryTerm2GoTerm item2go = joinedRecord.v2();
+            SecondaryTermLoadAction newAction = SecondaryTermLoadAction.builder()
                     .accession(action.getAccession())
                     .dbName(dbName)
-                    .type(InterproLoadAction.Type.LOAD)
-                    .subType(InterproLoadAction.SubType.MARKER_GO_TERM_EVIDENCE)
+                    .type(SecondaryTermLoadAction.Type.LOAD)
+                    .subType(SecondaryTermLoadAction.SubType.MARKER_GO_TERM_EVIDENCE)
                     .geneZdbID(action.getGeneZdbID())
-                    .goID(ip2go.goID())
-                    .goTermZdbID(ip2go.termZdbID())
+                    .goID(item2go.goID())
+                    .goTermZdbID(item2go.termZdbID())
                     .build();
             log.debug(newAction.markerGoTermEvidenceRepresentation());
             newMarkerGoTermEvidences.add(newAction);
         }
         return newMarkerGoTermEvidences;
     }
+
+    private List<SecondaryTerm2GoTerm> getTranslationRecords() {
+        return translationRecords;
+    }
+
+
 }

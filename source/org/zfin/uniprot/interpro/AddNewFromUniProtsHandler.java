@@ -21,7 +21,7 @@ public class AddNewFromUniProtsHandler implements InterproLoadHandler {
     }
 
     @Override
-    public void handle(Map<String, RichSequenceAdapter> uniProtRecords, Set<InterproLoadAction> actions, InterproLoadContext context) {
+    public void handle(Map<String, RichSequenceAdapter> uniProtRecords, Set<SecondaryTermLoadAction> actions, InterproLoadContext context) {
         //if there is an interpro in the load file, but not in the DB for the corresponding gene, add it.
         // corresponding gene means: get the gene by taking the uniprot from the load file and cross referencing it to loaded uniprots
 
@@ -51,8 +51,8 @@ public class AddNewFromUniProtsHandler implements InterproLoadHandler {
                 //if not, add it
                 if(!alreadyExists) {
                     log.info("Adding " + dbName + " " + iplink.getAccession() + " to gene " + geneID + " in context of " + uniprot + " uniprot");
-                    actions.add(InterproLoadAction.builder().type(InterproLoadAction.Type.LOAD)
-                            .subType(InterproLoadAction.SubType.DB_LINK)
+                    actions.add(SecondaryTermLoadAction.builder().type(SecondaryTermLoadAction.Type.LOAD)
+                            .subType(SecondaryTermLoadAction.SubType.DB_LINK)
                             .accession(iplink.getAccession())
                             .dbName(dbName)
                             .geneZdbID(geneID)

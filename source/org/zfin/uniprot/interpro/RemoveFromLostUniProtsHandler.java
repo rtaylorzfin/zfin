@@ -10,8 +10,6 @@ import java.util.List;
 import java.util.Map;
 import java.util.Set;
 
-import static org.zfin.sequence.ForeignDB.AvailableName.INTERPRO;
-
 @Log4j2
 public class RemoveFromLostUniProtsHandler implements InterproLoadHandler {
     private final ForeignDB.AvailableName dbName;
@@ -21,7 +19,7 @@ public class RemoveFromLostUniProtsHandler implements InterproLoadHandler {
     }
 
     @Override
-    public void handle(Map<String, RichSequenceAdapter> uniProtRecords, Set<InterproLoadAction> actions, InterproLoadContext context) {
+    public void handle(Map<String, RichSequenceAdapter> uniProtRecords, Set<SecondaryTermLoadAction> actions, InterproLoadContext context) {
         //if there is an interpro in the DB, but not in the load file for the corresponding gene, delete it.
         // corresponding gene means: get the gene by taking the uniprot from the load file and cross referencing it to loaded uniprots (via this load pub?)
         List<DBLinkSlimDTO> iplinks = context.getDbLinksByDbName(this.dbName).values().stream().flatMap(Collection::stream).toList();
@@ -30,8 +28,8 @@ public class RemoveFromLostUniProtsHandler implements InterproLoadHandler {
             DBLinkSlimDTO uniprot = context.getUniprotByGene(iplink.getDataZdbID());
             if(uniprot == null) {
                 log.info("Removing " + this.dbName + " "  + iplink.getAccession() + " from gene " + iplink.getDataZdbID() + " lost uniprots");
-                actions.add(InterproLoadAction.builder().type(InterproLoadAction.Type.DELETE)
-                        .subType(InterproLoadAction.SubType.DB_LINK)
+                actions.add(SecondaryTermLoadAction.builder().type(SecondaryTermLoadAction.Type.DELETE)
+                        .subType(SecondaryTermLoadAction.SubType.DB_LINK)
                         .dbName(this.dbName)
                         .accession(iplink.getAccession())
                         .geneZdbID(iplink.getDataZdbID())

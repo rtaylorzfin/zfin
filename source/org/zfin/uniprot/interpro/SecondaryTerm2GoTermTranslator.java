@@ -44,7 +44,7 @@ public class SecondaryTerm2GoTermTranslator {
         while (scanner.hasNextLine()) {
             String line = scanner.nextLine();
 
-            if (line.startsWith("InterPro:")) {
+            if (line.startsWith(fileType.name())) {
                 String[] splitLine = line.split(" > ");
                 String[] ip = splitLine[0].split("[: ]");
                 String[] termId = splitLine[1].split(" ; ");

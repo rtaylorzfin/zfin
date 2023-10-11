@@ -16,7 +16,7 @@ import java.util.TreeSet;
 @Getter
 @Setter
 @Builder
-public class InterproLoadAction implements Comparable<InterproLoadAction> {
+public class SecondaryTermLoadAction implements Comparable<SecondaryTermLoadAction> {
     private Type type;
     private SubType subType;
 
@@ -32,11 +32,11 @@ public class InterproLoadAction implements Comparable<InterproLoadAction> {
     @Builder.Default
     private Set<UniProtLoadLink> links = new TreeSet<>();
 
-    public InterproLoadAction() {
+    public SecondaryTermLoadAction() {
         links = new TreeSet<>();
     }
 
-    public InterproLoadAction(Type type, SubType subType, ForeignDB.AvailableName dbName, String accession, String goID, String goTermZdbID, String geneZdbID, String details, int length, Set<UniProtLoadLink> links) {
+    public SecondaryTermLoadAction(Type type, SubType subType, ForeignDB.AvailableName dbName, String accession, String goID, String goTermZdbID, String geneZdbID, String details, int length, Set<UniProtLoadLink> links) {
         this.type = type;
         this.subType = subType;
         this.accession = accession;
@@ -78,14 +78,14 @@ public class InterproLoadAction implements Comparable<InterproLoadAction> {
     @Override
     public boolean equals(Object o) {
         if (this == o) return true;
-        if (!(o instanceof InterproLoadAction that)) return false;
+        if (!(o instanceof SecondaryTermLoadAction that)) return false;
         return compareTo(that) == 0;
     }
 
     @Override
-    public int compareTo(InterproLoadAction o) {
-        Comparator<InterproLoadAction> comparator = Comparator.comparing(
-                (InterproLoadAction obj) -> obj.accession, ObjectUtils::compare)
+    public int compareTo(SecondaryTermLoadAction o) {
+        Comparator<SecondaryTermLoadAction> comparator = Comparator.comparing(
+                (SecondaryTermLoadAction obj) -> obj.accession, ObjectUtils::compare)
                 .thenComparing(obj -> obj.type, ObjectUtils::compare)
                 .thenComparing(obj -> obj.subType, ObjectUtils::compare)
                 .thenComparing(obj -> obj.geneZdbID, ObjectUtils::compare)
