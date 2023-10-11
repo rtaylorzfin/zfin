@@ -10,8 +10,6 @@ import java.util.List;
 import java.util.Map;
 import java.util.Set;
 
-import static org.zfin.sequence.ForeignDB.AvailableName.INTERPRO;
-
 @Log4j2
 public class RemoveInterproToGoHandler implements InterproLoadHandler {
 
@@ -27,22 +25,22 @@ public class RemoveInterproToGoHandler implements InterproLoadHandler {
                 .filter(action -> dbName.equals(action.getDbName()) && action.getType().equals(InterproLoadAction.Type.DELETE))
                 .toList();
 
-        List<InterPro2GoTerm> interpro2GoTranslationRecords = context.getInterproTranslationRecords();
+        List<SecondaryTerm2GoTerm> interpro2GoTranslationRecords = context.getInterproTranslationRecords();
 
         log.debug("Joining " + deletes.size()  + " InterproLoadAction against " + interpro2GoTranslationRecords.size() + " Interpro2GoTerms ");
 
         log.debug("DELETING marker_go_term_evidence");
         //join the load actions to the interpro translation records
-        List<Tuple2<InterproLoadAction, InterPro2GoTerm>> joined = Seq.seq(deletes)
+        List<Tuple2<InterproLoadAction, SecondaryTerm2GoTerm>> joined = Seq.seq(deletes)
                 .innerJoin(interpro2GoTranslationRecords,
                         (action, ip2go) -> action.getAccession().equals(ip2go.interproID()))
                 .toList();
         for(var joinedRecord : joined) {
             InterproLoadAction action = joinedRecord.v1();
-            InterPro2GoTerm ip2go = joinedRecord.v2();
+            SecondaryTerm2GoTerm ip2go = joinedRecord.v2();
             InterproLoadAction newAction = InterproLoadAction.builder()
                     .accession(action.getAccession())
-                    .dbName(INTERPRO)
+                    .dbName(dbName)
                     .type(InterproLoadAction.Type.DELETE)
                     .subType(InterproLoadAction.SubType.MARKER_GO_TERM_EVIDENCE)
                     .geneZdbID(action.getGeneZdbID())

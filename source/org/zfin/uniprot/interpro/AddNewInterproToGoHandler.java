@@ -16,7 +16,6 @@ import java.util.Set;
 import static org.zfin.ontology.Subset.GO_CHECK_DO_NOT_USE_FOR_ANNOTATIONS;
 import static org.zfin.repository.RepositoryFactory.getMarkerRepository;
 import static org.zfin.repository.RepositoryFactory.getOntologyRepository;
-import static org.zfin.sequence.ForeignDB.AvailableName.INTERPRO;
 
 @Log4j2
 public class AddNewInterproToGoHandler implements InterproLoadHandler {
@@ -84,22 +83,22 @@ public class AddNewInterproToGoHandler implements InterproLoadHandler {
                 .toList();
     }
 
-    private static List<InterproLoadAction> createMarkerGoTermEvidencesFromNewInterproIDs(List<InterproLoadAction> loads, List<InterPro2GoTerm> interpro2GoTranslationRecords) {
+    private List<InterproLoadAction> createMarkerGoTermEvidencesFromNewInterproIDs(List<InterproLoadAction> loads, List<SecondaryTerm2GoTerm> interpro2GoTranslationRecords) {
         log.debug("Joining " + loads.size()  + " InterproLoadAction against " + interpro2GoTranslationRecords.size() + " Interpro2GoTerms ");
 
         List<InterproLoadAction> newMarkerGoTermEvidences = new ArrayList<>();
 
         //join the load actions to the interpro translation records
-        List<Tuple2<InterproLoadAction, InterPro2GoTerm>> joined = Seq.seq(loads)
+        List<Tuple2<InterproLoadAction, SecondaryTerm2GoTerm>> joined = Seq.seq(loads)
                 .innerJoin(interpro2GoTranslationRecords,
                         (action, ip2go) -> action.getAccession().equals(ip2go.interproID()))
                 .toList();
         for(var joinedRecord : joined) {
             InterproLoadAction action = joinedRecord.v1();
-            InterPro2GoTerm ip2go = joinedRecord.v2();
+            SecondaryTerm2GoTerm ip2go = joinedRecord.v2();
             InterproLoadAction newAction = InterproLoadAction.builder()
                     .accession(action.getAccession())
-                    .dbName(INTERPRO)
+                    .dbName(dbName)
                     .type(InterproLoadAction.Type.LOAD)
                     .subType(InterproLoadAction.SubType.MARKER_GO_TERM_EVIDENCE)
                     .geneZdbID(action.getGeneZdbID())

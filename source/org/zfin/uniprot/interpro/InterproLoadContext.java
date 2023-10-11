@@ -5,7 +5,6 @@ import lombok.Setter;
 import lombok.extern.log4j.Log4j2;
 import org.zfin.sequence.ForeignDB;
 import org.zfin.sequence.MarkerDBLink;
-import org.zfin.sequence.ReferenceDatabase;
 import org.zfin.sequence.repository.SequenceRepository;
 import org.zfin.uniprot.dto.DBLinkSlimDTO;
 
@@ -35,7 +34,7 @@ public class InterproLoadContext {
     private Map<String, List<DBLinkSlimDTO>> pfamDbLinks;
     private Map<String, List<DBLinkSlimDTO>> uniprotDbLinksByGeneZdbID;
 
-    private List<InterPro2GoTerm> interproTranslationRecords;
+    private List<SecondaryTerm2GoTerm> interproTranslationRecords;
 
     public static InterproLoadContext createFromDBConnection() {
         InterproLoadContext interproLoadContext = new InterproLoadContext();

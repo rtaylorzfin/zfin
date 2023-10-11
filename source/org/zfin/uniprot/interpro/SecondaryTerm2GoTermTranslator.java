@@ -2,7 +2,6 @@ package org.zfin.uniprot.interpro;
 
 import org.apache.commons.io.FileUtils;
 import org.zfin.ontology.GenericTerm;
-import org.zfin.ontology.Ontology;
 
 import java.io.File;
 import java.io.FileNotFoundException;
@@ -14,13 +13,21 @@ import java.util.Scanner;
 
 import static org.zfin.repository.RepositoryFactory.getOntologyRepository;
 
-public class InterPro2GoTermTranslator {
-
-    public static List<InterPro2GoTerm> convertTranslationFileToUnloadFile(String ipToGoTranslationFile) throws FileNotFoundException {
-        return parseInterPro2GoTerms(ipToGoTranslationFile);
+/**
+ * This class is used to convert the InterPro to GO translation file into a list of InterPro2GoTerm objects.
+ */
+public class SecondaryTerm2GoTermTranslator {
+    public enum SecondaryTermType {
+        InterPro,
+        EC,
+        SPKW,
     }
 
-    private static List<InterPro2GoTerm> parseInterPro2GoTerms(String ipToGoTranslationFile) throws FileNotFoundException {
+    public static List<SecondaryTerm2GoTerm> convertTranslationFileToUnloadFile(String ipToGoTranslationFile, SecondaryTermType fileType) throws FileNotFoundException {
+        return parseInterPro2GoTerms(ipToGoTranslationFile, fileType);
+    }
+
+    private static List<SecondaryTerm2GoTerm> parseInterPro2GoTerms(String ipToGoTranslationFile, SecondaryTermType fileType) throws FileNotFoundException {
         List<String> badGoIDs = getOntologyRepository()
                 .getObsoleteAndSecondaryTerms()
                 .stream()
@@ -31,7 +38,7 @@ public class InterPro2GoTermTranslator {
         Map<String, GenericTerm> allGoIDs = getOntologyRepository().getGoTermsToZdbID();
 
         StringBuilder sb = new StringBuilder();
-        List<InterPro2GoTerm> results = new ArrayList<>();
+        List<SecondaryTerm2GoTerm> results = new ArrayList<>();
         Scanner scanner = null;
         scanner = new Scanner(new File(ipToGoTranslationFile));
         while (scanner.hasNextLine()) {
@@ -50,7 +57,7 @@ public class InterPro2GoTermTranslator {
                         continue;
                     }
                     GenericTerm termObject = allGoIDs.get(termId[1]);
-                    results.add(new InterPro2GoTerm(ip[1], term[1], id[1], termObject == null ? null : termObject.getZdbID()));
+                    results.add(new SecondaryTerm2GoTerm(ip[1], term[1], id[1], termObject == null ? null : termObject.getZdbID()));
                 }
             }
         }
@@ -59,12 +66,12 @@ public class InterPro2GoTermTranslator {
     }
 
     public static void main(String[] args) throws IOException {
-        String ipToGoTranslationFile = args[0];
-        List<InterPro2GoTerm> results = convertTranslationFileToUnloadFile(ipToGoTranslationFile);
+        String toGoTranslationFile = args[0];
+        List<SecondaryTerm2GoTerm> results = convertTranslationFileToUnloadFile(toGoTranslationFile, SecondaryTermType.EC);
         StringBuilder sb = new StringBuilder();
-        for (InterPro2GoTerm result : results) {
+        for (SecondaryTerm2GoTerm result : results) {
             sb.append(result.interproID()).append("|").append(result.term()).append("|").append(result.goID()).append("\n");
         }
-        FileUtils.writeStringToFile(new File("/tmp/ip_mrkrgoterm.unl"), sb.toString(), "UTF-8");
+        FileUtils.writeStringToFile(new File("/tmp/ec_mrkrgoterm.unl"), sb.toString(), "UTF-8");
     }
 }
