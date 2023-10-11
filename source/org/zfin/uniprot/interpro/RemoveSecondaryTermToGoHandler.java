@@ -35,7 +35,7 @@ public class RemoveSecondaryTermToGoHandler implements InterproLoadHandler {
         //join the load actions to the interpro translation records
         List<Tuple2<SecondaryTermLoadAction, SecondaryTerm2GoTerm>> joined = Seq.seq(deletes)
                 .innerJoin(translationRecords,
-                        (action, ip2go) -> action.getAccession().equals(ip2go.interproID()))
+                        (action, ip2go) -> action.getAccession().equals(ip2go.dbAccession()))
                 .toList();
         for(var joinedRecord : joined) {
             SecondaryTermLoadAction action = joinedRecord.v1();

@@ -31,16 +31,19 @@ public class InterproTask extends AbstractScriptWrapper {
     private final String outputJsonName;
     private final String ipToGoTranslationFile;
     private final String ecToGoTranslationFile;
+    private final String upToGoTranslationFile;
     private UniProtRelease release;
     private List<SecondaryTerm2GoTerm> ipToGoRecords;
     private List<SecondaryTerm2GoTerm> ecToGoRecords;
+    private List<SecondaryTerm2GoTerm> upToGoRecords;
 
     public static void main(String[] args) throws Exception {
         String inputFileName = getArgOrEnvironmentVar(args, 0, "UNIPROT_INPUT_FILE", "");
         String ipToGoTranslationFile = getArgOrEnvironmentVar(args, 1, "IP2GO_FILE", "");
         String ecToGoTranslationFile = getArgOrEnvironmentVar(args, 2, "EC2GO_FILE", "");
-        String outputJsonName = getArgOrEnvironmentVar(args, 3, "UNIPROT_OUTPUT_FILE", defaultOutputFileName(inputFileName));
-        InterproTask task = new InterproTask(inputFileName, outputJsonName, ipToGoTranslationFile, ecToGoTranslationFile);
+        String upToGoTranslationFile = getArgOrEnvironmentVar(args, 3, "UP2GO_FILE", "");
+        String outputJsonName = getArgOrEnvironmentVar(args, 4, "UNIPROT_OUTPUT_FILE", defaultOutputFileName(inputFileName));
+        InterproTask task = new InterproTask(inputFileName, outputJsonName, ipToGoTranslationFile, ecToGoTranslationFile, upToGoTranslationFile);
         task.runTask();
     }
 
@@ -53,11 +56,12 @@ public class InterproTask extends AbstractScriptWrapper {
         return Optional.ofNullable(getInfrastructureRepository().getLatestUnprocessedUniProtRelease());
     }
 
-    public InterproTask(String inputFileName, String outputJsonName, String ipToGoTranslationFile, String ecToGoTranslationFile) {
+    public InterproTask(String inputFileName, String outputJsonName, String ipToGoTranslationFile, String ecToGoTranslationFile, String upToGoTranslationFile) {
         this.inputFileName = inputFileName;
         this.outputJsonName = outputJsonName;
         this.ipToGoTranslationFile = ipToGoTranslationFile;
         this.ecToGoTranslationFile = ecToGoTranslationFile;
+        this.upToGoTranslationFile = upToGoTranslationFile;
     }
 
     public void runTask() throws IOException, BioException, SQLException {
@@ -109,6 +113,9 @@ public class InterproTask extends AbstractScriptWrapper {
         pipeline.addHandler(new AddNewSecondaryTermToGoHandler(EC, ecToGoRecords));
         pipeline.addHandler(new RemoveSecondaryTermToGoHandler(EC, ecToGoRecords));
 
+        pipeline.addHandler(new AddNewSecondaryTermToGoHandler(UNIPROTKB, upToGoRecords));
+        pipeline.addHandler(new RemoveSecondaryTermToGoHandler(UNIPROTKB, upToGoRecords));
+
         return pipeline.execute();
     }
 
@@ -127,6 +134,10 @@ public class InterproTask extends AbstractScriptWrapper {
             log.debug("Loading " + ecToGoTranslationFile);
             ecToGoRecords = SecondaryTerm2GoTermTranslator.convertTranslationFileToUnloadFile(ecToGoTranslationFile, SecondaryTerm2GoTermTranslator.SecondaryTermType.EC);
             log.debug("Loaded " + ecToGoRecords.size() + " EC to GO records.");
+
+            log.debug("Loading " + upToGoTranslationFile);
+            upToGoRecords = SecondaryTerm2GoTermTranslator.convertTranslationFileToUnloadFile(upToGoTranslationFile, SecondaryTerm2GoTermTranslator.SecondaryTermType.UniProtKB);
+            log.debug("Loaded " + upToGoRecords.size() + " UP to GO records.");
 
         } catch (FileNotFoundException e) {
             log.error("Failed to load translation file: ", e);

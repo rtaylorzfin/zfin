@@ -94,7 +94,7 @@ public class AddNewSecondaryTermToGoHandler implements InterproLoadHandler {
         //join the load actions to the interpro translation records
         List<Tuple2<SecondaryTermLoadAction, SecondaryTerm2GoTerm>> joined = Seq.seq(loads)
                 .innerJoin(translationRecords,
-                        (action, item2go) -> action.getAccession().equals(item2go.interproID()))
+                        (action, item2go) -> action.getAccession().equals(item2go.dbAccession()))
                 .toList();
         for(var joinedRecord : joined) {
             SecondaryTermLoadAction action = joinedRecord.v1();
