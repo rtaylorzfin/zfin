@@ -21,7 +21,7 @@ import static org.zfin.repository.RepositoryFactory.getOntologyRepository;
 public class AddNewSecondaryTermToGoHandler implements InterproLoadHandler {
 
     private final ForeignDB.AvailableName dbName;
-    private List<SecondaryTerm2GoTerm> translationRecords;
+    private final List<SecondaryTerm2GoTerm> translationRecords;
 
     public AddNewSecondaryTermToGoHandler(ForeignDB.AvailableName dbName, List<SecondaryTerm2GoTerm> translationRecords) {
         this.dbName = dbName;
@@ -87,15 +87,13 @@ public class AddNewSecondaryTermToGoHandler implements InterproLoadHandler {
 
     private List<SecondaryTermLoadAction> createMarkerGoTermEvidencesFromNewInterproIDs(List<SecondaryTermLoadAction> loads) {
 
-        List<SecondaryTerm2GoTerm> translateToGoRecords = getTranslationRecords();
-
-        log.debug("Joining " + loads.size()  + " InterproLoadAction against " + translateToGoRecords.size() + " Interpro2GoTerms ");
+        log.debug("Joining " + loads.size()  + " SecondaryLoadAction against " + translationRecords.size() + " " + dbName + " translation records ");
 
         List<SecondaryTermLoadAction> newMarkerGoTermEvidences = new ArrayList<>();
 
         //join the load actions to the interpro translation records
         List<Tuple2<SecondaryTermLoadAction, SecondaryTerm2GoTerm>> joined = Seq.seq(loads)
-                .innerJoin(translateToGoRecords,
+                .innerJoin(translationRecords,
                         (action, item2go) -> action.getAccession().equals(item2go.interproID()))
                 .toList();
         for(var joinedRecord : joined) {
@@ -115,10 +113,5 @@ public class AddNewSecondaryTermToGoHandler implements InterproLoadHandler {
         }
         return newMarkerGoTermEvidences;
     }
-
-    private List<SecondaryTerm2GoTerm> getTranslationRecords() {
-        return translationRecords;
-    }
-
 
 }

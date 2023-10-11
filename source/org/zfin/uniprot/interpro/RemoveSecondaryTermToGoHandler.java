@@ -29,7 +29,7 @@ public class RemoveSecondaryTermToGoHandler implements InterproLoadHandler {
 
 
 
-        log.debug("Joining " + deletes.size()  + " InterproLoadAction against " + translationRecords.size() + " Interpro2GoTerms ");
+        log.debug("Joining " + deletes.size()  + " SecondaryLoadAction against " + translationRecords.size() + " " + dbName + " translation records ");
 
         log.debug("DELETING marker_go_term_evidence");
         //join the load actions to the interpro translation records
