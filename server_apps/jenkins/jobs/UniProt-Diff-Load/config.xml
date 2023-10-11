@@ -36,12 +36,14 @@
     <hudson.tasks.Shell>
       <command>
         <![CDATA[
-        touch $WORKSPACE/tempfile
-        rm $WORKSPACE/*
-        cd $SOURCEROOT
-        export UNIPROT_OUTPUT_REPORT_FILE="$WORKSPACE/uniprot_load_report.html"
-        export UNIPROT_CONTEXT_FILE="$WORKSPACE/uniprot_context.json"
-        gradle uniprotLoadTask
+echo "WORKSPACE=$WORKSPACE"
+echo "UNIPROT_COMMIT_CHANGES=$UNIPROT_COMMIT_CHANGES"
+touch $WORKSPACE/tempfile
+# rm $WORKSPACE/*
+cd $SOURCEROOT
+export UNIPROT_OUTPUT_REPORT_FILE="$WORKSPACE/uniprot_load_report.html"
+export UNIPROT_CONTEXT_FILE="$WORKSPACE/uniprot_context.json"
+gradle uniprotLoadTask
         ]]>
       </command>
     </hudson.tasks.Shell>
