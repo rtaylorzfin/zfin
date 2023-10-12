@@ -1,21 +1,22 @@
 TODO:
 ======
-- [ ] Add the marker_go_term_evidence rows for:
-    - [ ] SPKW2GO (partially complete)
-    - [x] EC2GO
-    - [x] InterPro2GO
-- [ ] PFAM and PROSITE?
+- [x] Remove the marker_go_term_evidence rows if needed
+- [x] PFAM and PROSITE
 - [x] Implement some of the filtering logic for the GO terms in sp_load.sql
     - [x] WITHDRAWN
     - [x] gocheck_do_not_annotate
-- [ ] Inference Groups
-- [x] Remove the marker_go_term_evidence rows if needed
+- [ ] Add the marker_go_term_evidence rows for:
+    - [.] SPKW2GO (partially complete)
+    - [x] EC2GO
+    - [x] InterPro2GO
+- [ ] Add Inference Groups
 - [ ] Remove the inference groups if needed
-- [ ] Interpro domains?
+- [ ] Interpro domains
 - [ ] handle cc load (https://github.com/rtaylorzfin/zfin/blob/zfin-8797/server_apps/data_transfer/SWISS-PROT/sp_load.sql#L452-L452)
 - [ ] clean up names of classes in the code (for example some have "...Interpro..." but actually handle InterPro, EC, etc.
 
-- [ ] SPKW2GO details
+
+### Notes on SPKW2GO:
 After implementing a naive version of the spkw2go function, I saw that the logs indicate nothing is getting loaded.
 I probably need to do this based on the existing UniProt entries in the DB (not the new actions like EC2GO and InterPro2GO).
 2023-10-11 16:09:18,398 [main] DEBUG interpro.AddNewSecondaryTermToGoHandler - Creating markerGoTermEvidences from new UniProtKB IDs
@@ -26,3 +27,4 @@ I probably need to do this based on the existing UniProt entries in the DB (not 
 2023-10-11 16:09:18,419 [main] DEBUG interpro.AddNewSecondaryTermToGoHandler - After third pass of filtering: 0 markerGoTermEvidences
 2023-10-11 16:09:18,420 [main] DEBUG interpro.RemoveSecondaryTermToGoHandler - Joining 0 SecondaryLoadAction against 845 UniProtKB translation records
 2023-10-11 16:09:18,420 [main] DEBUG interpro.RemoveSecondaryTermToGoHandler - DELETING marker_go_term_evidence
+
