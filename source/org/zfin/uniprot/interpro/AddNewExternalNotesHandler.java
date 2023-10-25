@@ -23,8 +23,8 @@ public class AddNewExternalNotesHandler implements InterproLoadHandler {
             if (comments == null || comments.isEmpty()) {
                 continue;
             }
-            String combinedComment = String.join("<br>", comments);
-            combinedComment.replaceAll("\\n    ", " ");
+            String combinedComment = String.join("<br>", comments)
+                                            .replaceAll("\\n    ", " ");
             if (StringUtils.isEmpty(combinedComment)) {
                 continue;
             }
