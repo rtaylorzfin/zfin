@@ -6,13 +6,13 @@ import org.zfin.uniprot.adapter.RichSequenceAdapter;
 
 import java.text.SimpleDateFormat;
 import java.util.Calendar;
+import java.util.List;
 import java.util.Map;
-import java.util.Set;
 
 @Log4j2
 public class LogContextHandler implements InterproLoadHandler {
     @Override
-    public void handle(Map<String, RichSequenceAdapter> uniProtRecords, Set<SecondaryTermLoadAction> actions, InterproLoadContext context) {
+    public void handle(Map<String, RichSequenceAdapter> uniProtRecords, List<SecondaryTermLoadAction> actions, InterproLoadContext context) {
 
         String timestamp = new SimpleDateFormat("yyyy-MM-dd-HH-mm-ss").format(Calendar.getInstance().getTime());
         String filename = "/tmp/interproLoadContext-" + timestamp + ".json";

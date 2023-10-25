@@ -22,7 +22,7 @@ public class RemoveSecondaryTermToGoHandler implements InterproLoadHandler {
     }
 
     @Override
-    public void handle(Map<String, RichSequenceAdapter> uniProtRecords, Set<SecondaryTermLoadAction> actions, InterproLoadContext context) {
+    public void handle(Map<String, RichSequenceAdapter> uniProtRecords, List<SecondaryTermLoadAction> actions, InterproLoadContext context) {
         List<SecondaryTermLoadAction> deletes = actions.stream()
                 .filter(action -> dbName.equals(action.getDbName()) && action.getType().equals(SecondaryTermLoadAction.Type.DELETE))
                 .toList();

@@ -12,7 +12,7 @@ import java.util.*;
 @Log4j2
 public class InterproLoadPipeline {
     private List<InterproLoadHandler> handlers = new ArrayList<>();
-    private Set<SecondaryTermLoadAction> actions = new TreeSet<>();
+    private List<SecondaryTermLoadAction> actions = new ArrayList<>();
     private InterproLoadContext context;
 
     private Map<String, RichSequenceAdapter> interproRecords;
@@ -21,7 +21,7 @@ public class InterproLoadPipeline {
         handlers.add(handler);
     }
 
-    public Set<SecondaryTermLoadAction> execute() {
+    public List<SecondaryTermLoadAction> execute() {
         int i = 1;
         int actionCount = 0;
         int previousActionCount = 0;

@@ -25,7 +25,7 @@ public class AddNewSpKeywordTermToGoHandler extends AddNewSecondaryTermToGoHandl
 
 
     @Override
-    public void handle(Map<String, RichSequenceAdapter> uniProtRecords, Set<SecondaryTermLoadAction> actions, InterproLoadContext context) {
+    public void handle(Map<String, RichSequenceAdapter> uniProtRecords, List<SecondaryTermLoadAction> actions, InterproLoadContext context) {
 
         //create newMarkerGoTermEvidenceLoadActions from new interpro IDs
         log.debug("Creating newMarkerGoTermEvidenceLoadActions from new " + dbName + " IDs");

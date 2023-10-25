@@ -99,13 +99,14 @@ public class InterproTask extends AbstractScriptWrapper {
         log.debug("Starting UniProtLoadTask for file " + inputFileName + ".");
         try (BufferedReader inputFileReader = new BufferedReader(new java.io.FileReader(inputFileName))) {
             Map<String, RichSequenceAdapter> entries = readUniProtEntries(inputFileReader);
-            Set<SecondaryTermLoadAction> actions = executePipeline(entries);
+            List<SecondaryTermLoadAction> actions = executePipeline(entries);
             log.debug("Finished executing pipeline: " + actions.size() + " actions created.");
             writeActions(actions);
+            processActions(actions);
         }
     }
 
-    private void writeActions(Set<SecondaryTermLoadAction> actions) {
+    private void writeActions(List<SecondaryTermLoadAction> actions) {
         String jsonFile = this.outputJsonName;
 
         log.debug("Creating JSON file: " + jsonFile);
@@ -116,7 +117,11 @@ public class InterproTask extends AbstractScriptWrapper {
         }
     }
 
-    private Set<SecondaryTermLoadAction> executePipeline(Map<String, RichSequenceAdapter> entries) {
+    private void processActions(List<SecondaryTermLoadAction> actions) {
+        InterproLoadService.processActions(actions);
+    }
+
+    private List<SecondaryTermLoadAction> executePipeline(Map<String, RichSequenceAdapter> entries) {
         InterproLoadPipeline pipeline = new InterproLoadPipeline();
         pipeline.setInterproRecords(entries);
 

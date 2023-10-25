@@ -36,10 +36,6 @@ public class UniProtLoadService {
         currentSession().getTransaction().commit();
     }
 
-    public static ReferenceDatabase getUniProtReferenceDatabase() {
-        return getSequenceRepository().getReferenceDatabase(UNIPROTKB, POLYPEPTIDE, SEQUENCE, ZEBRAFISH);
-    }
-
     private static void processAction(UniProtLoadAction action) {
         if (action.getType().equals(UniProtLoadAction.Type.LOAD)) {
             loadAction(action);
@@ -48,6 +44,10 @@ public class UniProtLoadService {
         } else {
             //ignore other action types used for reporting
         }
+    }
+
+    public static ReferenceDatabase getUniProtReferenceDatabase() {
+        return getSequenceRepository().getReferenceDatabase(UNIPROTKB, POLYPEPTIDE, SEQUENCE, ZEBRAFISH);
     }
 
     private static void loadAction(UniProtLoadAction action) {

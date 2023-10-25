@@ -18,7 +18,7 @@ public class RemoveSpKeywordTermToGoHandler extends AddNewSecondaryTermToGoHandl
     }
 
     @Override
-    public void handle(Map<String, RichSequenceAdapter> uniProtRecords, Set<SecondaryTermLoadAction> actions, InterproLoadContext context) {
+    public void handle(Map<String, RichSequenceAdapter> uniProtRecords, List<SecondaryTermLoadAction> actions, InterproLoadContext context) {
 
         log.debug("Creating actions to remove SPKW terms");
 
