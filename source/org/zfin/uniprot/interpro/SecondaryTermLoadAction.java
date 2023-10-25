@@ -61,6 +61,7 @@ public class SecondaryTermLoadAction implements Comparable<SecondaryTermLoadActi
 
     public enum SubType {
         MARKER_GO_TERM_EVIDENCE("MarkerGoTermEvidence"),
+        EXTERNAL_NOTE("ExternalNote"),
         DB_LINK("DBLink");
 
         private final String value;

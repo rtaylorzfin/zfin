@@ -148,6 +148,7 @@ public class InterproTask extends AbstractScriptWrapper {
         pipeline.addHandler(new AddNewSpKeywordTermToGoHandler(UNIPROTKB, upToGoRecords));
         pipeline.addHandler(new RemoveSpKeywordTermToGoHandler(UNIPROTKB, upToGoRecords));
 
+        pipeline.addHandler(new AddNewExternalNotesHandler());
         return pipeline.execute();
     }
 

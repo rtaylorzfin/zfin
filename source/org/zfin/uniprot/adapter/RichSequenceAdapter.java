@@ -186,4 +186,12 @@ public class RichSequenceAdapter {
         }
         return results;
     }
+
+    public List<String> getComments() {
+        return originalRichSequence
+                .getComments()
+                .stream()
+                .map(comment -> comment.getComment().replaceFirst("\\-\\!\\- ", ""))
+                .toList();
+    }
 }
