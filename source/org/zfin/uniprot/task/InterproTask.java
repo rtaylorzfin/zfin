@@ -7,6 +7,7 @@ import lombok.extern.log4j.Log4j2;
 import org.biojava.bio.BioException;
 import org.zfin.ontology.datatransfer.AbstractScriptWrapper;
 import org.zfin.uniprot.adapter.RichSequenceAdapter;
+import org.zfin.uniprot.dto.DBLinkSlimDTO;
 import org.zfin.uniprot.interpro.*;
 import org.zfin.uniprot.persistence.UniProtRelease;
 
@@ -38,6 +39,15 @@ public class InterproTask extends AbstractScriptWrapper {
     private List<SecondaryTerm2GoTerm> upToGoRecords;
 
     public static void main(String[] args) throws Exception {
+        boolean debug = false;
+        if (debug) {
+            debugmain(args);
+        } else {
+            realmain(args);
+        }
+    }
+
+    public static void realmain(String[] args) throws Exception {
         String inputFileName = getArgOrEnvironmentVar(args, 0, "UNIPROT_INPUT_FILE", "");
         String ipToGoTranslationFile = getArgOrEnvironmentVar(args, 1, "IP2GO_FILE", "");
         String ecToGoTranslationFile = getArgOrEnvironmentVar(args, 2, "EC2GO_FILE", "");
@@ -45,6 +55,15 @@ public class InterproTask extends AbstractScriptWrapper {
         String outputJsonName = getArgOrEnvironmentVar(args, 4, "UNIPROT_OUTPUT_FILE", defaultOutputFileName(inputFileName));
         InterproTask task = new InterproTask(inputFileName, outputJsonName, ipToGoTranslationFile, ecToGoTranslationFile, upToGoTranslationFile);
         task.runTask();
+    }
+    public static void debugmain(String[] args) throws Exception {
+        String inputFileName = getArgOrEnvironmentVar(args, 0, "UNIPROT_INPUT_FILE", "");
+        String ipToGoTranslationFile = getArgOrEnvironmentVar(args, 1, "IP2GO_FILE", "");
+        String ecToGoTranslationFile = getArgOrEnvironmentVar(args, 2, "EC2GO_FILE", "");
+        String upToGoTranslationFile = getArgOrEnvironmentVar(args, 3, "UP2GO_FILE", "");
+        String outputJsonName = getArgOrEnvironmentVar(args, 4, "UNIPROT_OUTPUT_FILE", defaultOutputFileName(inputFileName));
+        InterproTask task = new InterproTask(inputFileName, outputJsonName, ipToGoTranslationFile, ecToGoTranslationFile, upToGoTranslationFile);
+        task.debugTask();
     }
 
     private static String defaultOutputFileName(String inputFileName) {
@@ -62,6 +81,17 @@ public class InterproTask extends AbstractScriptWrapper {
         this.ipToGoTranslationFile = ipToGoTranslationFile;
         this.ecToGoTranslationFile = ecToGoTranslationFile;
         this.upToGoTranslationFile = upToGoTranslationFile;
+    }
+
+    public void debugTask() throws IOException, BioException {
+        initialize();
+        InterproLoadContext context = InterproLoadContext.createFromDBConnection();
+        DBLinkSlimDTO uniprot = context.getGeneByUniprot("B0JZM6").stream().findFirst().orElse(null);
+        log.debug("Starting UniProtLoadTask for file " + inputFileName + ".");
+        try (BufferedReader inputFileReader = new BufferedReader(new java.io.FileReader(inputFileName))) {
+            Map<String, RichSequenceAdapter> entries = readUniProtEntries(inputFileReader);
+            entries.get("B0JZM6").getPlainKeywords().forEach(k -> log.debug("Keyword,Gene: " + k + "|" + uniprot.getDataZdbID()));
+        }
     }
 
     public void runTask() throws IOException, BioException, SQLException {
@@ -91,8 +121,8 @@ public class InterproTask extends AbstractScriptWrapper {
         pipeline.setInterproRecords(entries);
 
         InterproLoadContext context = InterproLoadContext.createFromDBConnection();
-        context.setInterproTranslationRecords(ipToGoRecords);
-        context.setEcTranslationRecords(ecToGoRecords);
+//        context.setInterproTranslationRecords(ipToGoRecords);
+//        context.setEcTranslationRecords(ecToGoRecords);
         pipeline.setContext(context);
 
         pipeline.addHandler(new RemoveFromLostUniProtsHandler(INTERPRO));
@@ -113,8 +143,8 @@ public class InterproTask extends AbstractScriptWrapper {
         pipeline.addHandler(new AddNewSecondaryTermToGoHandler(EC, ecToGoRecords));
         pipeline.addHandler(new RemoveSecondaryTermToGoHandler(EC, ecToGoRecords));
 
-        pipeline.addHandler(new AddNewSecondaryTermToGoHandler(UNIPROTKB, upToGoRecords));
-        pipeline.addHandler(new RemoveSecondaryTermToGoHandler(UNIPROTKB, upToGoRecords));
+        pipeline.addHandler(new AddNewSpKeywordTermToGoHandler(UNIPROTKB, upToGoRecords));
+        pipeline.addHandler(new RemoveSpKeywordTermToGoHandler(UNIPROTKB, upToGoRecords));
 
         return pipeline.execute();
     }
@@ -127,6 +157,11 @@ public class InterproTask extends AbstractScriptWrapper {
 
     private void loadTranslationFiles() {
         try {
+
+            log.debug("Loading " + upToGoTranslationFile);
+            upToGoRecords = SecondaryTerm2GoTermTranslator.convertTranslationFileToUnloadFile(upToGoTranslationFile, SecondaryTerm2GoTermTranslator.SecondaryTermType.UniProtKB);
+            log.debug("Loaded " + upToGoRecords.size() + " UP to GO records.");
+
             log.debug("Loading " + ipToGoTranslationFile);
             ipToGoRecords = SecondaryTerm2GoTermTranslator.convertTranslationFileToUnloadFile(ipToGoTranslationFile, SecondaryTerm2GoTermTranslator.SecondaryTermType.InterPro);
             log.debug("Loaded " + ipToGoRecords.size() + " InterPro to GO records.");
@@ -134,10 +169,6 @@ public class InterproTask extends AbstractScriptWrapper {
             log.debug("Loading " + ecToGoTranslationFile);
             ecToGoRecords = SecondaryTerm2GoTermTranslator.convertTranslationFileToUnloadFile(ecToGoTranslationFile, SecondaryTerm2GoTermTranslator.SecondaryTermType.EC);
             log.debug("Loaded " + ecToGoRecords.size() + " EC to GO records.");
-
-            log.debug("Loading " + upToGoTranslationFile);
-            upToGoRecords = SecondaryTerm2GoTermTranslator.convertTranslationFileToUnloadFile(upToGoTranslationFile, SecondaryTerm2GoTermTranslator.SecondaryTermType.UniProtKB);
-            log.debug("Loaded " + upToGoRecords.size() + " UP to GO records.");
 
         } catch (FileNotFoundException e) {
             log.error("Failed to load translation file: ", e);

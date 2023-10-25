@@ -9,11 +9,22 @@ TODO:
     - [.] SPKW2GO (partially complete)
     - [x] EC2GO
     - [x] InterPro2GO
+- [ ] Remove the marker_go_term_evidence rows for:
+    - [.] SPKW2GO (partially complete)
+    - [x] EC2GO
+    - [x] InterPro2GO
 - [ ] Add Inference Groups
 - [ ] Remove the inference groups if needed
 - [ ] Interpro domains
 - [ ] handle cc load (https://github.com/rtaylorzfin/zfin/blob/zfin-8797/server_apps/data_transfer/SWISS-PROT/sp_load.sql#L452-L452)
 - [ ] clean up names of classes in the code (for example some have "...Interpro..." but actually handle InterPro, EC, etc.
+- [ ] Improve the original load diff report to have more info on uniprot probfile entries
+
+### Misc:
+- [ ] Add a test for the InterPro2GO
+- [ ] Is there a need to handle multiple genes? For example, when loading SPKW2GO, we are going from the uniprot accession to the gene, but what if there are multiple genes for some uniprot accessions?
+- [ ] Add a test for comparing the diffs of this load against the current load
+
 
 
 ### Notes on SPKW2GO:
@@ -28,3 +39,6 @@ I probably need to do this based on the existing UniProt entries in the DB (not 
 2023-10-11 16:09:18,420 [main] DEBUG interpro.RemoveSecondaryTermToGoHandler - Joining 0 SecondaryLoadAction against 845 UniProtKB translation records
 2023-10-11 16:09:18,420 [main] DEBUG interpro.RemoveSecondaryTermToGoHandler - DELETING marker_go_term_evidence
 
+#### Completed on 10/24
+Note that the SPKW2GO load is now complete.  I had to do a few things to get it to work:
+- I had to add a new collection to the context for storing existing marker_go_term_evidence rows so that we know which new ones to add

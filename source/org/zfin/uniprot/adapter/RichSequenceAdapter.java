@@ -106,11 +106,34 @@ public class RichSequenceAdapter {
     }
 
 
+    /*
+     * Return notes that correspond to keyword terms
+     */
     public List<Note> getKeywordNotes() {
         SimpleRichAnnotation seq1NoteSet = new SimpleRichAnnotation();
         seq1NoteSet.setNoteSet(this.getNoteSet());
         Note[] keywords = seq1NoteSet.getProperties(RichSequence.Terms.getKeywordTerm());
         return List.of(keywords);
+    }
+
+    /**
+     * Return keywords as strings
+     */
+    public List<String> getKeywords() {
+        return getKeywordNotes().stream()
+                .map(note -> note.getValue())
+                .toList();
+    }
+
+    /**
+     * Removes the curly braces and the text inside them
+     * Example: return "Glycosyltransferase" from "Glycosyltransferase {ECO:0000256|ARBA:ARBA00022676, ECO:0000256|RuleBase:RU003718}"
+     * @return
+     */
+    public List<String> getPlainKeywords() {
+        return getKeywords().stream()
+                .map(keyword -> keyword.replaceAll("\\{.*?\\}", "").trim())
+                .toList();
     }
 
     private Set<Note> getNoteSet() {

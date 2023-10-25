@@ -3,6 +3,7 @@ package org.zfin.uniprot.interpro;
 import lombok.Getter;
 import lombok.Setter;
 import lombok.extern.log4j.Log4j2;
+import org.zfin.mutant.MarkerGoTermEvidence;
 import org.zfin.sequence.ForeignDB;
 import org.zfin.sequence.MarkerDBLink;
 import org.zfin.sequence.repository.SequenceRepository;
@@ -11,6 +12,7 @@ import org.zfin.uniprot.dto.DBLinkSlimDTO;
 import java.util.*;
 
 import static org.zfin.Species.Type.ZEBRAFISH;
+import static org.zfin.repository.RepositoryFactory.getMarkerGoTermEvidenceRepository;
 import static org.zfin.repository.RepositoryFactory.getSequenceRepository;
 import static org.zfin.sequence.ForeignDB.AvailableName.*;
 import static org.zfin.sequence.ForeignDBDataType.DataType.DOMAIN;
@@ -26,6 +28,7 @@ import static org.zfin.sequence.ForeignDBDataType.SuperType.SEQUENCE;
 @Setter
 @Log4j2
 public class InterproLoadContext {
+    private static final String SPKW_PUB_ID = "ZDB-PUB-020723-1";
 
     private Map<String, List<DBLinkSlimDTO>> uniprotDbLinks;
     private Map<String, List<DBLinkSlimDTO>> interproDbLinks;
@@ -33,6 +36,8 @@ public class InterproLoadContext {
     private Map<String, List<DBLinkSlimDTO>> prositeDbLinks;
     private Map<String, List<DBLinkSlimDTO>> pfamDbLinks;
     private Map<String, List<DBLinkSlimDTO>> uniprotDbLinksByGeneZdbID;
+
+    private List<MarkerGoTermEvidence> existingMarkerGoTermEvidenceRecordsForSPKW;
 
     private List<SecondaryTerm2GoTerm> interproTranslationRecords;
     private List<SecondaryTerm2GoTerm> ecTranslationRecords;
@@ -73,6 +78,11 @@ public class InterproLoadContext {
 
         log.debug("Interpro Context Step 6: Creating Index of Uniprot DB Links by Gene ZDB ID");
         interproLoadContext.createUniprotDbLinksByGeneZdbID();
+
+        log.debug("Interpro Context Step 7: Getting Existing MarkerGoTermEvidence Records");
+        interproLoadContext.setExistingMarkerGoTermEvidenceRecordsForSPKW(
+                getMarkerGoTermEvidenceRepository().getMarkerGoTermEvidencesForPubZdbID(SPKW_PUB_ID)
+        );
 
         return interproLoadContext;
     }
