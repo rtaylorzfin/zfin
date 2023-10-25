@@ -54,6 +54,11 @@ public class AddNewSpKeywordTermToGoHandler extends AddNewSecondaryTermToGoHandl
         List<GeneKeyword> geneKeywords = new ArrayList<>();
         List<SecondaryTermLoadAction> newMarkerGoTermEvidences = new ArrayList<>();
 
+        //iterate over all the uniprot records in the current uniprot load file and
+        // find the gene that matches according to our DB (we've already loaded it)
+        // gather all the keywords from the uniprot record and create new MarkerGoTermEvidenceLoadAction
+        // for each one. Equivalent to generating the kd_spkeywd.unl file in our old load ("GENE|Keyword")
+        int unmatchedGeneCount = 0;
         for(String key : uniProtRecords.keySet()) {
             RichSequenceAdapter record = uniProtRecords.get(key);
             List<String> keywords = record.getPlainKeywords();
@@ -62,7 +67,8 @@ public class AddNewSpKeywordTermToGoHandler extends AddNewSecondaryTermToGoHandl
             }
             List<DBLinkSlimDTO> matchingGeneDBLinks = context.getGeneByUniprot(key);
             if (matchingGeneDBLinks == null || matchingGeneDBLinks.isEmpty()) {
-                log.debug("No matching gene for " + key + " with " + keywords.size() + " keywords");
+//                log.debug("No matching gene for " + key + " with " + keywords.size() + " keywords");
+                unmatchedGeneCount++;
                 continue;
             }
 
@@ -71,15 +77,16 @@ public class AddNewSpKeywordTermToGoHandler extends AddNewSecondaryTermToGoHandl
             for(String keyword : keywords) {
                 geneKeywords.add(new GeneKeyword(firstMatchingGeneDBLink.getDataZdbID(), keyword));
             }
-
         }
+        log.debug("Found " + geneKeywords.size() + " keywords for " + uniProtRecords.size() + " uniprot records. " + unmatchedGeneCount + " uniprot records had no matching gene");
 
-        //join the load actions to the interpro/ec/spkw translation records
+        //join the resulting keywords from above to the translation records to get GO terms
         List<Tuple2<GeneKeyword, SecondaryTerm2GoTerm>> joined = Seq.seq(geneKeywords)
                 .innerJoin(translationRecords,
                         (geneKeyword, item2go) -> geneKeyword.keyword().equals(item2go.dbTermName()))
                 .toList();
 
+        //create new MarkerGoTermEvidenceLoadAction for each joined record
         for(var joinedRecord : joined) {
             GeneKeyword geneKeyword = joinedRecord.v1();
             SecondaryTerm2GoTerm item2go = joinedRecord.v2();
@@ -92,6 +99,7 @@ public class AddNewSpKeywordTermToGoHandler extends AddNewSecondaryTermToGoHandl
                     .goID(item2go.goID())
                     .goTermZdbID(item2go.termZdbID())
                     .build();
+            newMarkerGoTermEvidences.add(newAction);
         }
 
         return newMarkerGoTermEvidences;
@@ -110,9 +118,9 @@ public class AddNewSpKeywordTermToGoHandler extends AddNewSecondaryTermToGoHandl
         String geneZdbID = newAction.getGeneZdbID();
         boolean exists = existingRecords.stream()
                 .anyMatch( record -> {
-                    return record.getGoTerm().getOboID().equals(goID) && record.getMarker().getZdbID().equals(geneZdbID);
+                    boolean matches = record.getGoTerm().getOboID().equals(goID) && record.getMarker().getZdbID().equals(geneZdbID);
+                    return matches;
                 });
-        log.debug("SPKW " + newAction.getAccession() + " for gene " + geneZdbID + " and GO term " + goID + " exists: " + exists);
         return exists;
     }
 

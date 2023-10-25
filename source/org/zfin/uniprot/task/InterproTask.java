@@ -125,6 +125,8 @@ public class InterproTask extends AbstractScriptWrapper {
 //        context.setEcTranslationRecords(ecToGoRecords);
         pipeline.setContext(context);
 
+//        pipeline.addHandler(new LogContextHandler());
+
         pipeline.addHandler(new RemoveFromLostUniProtsHandler(INTERPRO));
         pipeline.addHandler(new AddNewFromUniProtsHandler(INTERPRO));
 
