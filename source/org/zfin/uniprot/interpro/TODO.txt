@@ -27,6 +27,7 @@ TODO:
 - [ ] Make sure we handle zdb_replaced_data
 - [ ] Does this line need to be replicated? (--!echo 'unload accession# with no attribution')
 - [ ] Do something with ac_dalias.unl ?
+- [ ] Add a circuit break if there are too many actions to process
 
 ### Notes on SPKW2GO:
 After implementing a naive version of the spkw2go function, I saw that the logs indicate nothing is getting loaded.

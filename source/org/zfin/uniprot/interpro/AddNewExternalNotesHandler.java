@@ -1,6 +1,7 @@
 package org.zfin.uniprot.interpro;
 
 import lombok.extern.log4j.Log4j2;
+import org.apache.commons.collections4.ListUtils;
 import org.apache.commons.lang3.StringUtils;
 import org.zfin.uniprot.adapter.RichSequenceAdapter;
 import org.zfin.uniprot.dto.DBLinkSlimDTO;
@@ -17,6 +18,7 @@ public class AddNewExternalNotesHandler implements InterproLoadHandler {
     public void handle(Map<String, RichSequenceAdapter> uniProtRecords, List<SecondaryTermLoadAction> actions, InterproLoadContext context) {
         List<SecondaryTermLoadAction> secondaryTermLoadActions = new ArrayList<>();
         Set<String> uniprotAccessions = uniProtRecords.keySet();
+        List<String> unmatchedUniprots = new ArrayList<>();
         for(String uniprot : uniprotAccessions) {
             RichSequenceAdapter record = uniProtRecords.get(uniprot);
             List<String> comments = record.getComments();
@@ -31,7 +33,7 @@ public class AddNewExternalNotesHandler implements InterproLoadHandler {
 
             List<DBLinkSlimDTO> genesMatchingUniprot = context.getGeneByUniprot(uniprot);
             if(genesMatchingUniprot == null || genesMatchingUniprot.isEmpty()) {
-                log.debug("No gene found for uniprot " + uniprot);
+                unmatchedUniprots.add(uniprot);
                 continue;
             }
             String firstGeneZdbID = genesMatchingUniprot.get(0).getDataZdbID();
@@ -46,6 +48,17 @@ public class AddNewExternalNotesHandler implements InterproLoadHandler {
                     .build();
             secondaryTermLoadActions.add(action);
         }
+
+        //batch log unmatched uniprots
+        if(!unmatchedUniprots.isEmpty()) {
+            log.info("Unmatched uniprots (" + unmatchedUniprots.size() + "): " );
+
+            //break up into chunks of 100
+            ListUtils.partition(unmatchedUniprots, 100)
+                    .forEach(chunk -> log.info(String.join(", ", chunk)));
+        }
+
+
         actions.addAll(secondaryTermLoadActions);
     }
 

@@ -9,7 +9,8 @@ import org.zfin.uniprot.dto.DBLinkSlimDTO;
 
 import java.util.List;
 import java.util.Map;
-import java.util.Set;
+
+import static org.zfin.util.ZfinCollectionUtils.firstInEachGrouping;
 
 @Log4j2
 public class AddNewFromUniProtsHandler implements InterproLoadHandler {
@@ -22,12 +23,26 @@ public class AddNewFromUniProtsHandler implements InterproLoadHandler {
 
     @Override
     public void handle(Map<String, RichSequenceAdapter> uniProtRecords, List<SecondaryTermLoadAction> actions, InterproLoadContext context) {
+        List<SecondaryTermLoadAction> newActions = getLoadActionsNotAlreadyInDatabase(uniProtRecords, context);
+
+        //remove duplicates
+        log.debug("Removing duplicates from " + newActions.size() + " new actions");
+
+        //first group by gene, accession
+        newActions = firstInEachGrouping(newActions, action -> action.getGeneZdbID() + "," + action.getAccession() + "," + action.getDbName());
+        log.debug("Removed duplicates, now have " + newActions.size() + " new actions");
+
+        actions.addAll(newActions);
+    }
+
+    public List<SecondaryTermLoadAction> getLoadActionsNotAlreadyInDatabase(Map<String, RichSequenceAdapter> uniProtRecords, InterproLoadContext context) {
         //if there is an interpro in the load file, but not in the DB for the corresponding gene, add it.
         // corresponding gene means: get the gene by taking the uniprot from the load file and cross referencing it to loaded uniprots
 
         int previouslyExistedCount = 0;
         int newlyAddedCount = 0;
 
+        List<SecondaryTermLoadAction> newActions = new java.util.ArrayList<>();
         for(String uniprot : uniProtRecords.keySet()) {
             List<DBLinkSlimDTO> dbls = context.getGeneByUniprot(uniprot);
             if(CollectionUtils.isEmpty(dbls)) {
@@ -51,7 +66,7 @@ public class AddNewFromUniProtsHandler implements InterproLoadHandler {
                 //if not, add it
                 if(!alreadyExists) {
                     log.info("Adding " + dbName + " " + iplink.getAccession() + " to gene " + geneID + " in context of " + uniprot + " uniprot");
-                    actions.add(SecondaryTermLoadAction.builder().type(SecondaryTermLoadAction.Type.LOAD)
+                    newActions.add(SecondaryTermLoadAction.builder().type(SecondaryTermLoadAction.Type.LOAD)
                             .subType(SecondaryTermLoadAction.SubType.DB_LINK)
                             .accession(iplink.getAccession())
                             .dbName(dbName)
@@ -65,5 +80,6 @@ public class AddNewFromUniProtsHandler implements InterproLoadHandler {
         }
         log.debug("Previously existed: " + previouslyExistedCount);
         log.debug("Newly added: " + newlyAddedCount);
+        return newActions;
     }
 }
