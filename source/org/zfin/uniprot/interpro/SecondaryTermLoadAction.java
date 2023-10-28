@@ -57,6 +57,17 @@ public class SecondaryTermLoadAction implements Comparable<SecondaryTermLoadActi
         this.links.addAll(links);
     }
 
+    public String getPrefixedAccession() {
+        String prefixedAccession = "";
+        switch(dbName) {
+            case INTERPRO -> prefixedAccession = "InterPro:" + accession;
+            case UNIPROTKB -> prefixedAccession = "UniProtKB-KW:" + accession;
+            case EC -> prefixedAccession = "EC:" + accession;
+            default -> prefixedAccession = dbName.toString() + ":" + accession;
+        }
+        return prefixedAccession;
+    }
+
     public enum Type {LOAD, INFO, WARNING, ERROR, DELETE, IGNORE, DUPES}
 
     public enum SubType {
