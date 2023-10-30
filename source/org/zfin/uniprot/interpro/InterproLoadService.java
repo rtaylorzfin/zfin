@@ -3,8 +3,10 @@ package org.zfin.uniprot.interpro;
 import lombok.Getter;
 import lombok.Setter;
 import lombok.extern.log4j.Log4j2;
+import org.zfin.ExternalNote;
 import org.zfin.datatransfer.go.GafOrganization;
 import org.zfin.framework.HibernateUtil;
+import org.zfin.gwt.root.dto.ExternalNoteDTO;
 import org.zfin.gwt.root.dto.GoEvidenceCodeEnum;
 import org.zfin.marker.Marker;
 import org.zfin.mutant.GoEvidenceCode;
@@ -31,8 +33,10 @@ public class InterproLoadService {
     private static final String EC_MRKRGOEV_PUBLICATION_ATTRIBUTION_ID = "ZDB-PUB-031118-3";
     private static final String IP_MRKRGOEV_PUBLICATION_ATTRIBUTION_ID = "ZDB-PUB-020724-1";
     private static final String SPKW_MRKRGOEV_PUBLICATION_ATTRIBUTION_ID = "ZDB-PUB-020723-1";
+    private static final String EXTNOTE_PUBLICATION_ATTRIBUTION_ID = "ZDB-PUB-230615-71";
 
 
+    private static final String EXTNOTE_REFERENCE_DATABASE_ID = "ZDB-FDBCONT-040412-47";
     private static final String INTERPRO_REFERENCE_DATABASE_ID = "ZDB-FDBCONT-040412-48";
     private static final String EC_REFERENCE_DATABASE_ID = "ZDB-FDBCONT-040412-49";
     private static final String PFAM_REFERENCE_DATABASE_ID = "ZDB-FDBCONT-040412-50";
@@ -193,19 +197,17 @@ public class InterproLoadService {
 
         getMarkerGoTermEvidenceRepository().addEvidence(markerGoTermEvidence, false);
 
-        // have to do this after we add inferences
         getMutantRepository().addInferenceToGoMarkerTermEvidence(markerGoTermEvidence, action.getPrefixedAccession());
 
         return markerGoTermEvidence.getZdbID();
     }
 
-    private static void loadMarkerGoTermEvidenceEc(SecondaryTermLoadAction action) {
-    }
-
-    private static void loadMarkerGoTermEvidenceUniprot(SecondaryTermLoadAction action) {
-    }
-
     private static void loadExternalNote(SecondaryTermLoadAction action) {
+        ExternalNote externalNote = new ExternalNote();
+        externalNote.setExternalDataZdbID(action.getGeneZdbID());
+        externalNote.setNote(action.getDetails());
+        externalNote.setPublication(getPublicationRepository().getPublication(EXTNOTE_PUBLICATION_ATTRIBUTION_ID));
+//        externalNote.setType();
     }
 
     public static ReferenceDatabase getReferenceDatabase(String referenceDatabaseID) {

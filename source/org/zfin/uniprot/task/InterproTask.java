@@ -48,11 +48,24 @@ public class InterproTask extends AbstractScriptWrapper {
     }
 
     public static void realmain(String[] args) throws Exception {
+
+        //mode can be one of the following:
+        // 1. "REPORT" - generate actions from the input file and write them to a file (no load)
+        // 2. "LOAD" - load actions from a file into the database
+        // 3. "LOAD_AND_REPORT" - generate actions from the input file, write them to a file, and load them into the database
+        String mode = getArgOrEnvironmentVar(args, 0, "UNIPROT_LOAD_MODE", "REPORT");
+
         String inputFileName = getArgOrEnvironmentVar(args, 0, "UNIPROT_INPUT_FILE", "");
         String ipToGoTranslationFile = getArgOrEnvironmentVar(args, 1, "IP2GO_FILE", "");
         String ecToGoTranslationFile = getArgOrEnvironmentVar(args, 2, "EC2GO_FILE", "");
         String upToGoTranslationFile = getArgOrEnvironmentVar(args, 3, "UP2GO_FILE", "");
         String outputJsonName = getArgOrEnvironmentVar(args, 4, "UNIPROT_OUTPUT_FILE", defaultOutputFileName(inputFileName));
+
+
+        String commitChanges = getArgOrEnvironmentVar(args, 5, "UNIPROT_COMMIT_CHANGES", "false");
+        String contextOutputFile = getArgOrEnvironmentVar(args, 6, "UNIPROT_CONTEXT_FILE", "");
+
+
         InterproTask task = new InterproTask(inputFileName, outputJsonName, ipToGoTranslationFile, ecToGoTranslationFile, upToGoTranslationFile);
         task.runTask();
     }
