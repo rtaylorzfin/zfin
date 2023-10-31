@@ -165,33 +165,15 @@ public class InterproLoadContext {
         return this.uniprotDbLinks.get(dataZdbID);
     }
 
-    public DBLinkSlimDTO getInterproByGene(String geneID, String accession) {
-        List<DBLinkSlimDTO> dblinks = interproDbLinks.get(accession);
-        if(dblinks == null) {
-            return null;
-        }
-        return dblinks
-                .stream()
-                .filter(dbLinkSlimDTO -> dbLinkSlimDTO.getDataZdbID().equals(geneID))
-                .findFirst()
-                .orElse(null);
-    }
-
     public Map<String, List<DBLinkSlimDTO>> getDbLinksByDbName(ForeignDB.AvailableName dbName) {
-        switch (dbName) {
-            case INTERPRO:
-                return getInterproDbLinks();
-            case EC:
-                return getEcDbLinks();
-            case PFAM:
-                return getPfamDbLinks();
-            case PROSITE:
-                return getPrositeDbLinks();
-            case UNIPROTKB:
-                return getUniprotDbLinks();
-            default:
-                return null;
-        }
+        return switch (dbName) {
+            case INTERPRO -> getInterproDbLinks();
+            case EC -> getEcDbLinks();
+            case PFAM -> getPfamDbLinks();
+            case PROSITE -> getPrositeDbLinks();
+            case UNIPROTKB -> getUniprotDbLinks();
+            default -> null;
+        };
     }
 
     public DBLinkSlimDTO getDbLinkByGeneAndAccession(ForeignDB.AvailableName dbName, String geneID, String accession) {
@@ -204,5 +186,10 @@ public class InterproLoadContext {
                 .filter(dbLinkSlimDTO -> dbLinkSlimDTO.getDataZdbID().equals(geneID))
                 .findFirst()
                 .orElse(null);
+    }
+
+    public Collection<DBLinkExternalNoteSlimDTO> getAllExternalNotes() {
+        Map<DBLinkSlimDTO, DBLinkExternalNoteSlimDTO> map = getExternalNotesByUniprotAccession();
+        return map.values();
     }
 }

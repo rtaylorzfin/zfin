@@ -8,7 +8,6 @@ import lombok.extern.log4j.Log4j2;
 import org.biojava.bio.BioException;
 import org.zfin.ontology.datatransfer.AbstractScriptWrapper;
 import org.zfin.uniprot.adapter.RichSequenceAdapter;
-import org.zfin.uniprot.dto.DBLinkSlimDTO;
 import org.zfin.uniprot.interpro.*;
 import org.zfin.uniprot.persistence.UniProtRelease;
 
@@ -124,7 +123,7 @@ public class InterproTask extends AbstractScriptWrapper {
         String jsonFile = this.actionsFileName;
         log.debug("Reading JSON file: " + jsonFile);
         try {
-            return (new ObjectMapper()).readValue(new File(jsonFile), new TypeReference<List<SecondaryTermLoadAction>>() {});
+            return (new ObjectMapper()).readValue(new File(jsonFile), new TypeReference<>() {});
         } catch (IOException e) {
             log.error("Failed to read JSON file: " + jsonFile, e);
             return null;
@@ -178,7 +177,7 @@ public class InterproTask extends AbstractScriptWrapper {
         pipeline.addHandler(new AddNewSpKeywordTermToGoHandler(UNIPROTKB, upToGoRecords));
         pipeline.addHandler(new RemoveSpKeywordTermToGoHandler(UNIPROTKB, upToGoRecords));
 
-        pipeline.addHandler(new AddNewExternalNotesHandler());
+        pipeline.addHandler(new ExternalNotesHandler());
         return pipeline.execute();
     }
 

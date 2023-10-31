@@ -61,10 +61,8 @@ public class InterproLoadService {
      *  124 UniProtKB DELETE MARKER_GO_TERM_EVIDENCE
      * 25983 null LOAD EXTERNAL_NOTE
      *
-     * @param actions
+     * @param actions list of actions to perform
      */
-
-
     public static void processActions(List<SecondaryTermLoadAction> actions) {
         //groupBy the actions
         Map<String, List<SecondaryTermLoadAction>> groupedActions =
@@ -112,9 +110,7 @@ public class InterproLoadService {
                     default -> log.error("Unknown marker_go_term_evidence dbname to load " + action.getDbName());
                 }
             }
-            case EXTERNAL_NOTE -> {
-                loadOrUpdateExternalNote(action);
-            }
+            case EXTERNAL_NOTE -> loadOrUpdateExternalNote(action);
             default -> log.error("Unhandled action subtype: " + action.getSubType());
         }
     }
@@ -139,12 +135,17 @@ public class InterproLoadService {
                     default -> log.error("Unknown marker_go_term_evidence dbname to delete " + action.getDbName());
                 }
             }
-            case EXTERNAL_NOTE -> {
-                log.error("TODO: implement delete external note?");
-//                deleteExternalNote();
-            }
+            case EXTERNAL_NOTE -> deleteExternalNote(action);
             default -> log.error("Unhandled action subtype: " + action.getSubType());
         }
+    }
+
+    private static void deleteExternalNote(SecondaryTermLoadAction action) {
+        log.debug("Processing delete external note action: " + action);
+        String externalNoteZdbID = action.getDetails();
+
+        getInfrastructureRepository().deleteRecordAttributionsForData(externalNoteZdbID);
+        getInfrastructureRepository().deleteDBLinkExternalNote(externalNoteZdbID);
     }
 
     private static void loadDbLink(SecondaryTermLoadAction action, String referenceDatabaseID) {
@@ -173,7 +174,7 @@ public class InterproLoadService {
         getSequenceRepository().removeDBLinks(Collections.singletonList(dblink));
     }
 
-    private static String loadMarkerGoTermEvidence(SecondaryTermLoadAction action, String pubID)  {
+    private static void loadMarkerGoTermEvidence(SecondaryTermLoadAction action, String pubID)  {
         MarkerGoTermEvidence markerGoTermEvidence = new MarkerGoTermEvidence();
         markerGoTermEvidence.setExternalLoadDate(null);
 
@@ -185,10 +186,10 @@ public class InterproLoadService {
         Marker marker = getMarkerRepository().getMarker(action.getGeneZdbID());
         markerGoTermEvidence.setMarker(marker);
 
-        GenericTerm goTerm = (GenericTerm) HibernateUtil.currentSession().get(GenericTerm.class, action.getGoTermZdbID());
+        GenericTerm goTerm = HibernateUtil.currentSession().get(GenericTerm.class, action.getGoTermZdbID());
         if (!goTerm.useForAnnotations()) {
             log.error("Do not use this term for GO Annotations: " + goTerm.getTermName());
-            return null;
+            return;
         }
 
         markerGoTermEvidence.setGoTerm(goTerm);
@@ -215,7 +216,6 @@ public class InterproLoadService {
 
         getMutantRepository().addInferenceToGoMarkerTermEvidence(markerGoTermEvidence, action.getPrefixedAccession());
 
-        return markerGoTermEvidence.getZdbID();
     }
 
     private static void deleteMarkerGoTermEvidence(SecondaryTermLoadAction action, String pubID) {

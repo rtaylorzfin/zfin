@@ -196,6 +196,8 @@ public interface InfrastructureRepository {
      */
     PublicationAttribution getStandardPublicationAttribution(String dataZdbID, String pubZdbID);
 
+    void deleteDBLinkExternalNote(String externalNoteZdbID);
+
     /**
      * Retrieve the replaced zdbID for a given zdbID.
      *

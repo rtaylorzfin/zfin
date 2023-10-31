@@ -845,6 +845,13 @@ public class HibernateInfrastructureRepository implements InfrastructureReposito
         session.delete(note);
     }
 
+    @Override
+    public void deleteDBLinkExternalNote(String externalNoteZdbID) {
+        Session session = HibernateUtil.currentSession();
+        DBLinkExternalNote externalNote = session.get(DBLinkExternalNote.class, externalNoteZdbID);
+        session.delete(externalNote);
+    }
+
     // Todo: ReplacementZdbID is a composite key (why?) and thus this
     // could retrieve more than one record. If so then it throws an exception,
     // meaning the id was replaced more than once and then we would not know which one to use.

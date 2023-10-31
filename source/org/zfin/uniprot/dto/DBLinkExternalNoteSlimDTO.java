@@ -9,6 +9,7 @@ import org.zfin.sequence.DBLinkExternalNote;
 @Getter
 @Setter
 public class DBLinkExternalNoteSlimDTO {
+    private String zdbID;
     private String accession;
     private String geneZdbID;
     private String dblinkZdbID;
@@ -20,6 +21,7 @@ public class DBLinkExternalNoteSlimDTO {
                 .dblinkZdbID(dbLinkExternalNote.getDblink().getZdbID())
                 .accession(dbLinkExternalNote.getDblink().getAccessionNumber())
                 .note(dbLinkExternalNote.getNote())
+                .zdbID(dbLinkExternalNote.getZdbID())
                 .build();
     }
 }
