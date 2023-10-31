@@ -8,7 +8,6 @@ import org.zfin.uniprot.adapter.RichSequenceAdapter;
 
 import java.util.List;
 import java.util.Map;
-import java.util.Set;
 
 @Log4j2
 public class RemoveSecondaryTermToGoHandler implements InterproLoadHandler {
@@ -26,8 +25,6 @@ public class RemoveSecondaryTermToGoHandler implements InterproLoadHandler {
         List<SecondaryTermLoadAction> deletes = actions.stream()
                 .filter(action -> dbName.equals(action.getDbName()) && action.getType().equals(SecondaryTermLoadAction.Type.DELETE))
                 .toList();
-
-
 
         log.debug("Joining " + deletes.size()  + " SecondaryLoadAction against " + translationRecords.size() + " " + dbName + " translation records ");
 

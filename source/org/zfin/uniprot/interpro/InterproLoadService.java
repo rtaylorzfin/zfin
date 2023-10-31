@@ -133,14 +133,14 @@ public class InterproLoadService {
             case MARKER_GO_TERM_EVIDENCE -> {
                 log.error("TODO: implement delete marker_go_term_evidence");
                 switch (action.getDbName()) {
-//                    case INTERPRO -> deleteMarkerGoTermEvidenceInterpro(action);
-//                    case EC -> deleteMarkerGoTermEvidenceEc(action);
-//                    case UNIPROTKB -> deleteMarkerGoTermEvidenceUniprot(action);
-//                    default -> log.error("Unknown marker_go_term_evidence dbname to delete " + action.getDbName());
+                    case INTERPRO -> deleteMarkerGoTermEvidence(action, IP_MRKRGOEV_PUBLICATION_ATTRIBUTION_ID);
+                    case EC -> deleteMarkerGoTermEvidence(action, EC_MRKRGOEV_PUBLICATION_ATTRIBUTION_ID);
+                    case UNIPROTKB -> deleteMarkerGoTermEvidence(action, SPKW_MRKRGOEV_PUBLICATION_ATTRIBUTION_ID);
+                    default -> log.error("Unknown marker_go_term_evidence dbname to delete " + action.getDbName());
                 }
             }
             case EXTERNAL_NOTE -> {
-                log.error("TODO: implement delete external note");
+                log.error("TODO: implement delete external note?");
 //                deleteExternalNote();
             }
             default -> log.error("Unhandled action subtype: " + action.getSubType());
@@ -216,6 +216,32 @@ public class InterproLoadService {
         getMutantRepository().addInferenceToGoMarkerTermEvidence(markerGoTermEvidence, action.getPrefixedAccession());
 
         return markerGoTermEvidence.getZdbID();
+    }
+
+    private static void deleteMarkerGoTermEvidence(SecondaryTermLoadAction action, String pubID) {
+        log.debug("Removing " + action.getDbName() + " marker_go_term_evidence for " + action.getGeneZdbID() + " " + action.getGoTermZdbID() + " " + pubID );
+        List<MarkerGoTermEvidence> markerGoTermEvidences = getMarkerGoTermEvidenceRepository().getMarkerGoTermEvidencesForMarkerZdbID(action.getGeneZdbID());
+        if (markerGoTermEvidences.size() == 0) {
+            log.debug("No marker_go_term_evidence found to delete");
+            return;
+        }
+
+        List<MarkerGoTermEvidence> toDelete = markerGoTermEvidences.stream()
+                .filter(markerGoTermEvidence -> pubID.equals(markerGoTermEvidence.getSource().getZdbID()))
+                .filter(markerGoTermEvidence -> action.getGoTermZdbID().equals(markerGoTermEvidence.getGoTerm().getZdbID()))
+                .toList();
+        List<String> toDeleteIDs = toDelete.stream().map(MarkerGoTermEvidence::getZdbID).toList();
+
+        if (toDeleteIDs.size() > 1) {
+            log.error("Found more than one marker_go_term_evidence to delete: " + toDeleteIDs);
+            return;
+        } else if (toDeleteIDs.size() == 0) {
+            log.debug("No marker_go_term_evidence found to delete after filtering");
+            return;
+        }
+        log.debug("Found the following marker_go_term_evidence to delete: " + toDeleteIDs);
+
+        getMarkerGoTermEvidenceRepository().deleteMarkerGoTermEvidenceByZdbIDs(toDeleteIDs);
     }
 
     private static void loadOrUpdateExternalNote(SecondaryTermLoadAction action) {
