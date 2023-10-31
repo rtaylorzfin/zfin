@@ -4,12 +4,15 @@ import lombok.extern.log4j.Log4j2;
 import org.apache.commons.collections4.ListUtils;
 import org.apache.commons.lang3.StringUtils;
 import org.zfin.uniprot.adapter.RichSequenceAdapter;
+import org.zfin.uniprot.dto.DBLinkExternalNoteSlimDTO;
 import org.zfin.uniprot.dto.DBLinkSlimDTO;
 
 import java.util.ArrayList;
 import java.util.List;
 import java.util.Map;
 import java.util.Set;
+
+import static org.zfin.util.ZfinStringUtils.isEqualIgnoringWhiteSpace;
 
 @Log4j2
 public class AddNewExternalNotesHandler implements InterproLoadHandler {
@@ -26,7 +29,7 @@ public class AddNewExternalNotesHandler implements InterproLoadHandler {
                 continue;
             }
             String combinedComment = String.join("<br>", comments)
-                                            .replaceAll("\\n    ", " ");
+                                            .replaceAll("\\n    +", " ");
             if (StringUtils.isEmpty(combinedComment)) {
                 continue;
             }
@@ -46,7 +49,19 @@ public class AddNewExternalNotesHandler implements InterproLoadHandler {
                     .type(SecondaryTermLoadAction.Type.LOAD)
                     .subType(SecondaryTermLoadAction.SubType.EXTERNAL_NOTE)
                     .build();
-            secondaryTermLoadActions.add(action);
+
+            DBLinkExternalNoteSlimDTO existingNote = context.getExternalNoteByGeneAndAccession(firstGeneZdbID, uniprot);
+            if(existingNote != null && existingNote.getNote().equals(combinedComment)) {
+                log.debug("Skipping external note for " + uniprot + "/" + firstGeneZdbID + " because it already exists (" + existingNote.getDblinkZdbID() + ")");
+            } else if (existingNote != null && isEqualIgnoringWhiteSpace(existingNote.getNote(), combinedComment)  ) {
+                log.debug("Skipping external note for " + uniprot + "/" + firstGeneZdbID + " because it exists and is only different by whitespace (" + existingNote.getDblinkZdbID() + ")");
+            } else if (existingNote != null) {
+                log.debug("Updating external note for " + uniprot + "/" + firstGeneZdbID + " because it has changed (" + existingNote.getDblinkZdbID() + ")");
+                secondaryTermLoadActions.add(action);
+            } else {
+                log.debug("Adding external note for " + uniprot + "/" + firstGeneZdbID);
+                secondaryTermLoadActions.add(action);
+            }
         }
 
         //batch log unmatched uniprots
@@ -57,7 +72,6 @@ public class AddNewExternalNotesHandler implements InterproLoadHandler {
             ListUtils.partition(unmatchedUniprots, 100)
                     .forEach(chunk -> log.info(String.join(", ", chunk)));
         }
-
 
         actions.addAll(secondaryTermLoadActions);
     }

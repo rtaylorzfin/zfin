@@ -20,6 +20,8 @@ import org.zfin.ontology.GenericTerm;
 import org.zfin.ontology.Ontology;
 import org.zfin.profile.service.BeanFieldUpdate;
 import org.zfin.publication.Publication;
+import org.zfin.sequence.DBLink;
+import org.zfin.sequence.DBLinkExternalNote;
 import org.zfin.uniprot.persistence.UniProtRelease;
 import org.zfin.util.DatabaseJdbcStatement;
 
@@ -171,9 +173,17 @@ public interface InfrastructureRepository {
      */
     ExternalNote getExternalNoteByID(String zdbID);
 
+    List<DBLinkExternalNote> getDBLinkExternalNoteByDataZdbIDAndPublicationID(String dataZdbID, String publicationID);
+
+    List<DBLinkExternalNote> getDBLinkExternalNoteByPublicationID(String publicationID);
+
     ExternalNote updateExternalNote(ExternalNote note, String text);
 
     ExternalNote updateExternalNote(ExternalNote note, String text, Publication publication);
+
+    ExternalNote updateExternalNoteWithoutUpdatesLog(ExternalNote note, String text);
+
+    DBLinkExternalNote addDBLinkExternalNote(DBLink dblink, String note, String sourceZdbID);
 
     void deleteExternalNote(ExternalNote note);
 

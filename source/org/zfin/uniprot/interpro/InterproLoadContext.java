@@ -4,16 +4,17 @@ import lombok.Getter;
 import lombok.Setter;
 import lombok.extern.log4j.Log4j2;
 import org.zfin.mutant.MarkerGoTermEvidence;
+import org.zfin.sequence.DBLinkExternalNote;
 import org.zfin.sequence.ForeignDB;
 import org.zfin.sequence.MarkerDBLink;
 import org.zfin.sequence.repository.SequenceRepository;
+import org.zfin.uniprot.dto.DBLinkExternalNoteSlimDTO;
 import org.zfin.uniprot.dto.DBLinkSlimDTO;
 
 import java.util.*;
 
 import static org.zfin.Species.Type.ZEBRAFISH;
-import static org.zfin.repository.RepositoryFactory.getMarkerGoTermEvidenceRepository;
-import static org.zfin.repository.RepositoryFactory.getSequenceRepository;
+import static org.zfin.repository.RepositoryFactory.*;
 import static org.zfin.sequence.ForeignDB.AvailableName.*;
 import static org.zfin.sequence.ForeignDBDataType.DataType.DOMAIN;
 import static org.zfin.sequence.ForeignDBDataType.DataType.POLYPEPTIDE;
@@ -36,6 +37,7 @@ public class InterproLoadContext {
     private Map<String, List<DBLinkSlimDTO>> prositeDbLinks;
     private Map<String, List<DBLinkSlimDTO>> pfamDbLinks;
     private Map<String, List<DBLinkSlimDTO>> uniprotDbLinksByGeneZdbID;
+    private Map<DBLinkSlimDTO, DBLinkExternalNoteSlimDTO> externalNotesByUniprotAccession;
 
     private List<MarkerGoTermEvidence> existingMarkerGoTermEvidenceRecordsForSPKW;
 
@@ -84,7 +86,39 @@ public class InterproLoadContext {
                 getMarkerGoTermEvidenceRepository().getMarkerGoTermEvidencesForPubZdbID(SPKW_PUB_ID)
         );
 
+        log.debug("Interpro Context Step 8: Getting Existing External Notes");
+        interproLoadContext.setExternalNotesByUniprotAccession(
+                getInfrastructureRepository().getDBLinkExternalNoteByPublicationID(InterproLoadService.EXTNOTE_PUBLICATION_ATTRIBUTION_ID)
+        );
+
         return interproLoadContext;
+    }
+
+    private void setExternalNotesByUniprotAccession(List<DBLinkExternalNote> dbLinkExternalNoteByPublicationID) {
+        this.externalNotesByUniprotAccession = new HashMap<>();
+        dbLinkExternalNoteByPublicationID.forEach(dbLinkExternalNote -> {
+            DBLinkSlimDTO notesKey = new DBLinkSlimDTO();
+            notesKey.setAccession(dbLinkExternalNote.getDblink().getAccessionNumber());
+            notesKey.setDataZdbID(dbLinkExternalNote.getDblink().getDataZdbID());
+
+            this.externalNotesByUniprotAccession.put(notesKey, DBLinkExternalNoteSlimDTO.from(dbLinkExternalNote));
+        });
+    }
+
+    public DBLinkExternalNoteSlimDTO getExternalNoteByGeneAndAccession(String geneZdbID, String accessionNumber) {
+        DBLinkSlimDTO notesKey = new DBLinkSlimDTO();
+        notesKey.setAccession(accessionNumber);
+        notesKey.setDataZdbID(geneZdbID);
+
+        if (externalNotesByUniprotAccession == null) {
+            throw new RuntimeException("Initialize error external notes");
+        }
+
+        if (externalNotesByUniprotAccession.containsKey(notesKey)) {
+            return externalNotesByUniprotAccession.get(notesKey);
+        }
+
+        return null;
     }
 
     private void createUniprotDbLinksByGeneZdbID() {

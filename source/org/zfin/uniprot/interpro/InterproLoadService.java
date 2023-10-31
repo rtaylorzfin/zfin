@@ -6,7 +6,6 @@ import lombok.extern.log4j.Log4j2;
 import org.zfin.ExternalNote;
 import org.zfin.datatransfer.go.GafOrganization;
 import org.zfin.framework.HibernateUtil;
-import org.zfin.gwt.root.dto.ExternalNoteDTO;
 import org.zfin.gwt.root.dto.GoEvidenceCodeEnum;
 import org.zfin.marker.Marker;
 import org.zfin.mutant.GoEvidenceCode;
@@ -15,10 +14,12 @@ import org.zfin.ontology.GenericTerm;
 import org.zfin.publication.Publication;
 import org.zfin.repository.RepositoryFactory;
 import org.zfin.sequence.DBLink;
+import org.zfin.sequence.DBLinkExternalNote;
 import org.zfin.sequence.MarkerDBLink;
 import org.zfin.sequence.ReferenceDatabase;
 
 import java.util.*;
+import java.util.stream.Collectors;
 
 import static org.zfin.framework.HibernateUtil.currentSession;
 import static org.zfin.repository.RepositoryFactory.*;
@@ -29,18 +30,18 @@ import static org.zfin.repository.RepositoryFactory.*;
 public class InterproLoadService {
 
 
-    private static final String DBLINK_PUBLICATION_ATTRIBUTION_ID = "ZDB-PUB-230615-71";
-    private static final String EC_MRKRGOEV_PUBLICATION_ATTRIBUTION_ID = "ZDB-PUB-031118-3";
-    private static final String IP_MRKRGOEV_PUBLICATION_ATTRIBUTION_ID = "ZDB-PUB-020724-1";
-    private static final String SPKW_MRKRGOEV_PUBLICATION_ATTRIBUTION_ID = "ZDB-PUB-020723-1";
-    private static final String EXTNOTE_PUBLICATION_ATTRIBUTION_ID = "ZDB-PUB-230615-71";
+    public static final String DBLINK_PUBLICATION_ATTRIBUTION_ID = "ZDB-PUB-230615-71";
+    public static final String EC_MRKRGOEV_PUBLICATION_ATTRIBUTION_ID = "ZDB-PUB-031118-3";
+    public static final String IP_MRKRGOEV_PUBLICATION_ATTRIBUTION_ID = "ZDB-PUB-020724-1";
+    public static final String SPKW_MRKRGOEV_PUBLICATION_ATTRIBUTION_ID = "ZDB-PUB-020723-1";
+    public static final String EXTNOTE_PUBLICATION_ATTRIBUTION_ID = "ZDB-PUB-230615-71";
 
 
-    private static final String EXTNOTE_REFERENCE_DATABASE_ID = "ZDB-FDBCONT-040412-47";
-    private static final String INTERPRO_REFERENCE_DATABASE_ID = "ZDB-FDBCONT-040412-48";
-    private static final String EC_REFERENCE_DATABASE_ID = "ZDB-FDBCONT-040412-49";
-    private static final String PFAM_REFERENCE_DATABASE_ID = "ZDB-FDBCONT-040412-50";
-    private static final String PROSITE_REFERENCE_DATABASE_ID = "ZDB-FDBCONT-040412-51";
+    public static final String EXTNOTE_REFERENCE_DATABASE_ID = "ZDB-FDBCONT-040412-47";
+    public static final String INTERPRO_REFERENCE_DATABASE_ID = "ZDB-FDBCONT-040412-48";
+    public static final String EC_REFERENCE_DATABASE_ID = "ZDB-FDBCONT-040412-49";
+    public static final String PFAM_REFERENCE_DATABASE_ID = "ZDB-FDBCONT-040412-50";
+    public static final String PROSITE_REFERENCE_DATABASE_ID = "ZDB-FDBCONT-040412-51";
 
 
     /**
@@ -65,8 +66,19 @@ public class InterproLoadService {
 
 
     public static void processActions(List<SecondaryTermLoadAction> actions) {
+        //groupBy the actions
+        Map<String, List<SecondaryTermLoadAction>> groupedActions =
+                actions.stream().collect(Collectors.groupingBy(a -> a.getType() + " " + a.getSubType() + " " + a.getDbName()));
+
+        //process the actions
         currentSession().beginTransaction();
-        for(SecondaryTermLoadAction action : actions) {processAction(action);}
+        for(String type : groupedActions.keySet()) {
+            log.debug("Processing action types of " + type);
+            List<SecondaryTermLoadAction> transactionActions = groupedActions.get(type);
+            for(SecondaryTermLoadAction action : transactionActions) {processAction(action);}
+            log.debug("Finished action types of " + type);
+        }
+        log.debug("Committing changes");
         currentSession().getTransaction().commit();
     }
 
@@ -101,7 +113,7 @@ public class InterproLoadService {
                 }
             }
             case EXTERNAL_NOTE -> {
-                loadExternalNote(action);
+                loadOrUpdateExternalNote(action);
             }
             default -> log.error("Unhandled action subtype: " + action.getSubType());
         }
@@ -119,6 +131,7 @@ public class InterproLoadService {
                 }
             }
             case MARKER_GO_TERM_EVIDENCE -> {
+                log.error("TODO: implement delete marker_go_term_evidence");
                 switch (action.getDbName()) {
 //                    case INTERPRO -> deleteMarkerGoTermEvidenceInterpro(action);
 //                    case EC -> deleteMarkerGoTermEvidenceEc(action);
@@ -127,6 +140,7 @@ public class InterproLoadService {
                 }
             }
             case EXTERNAL_NOTE -> {
+                log.error("TODO: implement delete external note");
 //                deleteExternalNote();
             }
             default -> log.error("Unhandled action subtype: " + action.getSubType());
@@ -172,8 +186,10 @@ public class InterproLoadService {
         markerGoTermEvidence.setMarker(marker);
 
         GenericTerm goTerm = (GenericTerm) HibernateUtil.currentSession().get(GenericTerm.class, action.getGoTermZdbID());
-        if (!goTerm.useForAnnotations())
-            throw new RuntimeException("Do not use this term for GO Annotations: " + goTerm.getTermName());
+        if (!goTerm.useForAnnotations()) {
+            log.error("Do not use this term for GO Annotations: " + goTerm.getTermName());
+            return null;
+        }
 
         markerGoTermEvidence.setGoTerm(goTerm);
 
@@ -202,12 +218,40 @@ public class InterproLoadService {
         return markerGoTermEvidence.getZdbID();
     }
 
-    private static void loadExternalNote(SecondaryTermLoadAction action) {
-        ExternalNote externalNote = new ExternalNote();
-        externalNote.setExternalDataZdbID(action.getGeneZdbID());
-        externalNote.setNote(action.getDetails());
-        externalNote.setPublication(getPublicationRepository().getPublication(EXTNOTE_PUBLICATION_ATTRIBUTION_ID));
-//        externalNote.setType();
+    private static void loadOrUpdateExternalNote(SecondaryTermLoadAction action) {
+        DBLink relatedDBLink = getSequenceRepository().getDBLinkByReferenceDatabaseID(action.getGeneZdbID(), action.getAccession(), EXTNOTE_REFERENCE_DATABASE_ID);
+        if (relatedDBLink == null) {
+            log.error("Could not find related dblink for " + action.getGeneZdbID() + " " + action.getAccession());
+            return;
+        }
+
+        List<DBLinkExternalNote> existingNotes = getInfrastructureRepository()
+                .getDBLinkExternalNoteByDataZdbIDAndPublicationID(relatedDBLink.getZdbID(), EXTNOTE_PUBLICATION_ATTRIBUTION_ID);
+
+        if (existingNotes == null || existingNotes.size() == 0) {
+            log.debug("Loading external note for " + action.getGeneZdbID() + " " + action.getAccession());
+            loadExternalNote(action, relatedDBLink);
+        } else if (existingNotes.size() == 1) {
+            DBLinkExternalNote firstNote = existingNotes.get(0);
+            if (firstNote.getNote().equals(action.getDetails())) {
+                log.debug("Note already exists for " + action.getGeneZdbID() + " " + action.getAccession());
+            } else {
+                log.debug("Updating note for " + firstNote.getZdbID() + " " + firstNote.getExternalDataZdbID() + " " + action.getGeneZdbID() + " " + action.getAccession());
+                updateExternalNote(firstNote, action.getDetails());
+            }
+        } else {
+            log.error("More than one existing note for " + action.getGeneZdbID() + " " + action.getAccession());
+            log.error("Cannot determine which note to update");
+            System.exit(4);
+        }
+    }
+
+    private static void updateExternalNote(ExternalNote firstNote, String details) {
+        getInfrastructureRepository().updateExternalNoteWithoutUpdatesLog(firstNote, details);
+    }
+
+    private static void loadExternalNote(SecondaryTermLoadAction action, DBLink relatedDBLink) {
+        getInfrastructureRepository().addDBLinkExternalNote(relatedDBLink, action.getDetails(), EXTNOTE_PUBLICATION_ATTRIBUTION_ID);
     }
 
     public static ReferenceDatabase getReferenceDatabase(String referenceDatabaseID) {

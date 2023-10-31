@@ -1,5 +1,6 @@
 package org.zfin.uniprot.task;
 
+import com.fasterxml.jackson.core.type.TypeReference;
 import com.fasterxml.jackson.databind.ObjectMapper;
 import lombok.Getter;
 import lombok.Setter;
@@ -28,6 +29,8 @@ import static org.zfin.uniprot.UniProtTools.getArgOrEnvironmentVar;
 @Getter
 @Setter
 public class InterproTask extends AbstractScriptWrapper {
+    private final String mode;
+    private final String actionsFileName;
     private String inputFileName;
     private final String outputJsonName;
     private final String ipToGoTranslationFile;
@@ -39,83 +42,92 @@ public class InterproTask extends AbstractScriptWrapper {
     private List<SecondaryTerm2GoTerm> upToGoRecords;
 
     public static void main(String[] args) throws Exception {
-        boolean debug = false;
-        if (debug) {
-            debugmain(args);
-        } else {
-            realmain(args);
-        }
-    }
 
-    public static void realmain(String[] args) throws Exception {
+        String mode = "";
+        String inputFileName = "";
+        String ipToGoTranslationFile = "";
+        String ecToGoTranslationFile = "";
+        String upToGoTranslationFile = "";
+        String outputJsonName = "";
+
+        String actionsFileName = "";
 
         //mode can be one of the following:
         // 1. "REPORT" - generate actions from the input file and write them to a file (no load)
         // 2. "LOAD" - load actions from a file into the database
         // 3. "LOAD_AND_REPORT" - generate actions from the input file, write them to a file, and load them into the database
-        String mode = getArgOrEnvironmentVar(args, 0, "UNIPROT_LOAD_MODE", "REPORT");
+        mode = getArgOrEnvironmentVar(args, 0, "UNIPROT_LOAD_MODE", "REPORT");
 
-        String inputFileName = getArgOrEnvironmentVar(args, 0, "UNIPROT_INPUT_FILE", "");
-        String ipToGoTranslationFile = getArgOrEnvironmentVar(args, 1, "IP2GO_FILE", "");
-        String ecToGoTranslationFile = getArgOrEnvironmentVar(args, 2, "EC2GO_FILE", "");
-        String upToGoTranslationFile = getArgOrEnvironmentVar(args, 3, "UP2GO_FILE", "");
-        String outputJsonName = getArgOrEnvironmentVar(args, 4, "UNIPROT_OUTPUT_FILE", defaultOutputFileName(inputFileName));
+        if (mode.equalsIgnoreCase("REPORT") || mode.equalsIgnoreCase("LOAD_AND_REPORT")) {
+            inputFileName = getArgOrEnvironmentVar(args, 1, "UNIPROT_INPUT_FILE", "");
+            ipToGoTranslationFile = getArgOrEnvironmentVar(args, 2, "IP2GO_FILE", "");
+            ecToGoTranslationFile = getArgOrEnvironmentVar(args, 3, "EC2GO_FILE", "");
+            upToGoTranslationFile = getArgOrEnvironmentVar(args, 4, "UP2GO_FILE", "");
+            outputJsonName = getArgOrEnvironmentVar(args, 5, "UNIPROT_OUTPUT_FILE", defaultOutputFileName(inputFileName));
+        } else if (mode.equalsIgnoreCase("LOAD")) {
+            actionsFileName = getArgOrEnvironmentVar(args, 1, "UNIPROT_ACTIONS_FILE", "");
+        } else {
+            printUsage();
+            System.exit(1);
+        }
 
-
-        String commitChanges = getArgOrEnvironmentVar(args, 5, "UNIPROT_COMMIT_CHANGES", "false");
-        String contextOutputFile = getArgOrEnvironmentVar(args, 6, "UNIPROT_CONTEXT_FILE", "");
-
-
-        InterproTask task = new InterproTask(inputFileName, outputJsonName, ipToGoTranslationFile, ecToGoTranslationFile, upToGoTranslationFile);
+        InterproTask task = new InterproTask(mode, inputFileName, outputJsonName, ipToGoTranslationFile, ecToGoTranslationFile, upToGoTranslationFile, actionsFileName);
         task.runTask();
-    }
-    public static void debugmain(String[] args) throws Exception {
-        String inputFileName = getArgOrEnvironmentVar(args, 0, "UNIPROT_INPUT_FILE", "");
-        String ipToGoTranslationFile = getArgOrEnvironmentVar(args, 1, "IP2GO_FILE", "");
-        String ecToGoTranslationFile = getArgOrEnvironmentVar(args, 2, "EC2GO_FILE", "");
-        String upToGoTranslationFile = getArgOrEnvironmentVar(args, 3, "UP2GO_FILE", "");
-        String outputJsonName = getArgOrEnvironmentVar(args, 4, "UNIPROT_OUTPUT_FILE", defaultOutputFileName(inputFileName));
-        InterproTask task = new InterproTask(inputFileName, outputJsonName, ipToGoTranslationFile, ecToGoTranslationFile, upToGoTranslationFile);
-        task.debugTask();
     }
 
     private static String defaultOutputFileName(String inputFileName) {
         String timestamp = new SimpleDateFormat("yyyy-MM-dd-HH-mm-ss").format(Calendar.getInstance().getTime());
-        return inputFileName + "." + timestamp + ".json";
+        return inputFileName + ".actions." + timestamp + ".json";
     }
 
     private static Optional<UniProtRelease> getLatestUnprocessedUniProtRelease() {
         return Optional.ofNullable(getInfrastructureRepository().getLatestUnprocessedUniProtRelease());
     }
 
-    public InterproTask(String inputFileName, String outputJsonName, String ipToGoTranslationFile, String ecToGoTranslationFile, String upToGoTranslationFile) {
+    public InterproTask(String mode, String inputFileName, String outputJsonName, String ipToGoTranslationFile, String ecToGoTranslationFile, String upToGoTranslationFile, String actionsFileName) {
+        this.mode = mode;
         this.inputFileName = inputFileName;
         this.outputJsonName = outputJsonName;
         this.ipToGoTranslationFile = ipToGoTranslationFile;
         this.ecToGoTranslationFile = ecToGoTranslationFile;
         this.upToGoTranslationFile = upToGoTranslationFile;
-    }
-
-    public void debugTask() throws IOException, BioException {
-        initialize();
-        InterproLoadContext context = InterproLoadContext.createFromDBConnection();
-        DBLinkSlimDTO uniprot = context.getGeneByUniprot("B0JZM6").stream().findFirst().orElse(null);
-        log.debug("Starting UniProtLoadTask for file " + inputFileName + ".");
-        try (BufferedReader inputFileReader = new BufferedReader(new java.io.FileReader(inputFileName))) {
-            Map<String, RichSequenceAdapter> entries = readUniProtEntries(inputFileReader);
-            entries.get("B0JZM6").getPlainKeywords().forEach(k -> log.debug("Keyword,Gene: " + k + "|" + uniprot.getDataZdbID()));
-        }
+        this.actionsFileName = actionsFileName;
     }
 
     public void runTask() throws IOException, BioException, SQLException {
         initialize();
         log.debug("Starting UniProtLoadTask for file " + inputFileName + ".");
-        try (BufferedReader inputFileReader = new BufferedReader(new java.io.FileReader(inputFileName))) {
-            Map<String, RichSequenceAdapter> entries = readUniProtEntries(inputFileReader);
-            List<SecondaryTermLoadAction> actions = executePipeline(entries);
-            log.debug("Finished executing pipeline: " + actions.size() + " actions created.");
-            writeActions(actions);
+        if (mode.equalsIgnoreCase("REPORT") || mode.equalsIgnoreCase("LOAD_AND_REPORT")) {
+            try (BufferedReader inputFileReader = new BufferedReader(new java.io.FileReader(inputFileName))) {
+                loadTranslationFiles();
+                Map<String, RichSequenceAdapter> entries = readUniProtEntries(inputFileReader);
+                List<SecondaryTermLoadAction> actions = executePipeline(entries);
+                log.debug("Finished executing pipeline: " + actions.size() + " actions created.");
+                writeActions(actions);
+                if (mode.equalsIgnoreCase("LOAD_AND_REPORT")) {
+                    processActions(actions);
+                }
+            }
+        } else if (mode.equalsIgnoreCase("LOAD")) {
+            List<SecondaryTermLoadAction> actions = readActionsFile();
+            log.debug("Finished reading actions file: " + actions.size() + " actions read.");
             processActions(actions);
+        } else {
+            System.out.println("Invalid mode: " + mode);
+            printUsage();
+            System.exit(1);
+        }
+
+    }
+
+    private List<SecondaryTermLoadAction> readActionsFile() {
+        String jsonFile = this.actionsFileName;
+        log.debug("Reading JSON file: " + jsonFile);
+        try {
+            return (new ObjectMapper()).readValue(new File(jsonFile), new TypeReference<List<SecondaryTermLoadAction>>() {});
+        } catch (IOException e) {
+            log.error("Failed to read JSON file: " + jsonFile, e);
+            return null;
         }
     }
 
@@ -173,7 +185,6 @@ public class InterproTask extends AbstractScriptWrapper {
     public void initialize() {
         initAll();
         setInputFileName();
-        loadTranslationFiles();
     }
 
     private void loadTranslationFiles() {
@@ -212,6 +223,16 @@ public class InterproTask extends AbstractScriptWrapper {
         log.debug("Finished reading file: " + entries.size() + " entries read.");
 
         return entries;
+    }
+
+    public static void printUsage() {
+        System.out.println("Usage: InterproTask <mode> [more args]");
+        System.out.println("  mode: 'load' or 'report' or 'report_and_load'");
+        System.out.println("  if mode is 'load', more args = <actions file>");
+        System.out.println("  if mode is 'load_and_report' or 'report', more args = <input file> <up to go translation file> <ip to go translation file> <ec to go translation file> <output file>");
+        System.out.println("  instead of arguments, you can use environment variables: UNIPROT_LOAD_MODE, INPUT_FILE, UP_TO_GO_TRANSLATION_FILE, IP_TO_GO_TRANSLATION_FILE, EC_TO_GO_TRANSLATION_FILE, OUTPUT_FILE");
+        System.out.println("  or, for load mode, env vars: UNIPROT_LOAD_MODE, UNIPROT_ACTIONS_FILE");
+        System.out.println("  the actions file is generated by the report mode");
     }
 
 }

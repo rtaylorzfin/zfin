@@ -1,5 +1,6 @@
 package org.zfin.uniprot.interpro;
 
+import com.fasterxml.jackson.annotation.JsonIgnore;
 import com.fasterxml.jackson.annotation.JsonValue;
 import lombok.Builder;
 import lombok.Getter;
@@ -57,6 +58,7 @@ public class SecondaryTermLoadAction implements Comparable<SecondaryTermLoadActi
         this.links.addAll(links);
     }
 
+    @JsonIgnore
     public String getPrefixedAccession() {
         String prefixedAccession = "";
         switch(dbName) {
