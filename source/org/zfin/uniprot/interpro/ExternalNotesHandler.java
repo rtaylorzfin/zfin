@@ -54,17 +54,14 @@ public class ExternalNotesHandler implements InterproLoadHandler {
 
             DBLinkExternalNoteSlimDTO existingNote = context.getExternalNoteByGeneAndAccession(firstGeneZdbID, uniprot);
             if(existingNote != null && existingNote.getNote().equals(combinedComment)) {
-                log.debug("Skipping external note for " + uniprot + "/" + firstGeneZdbID + " because it already exists (" + existingNote.getDblinkZdbID() + ")");
                 calculatedNotesThatAlreadyExist.add(action);
             } else if (existingNote != null && isEqualIgnoringWhiteSpace(existingNote.getNote(), combinedComment)  ) {
-                log.debug("Skipping external note for " + uniprot + "/" + firstGeneZdbID + " because it exists and is only different by whitespace (" + existingNote.getDblinkZdbID() + ")");
                 calculatedNotesThatAlreadyExist.add(action);
             } else if (existingNote != null) {
                 log.debug("Updating external note for " + uniprot + "/" + firstGeneZdbID + " because it has changed (" + existingNote.getDblinkZdbID() + ")");
                 secondaryTermLoadActions.add(action);
                 calculatedNotesThatAlreadyExist.add(action);
             } else {
-                log.debug("Adding external note for " + uniprot + "/" + firstGeneZdbID);
                 secondaryTermLoadActions.add(action);
             }
         }
@@ -74,7 +71,7 @@ public class ExternalNotesHandler implements InterproLoadHandler {
             log.info("Unmatched uniprots (" + unmatchedUniprots.size() + "): " );
 
             //break up into chunks of 100
-            ListUtils.partition(unmatchedUniprots, 100)
+            ListUtils.partition(unmatchedUniprots, 20)
                     .forEach(chunk -> log.info(String.join(", ", chunk)));
         }
 
@@ -97,18 +94,15 @@ public class ExternalNotesHandler implements InterproLoadHandler {
 
         log.debug("Number that should be deleted: " + allExistingNotes.size());
 
-        return allExistingNotes.stream().map(note -> {
-            log.debug("Action to delete external note for " + note.getAccession() + "/" + note.getGeneZdbID());
-            log.debug("  details: " + note.getNote());
-
-            return SecondaryTermLoadAction.builder()
+        return allExistingNotes.stream().map(note ->
+            SecondaryTermLoadAction.builder()
                     .geneZdbID(note.getGeneZdbID())
                     .accession(note.getAccession())
                     .details(note.getZdbID())
                     .type(SecondaryTermLoadAction.Type.DELETE)
                     .subType(SecondaryTermLoadAction.SubType.EXTERNAL_NOTE)
-                    .build();
-        }).toList();
+                    .build()
+        ).toList();
     }
 
 }

@@ -14,11 +14,17 @@ TODO:
     - [x] EC2GO
     - [x] InterPro2GO
 - [x] handle cc load (https://github.com/rtaylorzfin/zfin/blob/zfin-8797/server_apps/data_transfer/SWISS-PROT/sp_load.sql#L452-L452)
-- [ ] Add Inference Groups
-- [ ] Remove the inference groups if needed
-- [ ] Interpro domains??
+- [x] Add Inference Groups
+- [x] Remove the inference groups if needed
+- [x] Add a circuit break if there are too many actions to process
+- [.] Interpro domains?? (automatically handled by the InterPro2GO load)
 - [.] clean up names of classes in the code (for example some have "...Interpro..." but actually handle InterPro, EC, etc.) [partially done]
-- [ ] Improve the original load diff report to have more info on uniprot probfile entries
+- [x] Do something with ac_dalias.unl?
+        No. The current script builds up ac_dalias.unl based on lines like 'AC   E7F1E7; A0A8M2B1W7;'
+        but it doesn't seem to be used anywhere. The notes indicate it should be used in the data_alias table, but it's not.
+- [x] Improve the original load diff report to have more info on uniprot probfile entries
+- [x] Implement an interpro report based on actions
+- [.] Add a column to UniprotRelease called "SecondaryLoadDate" and set it to true when the secondary terms are loaded
 
 ### Misc:
 - [ ] Add a test for the InterPro2GO
@@ -26,21 +32,4 @@ TODO:
 - [ ] Add a test for comparing the diffs of this load against the current load
 - [ ] Make sure we handle zdb_replaced_data
 - [ ] Does this line need to be replicated? (--!echo 'unload accession# with no attribution')
-- [ ] Do something with ac_dalias.unl ?
-- [ ] Add a circuit break if there are too many actions to process
 
-### Notes on SPKW2GO:
-After implementing a naive version of the spkw2go function, I saw that the logs indicate nothing is getting loaded.
-I probably need to do this based on the existing UniProt entries in the DB (not the new actions like EC2GO and InterPro2GO).
-2023-10-11 16:09:18,398 [main] DEBUG interpro.AddNewSecondaryTermToGoHandler - Creating markerGoTermEvidences from new UniProtKB IDs
-2023-10-11 16:09:18,398 [main] DEBUG interpro.AddNewSecondaryTermToGoHandler - Joining 0 SecondaryLoadAction against 845 UniProtKB translation records
-2023-10-11 16:09:18,398 [main] DEBUG interpro.AddNewSecondaryTermToGoHandler - Created 0 markerGoTermEvidences before filtering
-2023-10-11 16:09:18,398 [main] DEBUG interpro.AddNewSecondaryTermToGoHandler - After first pass of filtering: 0 markerGoTermEvidences
-2023-10-11 16:09:18,417 [main] DEBUG interpro.AddNewSecondaryTermToGoHandler - After second pass of filtering: 0 markerGoTermEvidences
-2023-10-11 16:09:18,419 [main] DEBUG interpro.AddNewSecondaryTermToGoHandler - After third pass of filtering: 0 markerGoTermEvidences
-2023-10-11 16:09:18,420 [main] DEBUG interpro.RemoveSecondaryTermToGoHandler - Joining 0 SecondaryLoadAction against 845 UniProtKB translation records
-2023-10-11 16:09:18,420 [main] DEBUG interpro.RemoveSecondaryTermToGoHandler - DELETING marker_go_term_evidence
-
-#### Completed on 10/24
-Note that the SPKW2GO load is now complete.  I had to do a few things to get it to work:
-- I had to add a new collection to the context for storing existing marker_go_term_evidence rows so that we know which new ones to add

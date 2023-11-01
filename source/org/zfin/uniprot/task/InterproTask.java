@@ -1,12 +1,15 @@
 package org.zfin.uniprot.task;
 
+import com.fasterxml.jackson.core.JsonProcessingException;
 import com.fasterxml.jackson.core.type.TypeReference;
 import com.fasterxml.jackson.databind.ObjectMapper;
 import lombok.Getter;
 import lombok.Setter;
 import lombok.extern.log4j.Log4j2;
+import org.apache.commons.io.FileUtils;
 import org.biojava.bio.BioException;
 import org.zfin.ontology.datatransfer.AbstractScriptWrapper;
+import org.zfin.properties.ZfinPropertiesEnum;
 import org.zfin.uniprot.adapter.RichSequenceAdapter;
 import org.zfin.uniprot.interpro.*;
 import org.zfin.uniprot.persistence.UniProtRelease;
@@ -28,10 +31,22 @@ import static org.zfin.uniprot.UniProtTools.getArgOrEnvironmentVar;
 @Getter
 @Setter
 public class InterproTask extends AbstractScriptWrapper {
-    private final String mode;
+
+    private static final int ACTION_SIZE_ERROR_THRESHOLD = 10_000;
+    private static final String LOAD_REPORT_TEMPLATE_HTML = "/home/uniprot/secondary-load-report.html";
+    private static final String JSON_PLACEHOLDER_IN_TEMPLATE = "JSON_GOES_HERE";
+
+    public enum InterproTaskMode {
+        REPORT,
+        LOAD,
+        LOAD_AND_REPORT
+    }
+    private final InterproTaskMode mode;
     private final String actionsFileName;
     private String inputFileName;
     private final String outputJsonName;
+    private final String outputReportName;
+    private final String contextOutputFile;
     private final String ipToGoTranslationFile;
     private final String ecToGoTranslationFile;
     private final String upToGoTranslationFile;
@@ -84,9 +99,12 @@ public class InterproTask extends AbstractScriptWrapper {
     }
 
     public InterproTask(String mode, String inputFileName, String outputJsonName, String ipToGoTranslationFile, String ecToGoTranslationFile, String upToGoTranslationFile, String actionsFileName) {
-        this.mode = mode;
+        this.mode = InterproTaskMode.valueOf(mode.toUpperCase());
         this.inputFileName = inputFileName;
         this.outputJsonName = outputJsonName;
+        this.outputReportName = outputJsonName + ".report.html";
+        this.contextOutputFile = outputJsonName + ".context.json";
+
         this.ipToGoTranslationFile = ipToGoTranslationFile;
         this.ecToGoTranslationFile = ecToGoTranslationFile;
         this.upToGoTranslationFile = upToGoTranslationFile;
@@ -96,18 +114,28 @@ public class InterproTask extends AbstractScriptWrapper {
     public void runTask() throws IOException, BioException, SQLException {
         initialize();
         log.debug("Starting UniProtLoadTask for file " + inputFileName + ".");
-        if (mode.equalsIgnoreCase("REPORT") || mode.equalsIgnoreCase("LOAD_AND_REPORT")) {
+
+        if (mode.equals(InterproTaskMode.REPORT) || mode.equals(InterproTaskMode.LOAD_AND_REPORT)) {
             try (BufferedReader inputFileReader = new BufferedReader(new java.io.FileReader(inputFileName))) {
                 loadTranslationFiles();
                 Map<String, RichSequenceAdapter> entries = readUniProtEntries(inputFileReader);
                 List<SecondaryTermLoadAction> actions = executePipeline(entries);
                 log.debug("Finished executing pipeline: " + actions.size() + " actions created.");
                 writeActions(actions);
-                if (mode.equalsIgnoreCase("LOAD_AND_REPORT")) {
+                writeOutputReportFile(actions);
+
+                if (actions.size() > ACTION_SIZE_ERROR_THRESHOLD) {
+                    log.error("Too many actions created: " + actions.size() + " actions created.");
+                    log.error("Threshold set to: " + ACTION_SIZE_ERROR_THRESHOLD);
+                    log.error("Exiting script in case this is due to an error.");
+                    System.exit(1);
+                }
+
+                if (mode.equals(InterproTaskMode.LOAD_AND_REPORT)) {
                     processActions(actions);
                 }
             }
-        } else if (mode.equalsIgnoreCase("LOAD")) {
+        } else if (mode.equals(InterproTaskMode.LOAD)) {
             List<SecondaryTermLoadAction> actions = readActionsFile();
             log.debug("Finished reading actions file: " + actions.size() + " actions read.");
             processActions(actions);
@@ -123,26 +151,71 @@ public class InterproTask extends AbstractScriptWrapper {
         String jsonFile = this.actionsFileName;
         log.debug("Reading JSON file: " + jsonFile);
         try {
-            return (new ObjectMapper()).readValue(new File(jsonFile), new TypeReference<>() {});
+            SecondaryTermLoadActionsContainer actionsContainer =
+                    (new ObjectMapper()).readValue(new File(jsonFile), new TypeReference<SecondaryTermLoadActionsContainer>() {});
+            this.release = getInfrastructureRepository().getUniProtReleaseByID(actionsContainer.getReleaseID());
+            return actionsContainer.getActions();
         } catch (IOException e) {
             log.error("Failed to read JSON file: " + jsonFile, e);
             return null;
         }
     }
 
+
     private void writeActions(List<SecondaryTermLoadAction> actions) {
         String jsonFile = this.outputJsonName;
-
         log.debug("Creating JSON file: " + jsonFile);
         try {
-            (new ObjectMapper()).writeValue(new File(jsonFile), actions);
+            String jsonContents = actionsToJson(actions);
+            FileUtils.writeStringToFile(new File(jsonFile), jsonContents, "UTF-8");
         } catch (IOException e) {
             log.error("Failed to write JSON file: " + jsonFile, e);
         }
     }
 
+    private String actionsToJson(List<SecondaryTermLoadAction> actions) {
+        SecondaryTermLoadActionsContainer actionsContainer = SecondaryTermLoadActionsContainer.builder()
+                .actions(actions)
+                .releaseID(this.release == null ? null : this.release.getUpr_id())
+                .creationDate(new Date())
+                .build();
+        try {
+            return (new ObjectMapper()).writeValueAsString(actionsContainer);
+        } catch (JsonProcessingException e) {
+            return null;
+        }
+    }
+
+
+    private void writeOutputReportFile(List<SecondaryTermLoadAction> actions) {
+        String reportFile = this.outputReportName;
+
+        log.debug("Creating report file: " + reportFile);
+        try {
+            String jsonContents = actionsToJson(actions);
+            String template = ZfinPropertiesEnum.SOURCEROOT.value() + LOAD_REPORT_TEMPLATE_HTML;
+            String templateContents = FileUtils.readFileToString(new File(template), "UTF-8");
+            String filledTemplate = templateContents.replace(JSON_PLACEHOLDER_IN_TEMPLATE, jsonContents);
+            FileUtils.writeStringToFile(new File(reportFile), filledTemplate, "UTF-8");
+        } catch (IOException e) {
+            log.error("Error creating report (" + reportFile + ") from template\n" + e.getMessage(), e);
+        }
+    }
+
+    private void writeContext(InterproLoadContext context) {
+        if (contextOutputFile != null && !contextOutputFile.isEmpty()) {
+            ObjectMapper objectMapper = new ObjectMapper();
+            try {
+                log.info("Writing context file: " + contextOutputFile + ".");
+                objectMapper.writeValue(new File(contextOutputFile), context);
+            } catch (IOException e) {
+                log.error("Error writing context file " + contextOutputFile + ": " + e.getMessage(), e);
+            }
+        }
+    }
+
     private void processActions(List<SecondaryTermLoadAction> actions) {
-        InterproLoadService.processActions(actions);
+        InterproLoadService.processActions(actions, release);
     }
 
     private List<SecondaryTermLoadAction> executePipeline(Map<String, RichSequenceAdapter> entries) {
@@ -150,11 +223,8 @@ public class InterproTask extends AbstractScriptWrapper {
         pipeline.setInterproRecords(entries);
 
         InterproLoadContext context = InterproLoadContext.createFromDBConnection();
-//        context.setInterproTranslationRecords(ipToGoRecords);
-//        context.setEcTranslationRecords(ecToGoRecords);
+        writeContext(context);
         pipeline.setContext(context);
-
-//        pipeline.addHandler(new LogContextHandler());
 
         pipeline.addHandler(new RemoveFromLostUniProtsHandler(INTERPRO));
         pipeline.addHandler(new AddNewFromUniProtsHandler(INTERPRO));
@@ -209,11 +279,15 @@ public class InterproTask extends AbstractScriptWrapper {
 
     private void setInputFileName() {
         Optional<UniProtRelease> releaseOptional = getLatestUnprocessedUniProtRelease();
-        if (inputFileName.isEmpty() && releaseOptional.isPresent()) {
-            inputFileName = releaseOptional.get().getLocalFile().getAbsolutePath();
-            release = releaseOptional.get();
-        } else if (inputFileName.isEmpty()) {
-            throw new RuntimeException("No input file specified and no unprocessed UniProt release found.");
+
+        //only need an input file if we are generating a report of actions, otherwise, we are loading directly from the actions
+        if (mode.equals(InterproTaskMode.REPORT) || mode.equals(InterproTaskMode.LOAD_AND_REPORT)) {
+            if (inputFileName.isEmpty() && releaseOptional.isPresent()) {
+                inputFileName = releaseOptional.get().getLocalFile().getAbsolutePath();
+                release = releaseOptional.get();
+            } else if (inputFileName.isEmpty()) {
+                throw new RuntimeException("No input file specified and no unprocessed UniProt release found.");
+            }
         }
     }
 

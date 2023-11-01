@@ -9,10 +9,7 @@ import org.apache.commons.lang3.ObjectUtils;
 import org.zfin.sequence.ForeignDB;
 import org.zfin.uniprot.UniProtLoadLink;
 
-import java.util.Collection;
-import java.util.Comparator;
-import java.util.Set;
-import java.util.TreeSet;
+import java.util.*;
 
 @Getter
 @Setter
@@ -114,6 +111,25 @@ public class SecondaryTermLoadAction implements Comparable<SecondaryTermLoadActi
 
     public String markerGoTermEvidenceRepresentation() {
         return geneZdbID + "," + goTermZdbID + "," + goID + "," + dbName + ":" + this.accession;
+    }
+
+    public List<UniProtLoadLink> getDynamicLinks() {
+        List<UniProtLoadLink> dynamicLinks = new ArrayList<>();
+        if ( accession != null ) {
+            if (dbName != null && dbName.equals(ForeignDB.AvailableName.INTERPRO)) {
+                dynamicLinks.add(new UniProtLoadLink(accession, "http://www.ebi.ac.uk/interpro/entry/" + accession));
+            }
+        }
+        if ( goID != null ) {
+            dynamicLinks.add(new UniProtLoadLink(goID, "https://zfin.org/GO:" + goID));
+        }
+        if ( goTermZdbID != null ) {
+            dynamicLinks.add(new UniProtLoadLink(goTermZdbID, "https://zfin.org/" + goTermZdbID));
+        }
+        if ( geneZdbID != null ) {
+            dynamicLinks.add(new UniProtLoadLink(geneZdbID, "https://zfin.org/" + geneZdbID));
+        }
+        return dynamicLinks;
     }
 
 }

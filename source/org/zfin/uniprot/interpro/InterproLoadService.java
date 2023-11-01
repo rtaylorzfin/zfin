@@ -17,6 +17,7 @@ import org.zfin.sequence.DBLink;
 import org.zfin.sequence.DBLinkExternalNote;
 import org.zfin.sequence.MarkerDBLink;
 import org.zfin.sequence.ReferenceDatabase;
+import org.zfin.uniprot.persistence.UniProtRelease;
 
 import java.util.*;
 import java.util.stream.Collectors;
@@ -63,7 +64,7 @@ public class InterproLoadService {
      *
      * @param actions list of actions to perform
      */
-    public static void processActions(List<SecondaryTermLoadAction> actions) {
+    public static void processActions(List<SecondaryTermLoadAction> actions, UniProtRelease release) {
         //groupBy the actions
         Map<String, List<SecondaryTermLoadAction>> groupedActions =
                 actions.stream().collect(Collectors.groupingBy(a -> a.getType() + " " + a.getSubType() + " " + a.getDbName()));
@@ -75,6 +76,15 @@ public class InterproLoadService {
             List<SecondaryTermLoadAction> transactionActions = groupedActions.get(type);
             for(SecondaryTermLoadAction action : transactionActions) {processAction(action);}
             log.debug("Finished action types of " + type);
+        }
+        if (release != null) {
+            if (release.getProcessedDate() == null) {
+                log.error("Release " + release.getReleaseNumber() + " has not been processed yet. Must process before secondary terms.");
+                currentSession().getTransaction().rollback();
+                System.exit(5);
+            }
+            release.setSecondaryLoadDate(new Date());
+            getInfrastructureRepository().updateUniProtRelease(release);
         }
         log.debug("Committing changes");
         currentSession().getTransaction().commit();
@@ -187,11 +197,6 @@ public class InterproLoadService {
         markerGoTermEvidence.setMarker(marker);
 
         GenericTerm goTerm = HibernateUtil.currentSession().get(GenericTerm.class, action.getGoTermZdbID());
-        if (!goTerm.useForAnnotations()) {
-            log.error("Do not use this term for GO Annotations: " + goTerm.getTermName());
-            return;
-        }
-
         markerGoTermEvidence.setGoTerm(goTerm);
 
         // set source

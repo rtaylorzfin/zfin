@@ -120,7 +120,6 @@ public class AddNewSecondaryTermToGoHandler implements InterproLoadHandler {
                     .goID(item2go.goID())
                     .goTermZdbID(item2go.termZdbID())
                     .build();
-            log.debug(newAction.markerGoTermEvidenceRepresentation());
             newMarkerGoTermEvidences.add(newAction);
         }
         return newMarkerGoTermEvidences;

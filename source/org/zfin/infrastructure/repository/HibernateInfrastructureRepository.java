@@ -849,7 +849,9 @@ public class HibernateInfrastructureRepository implements InfrastructureReposito
     public void deleteDBLinkExternalNote(String externalNoteZdbID) {
         Session session = HibernateUtil.currentSession();
         DBLinkExternalNote externalNote = session.get(DBLinkExternalNote.class, externalNoteZdbID);
-        session.delete(externalNote);
+        if (externalNote != null) {
+            session.delete(externalNote);
+        }
     }
 
     // Todo: ReplacementZdbID is a composite key (why?) and thus this
@@ -2107,6 +2109,10 @@ public class HibernateInfrastructureRepository implements InfrastructureReposito
         return session.createQuery(query).getResultList().stream().findFirst().orElse(null);
     }
 
+    @Override
+    public UniProtRelease getUniProtReleaseByID(Long id) {
+        return currentSession().get(UniProtRelease.class, id);
+    }
 
     @Override
     public void insertUniProtRelease(UniProtRelease release) {

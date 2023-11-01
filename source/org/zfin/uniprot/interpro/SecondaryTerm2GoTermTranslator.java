@@ -90,7 +90,6 @@ public class SecondaryTerm2GoTermTranslator {
                     GenericTerm termObject = allGoIDs.get(termId[1]);
                     SecondaryTerm2GoTerm entry = new SecondaryTerm2GoTerm(spID, spkwName, term[1], id[1], termObject == null ? null : termObject.getZdbID());
                     results.add(entry);
-                    log.debug("SPKW: " + entry.dbAccession() + "|" + entry.dbTermName() + "|" + entry.goTermName() + "|" + entry.goID());
                 }
             }
         }
