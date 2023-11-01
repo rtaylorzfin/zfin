@@ -1,4 +1,4 @@
-package org.zfin.uniprot.interpro;
+package org.zfin.uniprot.secondary;
 
 import lombok.Builder;
 import lombok.Getter;

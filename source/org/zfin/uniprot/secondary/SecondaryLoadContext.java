@@ -1,4 +1,4 @@
-package org.zfin.uniprot.interpro;
+package org.zfin.uniprot.secondary;
 
 import lombok.Getter;
 import lombok.Setter;
@@ -28,7 +28,7 @@ import static org.zfin.sequence.ForeignDBDataType.SuperType.SEQUENCE;
 @Getter
 @Setter
 @Log4j2
-public class InterproLoadContext {
+public class SecondaryLoadContext {
     private static final String SPKW_PUB_ID = "ZDB-PUB-020723-1";
 
     private Map<String, List<DBLinkSlimDTO>> uniprotDbLinks;
@@ -44,54 +44,54 @@ public class InterproLoadContext {
     private List<SecondaryTerm2GoTerm> interproTranslationRecords;
     private List<SecondaryTerm2GoTerm> ecTranslationRecords;
 
-    public static InterproLoadContext createFromDBConnection() {
-        InterproLoadContext interproLoadContext = new InterproLoadContext();
+    public static SecondaryLoadContext createFromDBConnection() {
+        SecondaryLoadContext loadContext = new SecondaryLoadContext();
         SequenceRepository sr = getSequenceRepository();
 
-        log.debug("Interpro Context Step 1: Getting Existing Uniprot DB Links");
-        interproLoadContext.setUniprotDbLinks(
+        log.debug("Load Step 1: Getting Existing Uniprot DB Links");
+        loadContext.setUniprotDbLinks(
                 convertToDTO(
                         sr.getMarkerDBLinks(
                                 sr.getReferenceDatabase(UNIPROTKB, POLYPEPTIDE, SEQUENCE, ZEBRAFISH))));
 
-        log.debug("Interpro Context Step 2: Getting Existing Interpro DB Links");
-        interproLoadContext.setInterproDbLinks(
+        log.debug("Load Step 2: Getting Existing Interpro DB Links");
+        loadContext.setInterproDbLinks(
                 convertToDTO(
                         sr.getMarkerDBLinks(
                                 sr.getReferenceDatabase(INTERPRO, DOMAIN, PROTEIN, ZEBRAFISH))));
 
-        log.debug("Interpro Context Step 3: Getting Existing EC DB Links");
-        interproLoadContext.setEcDbLinks(
+        log.debug("Load Step 3: Getting Existing EC DB Links");
+        loadContext.setEcDbLinks(
                 convertToDTO(
                         sr.getMarkerDBLinks(
                                 sr.getReferenceDatabase(EC, DOMAIN, PROTEIN, ZEBRAFISH))));
 
-        log.debug("Interpro Context Step 4: Getting Existing PFAM DB Links");
-        interproLoadContext.setPfamDbLinks(
+        log.debug("Load Step 4: Getting Existing PFAM DB Links");
+        loadContext.setPfamDbLinks(
                 convertToDTO(
                         sr.getMarkerDBLinks(
                                 sr.getReferenceDatabase(PFAM, DOMAIN, PROTEIN, ZEBRAFISH))));
 
-        log.debug("Interpro Context Step 5: Getting Existing PROSITE DB Links");
-        interproLoadContext.setPrositeDbLinks(
+        log.debug("Load Step 5: Getting Existing PROSITE DB Links");
+        loadContext.setPrositeDbLinks(
                 convertToDTO(
                         sr.getMarkerDBLinks(
                                 sr.getReferenceDatabase(PROSITE, DOMAIN, PROTEIN, ZEBRAFISH))));
 
-        log.debug("Interpro Context Step 6: Creating Index of Uniprot DB Links by Gene ZDB ID");
-        interproLoadContext.createUniprotDbLinksByGeneZdbID();
+        log.debug("Load Step 6: Creating Index of Uniprot DB Links by Gene ZDB ID");
+        loadContext.createUniprotDbLinksByGeneZdbID();
 
-        log.debug("Interpro Context Step 7: Getting Existing MarkerGoTermEvidence Records");
-        interproLoadContext.setExistingMarkerGoTermEvidenceRecordsForSPKW(
+        log.debug("Load Step 7: Getting Existing MarkerGoTermEvidence Records");
+        loadContext.setExistingMarkerGoTermEvidenceRecordsForSPKW(
                 getMarkerGoTermEvidenceRepository().getMarkerGoTermEvidencesForPubZdbID(SPKW_PUB_ID)
         );
 
-        log.debug("Interpro Context Step 8: Getting Existing External Notes");
-        interproLoadContext.setExternalNotesByUniprotAccession(
-                getInfrastructureRepository().getDBLinkExternalNoteByPublicationID(InterproLoadService.EXTNOTE_PUBLICATION_ATTRIBUTION_ID)
+        log.debug("Load Step 8: Getting Existing External Notes");
+        loadContext.setExternalNotesByUniprotAccession(
+                getInfrastructureRepository().getDBLinkExternalNoteByPublicationID(SecondaryTermLoadService.EXTNOTE_PUBLICATION_ATTRIBUTION_ID)
         );
 
-        return interproLoadContext;
+        return loadContext;
     }
 
     private void setExternalNotesByUniprotAccession(List<DBLinkExternalNote> dbLinkExternalNoteByPublicationID) {

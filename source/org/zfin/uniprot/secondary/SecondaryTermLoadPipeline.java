@@ -1,4 +1,4 @@
-package org.zfin.uniprot.interpro;
+package org.zfin.uniprot.secondary;
 
 import lombok.Getter;
 import lombok.Setter;
@@ -10,14 +10,14 @@ import java.util.*;
 @Getter
 @Setter
 @Log4j2
-public class InterproLoadPipeline {
-    private List<InterproLoadHandler> handlers = new ArrayList<>();
+public class SecondaryTermLoadPipeline {
+    private List<SecondaryLoadHandler> handlers = new ArrayList<>();
     private List<SecondaryTermLoadAction> actions = new ArrayList<>();
-    private InterproLoadContext context;
+    private SecondaryLoadContext context;
 
-    private Map<String, RichSequenceAdapter> interproRecords;
+    private Map<String, RichSequenceAdapter> uniprotRecords;
 
-    public void addHandler(InterproLoadHandler handler) {
+    public void addHandler(SecondaryLoadHandler handler) {
         handlers.add(handler);
     }
 
@@ -26,10 +26,10 @@ public class InterproLoadPipeline {
         int actionCount = 0;
         int previousActionCount = 0;
 
-        for (InterproLoadHandler handler : handlers) {
+        for (SecondaryLoadHandler handler : handlers) {
             String handlerClassName = handler.getClass().getName();
             log.debug("Starting handler " + i + " of " + handlers.size() + " (" + handlerClassName + ")");
-            handler.handle(interproRecords, actions, context);
+            handler.handle(uniprotRecords, actions, context);
             actionCount = actions.size();
             log.debug("Finished handler " + i + " of " + handlers.size() + " (" + handlerClassName + ")");
 

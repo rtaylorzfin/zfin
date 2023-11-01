@@ -1,4 +1,4 @@
-package org.zfin.uniprot.interpro;
+package org.zfin.uniprot.secondary;
 
 import lombok.extern.log4j.Log4j2;
 import org.zfin.mutant.MarkerGoTermEvidence;
@@ -7,7 +7,6 @@ import org.zfin.uniprot.adapter.RichSequenceAdapter;
 
 import java.util.List;
 import java.util.Map;
-import java.util.Set;
 
 @Log4j2
 public class RemoveSpKeywordTermToGoHandler extends AddNewSecondaryTermToGoHandler {
@@ -18,7 +17,7 @@ public class RemoveSpKeywordTermToGoHandler extends AddNewSecondaryTermToGoHandl
     }
 
     @Override
-    public void handle(Map<String, RichSequenceAdapter> uniProtRecords, List<SecondaryTermLoadAction> actions, InterproLoadContext context) {
+    public void handle(Map<String, RichSequenceAdapter> uniProtRecords, List<SecondaryTermLoadAction> actions, SecondaryLoadContext context) {
 
         log.debug("Creating actions to remove SPKW terms");
 

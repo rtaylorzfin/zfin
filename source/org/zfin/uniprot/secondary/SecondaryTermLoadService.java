@@ -1,4 +1,4 @@
-package org.zfin.uniprot.interpro;
+package org.zfin.uniprot.secondary;
 
 import lombok.Getter;
 import lombok.Setter;
@@ -28,7 +28,7 @@ import static org.zfin.repository.RepositoryFactory.*;
 @Getter
 @Setter
 @Log4j2
-public class InterproLoadService {
+public class SecondaryTermLoadService {
 
 
     public static final String DBLINK_PUBLICATION_ATTRIBUTION_ID = "ZDB-PUB-230615-71";

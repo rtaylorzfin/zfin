@@ -1,4 +1,4 @@
-package org.zfin.uniprot.interpro;
+package org.zfin.uniprot.secondary;
 
 import lombok.extern.log4j.Log4j2;
 import org.jooq.lambda.Seq;
@@ -10,7 +10,7 @@ import java.util.List;
 import java.util.Map;
 
 @Log4j2
-public class RemoveSecondaryTermToGoHandler implements InterproLoadHandler {
+public class RemoveSecondaryTermToGoHandler implements SecondaryLoadHandler {
 
     private final ForeignDB.AvailableName dbName;
     private final List<SecondaryTerm2GoTerm> translationRecords;
@@ -21,7 +21,7 @@ public class RemoveSecondaryTermToGoHandler implements InterproLoadHandler {
     }
 
     @Override
-    public void handle(Map<String, RichSequenceAdapter> uniProtRecords, List<SecondaryTermLoadAction> actions, InterproLoadContext context) {
+    public void handle(Map<String, RichSequenceAdapter> uniProtRecords, List<SecondaryTermLoadAction> actions, SecondaryLoadContext context) {
         List<SecondaryTermLoadAction> deletes = actions.stream()
                 .filter(action -> dbName.equals(action.getDbName()) && action.getType().equals(SecondaryTermLoadAction.Type.DELETE))
                 .toList();

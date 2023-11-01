@@ -1,4 +1,4 @@
-package org.zfin.uniprot.interpro;
+package org.zfin.uniprot.secondary;
 
 import lombok.extern.log4j.Log4j2;
 import org.apache.commons.io.FileUtils;

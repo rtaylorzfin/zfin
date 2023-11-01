@@ -1,4 +1,4 @@
-package org.zfin.uniprot.interpro;
+package org.zfin.uniprot.secondary;
 
 import lombok.extern.log4j.Log4j2;
 import org.apache.commons.collections4.ListUtils;
@@ -15,10 +15,10 @@ import static org.zfin.util.ZfinStringUtils.isEqualIgnoringWhiteSpace;
  * Creates actions for new external notes and also for deleting external notes
  */
 @Log4j2
-public class ExternalNotesHandler implements InterproLoadHandler {
+public class ExternalNotesHandler implements SecondaryLoadHandler {
 
     @Override
-    public void handle(Map<String, RichSequenceAdapter> uniProtRecords, List<SecondaryTermLoadAction> actions, InterproLoadContext context) {
+    public void handle(Map<String, RichSequenceAdapter> uniProtRecords, List<SecondaryTermLoadAction> actions, SecondaryLoadContext context) {
         List<SecondaryTermLoadAction> secondaryTermLoadActions = new ArrayList<>();
         Set<String> uniprotAccessions = uniProtRecords.keySet();
         List<String> unmatchedUniprots = new ArrayList<>();
@@ -81,7 +81,7 @@ public class ExternalNotesHandler implements InterproLoadHandler {
         actions.addAll(deleteActions);
     }
 
-    private List<SecondaryTermLoadAction> calculateDeletedNotes(InterproLoadContext context, List<SecondaryTermLoadAction> calculatedNotesThatAlreadyExist) {
+    private List<SecondaryTermLoadAction> calculateDeletedNotes(SecondaryLoadContext context, List<SecondaryTermLoadAction> calculatedNotesThatAlreadyExist) {
         Set<DBLinkExternalNoteSlimDTO> allExistingNotes = new HashSet<>(context.getAllExternalNotes());
         log.debug("Found " + allExistingNotes.size() + " existing external notes");
 

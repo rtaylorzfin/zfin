@@ -79,9 +79,9 @@ task uniprotLoadTask(type: JavaExec) {
     systemProperty "log4j2.configurationFile", System.getProperty("log4j2.configurationFile", "./home/WEB-INF/log4j2-debug.xml")
 }
 
-task interproTask(type: JavaExec) {
+task uniprotSecondaryTermLoadTask(type: JavaExec) {
     classpath = sourceSets.main.runtimeClasspath
-    main = 'org.zfin.uniprot.task.InterproTask'
+    main = 'org.zfin.uniprot.task.UniprotSecondaryTermLoadTask'
     systemProperty "log4j2.configurationFile", System.getProperty("log4j2.configurationFile", "./home/WEB-INF/log4j2-debug.xml")
 }
 

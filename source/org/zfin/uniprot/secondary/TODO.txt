@@ -24,7 +24,7 @@ TODO:
         but it doesn't seem to be used anywhere. The notes indicate it should be used in the data_alias table, but it's not.
 - [x] Improve the original load diff report to have more info on uniprot probfile entries
 - [x] Implement an interpro report based on actions
-- [.] Add a column to UniprotRelease called "SecondaryLoadDate" and set it to true when the secondary terms are loaded
+- [x] Add a column to UniprotRelease called "SecondaryLoadDate" and set it to true when the secondary terms are loaded
 
 ### Misc:
 - [ ] Add a test for the InterPro2GO

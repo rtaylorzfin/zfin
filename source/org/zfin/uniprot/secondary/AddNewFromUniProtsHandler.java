@@ -1,4 +1,4 @@
-package org.zfin.uniprot.interpro;
+package org.zfin.uniprot.secondary;
 
 import lombok.extern.log4j.Log4j2;
 import org.apache.commons.collections4.CollectionUtils;
@@ -13,7 +13,7 @@ import java.util.Map;
 import static org.zfin.util.ZfinCollectionUtils.firstInEachGrouping;
 
 @Log4j2
-public class AddNewFromUniProtsHandler implements InterproLoadHandler {
+public class AddNewFromUniProtsHandler implements SecondaryLoadHandler {
 
     private final ForeignDB.AvailableName dbName;
 
@@ -22,7 +22,7 @@ public class AddNewFromUniProtsHandler implements InterproLoadHandler {
     }
 
     @Override
-    public void handle(Map<String, RichSequenceAdapter> uniProtRecords, List<SecondaryTermLoadAction> actions, InterproLoadContext context) {
+    public void handle(Map<String, RichSequenceAdapter> uniProtRecords, List<SecondaryTermLoadAction> actions, SecondaryLoadContext context) {
         List<SecondaryTermLoadAction> newActions = getLoadActionsNotAlreadyInDatabase(uniProtRecords, context);
 
         //remove duplicates
@@ -35,7 +35,7 @@ public class AddNewFromUniProtsHandler implements InterproLoadHandler {
         actions.addAll(newActions);
     }
 
-    public List<SecondaryTermLoadAction> getLoadActionsNotAlreadyInDatabase(Map<String, RichSequenceAdapter> uniProtRecords, InterproLoadContext context) {
+    public List<SecondaryTermLoadAction> getLoadActionsNotAlreadyInDatabase(Map<String, RichSequenceAdapter> uniProtRecords, SecondaryLoadContext context) {
         //if there is an interpro in the load file, but not in the DB for the corresponding gene, add it.
         // corresponding gene means: get the gene by taking the uniprot from the load file and cross referencing it to loaded uniprots
 

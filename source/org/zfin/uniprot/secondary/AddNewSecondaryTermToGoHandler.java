@@ -1,26 +1,23 @@
-package org.zfin.uniprot.interpro;
+package org.zfin.uniprot.secondary;
 
 import lombok.extern.log4j.Log4j2;
 import org.jooq.lambda.Seq;
 import org.jooq.lambda.tuple.Tuple2;
 import org.zfin.marker.Marker;
-import org.zfin.mutant.MarkerGoTermEvidence;
 import org.zfin.ontology.Subset;
 import org.zfin.sequence.ForeignDB;
 import org.zfin.uniprot.adapter.RichSequenceAdapter;
-import org.zfin.uniprot.dto.DBLinkSlimDTO;
 
 import java.util.ArrayList;
 import java.util.List;
 import java.util.Map;
-import java.util.Set;
 
 import static org.zfin.ontology.Subset.GO_CHECK_DO_NOT_USE_FOR_ANNOTATIONS;
 import static org.zfin.repository.RepositoryFactory.getMarkerRepository;
 import static org.zfin.repository.RepositoryFactory.getOntologyRepository;
 
 @Log4j2
-public class AddNewSecondaryTermToGoHandler implements InterproLoadHandler {
+public class AddNewSecondaryTermToGoHandler implements SecondaryLoadHandler {
 
     protected final ForeignDB.AvailableName dbName;
     protected final List<SecondaryTerm2GoTerm> translationRecords;
@@ -31,7 +28,7 @@ public class AddNewSecondaryTermToGoHandler implements InterproLoadHandler {
     }
 
     @Override
-    public void handle(Map<String, RichSequenceAdapter> uniProtRecords, List<SecondaryTermLoadAction> actions, InterproLoadContext context) {
+    public void handle(Map<String, RichSequenceAdapter> uniProtRecords, List<SecondaryTermLoadAction> actions, SecondaryLoadContext context) {
         List<SecondaryTermLoadAction> secondaryTermLoadActions = actions.stream()
                 .filter(action -> dbName.equals(action.getDbName()) && action.getType().equals(SecondaryTermLoadAction.Type.LOAD))
                 .toList();

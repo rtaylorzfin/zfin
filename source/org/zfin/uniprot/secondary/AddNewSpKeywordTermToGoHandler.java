@@ -1,4 +1,4 @@
-package org.zfin.uniprot.interpro;
+package org.zfin.uniprot.secondary;
 
 import lombok.extern.log4j.Log4j2;
 import org.jooq.lambda.Seq;
@@ -11,7 +11,6 @@ import org.zfin.uniprot.dto.DBLinkSlimDTO;
 import java.util.ArrayList;
 import java.util.List;
 import java.util.Map;
-import java.util.Set;
 
 @Log4j2
 public class AddNewSpKeywordTermToGoHandler extends AddNewSecondaryTermToGoHandler {
@@ -25,7 +24,7 @@ public class AddNewSpKeywordTermToGoHandler extends AddNewSecondaryTermToGoHandl
 
 
     @Override
-    public void handle(Map<String, RichSequenceAdapter> uniProtRecords, List<SecondaryTermLoadAction> actions, InterproLoadContext context) {
+    public void handle(Map<String, RichSequenceAdapter> uniProtRecords, List<SecondaryTermLoadAction> actions, SecondaryLoadContext context) {
 
         //create newMarkerGoTermEvidenceLoadActions from new interpro IDs
         log.debug("Creating newMarkerGoTermEvidenceLoadActions from new " + dbName + " IDs");
@@ -48,7 +47,7 @@ public class AddNewSpKeywordTermToGoHandler extends AddNewSecondaryTermToGoHandl
 
     public static List<SecondaryTermLoadAction> createMarkerGoTermEvidenceLoadActionsFromUniprotKeywords(
             Map<String, RichSequenceAdapter> uniProtRecords,
-            InterproLoadContext context,
+            SecondaryLoadContext context,
             List<SecondaryTerm2GoTerm> translationRecords) {
 
         List<GeneKeyword> geneKeywords = new ArrayList<>();
@@ -105,14 +104,14 @@ public class AddNewSpKeywordTermToGoHandler extends AddNewSecondaryTermToGoHandl
         return newMarkerGoTermEvidences;
     }
 
-    private List<SecondaryTermLoadAction> filterExistingTerms(List<SecondaryTermLoadAction> newMarkerGoTermEvidenceLoadActions, InterproLoadContext context) {
+    private List<SecondaryTermLoadAction> filterExistingTerms(List<SecondaryTermLoadAction> newMarkerGoTermEvidenceLoadActions, SecondaryLoadContext context) {
         return newMarkerGoTermEvidenceLoadActions.stream()
                 .filter( newAction -> !spKwAlreadyExists(context, newAction))
                 .toList();
     }
 
 
-    private boolean spKwAlreadyExists(InterproLoadContext context, SecondaryTermLoadAction newAction) {
+    private boolean spKwAlreadyExists(SecondaryLoadContext context, SecondaryTermLoadAction newAction) {
         List<MarkerGoTermEvidence> existingRecords = context.getExistingMarkerGoTermEvidenceRecordsForSPKW();
         String goID = "GO:" + newAction.getGoID();
         String geneZdbID = newAction.getGeneZdbID();

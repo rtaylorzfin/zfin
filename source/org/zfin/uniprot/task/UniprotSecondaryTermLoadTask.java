@@ -11,7 +11,7 @@ import org.biojava.bio.BioException;
 import org.zfin.ontology.datatransfer.AbstractScriptWrapper;
 import org.zfin.properties.ZfinPropertiesEnum;
 import org.zfin.uniprot.adapter.RichSequenceAdapter;
-import org.zfin.uniprot.interpro.*;
+import org.zfin.uniprot.secondary.*;
 import org.zfin.uniprot.persistence.UniProtRelease;
 
 import java.io.BufferedReader;
@@ -30,18 +30,18 @@ import static org.zfin.uniprot.UniProtTools.getArgOrEnvironmentVar;
 @Log4j2
 @Getter
 @Setter
-public class InterproTask extends AbstractScriptWrapper {
+public class UniprotSecondaryTermLoadTask extends AbstractScriptWrapper {
 
     private static final int ACTION_SIZE_ERROR_THRESHOLD = 10_000;
     private static final String LOAD_REPORT_TEMPLATE_HTML = "/home/uniprot/secondary-load-report.html";
     private static final String JSON_PLACEHOLDER_IN_TEMPLATE = "JSON_GOES_HERE";
 
-    public enum InterproTaskMode {
+    private enum LoadTaskMode {
         REPORT,
         LOAD,
         LOAD_AND_REPORT
     }
-    private final InterproTaskMode mode;
+    private final LoadTaskMode mode;
     private final String actionsFileName;
     private String inputFileName;
     private final String outputJsonName;
@@ -85,7 +85,7 @@ public class InterproTask extends AbstractScriptWrapper {
             System.exit(1);
         }
 
-        InterproTask task = new InterproTask(mode, inputFileName, outputJsonName, ipToGoTranslationFile, ecToGoTranslationFile, upToGoTranslationFile, actionsFileName);
+        UniprotSecondaryTermLoadTask task = new UniprotSecondaryTermLoadTask(mode, inputFileName, outputJsonName, ipToGoTranslationFile, ecToGoTranslationFile, upToGoTranslationFile, actionsFileName);
         task.runTask();
     }
 
@@ -98,8 +98,8 @@ public class InterproTask extends AbstractScriptWrapper {
         return Optional.ofNullable(getInfrastructureRepository().getLatestUnprocessedUniProtRelease());
     }
 
-    public InterproTask(String mode, String inputFileName, String outputJsonName, String ipToGoTranslationFile, String ecToGoTranslationFile, String upToGoTranslationFile, String actionsFileName) {
-        this.mode = InterproTaskMode.valueOf(mode.toUpperCase());
+    public UniprotSecondaryTermLoadTask(String mode, String inputFileName, String outputJsonName, String ipToGoTranslationFile, String ecToGoTranslationFile, String upToGoTranslationFile, String actionsFileName) {
+        this.mode = LoadTaskMode.valueOf(mode.toUpperCase());
         this.inputFileName = inputFileName;
         this.outputJsonName = outputJsonName;
         this.outputReportName = outputJsonName + ".report.html";
@@ -115,7 +115,7 @@ public class InterproTask extends AbstractScriptWrapper {
         initialize();
         log.debug("Starting UniProtLoadTask for file " + inputFileName + ".");
 
-        if (mode.equals(InterproTaskMode.REPORT) || mode.equals(InterproTaskMode.LOAD_AND_REPORT)) {
+        if (mode.equals(LoadTaskMode.REPORT) || mode.equals(LoadTaskMode.LOAD_AND_REPORT)) {
             try (BufferedReader inputFileReader = new BufferedReader(new java.io.FileReader(inputFileName))) {
                 loadTranslationFiles();
                 Map<String, RichSequenceAdapter> entries = readUniProtEntries(inputFileReader);
@@ -131,11 +131,11 @@ public class InterproTask extends AbstractScriptWrapper {
                     System.exit(1);
                 }
 
-                if (mode.equals(InterproTaskMode.LOAD_AND_REPORT)) {
+                if (mode.equals(LoadTaskMode.LOAD_AND_REPORT)) {
                     processActions(actions);
                 }
             }
-        } else if (mode.equals(InterproTaskMode.LOAD)) {
+        } else if (mode.equals(LoadTaskMode.LOAD)) {
             List<SecondaryTermLoadAction> actions = readActionsFile();
             log.debug("Finished reading actions file: " + actions.size() + " actions read.");
             processActions(actions);
@@ -202,7 +202,7 @@ public class InterproTask extends AbstractScriptWrapper {
         }
     }
 
-    private void writeContext(InterproLoadContext context) {
+    private void writeContext(SecondaryLoadContext context) {
         if (contextOutputFile != null && !contextOutputFile.isEmpty()) {
             ObjectMapper objectMapper = new ObjectMapper();
             try {
@@ -215,14 +215,14 @@ public class InterproTask extends AbstractScriptWrapper {
     }
 
     private void processActions(List<SecondaryTermLoadAction> actions) {
-        InterproLoadService.processActions(actions, release);
+        SecondaryTermLoadService.processActions(actions, release);
     }
 
     private List<SecondaryTermLoadAction> executePipeline(Map<String, RichSequenceAdapter> entries) {
-        InterproLoadPipeline pipeline = new InterproLoadPipeline();
-        pipeline.setInterproRecords(entries);
+        SecondaryTermLoadPipeline pipeline = new SecondaryTermLoadPipeline();
+        pipeline.setUniprotRecords(entries);
 
-        InterproLoadContext context = InterproLoadContext.createFromDBConnection();
+        SecondaryLoadContext context = SecondaryLoadContext.createFromDBConnection();
         writeContext(context);
         pipeline.setContext(context);
 
@@ -281,7 +281,7 @@ public class InterproTask extends AbstractScriptWrapper {
         Optional<UniProtRelease> releaseOptional = getLatestUnprocessedUniProtRelease();
 
         //only need an input file if we are generating a report of actions, otherwise, we are loading directly from the actions
-        if (mode.equals(InterproTaskMode.REPORT) || mode.equals(InterproTaskMode.LOAD_AND_REPORT)) {
+        if (mode.equals(LoadTaskMode.REPORT) || mode.equals(LoadTaskMode.LOAD_AND_REPORT)) {
             if (inputFileName.isEmpty() && releaseOptional.isPresent()) {
                 inputFileName = releaseOptional.get().getLocalFile().getAbsolutePath();
                 release = releaseOptional.get();
@@ -299,7 +299,7 @@ public class InterproTask extends AbstractScriptWrapper {
     }
 
     public static void printUsage() {
-        System.out.println("Usage: InterproTask <mode> [more args]");
+        System.out.println("Usage: uniprotSecondaryTermLoadTask <mode> [more args]");
         System.out.println("  mode: 'load' or 'report' or 'report_and_load'");
         System.out.println("  if mode is 'load', more args = <actions file>");
         System.out.println("  if mode is 'load_and_report' or 'report', more args = <input file> <up to go translation file> <ip to go translation file> <ec to go translation file> <output file>");
