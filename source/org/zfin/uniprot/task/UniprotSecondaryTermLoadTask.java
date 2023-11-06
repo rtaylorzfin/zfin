@@ -8,6 +8,7 @@ import lombok.Setter;
 import lombok.extern.log4j.Log4j2;
 import org.apache.commons.io.FileUtils;
 import org.biojava.bio.BioException;
+import org.zfin.gwt.root.util.StringUtils;
 import org.zfin.ontology.datatransfer.AbstractScriptWrapper;
 import org.zfin.properties.ZfinPropertiesEnum;
 import org.zfin.uniprot.adapter.RichSequenceAdapter;
@@ -22,6 +23,7 @@ import java.sql.SQLException;
 import java.text.SimpleDateFormat;
 import java.util.*;
 
+import static org.zfin.datatransfer.service.DownloadService.downloadFileViaWget;
 import static org.zfin.repository.RepositoryFactory.getInfrastructureRepository;
 import static org.zfin.sequence.ForeignDB.AvailableName.*;
 import static org.zfin.uniprot.UniProtFilterTask.readAllZebrafishEntriesFromSourceIntoMap;
@@ -258,20 +260,41 @@ public class UniprotSecondaryTermLoadTask extends AbstractScriptWrapper {
 
     private void loadTranslationFiles() {
         try {
-
-            log.debug("Loading " + upToGoTranslationFile);
-            upToGoRecords = SecondaryTerm2GoTermTranslator.convertTranslationFileToUnloadFile(upToGoTranslationFile, SecondaryTerm2GoTermTranslator.SecondaryTermType.UniProtKB);
+            //If the 2go files are not provided, download them
+            String upToGo = upToGoTranslationFile;
+            if (StringUtils.isEmpty(upToGo)) {
+                File downloadedFile1 = File.createTempFile("upkw2go", ".dat");
+                upToGo = downloadedFile1.getAbsolutePath();
+                String url1 = ZfinPropertiesEnum.UNIPROT_KW2GO_FILE_URL.value();
+                downloadFileViaWget(url1, downloadedFile1.toPath(), 10_000, null);
+            }
+            log.debug("Loading " + upToGo);
+            upToGoRecords = SecondaryTerm2GoTermTranslator.convertTranslationFileToUnloadFile(upToGo, SecondaryTerm2GoTermTranslator.SecondaryTermType.UniProtKB);
             log.debug("Loaded " + upToGoRecords.size() + " UP to GO records.");
 
-            log.debug("Loading " + ipToGoTranslationFile);
-            ipToGoRecords = SecondaryTerm2GoTermTranslator.convertTranslationFileToUnloadFile(ipToGoTranslationFile, SecondaryTerm2GoTermTranslator.SecondaryTermType.InterPro);
+            String ipToGo = ipToGoTranslationFile;
+            if (StringUtils.isEmpty(ipToGo)) {
+                File downloadedFile2 = File.createTempFile("ip2go", ".dat");
+                ipToGo = downloadedFile2.getAbsolutePath();
+                String url2 = ZfinPropertiesEnum.UNIPROT_IP2GO_FILE_URL.value();
+                downloadFileViaWget(url2, downloadedFile2.toPath(), 10_000, null);
+            }
+            log.debug("Loading " + ipToGo);
+            ipToGoRecords = SecondaryTerm2GoTermTranslator.convertTranslationFileToUnloadFile(ipToGo, SecondaryTerm2GoTermTranslator.SecondaryTermType.InterPro);
             log.debug("Loaded " + ipToGoRecords.size() + " InterPro to GO records.");
 
-            log.debug("Loading " + ecToGoTranslationFile);
-            ecToGoRecords = SecondaryTerm2GoTermTranslator.convertTranslationFileToUnloadFile(ecToGoTranslationFile, SecondaryTerm2GoTermTranslator.SecondaryTermType.EC);
+            String ecToGo = ecToGoTranslationFile;
+            if (StringUtils.isEmpty(ecToGo)) {
+                File downloadedFile3 = File.createTempFile("ec2go", ".dat");
+                ecToGo = downloadedFile3.getAbsolutePath();
+                String url3 = ZfinPropertiesEnum.UNIPROT_EC2GO_FILE_URL.value();
+                downloadFileViaWget(url3, downloadedFile3.toPath(), 10_000, null);
+            }
+            log.debug("Loading " + ecToGo);
+            ecToGoRecords = SecondaryTerm2GoTermTranslator.convertTranslationFileToUnloadFile(ecToGo, SecondaryTerm2GoTermTranslator.SecondaryTermType.EC);
             log.debug("Loaded " + ecToGoRecords.size() + " EC to GO records.");
 
-        } catch (FileNotFoundException e) {
+        } catch (IOException e) {
             log.error("Failed to load translation file: ", e);
             throw new RuntimeException(e);
         }
