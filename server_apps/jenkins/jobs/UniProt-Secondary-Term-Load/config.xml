@@ -23,7 +23,7 @@
             runs the report and then loads the changes.
           </description>
           <choices class="java.util.Arrays$ArrayList">
-            <a class="string-array">
+            <a>
               <string>REPORT</string>
               <string>LOAD</string>
               <string>LOAD_AND_REPORT</string>

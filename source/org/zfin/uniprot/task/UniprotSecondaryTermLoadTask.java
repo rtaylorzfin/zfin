@@ -156,6 +156,10 @@ public class UniprotSecondaryTermLoadTask extends AbstractScriptWrapper {
 
     private List<SecondaryTermLoadAction> readActionsFile() {
         String jsonFile = this.actionsFileName;
+        if (StringUtils.isEmpty(jsonFile)) {
+            log.error("No actions file specified for mode: " + getMode() +  ".");
+            System.exit(6);
+        }
         log.debug("Reading JSON file: " + jsonFile);
         try {
             SecondaryTermLoadActionsContainer actionsContainer =
