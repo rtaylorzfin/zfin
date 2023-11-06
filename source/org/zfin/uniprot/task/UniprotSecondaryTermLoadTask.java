@@ -210,15 +210,16 @@ public class UniprotSecondaryTermLoadTask extends AbstractScriptWrapper {
     }
 
     private void writeContext(SecondaryLoadContext context) {
-        if (contextOutputFile != null && !contextOutputFile.isEmpty()) {
-            ObjectMapper objectMapper = new ObjectMapper();
-            try {
-                log.info("Writing context file: " + contextOutputFile + ".");
-                objectMapper.writeValue(new File(contextOutputFile), context);
-            } catch (IOException e) {
-                log.error("Error writing context file " + contextOutputFile + ": " + e.getMessage(), e);
-            }
-        }
+        log.debug("TODO: Implement serialization for writing context file: " + contextOutputFile + ".");
+//        if (contextOutputFile != null && !contextOutputFile.isEmpty()) {
+//            ObjectMapper objectMapper = new ObjectMapper();
+//            try {
+//                log.info("Writing context file: " + contextOutputFile + ".");
+//                objectMapper.writeValue(new File(contextOutputFile), context);
+//            } catch (IOException e) {
+//                log.error("Error writing context file " + contextOutputFile + ": " + e.getMessage(), e);
+//            }
+//        }
     }
 
     private void processActions(List<SecondaryTermLoadAction> actions) {
@@ -311,6 +312,7 @@ public class UniprotSecondaryTermLoadTask extends AbstractScriptWrapper {
         //only need an input file if we are generating a report of actions, otherwise, we are loading directly from the actions
         if (mode.equals(LoadTaskMode.REPORT) || mode.equals(LoadTaskMode.LOAD_AND_REPORT)) {
             if (inputFileName.isEmpty() && releaseOptional.isPresent()) {
+                log.debug("Loading from latest UniProt release: " + releaseOptional.get().getPath() + "(md5:" + releaseOptional.get().getMd5() + ")" );
                 inputFileName = releaseOptional.get().getLocalFile().getAbsolutePath();
                 release = releaseOptional.get();
             } else if (inputFileName.isEmpty()) {

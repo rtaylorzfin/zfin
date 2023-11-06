@@ -46,7 +46,6 @@ public class RemoveSecondaryTermToGoHandler implements SecondaryLoadHandler {
                     .goID(ip2go.goID())
                     .goTermZdbID(ip2go.termZdbID())
                     .build();
-            log.debug(newAction.markerGoTermEvidenceRepresentation());
             actions.add(newAction);
         }
 

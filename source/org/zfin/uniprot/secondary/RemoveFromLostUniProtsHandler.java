@@ -26,7 +26,6 @@ public class RemoveFromLostUniProtsHandler implements SecondaryLoadHandler {
         for(DBLinkSlimDTO iplink : iplinks) {
             DBLinkSlimDTO uniprot = context.getUniprotByGene(iplink.getDataZdbID());
             if(uniprot == null) {
-                log.info("Removing " + this.dbName + " "  + iplink.getAccession() + " from gene " + iplink.getDataZdbID() + " lost uniprots");
                 actions.add(SecondaryTermLoadAction.builder().type(SecondaryTermLoadAction.Type.DELETE)
                         .subType(SecondaryTermLoadAction.SubType.DB_LINK)
                         .dbName(this.dbName)
