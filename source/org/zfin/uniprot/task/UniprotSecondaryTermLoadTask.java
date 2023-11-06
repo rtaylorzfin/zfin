@@ -97,7 +97,12 @@ public class UniprotSecondaryTermLoadTask extends AbstractScriptWrapper {
     }
 
     private static Optional<UniProtRelease> getLatestUnprocessedUniProtRelease() {
-        return Optional.ofNullable(getInfrastructureRepository().getLatestUnprocessedUniProtRelease());
+        List<UniProtRelease> releases = getInfrastructureRepository().getAllUnprocessedUniProtReleases();
+        if (releases.isEmpty()) {
+            return Optional.empty();
+        }
+
+        return releases.stream().filter(release -> release.getSecondaryLoadDate() == null).findFirst();
     }
 
     public UniprotSecondaryTermLoadTask(String mode, String inputFileName, String outputJsonName, String ipToGoTranslationFile, String ecToGoTranslationFile, String upToGoTranslationFile, String actionsFileName) {
@@ -266,7 +271,7 @@ public class UniprotSecondaryTermLoadTask extends AbstractScriptWrapper {
                 File downloadedFile1 = File.createTempFile("upkw2go", ".dat");
                 upToGo = downloadedFile1.getAbsolutePath();
                 String url1 = ZfinPropertiesEnum.UNIPROT_KW2GO_FILE_URL.value();
-                downloadFileViaWget(url1, downloadedFile1.toPath(), 10_000, null);
+                downloadFileViaWget(url1, downloadedFile1.toPath(), 10_000, log);
             }
             log.debug("Loading " + upToGo);
             upToGoRecords = SecondaryTerm2GoTermTranslator.convertTranslationFileToUnloadFile(upToGo, SecondaryTerm2GoTermTranslator.SecondaryTermType.UniProtKB);
@@ -277,7 +282,7 @@ public class UniprotSecondaryTermLoadTask extends AbstractScriptWrapper {
                 File downloadedFile2 = File.createTempFile("ip2go", ".dat");
                 ipToGo = downloadedFile2.getAbsolutePath();
                 String url2 = ZfinPropertiesEnum.UNIPROT_IP2GO_FILE_URL.value();
-                downloadFileViaWget(url2, downloadedFile2.toPath(), 10_000, null);
+                downloadFileViaWget(url2, downloadedFile2.toPath(), 10_000, log);
             }
             log.debug("Loading " + ipToGo);
             ipToGoRecords = SecondaryTerm2GoTermTranslator.convertTranslationFileToUnloadFile(ipToGo, SecondaryTerm2GoTermTranslator.SecondaryTermType.InterPro);
@@ -288,7 +293,7 @@ public class UniprotSecondaryTermLoadTask extends AbstractScriptWrapper {
                 File downloadedFile3 = File.createTempFile("ec2go", ".dat");
                 ecToGo = downloadedFile3.getAbsolutePath();
                 String url3 = ZfinPropertiesEnum.UNIPROT_EC2GO_FILE_URL.value();
-                downloadFileViaWget(url3, downloadedFile3.toPath(), 10_000, null);
+                downloadFileViaWget(url3, downloadedFile3.toPath(), 10_000, log);
             }
             log.debug("Loading " + ecToGo);
             ecToGoRecords = SecondaryTerm2GoTermTranslator.convertTranslationFileToUnloadFile(ecToGo, SecondaryTerm2GoTermTranslator.SecondaryTermType.EC);
