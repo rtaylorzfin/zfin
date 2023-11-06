@@ -323,7 +323,7 @@ public class UniprotSecondaryTermLoadTask extends AbstractScriptWrapper {
 
     public static void printUsage() {
         System.out.println("Usage: uniprotSecondaryTermLoadTask <mode> [more args]");
-        System.out.println("  mode: 'load' or 'report' or 'report_and_load'");
+        System.out.println("  mode: 'load' or 'report' or 'load_and_report'");
         System.out.println("  if mode is 'load', more args = <actions file>");
         System.out.println("  if mode is 'load_and_report' or 'report', more args = <input file> <up to go translation file> <ip to go translation file> <ec to go translation file> <output file>");
         System.out.println("  instead of arguments, you can use environment variables: UNIPROT_LOAD_MODE, INPUT_FILE, UP_TO_GO_TRANSLATION_FILE, IP_TO_GO_TRANSLATION_FILE, EC_TO_GO_TRANSLATION_FILE, OUTPUT_FILE");

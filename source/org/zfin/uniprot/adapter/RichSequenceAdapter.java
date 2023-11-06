@@ -1,5 +1,6 @@
 package org.zfin.uniprot.adapter;
 
+import org.biojavax.Comment;
 import org.biojavax.Note;
 import org.biojavax.RankedCrossRef;
 import org.biojavax.SimpleRichAnnotation;
@@ -191,7 +192,7 @@ public class RichSequenceAdapter {
         return originalRichSequence
                 .getComments()
                 .stream()
-                .map(comment -> comment.getComment().replaceFirst("\\-\\!\\- ", ""))
+                .map(comment -> ((org.biojavax.Comment)comment).getComment().replaceFirst("\\-\\!\\- ", ""))
                 .toList();
     }
 }
