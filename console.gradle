@@ -70,19 +70,19 @@ task uniprotReleaseDiffTask(type: JavaExec) {
 task uniprotReleaseCheckTask(type: JavaExec) {
     classpath = sourceSets.main.runtimeClasspath
     main = 'org.zfin.uniprot.task.UniProtReleaseCheckTask'
-    systemProperty "log4j2.configurationFile", System.getProperty("log4j2.configurationFile", "./home/WEB-INF/log4j2-debug.xml")
+    systemProperty "log4j2.configurationFile", System.getProperty("log4j2.configurationFile", "./conf/gradle-log4j2.xml")
 }
 
 task uniprotLoadTask(type: JavaExec) {
     classpath = sourceSets.main.runtimeClasspath
     main = 'org.zfin.uniprot.task.UniProtLoadTask'
-    systemProperty "log4j2.configurationFile", System.getProperty("log4j2.configurationFile", "./home/WEB-INF/log4j2-debug.xml")
+    systemProperty "log4j2.configurationFile", System.getProperty("log4j2.configurationFile", "./conf/gradle-log4j2.xml")
 }
 
 task uniprotSecondaryTermLoadTask(type: JavaExec) {
     classpath = sourceSets.main.runtimeClasspath
     main = 'org.zfin.uniprot.task.UniprotSecondaryTermLoadTask'
-    systemProperty "log4j2.configurationFile", System.getProperty("log4j2.configurationFile", "./home/WEB-INF/log4j2-debug.xml")
+    systemProperty "log4j2.configurationFile", System.getProperty("log4j2.configurationFile", "./conf/gradle-log4j2.xml")
 }
 
 task ncbiMatchThroughEnsemblTask(type: JavaExec) {
