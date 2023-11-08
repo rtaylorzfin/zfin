@@ -66,15 +66,14 @@ public class SecondaryTermLoadService {
      */
     public static void processActions(List<SecondaryTermLoadAction> actions, UniProtRelease release) {
         //groupBy the actions
-        Map<String, List<SecondaryTermLoadAction>> groupedActions =
-                actions.stream().collect(Collectors.groupingBy(a -> a.getType() + " " + a.getSubType() + " " + a.getDbName()));
+        Map<SecondaryTermLoadAction.Type, List<SecondaryTermLoadAction>> groupedByType = actions.stream().collect(Collectors.groupingBy(SecondaryTermLoadAction::getType));
 
         //process the actions
         currentSession().beginTransaction();
-        for(String type : groupedActions.keySet()) {
+        for(SecondaryTermLoadAction.Type type : groupedByType.keySet()) {
             log.debug("Processing action types of " + type);
-            List<SecondaryTermLoadAction> transactionActions = groupedActions.get(type);
-            for(SecondaryTermLoadAction action : transactionActions) {processAction(action);}
+            List<SecondaryTermLoadAction> transactionActions = groupedByType.get(type);
+            processActionsByType(type, transactionActions);
             log.debug("Finished action types of " + type);
         }
         if (release != null) {
@@ -90,63 +89,138 @@ public class SecondaryTermLoadService {
         currentSession().getTransaction().commit();
     }
 
-
-  private static void processAction(SecondaryTermLoadAction action) {
-        if (action.getType().equals(SecondaryTermLoadAction.Type.LOAD)) {
-            loadAction(action);
-        } else if (action.getType().equals(SecondaryTermLoadAction.Type.DELETE)) {
-            deleteAction(action);
-        } else {
-            //ignore other action types used for reporting
+    private static void processActionsByType(SecondaryTermLoadAction.Type type, List<SecondaryTermLoadAction> transactionActions) {
+        switch (type) {
+            case LOAD -> processLoadActions(transactionActions);
+            case DELETE -> processDeleteActions(transactionActions);
+            default -> log.error("Unknown action type: " + type);
         }
     }
 
-    private static void loadAction(SecondaryTermLoadAction action) {
-        switch (action.getSubType()) {
-            case DB_LINK -> {
-                switch (action.getDbName()) {
-                    case INTERPRO -> loadDbLink(action, INTERPRO_REFERENCE_DATABASE_ID);
-                    case EC -> loadDbLink(action, EC_REFERENCE_DATABASE_ID);
-                    case PFAM -> loadDbLink(action, PFAM_REFERENCE_DATABASE_ID);
-                    case PROSITE -> loadDbLink(action, PROSITE_REFERENCE_DATABASE_ID);
-                    default -> log.error("Unknown dblink dbname to load " + action.getDbName());
-                }
-            }
-            case MARKER_GO_TERM_EVIDENCE -> {
-                switch (action.getDbName()) {
-                    case INTERPRO -> loadMarkerGoTermEvidence(action, IP_MRKRGOEV_PUBLICATION_ATTRIBUTION_ID);
-                    case EC -> loadMarkerGoTermEvidence(action, EC_MRKRGOEV_PUBLICATION_ATTRIBUTION_ID);
-                    case UNIPROTKB -> loadMarkerGoTermEvidence(action, SPKW_MRKRGOEV_PUBLICATION_ATTRIBUTION_ID);
-                    default -> log.error("Unknown marker_go_term_evidence dbname to load " + action.getDbName());
-                }
-            }
-            case EXTERNAL_NOTE -> loadOrUpdateExternalNote(action);
-            default -> log.error("Unhandled action subtype: " + action.getSubType());
+    private static void processLoadActions(List<SecondaryTermLoadAction> transactionActions) {
+        //groupBy the actions by subtype
+        Map<SecondaryTermLoadAction.SubType, List<SecondaryTermLoadAction>> groupedBySubType =
+                transactionActions.stream().collect(Collectors.groupingBy(SecondaryTermLoadAction::getSubType));
+
+        for(SecondaryTermLoadAction.SubType subType : groupedBySubType.keySet()) {
+            log.debug("Processing action subtypes of " + subType);
+            List<SecondaryTermLoadAction> subTypeActions = groupedBySubType.get(subType);
+            processLoadActionsBySubType(subType, subTypeActions);
+            log.debug("Finished action subtypes of " + subType);
         }
     }
 
-    private static void deleteAction(SecondaryTermLoadAction action) {
-        switch (action.getSubType()) {
-            case DB_LINK -> {
-                switch (action.getDbName()) {
-                    case INTERPRO -> deleteDbLink(action, INTERPRO_REFERENCE_DATABASE_ID);
-                    case EC -> deleteDbLink(action, EC_REFERENCE_DATABASE_ID);
-                    case PFAM -> deleteDbLink(action, PFAM_REFERENCE_DATABASE_ID);
-                    case PROSITE -> deleteDbLink(action, PROSITE_REFERENCE_DATABASE_ID);
-                    default -> log.error("Unknown dblink dbname to delete " + action.getDbName());
-                }
+    private static void processLoadActionsBySubType(SecondaryTermLoadAction.SubType subType, List<SecondaryTermLoadAction> subTypeActions) {
+        switch (subType) {
+            case DB_LINK -> processDbLinkLoadActions(subTypeActions);
+            case MARKER_GO_TERM_EVIDENCE -> processMarkerGoTermEvidenceLoadActions(subTypeActions);
+            case EXTERNAL_NOTE -> processExternalNoteLoadActions(subTypeActions);
+            default -> log.error("Unknown action subtype: " + subType);
+        }
+    }
+
+    private static void processDbLinkLoadActions(List<SecondaryTermLoadAction> subTypeActions) {
+        List<Marker> markers = getMarkerRepository().getMarkersByZdbIDs(subTypeActions.stream().map(SecondaryTermLoadAction::getGeneZdbID).toList());
+        Map<String, Marker> markerMap = markers.stream().collect(Collectors.toMap(Marker::getZdbID, marker -> marker));
+        List<MarkerDBLink> dblinks = new ArrayList<>();
+
+        for(SecondaryTermLoadAction action : subTypeActions) {
+            log.debug("Loading " + action.getDbName() + " dblink for " + action.getGeneZdbID() + " " + action.getAccession());
+
+            Marker marker = getMarkerRepository().getMarker(action.getGeneZdbID());
+            MarkerDBLink newLink = new MarkerDBLink();
+            newLink.setAccessionNumber(action.getAccession());
+            newLink.setMarker(marker);
+            newLink.setReferenceDatabase(getReferenceDatabaseForAction(action));
+            newLink.setLength(action.getLength());
+            newLink.setLinkInfo(getDBLinkInfo());
+            dblinks.add(newLink);
+        }
+        Publication publication = getPublicationRepository().getPublication(DBLINK_PUBLICATION_ATTRIBUTION_ID);
+        getSequenceRepository().addDBLinks(dblinks, publication, 50);
+    }
+
+    private static ReferenceDatabase getReferenceDatabaseForAction(SecondaryTermLoadAction action) {
+        return getReferenceDatabase(getReferenceDatabaseIDForAction(action));
+    }
+
+    private static String getReferenceDatabaseIDForAction(SecondaryTermLoadAction action) {
+        String referenceDatabaseID = null;
+        switch (action.getDbName()) {
+            case INTERPRO -> referenceDatabaseID = INTERPRO_REFERENCE_DATABASE_ID;
+            case EC -> referenceDatabaseID = EC_REFERENCE_DATABASE_ID;
+            case PFAM -> referenceDatabaseID = PFAM_REFERENCE_DATABASE_ID;
+            case PROSITE -> referenceDatabaseID = PROSITE_REFERENCE_DATABASE_ID;
+            default -> log.error("Unknown dblink dbname to load " + action.getDbName());
+        }
+        return referenceDatabaseID;
+    }
+
+    private static void processMarkerGoTermEvidenceLoadActions(List<SecondaryTermLoadAction> subTypeActions) {
+        for(SecondaryTermLoadAction action : subTypeActions) {
+            switch (action.getDbName()) {
+                case INTERPRO -> loadMarkerGoTermEvidence(action, IP_MRKRGOEV_PUBLICATION_ATTRIBUTION_ID);
+                case EC -> loadMarkerGoTermEvidence(action, EC_MRKRGOEV_PUBLICATION_ATTRIBUTION_ID);
+                case UNIPROTKB -> loadMarkerGoTermEvidence(action, SPKW_MRKRGOEV_PUBLICATION_ATTRIBUTION_ID);
+                default -> log.error("Unknown marker_go_term_evidence dbname to load " + action.getDbName());
             }
-            case MARKER_GO_TERM_EVIDENCE -> {
-                log.error("TODO: implement delete marker_go_term_evidence");
-                switch (action.getDbName()) {
-                    case INTERPRO -> deleteMarkerGoTermEvidence(action, IP_MRKRGOEV_PUBLICATION_ATTRIBUTION_ID);
-                    case EC -> deleteMarkerGoTermEvidence(action, EC_MRKRGOEV_PUBLICATION_ATTRIBUTION_ID);
-                    case UNIPROTKB -> deleteMarkerGoTermEvidence(action, SPKW_MRKRGOEV_PUBLICATION_ATTRIBUTION_ID);
-                    default -> log.error("Unknown marker_go_term_evidence dbname to delete " + action.getDbName());
-                }
+        }
+    }
+
+    private static void processExternalNoteLoadActions( List<SecondaryTermLoadAction> subTypeActions) {
+        for(SecondaryTermLoadAction action : subTypeActions) {
+            loadOrUpdateExternalNote(action);
+        }
+    }
+
+    private static void processDeleteActions( List<SecondaryTermLoadAction> actions) {
+        //groupBy the actions by subtype
+        Map<SecondaryTermLoadAction.SubType, List<SecondaryTermLoadAction>> groupedBySubType =
+                actions.stream().collect(Collectors.groupingBy(SecondaryTermLoadAction::getSubType));
+
+        for(SecondaryTermLoadAction.SubType subType : groupedBySubType.keySet()) {
+            log.debug("Processing action subtypes of " + subType);
+            List<SecondaryTermLoadAction> subTypeActions = groupedBySubType.get(subType);
+            processDeleteActionsBySubType(subType, subTypeActions);
+            log.debug("Finished action subtypes of " + subType);
+        }
+    }
+
+    private static void processDeleteActionsBySubType(SecondaryTermLoadAction.SubType subType, List<SecondaryTermLoadAction> subTypeActions) {
+        switch (subType) {
+            case DB_LINK -> processDbLinkDeleteActions(subTypeActions);
+            case MARKER_GO_TERM_EVIDENCE -> processMarkerGoTermEvidenceDeleteActions(subTypeActions);
+            case EXTERNAL_NOTE -> processExternalNoteDeleteActions(subTypeActions);
+            default -> log.error("Unknown action subtype: " + subType);
+        }
+    }
+
+    private static void processDbLinkDeleteActions(List<SecondaryTermLoadAction> actions) {
+        List<DBLink> dblinksToDelete = new ArrayList<>();
+        for(SecondaryTermLoadAction action : actions) {
+            DBLink dblink = getSequenceRepository().getDBLink(action.getGeneZdbID(), action.getAccession(), getReferenceDatabaseIDForAction(action));
+            System.err.println("Removing dblink: " + dblink.getZdbID() + " " + dblink.getAccessionNumber() + " " + action.getGeneZdbID());
+            log.debug("Removing dblink: " + dblink.getZdbID());
+            getSequenceRepository().deleteReferenceProteinByDBLinkID(dblink.getZdbID());
+            dblinksToDelete.add(dblink);
+        }
+        getSequenceRepository().removeDBLinks(dblinksToDelete);
+    }
+
+    private static void processMarkerGoTermEvidenceDeleteActions(List<SecondaryTermLoadAction> actions) {
+        for(SecondaryTermLoadAction action : actions) {
+            switch (action.getDbName()) {
+                case INTERPRO -> deleteMarkerGoTermEvidence(action, IP_MRKRGOEV_PUBLICATION_ATTRIBUTION_ID);
+                case EC -> deleteMarkerGoTermEvidence(action, EC_MRKRGOEV_PUBLICATION_ATTRIBUTION_ID);
+                case UNIPROTKB -> deleteMarkerGoTermEvidence(action, SPKW_MRKRGOEV_PUBLICATION_ATTRIBUTION_ID);
+                default -> log.error("Unknown marker_go_term_evidence dbname to delete " + action.getDbName());
             }
-            case EXTERNAL_NOTE -> deleteExternalNote(action);
-            default -> log.error("Unhandled action subtype: " + action.getSubType());
+        }
+    }
+
+    private static void processExternalNoteDeleteActions(List<SecondaryTermLoadAction> actions) {
+        for(SecondaryTermLoadAction action : actions) {
+            deleteExternalNote (action);
         }
     }
 
@@ -156,32 +230,6 @@ public class SecondaryTermLoadService {
 
         getInfrastructureRepository().deleteRecordAttributionsForData(externalNoteZdbID);
         getInfrastructureRepository().deleteDBLinkExternalNote(externalNoteZdbID);
-    }
-
-    private static void loadDbLink(SecondaryTermLoadAction action, String referenceDatabaseID) {
-        log.debug("Loading " + action.getDbName() + " dblink for " + action.getGeneZdbID() + " " + action.getAccession() + " " + referenceDatabaseID );
-
-        Marker marker = getMarkerRepository().getMarker(action.getGeneZdbID());
-        MarkerDBLink newLink = new MarkerDBLink();
-        newLink.setAccessionNumber(action.getAccession());
-        newLink.setMarker(marker);
-        newLink.setReferenceDatabase(getReferenceDatabase(referenceDatabaseID));
-        newLink.setLength(action.getLength());
-        newLink.setLinkInfo(getDBLinkInfo());
-
-        Publication publication = getPublicationRepository().getPublication(DBLINK_PUBLICATION_ATTRIBUTION_ID);
-
-        ArrayList<MarkerDBLink> dblinks = new ArrayList<>();
-        dblinks.add(newLink);
-        getSequenceRepository().addDBLinks(dblinks, publication, 1);
-    }
-
-    private static void deleteDbLink(SecondaryTermLoadAction action, String referenceDatabaseID) {
-        ReferenceDatabase referenceDatabase = getReferenceDatabase(referenceDatabaseID);
-        log.debug("Removing " + action.getDbName() + " dblink for " + action.getGeneZdbID() + " " + action.getAccession() + " " + referenceDatabaseID );
-        DBLink dblink = getSequenceRepository().getDBLink(action.getGeneZdbID(), action.getAccession(), referenceDatabase.getForeignDB().getDbName().toString());
-        log.debug("Removing dblink: " + dblink.getZdbID());
-        getSequenceRepository().removeDBLinks(Collections.singletonList(dblink));
     }
 
     private static void loadMarkerGoTermEvidence(SecondaryTermLoadAction action, String pubID)  {
