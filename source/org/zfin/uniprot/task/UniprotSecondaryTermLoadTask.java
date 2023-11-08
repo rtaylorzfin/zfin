@@ -135,9 +135,12 @@ public class UniprotSecondaryTermLoadTask extends AbstractScriptWrapper {
                 writeActions(actions);
                 writeOutputReportFile(actions);
 
-                if (actions.size() > ACTION_SIZE_ERROR_THRESHOLD) {
+                String overrideEnv = System.getenv("ACTION_SIZE_ERROR_THRESHOLD");
+                long overrideThreshold = overrideEnv == null ? ACTION_SIZE_ERROR_THRESHOLD : Long.parseLong(overrideEnv);
+                if (actions.size() > overrideThreshold) {
                     log.error("Too many actions created: " + actions.size() + " actions created.");
                     log.error("Threshold set to: " + ACTION_SIZE_ERROR_THRESHOLD);
+                    log.error("Override threshold with environment variable: ACTION_SIZE_ERROR_THRESHOLD");
                     log.error("Exiting script in case this is due to an error.");
                     System.exit(1);
                 }
