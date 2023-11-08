@@ -22,12 +22,13 @@ public class ReportLegacyProblemFilesHandler implements UniProtLoadHandler {
             String accession = entry.getKey();
             if (legacyProblemFiles.containsKey(accession)) {
                 UniProtLoadAction action = new UniProtLoadAction();
+                String problemFile = legacyProblemFiles.get(accession);
                 action.setAccession(accession);
                 action.setType(UniProtLoadAction.Type.INFO);
                 action.setSubType(UniProtLoadAction.SubType.LEGACY_PROBLEM_FILE);
-                action.setDetails("This accession was in " + legacyProblemFiles.get(accession) + "\n\n" +
-                        legacyProblemFiles.get(accession) + "\n\n" +
-                        "Problem File Description: \n" + problemFileDescriptions.get(accession)
+                action.setDetails("This accession was in " + problemFile + "\n\n" +
+                        problemFile + "\n\n" +
+                        "Problem File Description: \n" + problemFileDescriptions.get(problemFile)
                 );
                 actions.add(action);
             }

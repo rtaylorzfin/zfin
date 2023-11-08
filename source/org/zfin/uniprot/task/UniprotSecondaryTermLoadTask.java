@@ -170,7 +170,8 @@ public class UniprotSecondaryTermLoadTask extends AbstractScriptWrapper {
         log.debug("Reading JSON file: " + jsonFile);
         try {
             SecondaryTermLoadActionsContainer actionsContainer =
-                    (new ObjectMapper()).readValue(new File(jsonFile), new TypeReference<SecondaryTermLoadActionsContainer>() {});
+                    new ObjectMapper().readValue(new File(jsonFile), SecondaryTermLoadActionsContainer.class);
+
             this.release = getInfrastructureRepository().getUniProtReleaseByID(actionsContainer.getReleaseID());
             return actionsContainer.getActions();
         } catch (IOException e) {
@@ -192,11 +193,11 @@ public class UniprotSecondaryTermLoadTask extends AbstractScriptWrapper {
     }
 
     private String actionsToJson(List<SecondaryTermLoadAction> actions) {
-        SecondaryTermLoadActionsContainer actionsContainer = SecondaryTermLoadActionsContainer.builder()
-                .actions(actions)
-                .releaseID(this.release == null ? null : this.release.getUpr_id())
-                .creationDate(new Date())
-                .build();
+        SecondaryTermLoadActionsContainer actionsContainer = new SecondaryTermLoadActionsContainer(
+                this.release == null ? null : this.release.getUpr_id(),
+                new Date(),
+                actions);
+
         try {
             return (new ObjectMapper()).writeValueAsString(actionsContainer);
         } catch (JsonProcessingException e) {

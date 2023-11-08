@@ -1,7 +1,7 @@
 package org.zfin.uniprot.secondary;
 
-import lombok.Builder;
 import lombok.Getter;
+import lombok.NoArgsConstructor;
 import lombok.Setter;
 
 import java.util.ArrayList;
@@ -10,14 +10,17 @@ import java.util.List;
 
 @Getter
 @Setter
-@Builder
+@NoArgsConstructor
 public class SecondaryTermLoadActionsContainer {
 
     private Long releaseID;
     private Date creationDate;
 
-    @Builder.Default
     private List<SecondaryTermLoadAction> actions = new ArrayList<>();
 
-
+    public SecondaryTermLoadActionsContainer(Long releaseID, Date creationDate, List<SecondaryTermLoadAction> actions) {
+        this.releaseID = releaseID;
+        this.creationDate = creationDate;
+        this.actions = actions;
+    }
 }
