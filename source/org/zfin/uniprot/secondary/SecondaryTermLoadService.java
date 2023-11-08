@@ -199,6 +199,10 @@ public class SecondaryTermLoadService {
         List<DBLink> dblinksToDelete = new ArrayList<>();
         for(SecondaryTermLoadAction action : actions) {
             DBLink dblink = getSequenceRepository().getDBLink(action.getGeneZdbID(), action.getAccession(), getReferenceDatabaseIDForAction(action));
+            if (dblink == null) {
+                log.error("Error deleting dblink " + action.getGeneZdbID() + " " + action.getAccession() + " " + action.getDbName() + " " + action.getSubType() + " " + getReferenceDatabaseIDForAction(action));
+                continue;
+            }
             System.err.println("Removing dblink: " + dblink.getZdbID() + " " + dblink.getAccessionNumber() + " " + action.getGeneZdbID());
             log.debug("Removing dblink: " + dblink.getZdbID());
             getSequenceRepository().deleteReferenceProteinByDBLinkID(dblink.getZdbID());
