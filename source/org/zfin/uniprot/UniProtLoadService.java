@@ -54,6 +54,7 @@ public class UniProtLoadService {
         Map<String, Marker> markerMap = markers.stream().collect(Collectors.toMap(Marker::getZdbID, marker -> marker));
         List<MarkerDBLink> dblinks = new ArrayList<>();
         for(UniProtLoadAction action : actions) {
+            log.debug("Adding dblink: " + action.getAccession() + " " + action.getGeneZdbID());
             Marker marker = markerMap.get(action.getGeneZdbID());
             MarkerDBLink newLink = new MarkerDBLink();
             newLink.setAccessionNumber(action.getAccession());
