@@ -168,9 +168,10 @@ public class SecondaryTermLoadService {
     }
 
     private static void processExternalNoteLoadActions( List<SecondaryTermLoadAction> subTypeActions) {
-        for(SecondaryTermLoadAction action : subTypeActions) {
-            loadOrUpdateExternalNote(action);
-        }
+        log.debug("disabling external note load actions");
+//        for(SecondaryTermLoadAction action : subTypeActions) {
+//            loadOrUpdateExternalNote(action);
+//        }
     }
 
     private static void processDeleteActions( List<SecondaryTermLoadAction> actions) {
@@ -223,9 +224,10 @@ public class SecondaryTermLoadService {
     }
 
     private static void processExternalNoteDeleteActions(List<SecondaryTermLoadAction> actions) {
-        for(SecondaryTermLoadAction action : actions) {
-            deleteExternalNote (action);
-        }
+        log.debug("disabling external note delete actions");
+//        for(SecondaryTermLoadAction action : actions) {
+//            deleteExternalNote (action);
+//        }
     }
 
     private static void deleteExternalNote(SecondaryTermLoadAction action) {

@@ -19,6 +19,11 @@ public class ExternalNotesHandler implements SecondaryLoadHandler {
 
     @Override
     public void handle(Map<String, RichSequenceAdapter> uniProtRecords, List<SecondaryTermLoadAction> actions, SecondaryLoadContext context) {
+        log.debug("disabling external notes for now");
+        //use the "realHandle" method to re-enable this
+    }
+
+    public void realHandle(Map<String, RichSequenceAdapter> uniProtRecords, List<SecondaryTermLoadAction> actions, SecondaryLoadContext context) {
         List<SecondaryTermLoadAction> secondaryTermLoadActions = new ArrayList<>();
         Set<String> uniprotAccessions = uniProtRecords.keySet();
         List<String> unmatchedUniprots = new ArrayList<>();
