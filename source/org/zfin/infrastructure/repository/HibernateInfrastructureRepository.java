@@ -2110,13 +2110,12 @@ public class HibernateInfrastructureRepository implements InfrastructureReposito
     }
 
     @Override
-    public List<UniProtRelease> getAllUnprocessedUniProtReleases() {
+    public List<UniProtRelease> getAllUniProtReleases() {
         Session session = currentSession();
         CriteriaBuilder criteriaBuilder = session.getCriteriaBuilder();
 
         CriteriaQuery<UniProtRelease> query = criteriaBuilder.createQuery(UniProtRelease.class);
         Root<UniProtRelease> uniProtRelease = query.from(UniProtRelease.class);
-        query.where(criteriaBuilder.isNull(uniProtRelease.get("processedDate")));
         query.orderBy(criteriaBuilder.desc(uniProtRelease.get("date")));
 
         return session.createQuery(query).list();

@@ -504,7 +504,7 @@ public interface InfrastructureRepository {
     UniProtRelease getUniProtReleaseByDate(Date date);
     UniProtRelease getLatestUnprocessedUniProtRelease();
 
-    List<UniProtRelease> getAllUnprocessedUniProtReleases();
+    List<UniProtRelease> getAllUniProtReleases();
 
     UniProtRelease getUniProtReleaseByID(Long id);
 

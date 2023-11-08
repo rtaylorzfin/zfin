@@ -17,7 +17,6 @@ import org.zfin.uniprot.persistence.UniProtRelease;
 
 import java.io.BufferedReader;
 import java.io.File;
-import java.io.FileNotFoundException;
 import java.io.IOException;
 import java.sql.SQLException;
 import java.text.SimpleDateFormat;
@@ -97,12 +96,17 @@ public class UniprotSecondaryTermLoadTask extends AbstractScriptWrapper {
     }
 
     private static Optional<UniProtRelease> getLatestUnprocessedUniProtRelease() {
-        List<UniProtRelease> releases = getInfrastructureRepository().getAllUnprocessedUniProtReleases();
+        List<UniProtRelease> releases = getInfrastructureRepository().getAllUniProtReleases();
         if (releases.isEmpty()) {
             return Optional.empty();
         }
 
-        return releases.stream().filter(release -> release.getSecondaryLoadDate() == null).findFirst();
+        //get the latest release that's been processed by the primary load logic, but not by the secondary load logic
+        return releases
+                .stream()
+                .filter(release -> release.getSecondaryLoadDate() == null)
+                .filter(release -> release.getProcessedDate() != null)
+                .findFirst();
     }
 
     public UniprotSecondaryTermLoadTask(String mode, String inputFileName, String outputJsonName, String ipToGoTranslationFile, String ecToGoTranslationFile, String upToGoTranslationFile, String actionsFileName) {
