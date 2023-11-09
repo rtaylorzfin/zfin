@@ -56,7 +56,7 @@
     </z:attributeListItem>
 
     <c:if test="${!empty publication.dbXrefs}">
-        <z:attributeListItem label="Datasets">
+        <z:attributeListItem label="Datasets" statsLink="Datasets">
             <c:forEach var="xref" items="${publication.dbXrefs}" varStatus="loop">
                 <zfin:link entity="${xref}"/><c:if test="${!loop.last}">, </c:if>
             </c:forEach>
@@ -92,6 +92,12 @@
                 </span>
     </z:attributeListItem>
 
+    <c:if test="${!empty ctdPublicationID}">
+        <z:attributeListItem label="CTD">
+            <a href="https://ctdbase.org/detail.go?type=reference&acc=${ctdPublicationID}">${ctdPublicationID}</a>
+        </z:attributeListItem>
+    </c:if>
+
     <authz:authorize access="hasRole('root')">
         <z:attributeListItem label="Files">
             <c:forEach items="${publication.files}" var="file" varStatus="loop">
@@ -123,6 +129,10 @@
 
         <z:attributeListItem label="Related Data">
             ${relatedData}
+        </z:attributeListItem>
+
+        <z:attributeListItem label="Statistics Data (Testing)">
+            <a href="stats">Publication Statistics</a>
         </z:attributeListItem>
 
     </authz:authorize>

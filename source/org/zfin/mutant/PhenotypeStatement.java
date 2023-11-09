@@ -1,5 +1,8 @@
 package org.zfin.mutant;
 
+import lombok.Data;
+import lombok.Getter;
+import lombok.Setter;
 import org.zfin.infrastructure.EntityZdbID;
 import org.zfin.ontology.GenericTerm;
 import org.zfin.ontology.PostComposedEntity;
@@ -10,6 +13,8 @@ import java.util.Date;
 /**
  * An individual observation of phenotype
  */
+@Setter
+@Getter
 public class PhenotypeStatement implements Comparable<PhenotypeStatement>, EntityZdbID {
     private long id;
     private PhenotypeExperiment phenotypeExperiment;
@@ -19,65 +24,9 @@ public class PhenotypeStatement implements Comparable<PhenotypeStatement>, Entit
     private String tag;
     private Date dateCreated;
 
-    public long getId() {
-        return id;
-    }
-
-    public void setId(long id) {
-        this.id = id;
-    }
-
-    public PhenotypeExperiment getPhenotypeExperiment() {
-        return phenotypeExperiment;
-    }
-
-    public void setPhenotypeExperiment(PhenotypeExperiment phenotypeExperiment) {
-        this.phenotypeExperiment = phenotypeExperiment;
-    }
-
-    public PostComposedEntity getEntity() {
-        return entity;
-    }
-
-    public void setEntity(PostComposedEntity entity) {
-        this.entity = entity;
-    }
-
-    public GenericTerm getQuality() {
-        return quality;
-    }
-
-    public void setQuality(GenericTerm quality) {
-        this.quality = quality;
-    }
-
-    public PostComposedEntity getRelatedEntity() {
-        return relatedEntity;
-    }
-
-    public void setRelatedEntity(PostComposedEntity relatedEntity) {
-        this.relatedEntity = relatedEntity;
-    }
-
-    public String getTag() {
-        return tag;
-    }
-
-    public void setTag(String tag) {
-        this.tag = tag;
-    }
-
     @Override
     public String toString() {
         return id + "";
-    }
-
-    public Date getDateCreated() {
-        return dateCreated;
-    }
-
-    public void setDateCreated(Date dateCreated) {
-        this.dateCreated = dateCreated;
     }
 
     public String getDisplayNameWithoutTag() {
@@ -248,6 +197,19 @@ public class PhenotypeStatement implements Comparable<PhenotypeStatement>, Entit
     public void setZdbID(String zdbID) {
 
     }
+
+    public boolean hasObsoletePhenotype() {
+        if (entity.getSuperterm().isObsolete())
+            return true;
+        if (entity.getSubterm() != null && entity.getSubterm().isObsolete())
+            return true;
+        if (relatedEntity != null && relatedEntity.getSuperterm() != null && relatedEntity.getSuperterm().isObsolete())
+            return true;
+        if (relatedEntity != null && relatedEntity.getSubterm() != null && relatedEntity.getSubterm().isObsolete())
+            return true;
+        return quality.isObsolete();
+    }
+
 
     public static enum Tag {
         NORMAL("normal"),

@@ -210,7 +210,7 @@ public class HibernateFeatureRepository implements FeatureRepository {
     public List<FeatureMarkerRelationship> getFeatureRelationshipsByPublication(String publicationZdbID) {
 
         String hql = """
-            select f from FeatureMarkerRelationship f
+            select distinct f from FeatureMarkerRelationship f
             join f.feature feature
             left outer join feature.featureProteinMutationDetailSet
             left outer join feature.featureProteinMutationDetailSet
@@ -654,7 +654,7 @@ public class HibernateFeatureRepository implements FeatureRepository {
         query.setMaxResults(1);
         query.setParameter("assembly", "GRCz11");
         query.setParameter("feature", feature);
-        return query.getSingleResult();
+        return query.getResultList().stream().findFirst().orElse(null);
     }
 
     public List<FeatureGenomicMutationDetail> getAllFeatureGenomicMutationDetails() {

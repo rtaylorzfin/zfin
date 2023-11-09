@@ -265,6 +265,7 @@ public interface PhenotypeRepository {
     List<DiseaseAnnotation> getHumanDiseaseModels(String publicationID);
 
     List<DiseaseAnnotationModel> getHumanDiseaseAnnotationModels(String publicationID);
+    List<DiseaseAnnotationModel> getAllHumanDiseaseAnnotationModels();
 
     /**
      * Retrieve disease model list by fish id.
@@ -320,4 +321,6 @@ public interface PhenotypeRepository {
     List<DiseaseAnnotationModel> getDiseaseAnnotationModelsByGene(Marker gene);
 
     List<HumanGeneDetail> getHumanGeneDetailList();
+
+    boolean hasObsoletePhenotype(String publicationID);
 }

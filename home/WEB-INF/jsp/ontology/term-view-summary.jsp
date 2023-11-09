@@ -6,9 +6,16 @@
 <c:set var="term" value="${formBean.term}"/>
 
 <z:attributeList>
+
     <z:attributeListItem label="Term ID">
         ${term.oboID}
     </z:attributeListItem>
+
+    <authz:authorize access="hasRole('root')">
+        <z:attributeListItem label="Term ZDB ID">
+            ${term.zdbID}
+        </z:attributeListItem>
+    </authz:authorize>
 
     <z:attributeListItem label="Synonyms">
         <ul class="comma-separated" data-toggle="collapse" data-show="3">
@@ -63,5 +70,13 @@
             <span>${term.ontology.commonName}</span>
         <zfin2:ontologyTermLinks term="${formBean.term}"/>
     </z:attributeListItem>
+
+    <c:if test="${!empty meshID}">
+        <z:attributeListItem label="Resources">
+            <a href="https://ctdbase.org/detail.go?type=chem&acc=${meshID}">CTD</a>
+        </z:attributeListItem>
+    </c:if>
+
+
 
 </z:attributeList>

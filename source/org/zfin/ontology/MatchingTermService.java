@@ -1,7 +1,12 @@
 package org.zfin.ontology;
 
 import org.apache.commons.lang.StringUtils;
-import org.apache.logging.log4j.LogManager; import org.apache.logging.log4j.Logger;
+import org.apache.logging.log4j.LogManager;
+import org.apache.logging.log4j.Logger;
+import org.zfin.datatransfer.ctd.MeshChebiDAO;
+import org.zfin.datatransfer.ctd.PublicationCtd;
+import org.zfin.datatransfer.ctd.PublicationCtdDAO;
+import org.zfin.framework.HibernateUtil;
 import org.zfin.gwt.root.dto.OntologyDTO;
 import org.zfin.gwt.root.dto.TermDTO;
 import org.zfin.infrastructure.PatriciaTrieMultiMap;
@@ -31,6 +36,21 @@ public class MatchingTermService {
             maximumNumberOfMatches = maxLimit;
     }
 
+
+    public static String getMeshID(String oboID) {
+        MeshChebiDAO dao = new MeshChebiDAO(HibernateUtil.currentSession());
+        return dao.getMeshID(oboID);
+    }
+
+    public static String getCtdPubID(String zdbID) {
+        PublicationCtdDAO dao = new PublicationCtdDAO(HibernateUtil.currentSession());
+        PublicationCtd publicationCtd = dao.find(zdbID);
+        if (publicationCtd != null) {
+            return publicationCtd.getCtdID();
+        }
+        return null;
+    }
+
     public List<TermDTO> getMatchingTermList(String query, Ontology ontology) {
         List<TermDTO> termDTOList = new ArrayList<>(0);
 
@@ -57,7 +77,7 @@ public class MatchingTermService {
                 if (containsAllTokens(term.getName(), termsToMatch)
 //                        ||
 //                        !term.isAliasesExist()
-                        ) {
+                ) {
                     matchingTermSet.add(new MatchingTerm(term, query));
                 } else if (term.isAliasesExist()) {
                     // add the best matching alias (levenshtein distance)

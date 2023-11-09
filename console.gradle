@@ -69,8 +69,9 @@ task uniprotReleaseDiffTask(type: JavaExec) {
 
 task uniprotReleaseCheckTask(type: JavaExec) {
     classpath = sourceSets.main.runtimeClasspath
-    main = 'org.zfin.uniprot.task.UniProtReleaseCheckTask'
-    systemProperty "log4j2.configurationFile", System.getProperty("log4j2.configurationFile", "./conf/gradle-log4j2.xml")
+    main = 'org.zfin.uniprot.UniProtReleaseCheckTask'
+//   use the conf/gradle-log4j2.xml file and customize if needed
+//    systemProperty "log4j2.configurationFile", System.getProperty("log4j2.configurationFile", "./home/WEB-INF/log4j2-debug.xml")
 }
 
 task uniprotLoadTask(type: JavaExec) {
@@ -107,5 +108,10 @@ task imageThumbnailFixTask(type: JavaExec) {
     classpath = sourceSets.main.runtimeClasspath
     main = 'org.zfin.figure.service.ImageThumbnailFixTask'
     systemProperty "runImageFixes", System.getProperty("runImageFixes", null)
+}
+
+task runMeshChebiGenerator(type: JavaExec) {
+    classpath = sourceSets.main.runtimeClasspath
+    main = 'org.zfin.datatransfer.ctd.LoadCtdData'
 }
 
