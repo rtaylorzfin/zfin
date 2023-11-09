@@ -11,6 +11,12 @@
 --  WHERE extnote_source_zdb_id = 'ZDB-PUB-230615-71'
 --   AND extnote_note_type IS NULL;
 -- end fix for external notes
+-- END COMMENTED OUT SECTION
+
+-- DELETE external notes instead
+DELETE FROM external_note
+ WHERE extnote_source_zdb_id = 'ZDB-PUB-230615-71'
+   AND extnote_note_type IS NULL;
 
 -- add column to uniprot_release table: upr_secondary_load_date
 ALTER TABLE uniprot_release ADD COLUMN upr_secondary_load_date timestamp without time zone;
