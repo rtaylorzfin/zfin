@@ -78,7 +78,7 @@ public class SecondaryTermLoadService {
         }
         if (release != null) {
             if (release.getProcessedDate() == null) {
-                log.error("Release " + release.getReleaseNumber() + " has not been processed yet. Must process before secondary terms.");
+                log.error("Release ID# " + release.getUpr_id() + " has not been processed yet. Must process before secondary terms.");
                 currentSession().getTransaction().rollback();
                 System.exit(5);
             }
@@ -199,7 +199,7 @@ public class SecondaryTermLoadService {
     private static void processDbLinkDeleteActions(List<SecondaryTermLoadAction> actions) {
         List<DBLink> dblinksToDelete = new ArrayList<>();
         for(SecondaryTermLoadAction action : actions) {
-            DBLink dblink = getSequenceRepository().getDBLink(action.getGeneZdbID(), action.getAccession(), getReferenceDatabaseIDForAction(action));
+            DBLink dblink = getSequenceRepository().getDBLinkByReferenceDatabaseID(action.getGeneZdbID(), action.getAccession(), getReferenceDatabaseIDForAction(action));
             if (dblink == null) {
                 log.error("Error deleting dblink (none found by attributes): " + action.getGeneZdbID() + " " + action.getAccession() + " " + action.getDbName() + " " + action.getSubType() + " " + getReferenceDatabaseIDForAction(action));
                 continue;
@@ -292,8 +292,7 @@ public class SecondaryTermLoadService {
         List<String> toDeleteIDs = toDelete.stream().map(MarkerGoTermEvidence::getZdbID).toList();
 
         if (toDeleteIDs.size() > 1) {
-            log.error("Found more than one marker_go_term_evidence to delete: " + toDeleteIDs);
-            return;
+            log.info("Found more than one marker_go_term_evidence to delete: " + toDeleteIDs + ". Deleting all...");
         } else if (toDeleteIDs.size() == 0) {
             log.debug("No marker_go_term_evidence found to delete after filtering");
             return;

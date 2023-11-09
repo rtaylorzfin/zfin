@@ -23,7 +23,9 @@ public class RemoveSecondaryTermToGoHandler implements SecondaryLoadHandler {
     @Override
     public void handle(Map<String, RichSequenceAdapter> uniProtRecords, List<SecondaryTermLoadAction> actions, SecondaryLoadContext context) {
         List<SecondaryTermLoadAction> deletes = actions.stream()
-                .filter(action -> dbName.equals(action.getDbName()) && action.getType().equals(SecondaryTermLoadAction.Type.DELETE))
+                .filter(action -> dbName.equals(action.getDbName())
+                        && action.getType().equals(SecondaryTermLoadAction.Type.DELETE)
+                        && action.getSubType().equals(SecondaryTermLoadAction.SubType.DB_LINK))
                 .toList();
 
         log.debug("Joining " + deletes.size()  + " SecondaryLoadAction against " + translationRecords.size() + " " + dbName + " translation records ");
@@ -32,19 +34,20 @@ public class RemoveSecondaryTermToGoHandler implements SecondaryLoadHandler {
         //join the load actions to the interpro translation records
         List<Tuple2<SecondaryTermLoadAction, SecondaryTerm2GoTerm>> joined = Seq.seq(deletes)
                 .innerJoin(translationRecords,
-                        (action, ip2go) -> action.getAccession().equals(ip2go.dbAccession()))
+                        (action, item2go) -> action.getAccession().equals(item2go.dbAccession()))
                 .toList();
+
         for(var joinedRecord : joined) {
             SecondaryTermLoadAction action = joinedRecord.v1();
-            SecondaryTerm2GoTerm ip2go = joinedRecord.v2();
+            SecondaryTerm2GoTerm item2go = joinedRecord.v2();
             SecondaryTermLoadAction newAction = SecondaryTermLoadAction.builder()
                     .accession(action.getAccession())
                     .dbName(dbName)
                     .type(SecondaryTermLoadAction.Type.DELETE)
                     .subType(SecondaryTermLoadAction.SubType.MARKER_GO_TERM_EVIDENCE)
                     .geneZdbID(action.getGeneZdbID())
-                    .goID(ip2go.goID())
-                    .goTermZdbID(ip2go.termZdbID())
+                    .goID(item2go.goID())
+                    .goTermZdbID(item2go.termZdbID())
                     .build();
             actions.add(newAction);
         }
