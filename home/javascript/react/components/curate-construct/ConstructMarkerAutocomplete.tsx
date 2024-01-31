@@ -1,4 +1,4 @@
-import React, { useEffect, useRef, useState, KeyboardEvent, MouseEvent } from 'react';
+import React, { useEffect, useRef, useState, KeyboardEvent } from 'react';
 
 /**
  * This is a React component that is used to allow the user to start typing
@@ -57,7 +57,6 @@ function ConstructMarkerAutocomplete({publicationId, resetFlag, onSelect, onChan
     const [input, setInput] = useState<string>('');
     const [suggestions, setSuggestions] = useState<Suggestion[]>([]);
     const [selectedIndex, setSelectedIndex] = useState<number>(-1);
-    const [selectedSuggestion, setSelectedSuggestion] = useState(null);
     const [reset, setReset] = useState<boolean>(resetFlag);
     const dropdownRef = useRef<HTMLUListElement>(null);
 
@@ -102,7 +101,6 @@ function ConstructMarkerAutocomplete({publicationId, resetFlag, onSelect, onChan
 
     // Handle item selection
     const handleSelection = (suggestion: Suggestion) => {
-        setSelectedSuggestion(suggestion);
         handleChange(suggestion.value);
         setSuggestions([]);
         setInput('');
@@ -192,7 +190,7 @@ function ConstructMarkerAutocomplete({publicationId, resetFlag, onSelect, onChan
             <button onClick={handleFreeTextAdded} disabled={shouldDisableAddButton()}>+</button>
         </>
     );
-};
+}
 
 
 export default ConstructMarkerAutocomplete;
