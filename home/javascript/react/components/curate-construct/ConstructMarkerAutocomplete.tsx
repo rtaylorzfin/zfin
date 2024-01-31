@@ -1,6 +1,5 @@
 import React, { useEffect, useRef, useState, KeyboardEvent, MouseEvent } from 'react';
 
-
 /**
  * This is a React component that is used to allow the user to start typing
  * and get autocomplete suggestions for markers.
@@ -53,7 +52,6 @@ interface ConstructMarkerAutocompleteProps {
     onChange: (value: string) => void;
 }
 
-const DOMAIN = 'https://cell-mac.zfin.org';
 
 function ConstructMarkerAutocomplete({publicationId, resetFlag, onSelect, onChange}: ConstructMarkerAutocompleteProps) {
     const [input, setInput] = useState<string>('');
@@ -65,7 +63,7 @@ function ConstructMarkerAutocomplete({publicationId, resetFlag, onSelect, onChan
 
     useEffect(() => {
         if (input.length > 1) {
-            fetch(`${DOMAIN}/action/construct/find-constructMarkers?term=${input}&pub=${publicationId}`)
+            fetch(`/action/construct/find-constructMarkers?term=${input}&pub=${publicationId}`)
                 .then(response => response.json())
                 .then(data => setSuggestions(data))
                 .catch(error => console.error('Error fetching data:', error));
