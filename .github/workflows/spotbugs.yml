@@ -1,0 +1,37 @@
+# Run SpotBugs on the project
+name: Java CI
+
+on:
+  push:
+    branches: 
+      - "main"
+      - "actions"
+      - "spotbugs"
+  pull_request:
+    branches: 
+      - "main"
+      - "actions"
+      - "spotbugs"
+
+jobs:
+  build:
+
+    runs-on: ubuntu-latest
+
+    steps:
+    - uses: actions/checkout@v3
+    - name: Setup JDK 17
+      uses: actions/setup-java@v3
+      with:
+        java-version: '17'
+        distribution: 'temurin'
+    - uses: wtfjoke/setup-groovy@v1
+      with:
+        groovy-version: '3.0.9'
+    - name: Run SpotBugs
+      run: |
+       export INPUT_SPOTBUGS_VERSION=4.7.3
+       wget -q -O spotbugs.tgz "https://github.com/spotbugs/spotbugs/releases/download/${INPUT_SPOTBUGS_VERSION}/spotbugs-${INPUT_SPOTBUGS_VERSION}.tgz"
+       tar -xzf spotbugs.tgz
+       chmod +x spotbugs-"${INPUT_SPOTBUGS_VERSION}"/bin/spotbugs
+       ./spotbugs-"${INPUT_SPOTBUGS_VERSION}"/bin/spotbugs -textui -project server_apps/Reports/SpotBugs/SpotBugsProject.fbp
