@@ -2,6 +2,10 @@ import React, {useState} from 'react';
 import PropTypes from 'prop-types';
 import ConstructRegulatoryCodingUnitList from './ConstructRegulatoryCodingUnitList';
 
+function dbg(...args) {
+    console.log(...args);
+}
+
 const ConstructCassetteEditor = ({publicationId, onChange}) => {
     const [state, setState] = useState({
         promoter: [],
@@ -9,6 +13,7 @@ const ConstructCassetteEditor = ({publicationId, onChange}) => {
     });
 
     const handleRegulatoryCodingUnitChange = (regulatoryCodingUnits, type) => {
+        dbg('handleRegulatoryCodingUnitChange', regulatoryCodingUnits, type);
 
         //the last item should have its separator set to ''
         const transformedRegulatoryCodingUnits = regulatoryCodingUnits.map((item, index) => {
@@ -48,16 +53,10 @@ const isValidCassette = (cassette) => {
     if (!cassette) {
         return false;
     }
-    if (!cassette.promoter) {
+    if (!cassette.promoter && !cassette.coding) {
         return false;
     }
-    if (!cassette.coding) {
-        return false;
-    }
-    if (cassette.promoter.length === 0) {
-        return false;
-    }
-    if (cassette.coding.length === 0) {
+    if (cassette.promoter.length === 0 && cassette.coding.length === 0) {
         return false;
     }
     return true;

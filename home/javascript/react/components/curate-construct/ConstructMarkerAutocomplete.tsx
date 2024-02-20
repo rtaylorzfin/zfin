@@ -50,10 +50,16 @@ interface ConstructMarkerAutocompleteProps {
     resetFlag: boolean;
     onSelect: (suggestion: Suggestion) => void;
     onChange: (value: string) => void;
+    onChangeWithObject?: (suggestion: Suggestion) => void;
 }
 
+//TODO: This is a hack to get the domain for developing locally.  It should be removed when this is deployed to production.
+let calculatedDomain = window.location.origin;
+if (calculatedDomain.indexOf('localhost') > -1) {
+    calculatedDomain = 'https://cell-mac.zfin.org';
+}
 
-function ConstructMarkerAutocomplete({publicationId, resetFlag, onSelect, onChange}: ConstructMarkerAutocompleteProps) {
+function ConstructMarkerAutocomplete({publicationId, resetFlag, onSelect, onChange, onChangeWithObject}: ConstructMarkerAutocompleteProps) {
     const [input, setInput] = useState<string>('');
     const [suggestions, setSuggestions] = useState<Suggestion[]>([]);
     const [selectedIndex, setSelectedIndex] = useState<number>(-1);
@@ -62,7 +68,7 @@ function ConstructMarkerAutocomplete({publicationId, resetFlag, onSelect, onChan
 
     useEffect(() => {
         if (input.length > 1) {
-            fetch(`/action/construct/find-constructMarkers?term=${input}&pub=${publicationId}`)
+            fetch(`${calculatedDomain}/action/construct/find-constructMarkers?term=${input}&pub=${publicationId}`)
                 .then(response => response.json())
                 .then(data => setSuggestions(data))
                 .catch(error => console.error('Error fetching data:', error));
@@ -112,6 +118,17 @@ function ConstructMarkerAutocomplete({publicationId, resetFlag, onSelect, onChan
         setInput(value);
         if (onChange) {
             onChange(value);
+        }
+        if (onChangeWithObject) {
+            const suggestion: Suggestion = {
+                id: null,
+                name: null,
+                label: value,
+                value: value,
+                url: null,
+                category: null
+            };
+            onChangeWithObject(suggestion);
         }
     }
 
@@ -194,3 +211,4 @@ function ConstructMarkerAutocomplete({publicationId, resetFlag, onSelect, onChan
 
 
 export default ConstructMarkerAutocomplete;
+export type { Suggestion };

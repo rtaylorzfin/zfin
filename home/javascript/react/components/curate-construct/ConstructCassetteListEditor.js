@@ -45,7 +45,7 @@ const ConstructCassetteListEditor = ({publicationId, onChange}) => {
                 </li>)}
             </ul>
             {(!showCassetteEditor() &&
-                <a onClick={() => setIsEditMode(true)} title='Add' href='src#'>Add cassette</a>
+                <a onClick={(e) => {e.preventDefault(); setIsEditMode(true);}} title='Add' href='src#'>Add cassette</a>
             )}
             <br/>
             {showCassetteEditor() && <>

@@ -21,6 +21,10 @@ const ConstructRegulatoryCodingUnitList = ({publicationId, onChange}) => {
         }
     };
 
+    const handleAutoCompleteChange = (items) => {
+        console.log('handleAutocompleteChange', items);
+    }
+
     const handleItemSelected = (item) => {
         item = {...item, separator: defaultSeparator};
         const newItems = [...rcUnitItems, item];
@@ -67,6 +71,7 @@ const ConstructRegulatoryCodingUnitList = ({publicationId, onChange}) => {
             <ConstructMarkerAutocomplete
                 publicationId={publicationId}
                 onSelect={handleItemSelected}
+                onChangeWithObject={handleAutoCompleteChange}
             />
         </div>
     </div>;
