@@ -43,13 +43,14 @@ type Suggestion = {
     value: string;
     url: null | string;
     category: null | string;
+    separator: string;
 };
 
 interface ConstructMarkerAutocompleteProps {
     publicationId: string;
-    resetFlag: boolean;
+    resetFlag?: boolean;
     onSelect: (suggestion: Suggestion) => void;
-    onChange: (value: string) => void;
+    onChange?: (value: string) => void;
     onChangeWithObject?: (suggestion: Suggestion) => void;
 }
 
@@ -126,7 +127,8 @@ function ConstructMarkerAutocomplete({publicationId, resetFlag, onSelect, onChan
                 label: value,
                 value: value,
                 url: null,
-                category: null
+                category: null,
+                separator: ''
             };
             onChangeWithObject(suggestion);
         }
@@ -142,7 +144,8 @@ function ConstructMarkerAutocomplete({publicationId, resetFlag, onSelect, onChan
             label: input,
             value: input,
             url: null,
-            category: null
+            category: null,
+            separator: ''
         };
         handleSelection(suggestion);
     }

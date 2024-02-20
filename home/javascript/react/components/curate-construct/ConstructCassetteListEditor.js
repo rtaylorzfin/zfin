@@ -10,6 +10,9 @@ const ConstructCassetteListEditor = ({publicationId, onChange}) => {
 
     const handleCassetteChange = (updatedCassette) => {
         setCassette(updatedCassette);
+        if (onChange) {
+            onChange([...cassettes, updatedCassette]);
+        }
     }
 
     const handleAddCassette = (event) => {
@@ -31,6 +34,9 @@ const ConstructCassetteListEditor = ({publicationId, onChange}) => {
         const newCassettes = [...cassettes];
         newCassettes.splice(index, 1);
         setCassettes(newCassettes);
+        if (onChange) {
+            onChange(newCassettes);
+        }
     }
 
     const shouldDisableDoneButton = () => {
@@ -39,18 +45,18 @@ const ConstructCassetteListEditor = ({publicationId, onChange}) => {
 
     return (
         <>
-            <ul>
+            {cassettes && cassettes.length > 0 && <b>Cassettes</b>}
+            <ol>
                 {cassettes.map((cassette, index) => <li key={index}>
                     <ConstructCassetteView cassette={cassette}/> <a href='#' onClick={() => handleRemoveCassette(index)}><i className='fa fa-trash'/></a>
                 </li>)}
-            </ul>
+            </ol>
             {(!showCassetteEditor() &&
                 <a onClick={(e) => {e.preventDefault(); setIsEditMode(true);}} title='Add' href='src#'>Add cassette</a>
             )}
-            <br/>
             {showCassetteEditor() && <>
                 <ConstructCassetteEditor publicationId={publicationId} onChange={handleCassetteChange}/>
-                <input type='button' onClick={handleAddCassette} value='Done' disabled={shouldDisableDoneButton()}/>
+                <input style={{marginTop: '10px'}} type='button' onClick={handleAddCassette} value='Save Cassette' disabled={shouldDisableDoneButton()}/>
             </>}
         </>
     );
@@ -67,6 +73,12 @@ const cassetteHumanReadable = (cassette) => {
     }
     const promoter = cassette.promoter.map(item => item.value + item.separator).join('');
     const coding = cassette.coding.map(item => item.value + item.separator).join('');
+    if (promoter.length === 0) {
+        return coding;
+    }
+    if (coding.length === 0) {
+        return promoter;
+    }
     return promoter + ':' + coding;
 }
 

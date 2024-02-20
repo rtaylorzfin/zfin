@@ -75,8 +75,14 @@ const CurateConstructNew = ({publicationId, show= true}) => {
                 <ConstructCassetteListEditor publicationId={publicationId} onChange={handleCassettesChanged}/>
             </div>
             <div className='mb-3'>
-                <b>Construct Name</b><br/>
-                {chosenType + prefix + '(' + cassettesDisplay + ')'}
+                <p>
+                    <b>Display Name:</b>
+                    <input name='constructDisplayName' disabled='disabled' type='text' value={chosenType + prefix + '(' + cassettesDisplay + ')'} size='150'/>
+                </p>
+            </div>
+            <div className='mb-3'>
+                <button type='button' className='mr-2'>Create</button>
+                <button type='button'>Cancel</button>
             </div>
         </div>}
     </>;
