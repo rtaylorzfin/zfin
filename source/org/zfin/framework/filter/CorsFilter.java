@@ -20,12 +20,13 @@ public class CorsFilter extends OncePerRequestFilter {
         //current timestamp
         Calendar cal = Calendar.getInstance();
 
-        //Feb 15th, 2024
         Calendar cal2 = Calendar.getInstance();
-        cal2.set(2024, 1, 15);
+        cal2.set(2024, 3, 15);//April 15
 
         if (cal.before(cal2)) {
             devMode = true;
+        } else {
+            throw new RuntimeException("CORS filter is enabled on production server. Please remove it.");
         }
 
         if (devMode) {
