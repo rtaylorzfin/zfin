@@ -1,18 +1,24 @@
 import React, {useState} from 'react';
-import PropTypes from 'prop-types';
 import ConstructRegulatoryCodingUnitList from './ConstructRegulatoryCodingUnitList';
+import {Cassette, ConstructComponent} from './ConstructTypes';
 
-const ConstructCassetteEditor = ({publicationId, onChange}) => {
-    const [state, setState] = useState({
+interface ConstructCassetteEditorProps {
+    publicationId: string;
+    onChange: (cassette: Cassette) => void;
+}
+
+const ConstructCassetteEditor = ({publicationId, onChange}: ConstructCassetteEditorProps) => {
+
+    const [state, setState] = useState<Cassette>({
         promoter: [],
         coding: []
     });
 
-    const handleRegulatoryCodingUnitChange = (regulatoryCodingUnits, type) => {
+    const handleRegulatoryCodingUnitChange = (constructComponents: ConstructComponent[], type) => {
 
         //the last item should have its separator set to ''
-        const transformedRegulatoryCodingUnits = regulatoryCodingUnits.map((item, index) => {
-            if (index === regulatoryCodingUnits.length - 1) {
+        const transformedConstructComponents = constructComponents.map((item, index) => {
+            if (index === constructComponents.length - 1) {
                 return {...item, separator: ''};
             }
             return item;
@@ -20,15 +26,15 @@ const ConstructCassetteEditor = ({publicationId, onChange}) => {
 
         const newState = {
             ...state,
-            [type]: transformedRegulatoryCodingUnits
+            [type]: transformedConstructComponents
         }
         setState(newState);
 
         if (onChange) {
+            console.log('newState', newState);
             onChange(newState);
         }
     }
-
 
     return <div>
         <b>Promoter</b>
@@ -39,10 +45,6 @@ const ConstructCassetteEditor = ({publicationId, onChange}) => {
     </div>;
 }
 
-ConstructCassetteEditor.propTypes = {
-    publicationId: PropTypes.string,
-    onChange: PropTypes.func,
-}
 
 const isValidCassette = (cassette) => {
     if (!cassette) {

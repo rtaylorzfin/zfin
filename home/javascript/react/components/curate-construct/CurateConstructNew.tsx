@@ -1,8 +1,48 @@
 import React, {useState} from 'react';
-import PropTypes from 'prop-types';
 import ConstructCassetteListEditor, {cassetteHumanReadableList} from './ConstructCassetteListEditor';
 
-const CurateConstructNew = ({publicationId, show= true}) => {
+/*
+ * This component is used to create a new construct
+ * The form eventually will be submitted to the server
+ * using an object like the following for Tg5(tdg.1-Hsa.TEST1:EGFP,tdg.2-Hsa.TEST2:EGFP):
+ *
+ * {
+ *   "typeAbbreviation": "Tg",
+ *   "prefix": "5",
+ *   "cassettes": [
+ *     {
+ *       "cassetteNumber": 1,
+ *       "promoterParts": [
+ *         "tdg.1",
+ *         "-",
+ *         "Hsa.TEST1"
+ *       ],
+ *       "codingParts": [
+ *         "EGFP"
+ *       ]
+ *     },
+ *     {
+ *       "cassetteNumber": 2,
+ *       "promoterParts": [
+ *         ",",
+ *         "tdg.2",
+ *         "-",
+ *         "Hsa.TEST2"
+ *       ],
+ *       "codingParts": [
+ *         "EGFP"
+ *       ]
+ *     }
+ *   ]
+ * }
+ */
+
+interface CurateConstructNewProps {
+    publicationId: string;
+    show: boolean;
+}
+
+const CurateConstructNew = ({publicationId, show= true}: CurateConstructNewProps) => {
 
     const [display, setDisplay] = useState(show);
     const [chosenType, setChosenType] = useState('Tg');
@@ -11,12 +51,54 @@ const CurateConstructNew = ({publicationId, show= true}) => {
     const [sequence, setSequence] = useState('');
     const [publicNote, setPublicNote] = useState('');
     const [curatorNote, setCuratorNote] = useState('');
+    const [cassettes, setCassettes] = useState([]);
     const [cassettesDisplay, setCassettesDisplay] = useState('');
 
     const toggleDisplay = () => setDisplay(!display);
 
     const handleCassettesChanged = (cassettesChanged) => {
+        console.log('cassettesChanged', cassettesChanged);
+        setCassettes(cassettesChanged);
         setCassettesDisplay(cassetteHumanReadableList(cassettesChanged));
+    }
+
+    const submitForm = async () => {
+        console.log('submitForm');
+        const submissionObject = {
+            constructName: {
+                typeAbbreviation: chosenType,
+                prefix: prefix,
+                cassettes: cassettes
+            },
+            synonym: synonym,
+            sequence: sequence,
+            publicNote: publicNote,
+            curatorNote: curatorNote
+        }
+        console.log('submissionObject', submissionObject);
+
+        //post with fetch to `/action/construct/create`
+        const result = await fetch('/action/construct/create', {
+            method: 'POST',
+            headers: {
+                'Content-Type': 'application/json',
+            },
+            body: JSON.stringify(submissionObject),
+        });
+        const body = await result.json();
+        console.log('body', body);
+        clearForm();
+
+    }
+
+    const clearForm = () => {
+        setChosenType('Tg');
+        setPrefix('');
+        setSynonym('');
+        setSequence('');
+        setPublicNote('');
+        setCuratorNote('');
+        setCassettesDisplay('');
     }
 
     return <>
@@ -81,16 +163,11 @@ const CurateConstructNew = ({publicationId, show= true}) => {
                 </p>
             </div>
             <div className='mb-3'>
-                <button type='button' className='mr-2'>Create</button>
-                <button type='button'>Cancel</button>
+                <button type='button' className='mr-2' onClick={submitForm}>Create</button>
+                <button type='button' onClick={clearForm}>Cancel</button>
             </div>
         </div>}
     </>;
-}
-
-CurateConstructNew.propTypes = {
-    publicationId: PropTypes.string,
-    show: PropTypes.bool,
 }
 
 export default CurateConstructNew;

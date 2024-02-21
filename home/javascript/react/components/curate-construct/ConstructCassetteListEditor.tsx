@@ -1,18 +1,23 @@
 import React, {useState} from 'react';
-import PropTypes from 'prop-types';
 import ConstructCassetteEditor, {isValidCassette} from './ConstructCassetteEditor';
 import ConstructCassetteView from './ConstructCassetteView';
+import {Cassette} from './ConstructTypes';
 
-const ConstructCassetteListEditor = ({publicationId, onChange}) => {
-    const [cassettes, setCassettes] = useState([]);
-    const [cassette, setCassette] = useState(null);
+interface ConstructCassetteListEditorProps {
+    publicationId: string;
+    onChange?: (cassettes: Cassette[]) => void;
+}
+
+const ConstructCassetteListEditor = ({publicationId, onChange}: ConstructCassetteListEditorProps) => {
+    const [cassettes, setCassettes] = useState<Cassette[]>([]);
+    const [cassette, setCassette] = useState<Cassette>(null);
     const [isEditMode, setIsEditMode] = useState(false);
 
     const handleCassetteChange = (updatedCassette) => {
         setCassette(updatedCassette);
-        if (onChange) {
-            onChange([...cassettes, updatedCassette]);
-        }
+        const eventPayload = [...cassettes, updatedCassette];
+        console.log('eventPayload', eventPayload);
+        notifyParentOfChange(eventPayload);
     }
 
     const handleAddCassette = (event) => {
@@ -21,22 +26,24 @@ const ConstructCassetteListEditor = ({publicationId, onChange}) => {
         setCassettes(newCassettes);
         setCassette(null);
         setIsEditMode(false);
-        if (onChange) {
-            onChange(newCassettes);
-        }
-    }
-
-    const showCassetteEditor = () => {
-        return cassettes.length === 0 || isEditMode;
+        notifyParentOfChange(newCassettes);
     }
 
     const handleRemoveCassette = (index) => {
         const newCassettes = [...cassettes];
         newCassettes.splice(index, 1);
         setCassettes(newCassettes);
+        notifyParentOfChange(newCassettes);
+    }
+
+    const notifyParentOfChange = (cassettes) => {
         if (onChange) {
-            onChange(newCassettes);
+            onChange(cassettes);
         }
+    }
+
+    const showCassetteEditor = () => {
+        return cassettes.length === 0 || isEditMode;
     }
 
     const shouldDisableDoneButton = () => {
@@ -52,7 +59,7 @@ const ConstructCassetteListEditor = ({publicationId, onChange}) => {
                 </li>)}
             </ol>
             {(!showCassetteEditor() &&
-                <a onClick={(e) => {e.preventDefault(); setIsEditMode(true);}} title='Add' href='src#'>Add cassette</a>
+                <a onClick={(e) => {e.preventDefault(); setIsEditMode(true);}} title='Add' href='#'>Add cassette</a>
             )}
             {showCassetteEditor() && <>
                 <ConstructCassetteEditor publicationId={publicationId} onChange={handleCassetteChange}/>
@@ -61,11 +68,6 @@ const ConstructCassetteListEditor = ({publicationId, onChange}) => {
         </>
     );
 };
-
-ConstructCassetteListEditor.propTypes = {
-    publicationId: PropTypes.string,
-    onChange: PropTypes.func,
-}
 
 const cassetteHumanReadable = (cassette) => {
     if (!cassette) {

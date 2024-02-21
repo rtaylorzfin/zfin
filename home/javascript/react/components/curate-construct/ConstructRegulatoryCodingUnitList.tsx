@@ -1,10 +1,10 @@
 import React, {useState} from 'react';
-import type {Suggestion} from './ConstructMarkerAutocomplete';
+import type {ConstructComponent} from './ConstructTypes';
 import ConstructMarkerAutocomplete from './ConstructMarkerAutocomplete';
 
 interface ConstructRegulatoryCodingUnitListProps {
     publicationId: string;
-    onChange?: (value: Suggestion[]) => void;
+    onChange?: (value: ConstructComponent[]) => void;
 }
 
 
@@ -17,7 +17,7 @@ interface ConstructRegulatoryCodingUnitListProps {
  * @constructor
  */
 const ConstructRegulatoryCodingUnitList = ({publicationId, onChange}: ConstructRegulatoryCodingUnitListProps) => {
-    const [rcUnitItems, setRcUnitItems] = useState<Suggestion[]>([]);
+    const [rcUnitItems, setRcUnitItems] = useState<ConstructComponent[]>([]);
     const defaultSeparator = '-';
 
     const styles = {
@@ -28,7 +28,7 @@ const ConstructRegulatoryCodingUnitList = ({publicationId, onChange}: ConstructR
         }
     };
 
-    const handleAutoCompleteChange = (item : Suggestion) => {
+    const handleAutoCompleteChange = (item: ConstructComponent) => {
         const itemWithSeparator = {...item, separator: ''};
 
         if(item.value === '') {
@@ -40,7 +40,7 @@ const ConstructRegulatoryCodingUnitList = ({publicationId, onChange}: ConstructR
         onChange(newItems);
     }
 
-    const handleItemSelected = (item) => {
+    const handleItemSelected = (item: ConstructComponent) => {
         const itemWithSeparator = {...item, separator: defaultSeparator};
         const newItems = [...rcUnitItems, itemWithSeparator];
         setRcUnitItemsAndNotify(newItems);
