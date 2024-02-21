@@ -272,7 +272,7 @@ public class ConstructEditController {
         return oldConstructName;
     }
 
-    //Post method that accepts a construct name as JSON
+    //Post method that accepts a construct name as JSON and sends the same object back
     //example request:
     // curl -X POST -k https://<SITE>.zfin.org/action/construct/construct-json-mirror -H "Content-Type: application/json" -d '{"type":"TGCONSTRCT","prefix":"","cassettes":[{"promoter":["rnu6-32"],"coding":["CRISPR1-tyr"],"cassetteNumber":1},{"promoter":[",","rnu6-32"],"coding":["CRISPR1-insra"],"cassetteNumber":2},{"promoter":[",","rnu6-14"],"coding":["CRISPR2-insra"],"cassetteNumber":3},{"promoter":[",","rnu6-7"],"coding":["CRISPR1-insrb"],"cassetteNumber":4},{"promoter":[",","rnu6-279"],"coding":["CRISPR2-insrb"],"cassetteNumber":5},{"promoter":[",","cryaa"],"coding":["Cerulean"],"cassetteNumber":6}],"typeAbbreviation":"Tg","typeAbbreviationOrEmpty":"Tg"}'
     @RequestMapping(value = "/construct-json-mirror", method = RequestMethod.POST)
