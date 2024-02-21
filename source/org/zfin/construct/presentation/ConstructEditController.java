@@ -32,6 +32,8 @@ import javax.servlet.http.HttpServletRequest;
 import javax.servlet.http.HttpServletResponse;
 import java.util.List;
 
+import static org.zfin.construct.presentation.ConstructComponentService.getExistingConstructName;
+
 @Controller
 @RequestMapping("/construct")
 public class ConstructEditController {
@@ -259,6 +261,25 @@ public class ConstructEditController {
                     "success": true
                 }
                 """.formatted(newMarker.getZdbID() + " renamed to " + newMarker.getName());
+    }
+
+    //Send the json representation of a construct name to the client
+    @RequestMapping(value = "/construct-json/{constructID}", method = RequestMethod.GET)
+    public
+    @ResponseBody
+    ConstructName getConstructJson(@PathVariable String constructID) {
+        ConstructName oldConstructName = getExistingConstructName(constructID);
+        return oldConstructName;
+    }
+
+    //Post method that accepts a construct name as JSON
+    //example request:
+    // curl -X POST -k https://<SITE>.zfin.org/action/construct/construct-json-mirror -H "Content-Type: application/json" -d '{"type":"TGCONSTRCT","prefix":"","cassettes":[{"promoter":["rnu6-32"],"coding":["CRISPR1-tyr"],"cassetteNumber":1},{"promoter":[",","rnu6-32"],"coding":["CRISPR1-insra"],"cassetteNumber":2},{"promoter":[",","rnu6-14"],"coding":["CRISPR2-insra"],"cassetteNumber":3},{"promoter":[",","rnu6-7"],"coding":["CRISPR1-insrb"],"cassetteNumber":4},{"promoter":[",","rnu6-279"],"coding":["CRISPR2-insrb"],"cassetteNumber":5},{"promoter":[",","cryaa"],"coding":["Cerulean"],"cassetteNumber":6}],"typeAbbreviation":"Tg","typeAbbreviationOrEmpty":"Tg"}'
+    @RequestMapping(value = "/construct-json-mirror", method = RequestMethod.POST)
+    public
+    @ResponseBody
+    ConstructName updateConstructJson(@RequestBody ConstructName constructName) throws Exception {
+        return constructName;
     }
 
 }

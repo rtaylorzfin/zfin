@@ -80,7 +80,7 @@ public class ConstructComponentService {
         Coding coding = cassette.getCoding();
 
         //add the promoter parts
-        for (String promoterPart : promoter.getPromoterParts()) {
+        for (String promoterPart : promoter.getPromoter()) {
             createComponentRecords(StringUtils.trim(promoterPart),"promoter component", promoterMarkers,ConstructComponent.Type.PROMOTER_OF, cassette.getCassetteNumber(), newPub,zdbID);
         }
 
@@ -90,7 +90,7 @@ public class ConstructComponentService {
         }
 
         //add the coding parts
-        for (String codingPart : coding.getCodingParts()) {
+        for (String codingPart : coding.getCoding()) {
             createComponentRecords(StringUtils.trim(codingPart), "coding component", codingMarkers, ConstructComponent.Type.CODING_SEQUENCE_OF, cassette.getCassetteNumber(), newPub, zdbID);
         }
 
