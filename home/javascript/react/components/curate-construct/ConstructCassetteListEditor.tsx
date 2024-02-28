@@ -16,7 +16,6 @@ const ConstructCassetteListEditor = ({publicationId, onChange}: ConstructCassett
     const handleCassetteChange = (updatedCassette) => {
         setCassette(updatedCassette);
         const eventPayload = [...cassettes, updatedCassette];
-        console.log('eventPayload', eventPayload);
         notifyParentOfChange(eventPayload);
     }
 

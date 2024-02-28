@@ -19,6 +19,7 @@ interface ConstructRegulatoryCodingUnitListProps {
 const ConstructRegulatoryCodingUnitList = ({publicationId, onChange}: ConstructRegulatoryCodingUnitListProps) => {
     const [rcUnitItems, setRcUnitItems] = useState<ConstructComponent[]>([]);
     const defaultSeparator = '-';
+    const [activeTextBoxValue, setActiveTextBoxValue] = useState<ConstructComponent>(null);
 
     const styles = {
         rcUnitItems: {
@@ -30,7 +31,7 @@ const ConstructRegulatoryCodingUnitList = ({publicationId, onChange}: ConstructR
 
     const handleAutoCompleteChange = (item: ConstructComponent) => {
         const itemWithSeparator = {...item, separator: ''};
-
+        setActiveTextBoxValue(itemWithSeparator);
         if(item.value === '') {
             onChange(rcUnitItems);
             return;
@@ -43,6 +44,7 @@ const ConstructRegulatoryCodingUnitList = ({publicationId, onChange}: ConstructR
     const handleItemSelected = (item: ConstructComponent) => {
         const itemWithSeparator = {...item, separator: defaultSeparator};
         const newItems = [...rcUnitItems, itemWithSeparator];
+        setActiveTextBoxValue(null);
         setRcUnitItemsAndNotify(newItems);
     }
 
@@ -55,6 +57,10 @@ const ConstructRegulatoryCodingUnitList = ({publicationId, onChange}: ConstructR
         const changedPart = {...rcUnitItems[index], separator: separator};
         const newItems = [...rcUnitItems.slice(0, index), changedPart, ...rcUnitItems.slice(index + 1)];
         setRcUnitItemsAndNotify(newItems);
+        if (activeTextBoxValue !== null) {
+            const newItemsWithActiveTextBoxValue = [...newItems, activeTextBoxValue];
+            onChange(newItemsWithActiveTextBoxValue);
+        }
     }
 
     const setRcUnitItemsAndNotify = (items) => {

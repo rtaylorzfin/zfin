@@ -58,11 +58,7 @@ public class ConstructEditController {
 
     private Person currentUser = ProfileService.getCurrentSecurityUser();
 
-
-
-
     @ModelAttribute("formBean")
-
     private ConstructUpdateBean getDefaultSearchForm(@RequestParam(value = "constructPublicationZdbID", required = false) String pubZdbID) {
         ConstructUpdateBean formBean = new ConstructUpdateBean();
         if (StringUtils.isNotEmpty(pubZdbID))
@@ -129,8 +125,6 @@ public class ConstructEditController {
     void updateConstructComments(
             @PathVariable String constructID,
             @PathVariable String constructUpdateComments
-
-
     ) {
         HibernateUtil.createTransaction();
         Marker m=mr.getMarkerByID(constructID);
@@ -141,8 +135,6 @@ public class ConstructEditController {
             c.setPublicComments(constructUpdateComments.replace("slash","/"));
             ir.insertUpdatesTable(m, "comments", "updated public notes");
             HibernateUtil.flushAndCommitCurrentSession();
-
-
         }
         else{
             m.setPublicComments("");
@@ -151,11 +143,7 @@ public class ConstructEditController {
             c.setPublicComments("");
             ir.insertUpdatesTable(m, "comments", "updated public notes");
             HibernateUtil.flushAndCommitCurrentSession();
-
-
         }
-
-
     }
 
     @RequestMapping(value = "/add-notes/{constructID}/notes/{notes}/publication/{pubID}"
@@ -219,15 +207,6 @@ public class ConstructEditController {
         HibernateUtil.flushAndCommitCurrentSession();
     }
 
-//    @RequestMapping(value = "/rename/{constructID}", method = RequestMethod.GET)
-//    public
-//    String renameConstructForm(@PathVariable String constructID, Model model) {
-//        Marker construct = mr.getMarkerByID(constructID);
-//        model.addAttribute("constructID", constructID);
-//        model.addAttribute("constructName", construct.getName());
-//        return "construct/construct-rename";
-//    }
-
     @RequestMapping(value = "/rename", method = RequestMethod.GET)
     public String renameConstructForm() {
         return "construct/construct-rename";
@@ -272,6 +251,25 @@ public class ConstructEditController {
         return oldConstructName;
     }
 
+    //Send the json representation of a AddConstructFormFields to the client
+    @RequestMapping(value = "/ff/{constructID}", method = RequestMethod.GET)
+    public
+    @ResponseBody
+    AddConstructFormFields getConstructAddConstructFormFields(@PathVariable String constructID) {
+        AddConstructFormFields formFields = new AddConstructFormFields();
+        ConstructName constructName = getExistingConstructName(constructID);
+        formFields.setConstructNameObject(constructName);
+        formFields.setConstructName(constructName.toString());
+        formFields.setConstructAlias("alias");
+        formFields.setConstructComments("comments");
+        formFields.setConstructCuratorNote("curator note");
+        formFields.setConstructPrefix("prefix");
+        formFields.setConstructSequence("sequence");
+        formFields.setConstructStoredName("stored name");
+        formFields.setConstructType("type");
+        return formFields;
+    }
+
     //Post method that accepts a construct name as JSON and sends the same object back
     //example request:
     // curl -X POST -k https://<SITE>.zfin.org/action/construct/construct-json-mirror -H "Content-Type: application/json" -d '{"type":"TGCONSTRCT","prefix":"","cassettes":[{"promoter":["rnu6-32"],"coding":["CRISPR1-tyr"],"cassetteNumber":1},{"promoter":[",","rnu6-32"],"coding":["CRISPR1-insra"],"cassetteNumber":2},{"promoter":[",","rnu6-14"],"coding":["CRISPR2-insra"],"cassetteNumber":3},{"promoter":[",","rnu6-7"],"coding":["CRISPR1-insrb"],"cassetteNumber":4},{"promoter":[",","rnu6-279"],"coding":["CRISPR2-insrb"],"cassetteNumber":5},{"promoter":[",","cryaa"],"coding":["Cerulean"],"cassetteNumber":6}],"typeAbbreviation":"Tg","typeAbbreviationOrEmpty":"Tg"}'
@@ -280,6 +278,13 @@ public class ConstructEditController {
     @ResponseBody
     ConstructName updateConstructJson(@RequestBody ConstructName constructName) throws Exception {
         return constructName;
+    }
+
+    @RequestMapping(value = "/create", method = RequestMethod.POST)
+    public
+    @ResponseBody
+    AddConstructFormFields createConstruct(@RequestBody AddConstructFormFields constructValues) throws Exception {
+        return constructValues;
     }
 
 }

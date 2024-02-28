@@ -1,5 +1,6 @@
 import React, {useState} from 'react';
 import ConstructCassetteListEditor, {cassetteHumanReadableList} from './ConstructCassetteListEditor';
+import {cassettesToSimplifiedCassettes, typeAbbreviationToType} from "./ConstructTypes";
 
 /*
  * This component is used to create a new construct
@@ -42,6 +43,12 @@ interface CurateConstructNewProps {
     show: boolean;
 }
 
+//TODO: This is a hack to get the domain for developing locally.  It should be removed when this is deployed to production.
+let calculatedDomain = window.location.origin;
+if (calculatedDomain.indexOf('localhost') > -1) {
+    calculatedDomain = 'https://cell-mac.zfin.org';
+}
+
 const CurateConstructNew = ({publicationId, show= true}: CurateConstructNewProps) => {
 
     const [display, setDisplay] = useState(show);
@@ -53,42 +60,53 @@ const CurateConstructNew = ({publicationId, show= true}: CurateConstructNewProps
     const [curatorNote, setCuratorNote] = useState('');
     const [cassettes, setCassettes] = useState([]);
     const [cassettesDisplay, setCassettesDisplay] = useState('');
+    const [saving, setSaving] = useState(false);
+    const [showError, setShowError] = useState(false);
+    const [showSuccess, setShowSuccess] = useState(false);
 
     const toggleDisplay = () => setDisplay(!display);
 
     const handleCassettesChanged = (cassettesChanged) => {
-        console.log('cassettesChanged', cassettesChanged);
         setCassettes(cassettesChanged);
         setCassettesDisplay(cassetteHumanReadableList(cassettesChanged));
     }
 
     const submitForm = async () => {
-        console.log('submitForm');
         const submissionObject = {
-            constructName: {
-                typeAbbreviation: chosenType,
+            constructNameObject: {
+                type: typeAbbreviationToType(chosenType),
                 prefix: prefix,
-                cassettes: cassettes
+                cassettes: cassettesToSimplifiedCassettes(cassettes)
             },
-            synonym: synonym,
-            sequence: sequence,
-            publicNote: publicNote,
-            curatorNote: curatorNote
+            constructAlias: synonym,
+            constructSequence: sequence,
+            constructComments: publicNote,
+            constructCuratorNote: curatorNote,
+            pubZdbID: publicationId
         }
         console.log('submissionObject', submissionObject);
 
-        //post with fetch to `/action/construct/create`
-        const result = await fetch('/action/construct/create', {
-            method: 'POST',
-            headers: {
-                'Content-Type': 'application/json',
-            },
-            body: JSON.stringify(submissionObject),
-        });
-        const body = await result.json();
-        console.log('body', body);
-        clearForm();
+        setSaving(true);
 
+        try {
+            //post with fetch to `/action/construct/create`
+            const result = await fetch(`${calculatedDomain}/action/construct/create`, {
+                method: 'POST',
+                headers: {
+                    'Content-Type': 'application/json',
+                },
+                body: JSON.stringify(submissionObject),
+            });
+            const body = await result.json();
+            console.log('body', body);
+            clearForm();
+            setShowSuccess(true);
+        } catch (error) {
+            console.error('Error fetching data:', error);
+            setShowError(true);
+        } finally {
+            setSaving(false);
+        }
     }
 
     const clearForm = () => {
@@ -163,8 +181,12 @@ const CurateConstructNew = ({publicationId, show= true}: CurateConstructNewProps
                 </p>
             </div>
             <div className='mb-3'>
-                <button type='button' className='mr-2' onClick={submitForm}>Create</button>
-                <button type='button' onClick={clearForm}>Cancel</button>
+                <button type='button' className='mr-2' onClick={submitForm} disabled={saving}>Create</button>
+                <button type='button' onClick={clearForm} disabled={saving}>Cancel</button>
+            </div>
+            <div className='mb-3'>
+                {showError && <div className='alert alert-danger' role='alert'>Error creating construct</div>}
+                {showSuccess && <div className='alert alert-success' role='alert'>Construct created successfully</div>}
             </div>
         </div>}
     </>;

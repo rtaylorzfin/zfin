@@ -31,7 +31,6 @@ const ConstructCassetteEditor = ({publicationId, onChange}: ConstructCassetteEdi
         setState(newState);
 
         if (onChange) {
-            console.log('newState', newState);
             onChange(newState);
         }
     }

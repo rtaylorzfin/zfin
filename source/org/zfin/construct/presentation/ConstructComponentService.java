@@ -228,7 +228,10 @@ public class ConstructComponentService {
         return latestConstruct;
     }
 
-    private static void setConstructAliasNoteAndSequence(AddConstructFormFields form, Publication constructPub, Marker latestConstruct) {
+
+
+
+        private static void setConstructAliasNoteAndSequence(AddConstructFormFields form, Publication constructPub, Marker latestConstruct) {
         if (!StringUtils.isEmpty(form.getConstructAlias())) {
             mr.addMarkerAlias(latestConstruct, form.getConstructAlias(), constructPub);
         }
