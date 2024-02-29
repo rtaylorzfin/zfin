@@ -214,7 +214,13 @@ public class ConstructComponentService {
         String constructZdbID = newConstruct.getZdbID();
 
         //create the construct components in the DB -- "Tg4(ubb:mir155smn1-DsRed)" becomes ["Tg", "4", "(", "ubb", ":", "mir155smn1", "-", "DsRed", ")"] with metadata
-        createConstructComponentsInDatabase(form, constructZdbID);
+        if (form.getConstructStoredName() != null) {
+            createConstructComponentsInDatabaseUsingStoredName(form, constructZdbID);
+        } else if (form.getConstructNameObject() != null) {
+            createConstructComponentsInDatabase(form.getConstructNameObject(), constructZdbID, form.getPubZdbID());
+        } else {
+            throw new RuntimeException("No construct name or stored name found");
+        }
 
         //adding construct record to marker table
         InformixUtil.runProcedure("regen_construct_marker", constructZdbID + "");
@@ -284,7 +290,8 @@ public class ConstructComponentService {
      * @param form
      * @param constructZdbID
      */
-    private static void createConstructComponentsInDatabase(AddConstructFormFields form, String constructZdbID) {
+    //TODO: deprecate this method and all uses of StoredName (just use ConstructName). jquery for the stored name is used by legacy interface
+    private static void createConstructComponentsInDatabaseUsingStoredName(AddConstructFormFields form, String constructZdbID) {
         ConstructName constructName = new ConstructName(form.getConstructName(), form.getConstructPrefix());
         Cassettes cassettes = Cassettes.fromStoredName(form.getConstructStoredName());
         constructName.setCassettes(cassettes);

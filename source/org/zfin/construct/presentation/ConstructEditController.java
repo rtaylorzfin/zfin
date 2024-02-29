@@ -243,50 +243,13 @@ public class ConstructEditController {
     }
 
     //Send the json representation of a construct name to the client
-    @RequestMapping(value = "/construct-json/{constructID}", method = RequestMethod.GET)
+    @RequestMapping(value = "/json/{constructID}", method = RequestMethod.GET)
     public
     @ResponseBody
     ConstructName getConstructJson(@PathVariable String constructID) {
         ConstructName oldConstructName = getExistingConstructName(constructID);
         return oldConstructName;
     }
-
-    //Send the json representation of a AddConstructFormFields to the client
-    @RequestMapping(value = "/ff/{constructID}", method = RequestMethod.GET)
-    public
-    @ResponseBody
-    AddConstructFormFields getConstructAddConstructFormFields(@PathVariable String constructID) {
-        AddConstructFormFields formFields = new AddConstructFormFields();
-        ConstructName constructName = getExistingConstructName(constructID);
-        formFields.setConstructNameObject(constructName);
-        formFields.setConstructName(constructName.toString());
-        formFields.setConstructAlias("alias");
-        formFields.setConstructComments("comments");
-        formFields.setConstructCuratorNote("curator note");
-        formFields.setConstructPrefix("prefix");
-        formFields.setConstructSequence("sequence");
-        formFields.setConstructStoredName("stored name");
-        formFields.setConstructType("type");
-        return formFields;
-    }
-
-    //Post method that accepts a construct name as JSON and sends the same object back
-    //example request:
-    // curl -X POST -k https://<SITE>.zfin.org/action/construct/construct-json-mirror -H "Content-Type: application/json" -d '{"type":"TGCONSTRCT","prefix":"","cassettes":[{"promoter":["rnu6-32"],"coding":["CRISPR1-tyr"],"cassetteNumber":1},{"promoter":[",","rnu6-32"],"coding":["CRISPR1-insra"],"cassetteNumber":2},{"promoter":[",","rnu6-14"],"coding":["CRISPR2-insra"],"cassetteNumber":3},{"promoter":[",","rnu6-7"],"coding":["CRISPR1-insrb"],"cassetteNumber":4},{"promoter":[",","rnu6-279"],"coding":["CRISPR2-insrb"],"cassetteNumber":5},{"promoter":[",","cryaa"],"coding":["Cerulean"],"cassetteNumber":6}],"typeAbbreviation":"Tg","typeAbbreviationOrEmpty":"Tg"}'
-    @RequestMapping(value = "/construct-json-mirror", method = RequestMethod.POST)
-    public
-    @ResponseBody
-    ConstructName updateConstructJson(@RequestBody ConstructName constructName) throws Exception {
-        return constructName;
-    }
-
-    @RequestMapping(value = "/create", method = RequestMethod.POST)
-    public
-    @ResponseBody
-    AddConstructFormFields createConstruct(@RequestBody AddConstructFormFields constructValues) throws Exception {
-        return constructValues;
-    }
-
 }
 
 

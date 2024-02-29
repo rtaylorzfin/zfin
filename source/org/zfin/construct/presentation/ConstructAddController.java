@@ -100,7 +100,35 @@ public class ConstructAddController {
     public ConstructDTO getConstruct(String featureZdbID) {
         ConstructCuration feature = (ConstructCuration) HibernateUtil.currentSession().get(ConstructCuration.class, featureZdbID);
         return DTOConversionService.convertToConstructDTO(feature);
-    }   
+    }
 
+    @RequestMapping(value = "/create", method = RequestMethod.POST)
+    public
+    @ResponseBody
+    String createConstruct(@RequestBody AddConstructFormFields constructValues) {
+        Marker newConstruct;
+        //set the construct name from the object
+        constructValues.setConstructName(constructValues.getConstructNameObject().toString());
+        try {
+            HibernateUtil.createTransaction();
+            newConstruct = createNewConstructFromSubmittedForm(constructValues);
+            HibernateUtil.flushAndCommitCurrentSession();
+            //catch both types of exceptions
+        } catch (Exception e) {
+            try {
+                HibernateUtil.rollbackTransaction();
+            } catch (HibernateException he) {
+                LOG.error("Error during roll back of transaction", he);
+            }
+            LOG.error("Error in Transaction", e);
+            if (e instanceof InvalidConstructNameException) {
+                return e.getMessage();
+            }
+            return " Construct  could not be created";
+        }
+
+        String constructLink = MarkerPresentation.getLink(newConstruct);
+        return "\"" + constructLink + "\" successfully added ";
+    }
 }
 

@@ -1,10 +1,11 @@
-import React, {useState} from 'react';
+import React, {useEffect, useState} from 'react';
 import type {ConstructComponent} from './ConstructTypes';
 import ConstructMarkerAutocomplete from './ConstructMarkerAutocomplete';
 
 interface ConstructRegulatoryCodingUnitListProps {
     publicationId: string;
     onChange?: (value: ConstructComponent[]) => void;
+    resetFlag?: number;
 }
 
 
@@ -16,7 +17,7 @@ interface ConstructRegulatoryCodingUnitListProps {
  * @returns JSX Element
  * @constructor
  */
-const ConstructRegulatoryCodingUnitList = ({publicationId, onChange}: ConstructRegulatoryCodingUnitListProps) => {
+const ConstructRegulatoryCodingUnitList = ({publicationId, onChange, resetFlag}: ConstructRegulatoryCodingUnitListProps) => {
     const [rcUnitItems, setRcUnitItems] = useState<ConstructComponent[]>([]);
     const defaultSeparator = '-';
     const [activeTextBoxValue, setActiveTextBoxValue] = useState<ConstructComponent>(null);
@@ -68,6 +69,15 @@ const ConstructRegulatoryCodingUnitList = ({publicationId, onChange}: ConstructR
         onChange(items);
     }
 
+    const resetState = () => {
+        setRcUnitItems([]);
+        setActiveTextBoxValue(null);
+    }
+
+    useEffect(() => {
+        resetState();
+    }, [resetFlag]);
+
     return <div className='promoters' style={styles.rcUnitItems}>
         {rcUnitItems.map((part, index) => (
             <React.Fragment key={index}>
@@ -93,6 +103,7 @@ const ConstructRegulatoryCodingUnitList = ({publicationId, onChange}: ConstructR
                 publicationId={publicationId}
                 onSelect={handleItemSelected}
                 onChangeWithObject={handleAutoCompleteChange}
+                resetFlag={resetFlag}
             />
         </div>
     </div>;

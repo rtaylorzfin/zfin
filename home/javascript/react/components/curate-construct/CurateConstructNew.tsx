@@ -63,6 +63,7 @@ const CurateConstructNew = ({publicationId, show= true}: CurateConstructNewProps
     const [saving, setSaving] = useState(false);
     const [showError, setShowError] = useState(false);
     const [showSuccess, setShowSuccess] = useState(false);
+    const [resetFlag, setResetFlag] = useState<number>(0);
 
     const toggleDisplay = () => setDisplay(!display);
 
@@ -104,6 +105,7 @@ const CurateConstructNew = ({publicationId, show= true}: CurateConstructNewProps
         } catch (error) {
             console.error('Error fetching data:', error);
             setShowError(true);
+            setShowSuccess(false);
         } finally {
             setSaving(false);
         }
@@ -117,6 +119,9 @@ const CurateConstructNew = ({publicationId, show= true}: CurateConstructNewProps
         setPublicNote('');
         setCuratorNote('');
         setCassettesDisplay('');
+        setResetFlag(resetFlag + 1);
+        setShowError(false);
+        setShowSuccess(false);
     }
 
     return <>
@@ -172,7 +177,7 @@ const CurateConstructNew = ({publicationId, show= true}: CurateConstructNewProps
                 </tbody>
             </table>
             <div className='mb-3'>
-                <ConstructCassetteListEditor publicationId={publicationId} onChange={handleCassettesChanged}/>
+                <ConstructCassetteListEditor publicationId={publicationId} onChange={handleCassettesChanged} resetFlag={resetFlag}/>
             </div>
             <div className='mb-3'>
                 <p>

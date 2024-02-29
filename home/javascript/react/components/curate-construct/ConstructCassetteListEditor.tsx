@@ -1,4 +1,4 @@
-import React, {useState} from 'react';
+import React, {useEffect, useState} from 'react';
 import ConstructCassetteEditor, {isValidCassette} from './ConstructCassetteEditor';
 import ConstructCassetteView from './ConstructCassetteView';
 import {Cassette} from './ConstructTypes';
@@ -6,9 +6,10 @@ import {Cassette} from './ConstructTypes';
 interface ConstructCassetteListEditorProps {
     publicationId: string;
     onChange?: (cassettes: Cassette[]) => void;
+    resetFlag?: number;
 }
 
-const ConstructCassetteListEditor = ({publicationId, onChange}: ConstructCassetteListEditorProps) => {
+const ConstructCassetteListEditor = ({publicationId, onChange, resetFlag}: ConstructCassetteListEditorProps) => {
     const [cassettes, setCassettes] = useState<Cassette[]>([]);
     const [cassette, setCassette] = useState<Cassette>(null);
     const [isEditMode, setIsEditMode] = useState(false);
@@ -49,6 +50,16 @@ const ConstructCassetteListEditor = ({publicationId, onChange}: ConstructCassett
         return !isValidCassette(cassette);
     }
 
+    const resetState = () => {
+        setCassettes([]);
+        setCassette(null);
+        setIsEditMode(false);
+    }
+
+    useEffect(() => {
+        resetState();
+    }, [resetFlag]);
+
     return (
         <>
             {cassettes && cassettes.length > 0 && <b>Cassettes</b>}
@@ -61,7 +72,7 @@ const ConstructCassetteListEditor = ({publicationId, onChange}: ConstructCassett
                 <a onClick={(e) => {e.preventDefault(); setIsEditMode(true);}} title='Add' href='#'>Add cassette</a>
             )}
             {showCassetteEditor() && <>
-                <ConstructCassetteEditor publicationId={publicationId} onChange={handleCassetteChange}/>
+                <ConstructCassetteEditor publicationId={publicationId} onChange={handleCassetteChange} resetFlag={resetFlag}/>
                 <input style={{marginTop: '10px'}} type='button' onClick={handleAddCassette} value='Save Cassette' disabled={shouldDisableDoneButton()}/>
             </>}
         </>

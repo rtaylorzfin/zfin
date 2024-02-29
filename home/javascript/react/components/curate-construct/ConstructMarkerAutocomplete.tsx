@@ -40,7 +40,7 @@ import {ConstructComponent} from "./ConstructTypes";
 
 interface ConstructMarkerAutocompleteProps {
     publicationId: string;
-    resetFlag?: boolean;
+    resetFlag?: number;
     onSelect: (suggestion: ConstructComponent) => void;
     onChange?: (value: string) => void;
     onChangeWithObject?: (suggestion: ConstructComponent) => void;
@@ -56,8 +56,13 @@ function ConstructMarkerAutocomplete({publicationId, resetFlag, onSelect, onChan
     const [input, setInput] = useState<string>('');
     const [suggestions, setSuggestions] = useState<ConstructComponent[]>([]);
     const [selectedIndex, setSelectedIndex] = useState<number>(-1);
-    const [reset, setReset] = useState<boolean>(resetFlag);
     const dropdownRef = useRef<HTMLUListElement>(null);
+
+    const resetState = () => {
+        setInput('');
+        setSuggestions([]);
+        setSelectedIndex(-1);
+    }
 
     useEffect(() => {
         if (input.length > 1) {
@@ -71,11 +76,7 @@ function ConstructMarkerAutocomplete({publicationId, resetFlag, onSelect, onChan
     }, [input, publicationId]);
 
     useEffect(() => {
-        if (resetFlag !== reset) {
-            setReset(resetFlag);
-            setInput('');
-            setSuggestions([]);
-        }
+        resetState();
     }, [resetFlag]);
 
     // Handle keyboard navigation
