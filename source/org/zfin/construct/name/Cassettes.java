@@ -44,9 +44,19 @@ public class Cassettes implements Iterable<Cassette>{
 
     public String toString() {
         StringBuilder sb = new StringBuilder();
+
+        int cassetteIndex = 0;
         for (Cassette cassette : cassettes) {
+            //put a comma between cassettes if not already there
+            if (cassetteIndex > 0) {
+                if (!cassette.toString().startsWith(",")) {
+                    sb.append(",");
+                }
+            }
             sb.append(cassette.toString());
+            cassetteIndex++;
         }
+
         return sb.toString();
     }
 
