@@ -11,7 +11,7 @@ import java.util.List;
 @Data
 @NoArgsConstructor
 public class Cassettes implements Iterable<Cassette>{
-    private static final String CASSETTE_SEPARATOR ="Cassette";
+    private static final String CASSETTE_SEPARATOR = "Cassette";
     private List<Cassette> cassettes = new ArrayList<>();
 
     public static Cassettes fromStoredName(String storedName) {
