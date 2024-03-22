@@ -64,4 +64,10 @@ public class Cassettes implements Iterable<Cassette>{
     public Iterator<Cassette> iterator() {
         return cassettes.iterator();
     }
+
+    public void reinitialize() {
+        for (int i = 0; i < cassettes.size(); i++) {
+            cassettes.get(i).setCassetteNumber(i + 1);
+        }
+    }
 }
