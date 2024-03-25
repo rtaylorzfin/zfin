@@ -28,6 +28,7 @@ import org.zfin.marker.Marker;
 import org.zfin.marker.MarkerAlias;
 import org.zfin.marker.MarkerRelationship;
 import org.zfin.marker.repository.MarkerRepository;
+import org.zfin.marker.service.ConstructService;
 import org.zfin.marker.service.MarkerAttributionService;
 import org.zfin.marker.service.MarkerService;
 import org.zfin.mutant.DiseaseAnnotationModel;
@@ -215,10 +216,12 @@ public class MarkerRPCServiceImpl extends ZfinRemoteServiceServlet implements Ma
      *
      */
     public String getEditableRelationshipTypesForConstruct() {
+        //HERE
         return MarkerRelationship.Type.CONTAINS_REGION.toString();
     }
 
     public List<MarkerDTO> getMarkersForRelation(String featureTypeName, String publicationZdbID) {
+        //HERE
         List<Marker> markers = markerRepository.getMarkersForRelation(featureTypeName, publicationZdbID);
         List<MarkerDTO> markerDTOs = new ArrayList<MarkerDTO>();
         for (Marker m : markers) {
@@ -728,7 +731,7 @@ public class MarkerRPCServiceImpl extends ZfinRemoteServiceServlet implements Ma
     }
 
     public List<ConstructRelationshipDTO> getConstructMarkerRelationshipsForPub(String publicationZdbID) {
-
+//HERE
         List<ConstructRelationshipDTO> constructRelnDTOs = new ArrayList<ConstructRelationshipDTO>();
         List<ConstructRelationship> constructMarkerRelationships = constructRepository.getConstructRelationshipsByPublication(publicationZdbID);
         if (CollectionUtils.isNotEmpty(constructMarkerRelationships)) {
@@ -881,6 +884,7 @@ public class MarkerRPCServiceImpl extends ZfinRemoteServiceServlet implements Ma
     }
 
     public List<ConstructDTO> getConstructsForPub(String pubZdbId) {
+        //HERE
         //Publication pub=publicationRepository.getPublication(pubZdbId);
         List<ConstructDTO> constructDTOs = new ArrayList<ConstructDTO>();
         List<ConstructCuration> constructs = markerRepository.getConstructsForAttribution(pubZdbId);
@@ -1052,27 +1056,9 @@ public class MarkerRPCServiceImpl extends ZfinRemoteServiceServlet implements Ma
     }
 
     public void addConstructMarkerRelationShip(ConstructRelationshipDTO constructRelationshipDTO) {
-        ConstructRelationship constructRelationship = new ConstructRelationship();
-        MarkerRelationship markerRelationship = new MarkerRelationship();
-        ConstructDTO constructDTO = constructRelationshipDTO.getConstructDTO();
-        ConstructCuration construct = constructRepository.getConstructByID(constructDTO.getZdbID());
-        constructRelationship.setConstruct(construct);
-
-        MarkerDTO markerDTO = constructRelationshipDTO.getMarkerDTO();
-        Marker marker = RepositoryFactory.getMarkerRepository().getMarkerByID(markerDTO.getZdbID());
-        constructRelationship.setMarker(marker);
-
-        constructRelationship.setType(ConstructRelationship.Type.getType(constructRelationshipDTO.getRelationshipType()));
-        markerRelationship.setFirstMarker(markerRepository.getMarkerByID(constructDTO.getZdbID()));
-        markerRelationship.setSecondMarker(marker);
-        markerRelationship.setType(MarkerRelationship.Type.getType(constructRelationshipDTO.getRelationshipType()));
         HibernateUtil.createTransaction();
-        HibernateUtil.currentSession().save(constructRelationship);
-        HibernateUtil.currentSession().save(markerRelationship);
-        infrastructureRepository.insertPublicAttribution(constructRelationship.getZdbID(), constructRelationshipDTO.getPublicationZdbID());
-//        infrastructureRepository.insertUpdatesTable(markerRelationship.getZdbID(), "ConstructMarkerRelationship", markerRelationship.toString(), "Created construct marker relationship");
+        ConstructService.addConstructMarkerRelationship(constructRelationshipDTO);
         HibernateUtil.flushAndCommitCurrentSession();
-        //InformixUtil.runInformixProcedure("regen_construct_marker", construct.getZdbID() + "");
     }
 
     @Override
