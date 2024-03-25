@@ -152,29 +152,11 @@ public class MarkerRPCServiceImpl extends ZfinRemoteServiceServlet implements Ma
     public void deleteConstructMarkerRelationship(ConstructRelationshipDTO constructRelationshipDTO) {
         HibernateUtil.createTransaction();
 
-        //delete from construct_marker_relationship
-        String zdbID = constructRelationshipDTO.getZdbID();
-        infrastructureRepository.insertUpdatesTable(zdbID, "Construct", zdbID, "",
-            "deleted construct/marker relationship between: "
-            + constructRelationshipDTO.getConstructDTO().getName()
-            + " and "
-            + constructRelationshipDTO.getMarkerDTO().getName()
-            + " of type "
-            + constructRelationshipDTO.getRelationshipType()
-        );
-        infrastructureRepository.deleteActiveDataByZdbID(zdbID);
-
-        //delete from marker_relationship
-        Marker marker1 = markerRepository.getMarker(constructRelationshipDTO.getConstructDTO().getZdbID());
-        Marker marker2 = markerRepository.getMarker(constructRelationshipDTO.getMarkerDTO().getZdbID());
-        MarkerRelationship.Type relationshipType = MarkerRelationship.Type.getType(constructRelationshipDTO.getRelationshipType());
-        MarkerRelationship markerRelationship = markerRepository.getMarkerRelationship(marker1, marker2, relationshipType);
-        if (markerRelationship != null) {
-            infrastructureRepository.deleteActiveDataByZdbID(markerRelationship.getZdbID());
-        }
+        ConstructService.deleteConstructRelationship(constructRelationshipDTO);
 
         HibernateUtil.flushAndCommitCurrentSession();
     }
+
 
     //
 

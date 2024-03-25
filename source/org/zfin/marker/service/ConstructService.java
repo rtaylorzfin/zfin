@@ -33,6 +33,7 @@ import java.util.List;
 import java.util.stream.Collectors;
 
 import static org.zfin.repository.RepositoryFactory.*;
+import static org.zfin.repository.RepositoryFactory.getInfrastructureRepository;
 
 @Service
 public class ConstructService {
@@ -165,6 +166,33 @@ public class ConstructService {
 //        getInfrastructureRepository().insertPublicAttribution(markerRelationship.getZdbID(), publicationZdbID); ??
         HibernateUtil.currentSession().flush();
         return constructRelationship.getZdbID();
+    }
+
+    public static void deleteConstructRelationship(String constructRelationshipZdbID) {
+        //delete from construct_marker_relationship
+        ConstructRelationship crel = getConstructRepository().getConstructRelationshipByID(constructRelationshipZdbID);
+        getInfrastructureRepository().insertUpdatesTable(constructRelationshipZdbID, "Construct", constructRelationshipZdbID, "",
+                "deleted construct/marker relationship between: "
+                        + crel.getConstruct().getName()
+                        + " and "
+                        + crel.getMarker().getName()
+                        + " of type "
+                        + crel.getType().getValue()
+        );
+        getInfrastructureRepository().deleteActiveDataByZdbID(constructRelationshipZdbID);
+
+        //delete from marker_relationship
+        Marker marker1 = getMarkerRepository().getMarker(crel.getConstruct().getZdbID());
+        Marker marker2 = getMarkerRepository().getMarker(crel.getMarker().getZdbID());
+        MarkerRelationship.Type relationshipType = MarkerRelationship.Type.getType(crel.getType().getValue());
+        MarkerRelationship markerRelationship = getMarkerRepository().getMarkerRelationship(marker1, marker2, relationshipType);
+        if (markerRelationship != null) {
+            getInfrastructureRepository().deleteActiveDataByZdbID(markerRelationship.getZdbID());
+        }
+    }
+
+    public static void deleteConstructRelationship(ConstructRelationshipDTO constructRelationshipDTO) {
+        deleteConstructRelationship(constructRelationshipDTO.getZdbID());
     }
 
     private void addFilterQuery(SolrQuery query, FieldName field, String value) {

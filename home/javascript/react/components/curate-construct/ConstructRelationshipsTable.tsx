@@ -115,6 +115,11 @@ const ConstructRelationshipsTable = ({publicationId}: ConstructRelationshipsTabl
         setConstructRelationshipRows(newRows);
     }
 
+    async function removeRelationshipRow(row: ConstructRelationshipRow) {
+        const newRows = constructRelationshipRows.filter((rel) => rel.zdbID !== row.zdbID);
+        setConstructRelationshipRows(newRows);
+    }
+
     async function fetchConstructRelationships() {
         setLoading(true); // Assuming you want to set loading to true at the beginning of the fetch
         try {
@@ -170,6 +175,13 @@ const ConstructRelationshipsTable = ({publicationId}: ConstructRelationshipsTabl
         }
     }
 
+    async function deleteConstructMarkerRelationship(row: ConstructRelationshipRow) {
+        const {constructZdbID, zdbID} = row;
+        await fetch(`${calculatedDomain}/action/api/construct/${constructZdbID}/relationships/${zdbID}`, {
+            method: 'DELETE'
+        });
+    }
+
     async function handleAddButton(event: React.MouseEvent<HTMLButtonElement, MouseEvent>) {
         event.preventDefault();
         if (selectedConstruct === '' || selectedMarker === '') {
@@ -177,7 +189,12 @@ const ConstructRelationshipsTable = ({publicationId}: ConstructRelationshipsTabl
         }
         const newRelationshipFromServer = await submitConstructRelationship(selectedConstruct, selectedMarker, RELATIONSHIP_TO_ADD, publicationId);
         insertNewRelationshipRow(newRelationshipFromServer);
+    }
 
+
+    async function handleDeleteButton(rel: ConstructRelationshipRow) {
+        await deleteConstructMarkerRelationship(rel);
+        removeRelationshipRow(rel);
     }
 
     useEffect(() => {
@@ -225,7 +242,7 @@ const ConstructRelationshipsTable = ({publicationId}: ConstructRelationshipsTabl
                     </td>
                     <td>
                         {rel.relationshipType == RELATIONSHIP_TO_ADD &&
-                        <button type='button' className='gwt-Button'>X</button>}
+                        <button type='button' className='gwt-Button' onClick={() => handleDeleteButton(rel)}>X</button>}
                     </td>
                 </tr>
             ))}

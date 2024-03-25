@@ -6,6 +6,7 @@ import org.apache.commons.collections4.CollectionUtils;
 import org.springframework.beans.factory.annotation.Autowired;
 import org.springframework.validation.BindingResult;
 import org.springframework.web.bind.annotation.*;
+import org.zfin.construct.ConstructCuration;
 import org.zfin.construct.ConstructRelationship;
 import org.zfin.framework.HibernateUtil;
 import org.zfin.framework.api.View;
@@ -13,13 +14,13 @@ import org.zfin.framework.presentation.InvalidWebRequestException;
 import org.zfin.marker.presentation.MarkerRelationshipFormBean;
 import org.zfin.marker.presentation.MarkerRelationshipFormBeanValidator;
 import org.zfin.marker.repository.MarkerRepository;
+import org.zfin.marker.service.ConstructService;
 import org.zfin.marker.service.MarkerService;
 import org.zfin.publication.Publication;
 
 import javax.validation.Valid;
 import java.util.Collection;
 
-import static org.zfin.marker.service.ConstructService.addConstructMarkerRelationship;
 import static org.zfin.repository.RepositoryFactory.getConstructRepository;
 
 @RestController
@@ -32,7 +33,7 @@ public class ConstructMarkerRelationshipAPIController {
 
     @JsonView(View.API.class)
     @RequestMapping(value = "/construct/{zdbID}/relationships", method = RequestMethod.POST)
-    public ConstructRelationship addMarkerRelationship(@PathVariable String zdbID,
+    public ConstructRelationship addConstructMarkerRelationship(@PathVariable String zdbID,
                                                             @Valid @RequestBody MarkerRelationshipFormBean form,
                                                             BindingResult errors) {
         if (errors.hasErrors()) {
@@ -59,11 +60,25 @@ public class ConstructMarkerRelationshipAPIController {
 
         HibernateUtil.createTransaction();
 
-        String constructZdbID = addConstructMarkerRelationship(firstMarker.getZdbID(), secondMarker.getZdbID(), markerRelationshipType.getName(), publication.getZdbID());
+        String constructZdbID = ConstructService.addConstructMarkerRelationship(firstMarker.getZdbID(), secondMarker.getZdbID(), markerRelationshipType.getName(), publication.getZdbID());
 
         HibernateUtil.flushAndCommitCurrentSession();
 
         return getConstructRepository().getConstructRelationshipByID(constructZdbID);
+    }
+
+    @ResponseBody
+    @RequestMapping(value = "/construct/{zdbID}/relationships/{cmrelZdbID}", method = RequestMethod.DELETE)
+    public String deleteConstructMarkerRelationship(@PathVariable String zdbID, @PathVariable String cmrelZdbID) {
+        ConstructRelationship cmrel = getConstructRepository().getConstructRelationshipByID(cmrelZdbID);
+        ConstructCuration construct = cmrel.getConstruct();
+        if (!construct.getZdbID().equals(zdbID)) {
+            throw new RuntimeException("Deleting construct relationship for wrong construct");
+        }
+        HibernateUtil.createTransaction();
+        ConstructService.deleteConstructRelationship(cmrelZdbID);
+        HibernateUtil.flushAndCommitCurrentSession();
+        return cmrelZdbID;
     }
 
 }
