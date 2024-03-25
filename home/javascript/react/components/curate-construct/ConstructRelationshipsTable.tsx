@@ -11,6 +11,7 @@ type ConstructRelationshipRow = {
     constructType: string;
     constructName: string;
     constructLabel: string;
+    constructCssClass: string;
     relationshipType: string;
     markerLabel: string;
     markerZdbID: string;
@@ -51,49 +52,74 @@ const ConstructRelationshipsTable = ({publicationId}: ConstructRelationshipsTabl
     const [selectedConstruct, setSelectedConstruct] = React.useState<string>('');
     const RELATIONSHIP_TO_ADD = 'contains region';
 
+    function getOrderInConstruct(constructName: string, markerLabel: string) {
+        return constructName.indexOf(markerLabel) === -1 ? 1000 : constructName.indexOf(markerLabel);
+    }
+
+    /**
+     * Sorts the rows by constructName, then by special logic(*), then by relationshipType, then by markerLabel
+     * (*) The special logic is that if the markerLabel appears in the constructName, it should appear in the order in which it appears in the constructName
+     * @param constructRelationshipRows
+     */
     function sortConstructRelationshipRows(constructRelationshipRows: ConstructRelationshipRow[]) {
         const sortedRows = constructRelationshipRows.sort((a, b) => {
             if (a.constructName === b.constructName) {
-                if (a.relationshipType === b.relationshipType) {
-                    return a.markerLabel.localeCompare(b.markerLabel);
+                const constructName = a.constructName;
+                const orderInConstructA = getOrderInConstruct(constructName, a.markerLabel);
+                const orderInConstructB = getOrderInConstruct(constructName, b.markerLabel);
+
+                if (orderInConstructA === orderInConstructB) {
+                    if (a.relationshipType === b.relationshipType) {
+                        return a.markerLabel.localeCompare(b.markerLabel);
+                    }
+                    return a.relationshipType.localeCompare(b.relationshipType);
                 }
-                return a.relationshipType.localeCompare(b.relationshipType);
+                return orderInConstructA - orderInConstructB;
             }
             return a.constructName.localeCompare(b.constructName);
         });
-        return removeRedundantLabels(sortedRows);
+        return styleRowsForTable(sortedRows);
     }
 
-    function removeRedundantLabels(constructRelationshipRows: ConstructRelationshipRow[]) {
+    /**
+     * The final render of the table should omit the construct name when it repeats from row to row.
+     * Each row should have a class alternating between 'evengroup' and 'oddgroup' when construct name changes.
+     * The first row of each group (a group being all the same construct name) should also have 'newgroup'
+     *
+     * @param constructRelationshipRows
+     */
+    function styleRowsForTable(constructRelationshipRows: ConstructRelationshipRow[]) {
         let lastConstructName = '';
+        let constructCssClass = 'oddgroup';
 
         return constructRelationshipRows.map( (rel) => {
+            constructCssClass = constructCssClass.replace(' newgroup', '');
             if (rel.constructName === lastConstructName) {
-                return {...rel, constructLabel: ''};
+                return {...rel, constructLabel: '', constructCssClass};
             }
             lastConstructName = rel.constructName;
-            return rel;
+
+            constructCssClass = constructCssClass === 'oddgroup' ? 'evengroup' : 'oddgroup';
+            constructCssClass = constructCssClass + ' newgroup';
+
+            return {...rel, constructCssClass};
         });
     }
 
     async function submitConstructRelationship (constructZdbID: string, markerZdbID: string, relationshipType: string, publicationZdbID: string) {
-        try {
-            const response = await fetch(`${calculatedDomain}/action/api/construct/${constructZdbID}/relationships`, {
-                method: 'POST',
-                headers: {
-                    'Content-Type': 'application/json',
-                },
-                body: JSON.stringify({
-                    firstMarker: {zdbID: constructZdbID},
-                    secondMarker: {zdbID: markerZdbID},
-                    markerRelationshipType: {name: relationshipType},
-                    references: [{zdbID: publicationZdbID}]
-                }),
-            });
-            return await response.json();
-        } catch (error) {
-            console.error('Failed to submit construct relationship:', error);
-        }
+        const response = await fetch(`${calculatedDomain}/action/api/construct/${constructZdbID}/relationships`, {
+            method: 'POST',
+            headers: {
+                'Content-Type': 'application/json',
+            },
+            body: JSON.stringify({
+                firstMarker: {zdbID: constructZdbID},
+                secondMarker: {zdbID: markerZdbID},
+                markerRelationshipType: {name: relationshipType},
+                references: [{zdbID: publicationZdbID}]
+            }),
+        });
+        return await response.json();
     }
 
     async function insertNewRelationshipRow(serverResponseData: NewConstructRelationshipServerResponse) {
@@ -106,6 +132,7 @@ const ConstructRelationshipsTable = ({publicationId}: ConstructRelationshipsTabl
             constructType: '',
             constructName: construct.name,
             constructLabel: construct.name,
+            constructCssClass: '',
             relationshipType: RELATIONSHIP_TO_ADD,
             markerLabel: marker.abbreviation,
             markerZdbID: marker.zdbID
@@ -182,19 +209,26 @@ const ConstructRelationshipsTable = ({publicationId}: ConstructRelationshipsTabl
         });
     }
 
-    async function handleAddButton(event: React.MouseEvent<HTMLButtonElement, MouseEvent>) {
-        event.preventDefault();
+    async function handleAddButton() {
         if (selectedConstruct === '' || selectedMarker === '') {
             return;
         }
-        const newRelationshipFromServer = await submitConstructRelationship(selectedConstruct, selectedMarker, RELATIONSHIP_TO_ADD, publicationId);
-        insertNewRelationshipRow(newRelationshipFromServer);
+        try {
+            const newRelationshipFromServer = await submitConstructRelationship(selectedConstruct, selectedMarker, RELATIONSHIP_TO_ADD, publicationId);
+            insertNewRelationshipRow(newRelationshipFromServer);
+        } catch (error) {
+            alert('Failed to add construct marker relationship');
+        }
     }
 
 
     async function handleDeleteButton(rel: ConstructRelationshipRow) {
-        await deleteConstructMarkerRelationship(rel);
-        removeRelationshipRow(rel);
+        try {
+            await deleteConstructMarkerRelationship(rel);
+            removeRelationshipRow(rel);
+        } catch (error) {
+            alert('Failed to delete construct marker relationship');
+        }
     }
 
     useEffect(() => {
@@ -221,7 +255,7 @@ const ConstructRelationshipsTable = ({publicationId}: ConstructRelationshipsTabl
                 <td>Delete</td>
             </tr>
             {constructRelationshipRows.map(rel => (
-                <tr className='experiment-row' key={rel.zdbID}>
+                <tr className={'experiment-row ' + rel.constructCssClass } key={rel.zdbID}>
                     <td>
                         <div className='gwt-HTML'>
                             {rel.constructLabel !== '' && <a href={`/${rel.constructZdbID}`} title={rel.constructLabel}>{rel.constructLabel}</a>}
@@ -242,7 +276,7 @@ const ConstructRelationshipsTable = ({publicationId}: ConstructRelationshipsTabl
                     </td>
                     <td>
                         {rel.relationshipType == RELATIONSHIP_TO_ADD &&
-                        <button type='button' className='gwt-Button' onClick={() => handleDeleteButton(rel)}>X</button>}
+                            <button type='button' className='gwt-Button' onClick={() => handleDeleteButton(rel)}>X</button>}
                     </td>
                 </tr>
             ))}
