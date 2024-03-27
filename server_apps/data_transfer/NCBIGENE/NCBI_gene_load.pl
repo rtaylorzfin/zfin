@@ -592,9 +592,19 @@ sub downloadNCBIFilesForRelease {
         $hash = md5File('RefSeqCatalog.gz');
         print "RefSeqCatalog.gz md5: $hash at " . strftime("%Y-%m-%d %H:%M:%S", localtime(time())) . " \n";
 
+        #filter to only zebrafish records (unless it already exists)
+        if (!-e "RefSeqCatalog.danio.$hash.gz") {
+            doSystemCommand("cat RefSeqCatalog.gz | gunzip -d | grep Danio | gzip -c > RefSeqCatalog.danio.$hash.gz");
+        }
+
         downloadOrUseLocalFile("ftp://ftp.ncbi.nlm.nih.gov/gene/DATA/gene2accession.gz", "gene2accession.gz");
         $hash = md5File('gene2accession.gz');
         print "gene2accession.gz md5: $hash at " . strftime("%Y-%m-%d %H:%M:%S", localtime(time())) . " \n";
+
+        #filter to only zebrafish records (unless it already exists)
+        if (!-e "gene2accession.danio.$hash.gz") {
+            doSystemCommand("cat gene2accession.gz | gunzip -d | grep -E '7955|tax_id' | gzip -c > gene2accession.danio.$hash.gz");
+        }
 
         downloadOrUseLocalFile("ftp://ftp.ncbi.nlm.nih.gov/gene/DATA/ARCHIVE/gene2vega.gz", "gene2vega.gz");
         $hash = md5File('gene2vega.gz');
