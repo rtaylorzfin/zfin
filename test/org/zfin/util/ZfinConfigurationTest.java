@@ -1,8 +1,8 @@
 package org.zfin.util;
 
-import org.apache.commons.configuration.CompositeConfiguration;
-import org.apache.commons.configuration.Configuration;
-import org.apache.commons.configuration.PropertiesConfiguration;
+import org.apache.commons.configuration2.CompositeConfiguration;
+import org.apache.commons.configuration2.Configuration;
+import org.apache.commons.configuration2.builder.fluent.Configurations;
 import org.junit.After;
 import org.junit.Before;
 import org.junit.Test;
@@ -18,7 +18,7 @@ import static org.junit.Assert.assertNotNull;
  * Test class for Configuration class.
  */
 public class ZfinConfigurationTest {
-
+    private static Configurations configurations = null;
     private static Configuration defaultConfiguration = null;
     private static Configuration implConfiguration = null;
     private static final String ENV = "env.";
@@ -26,8 +26,9 @@ public class ZfinConfigurationTest {
 
     @Before
     public void setup() throws Exception {
-        defaultConfiguration = new PropertiesConfiguration("test-default.properties");
-        implConfiguration = new PropertiesConfiguration("test.properties");
+        configurations = new Configurations();
+        defaultConfiguration = configurations.properties("test-default.properties");
+        implConfiguration = configurations.properties("test.properties");
         openEnvironmentFile();
     }
 

@@ -1,6 +1,6 @@
 package org.zfin.uniquery;
 
-import org.apache.commons.configuration.CompositeConfiguration;
+import org.apache.commons.configuration2.CompositeConfiguration;
 import org.apache.logging.log4j.LogManager; import org.apache.logging.log4j.Logger;
 import org.zfin.infrastructure.ActiveData;
 import org.zfin.infrastructure.ActiveSource;

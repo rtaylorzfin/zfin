@@ -945,7 +945,7 @@ dependencies {
     implementation files('home/WEB-INF/lib/log4j-slf4j-impl-2.13.3.jar')
 
     implementation group: 'net.sourceforge.htmlunit', name: 'htmlunit', version: '2.62.0'
-    implementation group: 'commons-configuration', name: 'commons-configuration', version: '1.6'
+    implementation group: 'org.apache.commons', name: 'commons-configuration2', version: '2.10.1'
     implementation group: 'commons-net', name: 'commons-net', version: '1.4.1'
     implementation group: 'org.apache.commons', name: 'commons-csv', version: '1.4'
     implementation group: 'com.github.samtools', name: 'htsjdk', version: '2.20.3'

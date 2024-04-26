@@ -1,6 +1,6 @@
 package org.zfin.uniquery;
 
-import org.apache.commons.configuration.CompositeConfiguration;
+import org.apache.commons.configuration2.CompositeConfiguration;
 
 import java.util.List;
 
