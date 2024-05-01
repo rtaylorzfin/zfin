@@ -3,8 +3,8 @@ package org.zfin.gwt.root.server.rpc;
 import com.google.gwt.user.server.rpc.RemoteServiceServlet;
 import org.apache.logging.log4j.LogManager; import org.apache.logging.log4j.Logger;
 
-import javax.servlet.ServletException;
-import javax.servlet.http.HttpServletRequest;
+import jakarta.servlet.ServletException;
+import jakarta.servlet.http.HttpServletRequest;
 import java.io.IOException;
 
 /**
