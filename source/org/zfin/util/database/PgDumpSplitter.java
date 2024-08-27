@@ -5,7 +5,11 @@ import java.util.*;
 import java.util.regex.*;
 
 /**
- * a simple java application that can read an sql file and break it up into its constituent parts.  It should take an input file from `pg_dumpall --clean` (eg. 20230101.sql) and generate output files in a subdirectory (20230101):
+ * a simple java application that can read an sql file and break it up into its constituent parts.  It should take an input file from `pg_dumpall --clean` (eg. 20230101.sql) and generate output files in a subdirectory (20230101).
+ * The original file can be reconstructed by concatenating the output files in order.
+ * The output files should be named according to the section of the input file they came from.
+ * The sections are defined by comments in the input file.
+ *
  *
  * - 01 - preamble.sql
  * - 02 - schemas-and-extensions.sql
