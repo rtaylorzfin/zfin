@@ -1,8 +1,8 @@
 package org.zfin.util.database;
 
-import com.github.difflib.DiffUtils;
-import com.github.difflib.UnifiedDiffUtils;
-import com.github.difflib.patch.Patch;
+//import com.github.difflib.DiffUtils;
+//import com.github.difflib.UnifiedDiffUtils;
+//import com.github.difflib.patch.Patch;
 import org.apache.commons.io.IOUtils;
 
 import java.io.File;
@@ -157,17 +157,17 @@ public class PgDumpSplitDiff {
         saveDiffUsingDiffCommand(file1, file2, diffFile);
     }
 
-    private void saveDiffUsingJavaLib(String file1, String file2, String diffFile) {
-        try {
-            List<String> original = Files.readAllLines(new File(file1).toPath());
-            List<String> revised = Files.readAllLines(new File(file2).toPath());
-            Patch<String> patch = DiffUtils.diff(original, revised);
-            List<String> udiff = UnifiedDiffUtils.generateUnifiedDiff(file1, file2, original, patch, 3);
-            Files.write(new File(diffFile).toPath(), udiff);
-        } catch (IOException e) {
-            throw new RuntimeException(e);
-        }
-    }
+//    private void saveDiffUsingJavaLib(String file1, String file2, String diffFile) {
+//        try {
+//            List<String> original = Files.readAllLines(new File(file1).toPath());
+//            List<String> revised = Files.readAllLines(new File(file2).toPath());
+//            Patch<String> patch = DiffUtils.diff(original, revised);
+//            List<String> udiff = UnifiedDiffUtils.generateUnifiedDiff(file1, file2, original, patch, 3);
+//            Files.write(new File(diffFile).toPath(), udiff);
+//        } catch (IOException e) {
+//            throw new RuntimeException(e);
+//        }
+//    }
 
     /**
      * Use the diff command to generate a diff file. This seems much faster than the java version
