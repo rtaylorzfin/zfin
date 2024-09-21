@@ -184,6 +184,7 @@
         <security:intercept-url pattern="/action/str/*/edit" access="hasAuthority('root') or ${DISABLE_SECURITY}"/>
 
         <security:intercept-url pattern="/action/updates/**" access="hasAuthority('root') or ${DISABLE_SECURITY}"/>
+        <security:intercept-url pattern="/action/api/updates/**" access="hasAuthority('root') or ${DISABLE_SECURITY}"/>
 
         <security:intercept-url pattern="/action/feature/alleleDesig-add-form" access="hasAuthority('root') or ${DISABLE_SECURITY}"/>
         <security:intercept-url pattern="/action/antibody/add" access="hasAuthority('root') or ${DISABLE_SECURITY}"/>
