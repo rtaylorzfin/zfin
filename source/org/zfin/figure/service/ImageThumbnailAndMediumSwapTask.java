@@ -82,12 +82,12 @@ public class ImageThumbnailAndMediumSwapTask extends AbstractScriptWrapper {
 
     private void checkAnomalies(File thumbnailFile, File mediumFile) {
         String fileStem = thumbnailFile.getAbsolutePath().substring(0, thumbnailFile.getAbsolutePath().lastIndexOf('.'));
-        if (fileStem.endsWith("_thumb")) {
-            throw new RuntimeException("Thumbnail file should not end with _thumb");
+        if (!fileStem.endsWith("_thumb")) {
+            throw new RuntimeException("Thumbnail file should end with _thumb");
         }
         fileStem = mediumFile.getAbsolutePath().substring(0, mediumFile.getAbsolutePath().lastIndexOf('.'));
-        if (fileStem.endsWith("_medium")) {
-            throw new RuntimeException("Medium file should not end with _medium");
+        if (!fileStem.endsWith("_medium")) {
+            throw new RuntimeException("Medium file should end with _medium");
         }
 
         String extension = thumbnailFile.getAbsolutePath().substring(thumbnailFile.getAbsolutePath().lastIndexOf('.'));
