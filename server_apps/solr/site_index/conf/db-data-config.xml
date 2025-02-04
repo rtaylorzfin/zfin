@@ -870,7 +870,6 @@
 
         </entity>
 
-
         <entity name="marker"
                 query="select
                            mrkr_zdb_id as id,
@@ -1131,6 +1130,10 @@
 
         <entity name="fish"
                 query="
+                SELECT
+                    fish_data.*,
+                    nvl (pub_count, 0) AS attribution_count
+                FROM (
                     SELECT fish_zdb_id     AS id,
                            '/'
                            || fish_zdb_id  AS url,
@@ -1174,7 +1177,15 @@
                                                WHERE  fishstr_fish_zdb_id = fish_zdb_id) ) )
                            AND fish_genotype_zdb_id = g.geno_zdb_id
                            AND genoback_geno_zdb_id = g.geno_zdb_id
-                           AND genoback_background_zdb_id = bg.geno_zdb_id;"
+                           AND genoback_background_zdb_id = bg.geno_zdb_id) AS fish_data
+                LEFT JOIN (
+                    SELECT
+                        recattrib_data_zdb_id,
+                        count(recattrib_source_zdb_id) AS pub_count
+                    FROM
+                        record_attribution
+                    GROUP BY
+                        recattrib_data_zdb_id) AS pub_counts ON fish_data.id = pub_counts.recattrib_data_zdb_id"
         >
 
             <entity name="fish_reporter_line_category"
@@ -1621,16 +1632,26 @@
             />
 
             <entity name="fish_phenotype_quality_parent"
-                    query="select distinct
-                           term_ont_id as xref, term_name as phenotype_quality_parent,
-                           genox_fish_zdb_id as fish_zdb_id
-                           from phenotype_observation_generated ps, phenotype_source_generated, fish_experiment, term, all_term_contains
-                           where term_zdb_id = alltermcon_container_zdb_id
-                            and alltermcon_contained_zdb_id = psg_quality_zdb_id
-                            and psg_pg_id = pg_id
-                            and pg_genox_zdb_id = genox_zdb_id
-                             and ps.psg_tag in ('abnormal', 'exacerbated', 'ameliorated')
-                            and alltermcon_container_zdb_id != alltermcon_contained_zdb_id;"
+                    query="
+                        SELECT
+                            DISTINCT
+                            term_ont_id AS xref,
+                            term_name AS phenotype_quality_parent,
+                            genox_fish_zdb_id AS fish_zdb_id
+                        FROM
+                            phenotype_observation_generated psg
+                            JOIN phenotype_source_generated pg ON psg.psg_pg_id = pg.pg_id
+                            JOIN fish_experiment fe ON pg.pg_genox_zdb_id = fe.genox_zdb_id
+                            JOIN all_term_contains atc ON atc.alltermcon_contained_zdb_id = psg.psg_quality_zdb_id
+                            JOIN term t ON t.term_zdb_id = atc.alltermcon_container_zdb_id
+                        WHERE
+                            psg.psg_tag IN ('abnormal', 'exacerbated', 'ameliorated')
+                            AND atc.alltermcon_container_zdb_id != atc.alltermcon_contained_zdb_id
+                    ORDER BY
+                        term_ont_id,
+                        term_name,
+                        genox_fish_zdb_id
+                    "
                     where="fish_zdb_id=fish.id"
                     cacheImpl="SortedMapBackedCache"
             />
@@ -2279,7 +2300,11 @@
         </entity>
 
         <entity name="str"
-                query="select
+                query="
+                SELECT
+                    str_data.*,
+                    nvl (pub_count, 0) AS attribution_count
+                FROM ( SELECT
                         mrkr_zdb_id as id,
                         'Sequence Targeting Reagent (STR)' as category,
                         mrkr_abbrev as name,
@@ -2293,7 +2318,16 @@
                         from marker
                              join marker_types on mrkr_type = marker_type
                              join marker_type_group_member on mtgrpmem_mrkr_type = mrkr_type
-                        where mtgrpmem_mrkr_type_group = 'KNOCKDOWN_REAGENT';"
+                        where mtgrpmem_mrkr_type_group = 'KNOCKDOWN_REAGENT') AS str_data
+                LEFT JOIN (
+                    SELECT
+                        recattrib_data_zdb_id,
+                        count(recattrib_source_zdb_id) AS pub_count
+                    FROM
+                        record_attribution
+                    GROUP BY
+                        recattrib_data_zdb_id) AS pub_counts ON str_data.id = pub_counts.recattrib_data_zdb_id
+"
         >
 
             <entity name="str_name_sort"
@@ -3124,59 +3158,36 @@
         </entity>
 
         <entity name="expression"
-                query="select
-                        'Expression' as category,
-                        'xpatex-' || efs_pk_id as id,
-                        efs_xpatex_zdb_id as xpat_zdb_id,
-                        fig_zdb_id as fig_zdb_id,
-                        fish_name as fish,
-                        fish_zdb_id as fish_zdb_id,
-                        xpatex_gene_zdb_id as gene_zdb_id,
-                        xpatex_assay_name as assay,
-                        fig_label as figure,
-                        '/' || fig_zdb_id as url,
-                        pub_date as date,
-                        fig_zdb_id as xref,
-                        pub_mini_ref as publication,
-                        publication.zdb_id as pub_zdb_id,
-                        authors as author_string,
-                        year(pub_date) as year,
-                        (select mrkr_abbrev_order from marker where mrkr_zdb_id = xpatex_gene_zdb_id) as gene_sort,
-                        case
-                             when exists (select 'x' from clone where clone_problem_type = 'Chimeric' and xpatex_probe_feature_zdb_id = clone_mrkr_zdb_id)
-                             then (select mrkr_abbrev || ' expression in ' || fish_name || ' from ' || pub_mini_ref || ' ' || nvl(fig_label,'') as full_name from marker where mrkr_zdb_id = xpatex_probe_feature_zdb_id)
-                             when xpatex_gene_zdb_id is not null and substring(xpatex_gene_zdb_id from 1 for 8) != 'ZDB-EFG'
-                             then (select '&lt;i&gt;' || mrkr_abbrev || '&lt;/i&gt; expression in ' || fish_name || ' from ' || pub_mini_ref || ' ' || nvl(fig_label,'') as full_name from marker where mrkr_zdb_id = xpatex_gene_zdb_id)
-                             when xpatex_gene_zdb_id is not null and substring(xpatex_gene_zdb_id from 1 for 8) != 'ZDB-EFG'
-                             then (select mrkr_abbrev || ' expression in ' || fish_name || ' from ' || pub_mini_ref || ' ' || nvl(fig_label,'') as full_name from marker where mrkr_zdb_id = xpatex_gene_zdb_id)
-                             else (select mrkr_abbrev || ' expression in ' || fish_name || ' from ' || pub_mini_ref|| ' ' || nvl(fig_label,'') as full_name from marker where mrkr_zdb_id = xpatex_atb_zdb_id)
-                         end as name,
-                         case
-                             when exists (select 'x' from clone where clone_problem_type = 'Chimeric' and xpatex_probe_feature_zdb_id = clone_mrkr_zdb_id)
-                             then (select mrkr_abbrev || ' expression in ' || fish_name || ' from ' || pub_mini_ref || ' ' || nvl(fig_label,'') as full_name from marker where mrkr_zdb_id = xpatex_probe_feature_zdb_id)
-                             when xpatex_gene_zdb_id is not null and substring(xpatex_gene_zdb_id from 1 for 8) != 'ZDB-EFG'
-                             then (select '&lt;i&gt;' || mrkr_abbrev || '&lt;/i&gt; expression in ' || fish_name || ' from ' || pub_mini_ref || ' ' || nvl(fig_label,'') as full_name from marker where mrkr_zdb_id = xpatex_gene_zdb_id)
-                             when xpatex_gene_zdb_id is not null and substring(xpatex_gene_zdb_id from 1 for 8) != 'ZDB-EFG'
-                             then (select mrkr_abbrev || ' expression in ' || fish_name || ' from ' || pub_mini_ref || ' ' || nvl(fig_label,'') as full_name from marker where mrkr_zdb_id = xpatex_gene_zdb_id)
-                             else (select mrkr_abbrev || ' expression in ' || fish_name || ' from ' || pub_mini_ref || ' ' || nvl(fig_label,'') as full_name from marker where mrkr_zdb_id = xpatex_atb_zdb_id)
-                         end as full_name,
-                         case
-                             when exists (select 'x' from clone where clone_problem_type = 'Chimeric' and xpatex_probe_feature_zdb_id = clone_mrkr_zdb_id)
-                             then (select mrkr_abbrev_order || ' expression in ' || fish_name_order || ' from ' || pub_mini_ref || ' ' || nvl(fig_full_label,'') as full_name from marker where mrkr_zdb_id = xpatex_probe_feature_zdb_id)
-                             when xpatex_gene_zdb_id is not null and substring(xpatex_gene_zdb_id from 1 for 8) != 'ZDB-EFG'
-                             then (select mrkr_abbrev_order || ' expression in ' || fish_name_order || ' from ' || pub_mini_ref || ' ' || nvl(fig_full_label,'') as full_name from marker where mrkr_zdb_id = xpatex_gene_zdb_id)
-                             when xpatex_gene_zdb_id is not null and substring(xpatex_gene_zdb_id from 1 for 8) != 'ZDB-EFG'
-                             then (select mrkr_abbrev_order || ' expression in ' || fish_name_order || ' from ' || pub_mini_ref || ' ' || nvl(fig_full_label,'') as full_name from marker where mrkr_zdb_id = xpatex_gene_zdb_id)
-                             else (select mrkr_abbrev_order || ' expression in ' || fish_name_order || ' from ' || pub_mini_ref|| ' ' || nvl(fig_full_label,'') as full_name from marker where mrkr_zdb_id = xpatex_atb_zdb_id)
-                         end as name_sort,
-                         to_date(get_date_from_id(efs_xpatex_zdb_id,'YYYY-MM-DD'),'%Y-%m-%d') as date
-                        from expression_experiment2
-                             join expression_figure_stage on efs_xpatex_zdb_id = xpatex_zdb_id
-                             join fish_experiment on xpatex_genox_zdb_id = genox_zdb_id
-                             join fish on genox_fish_zdb_id = fish_zdb_id
-                             join figure on efs_fig_zdb_id = fig_zdb_id
-                             join publication on fig_source_zdb_id = publication.zdb_id"
+                query="SELECT
+                             direct_esags,
+                             parent_esags,
+                            category,
+                            id,
+                            xpat_zdb_id,
+                            fig_zdb_id,
+                            fish,
+                            fish_zdb_id,
+                            gene_zdb_id,
+                            assay,
+                            figure,
+                            url,
+                            date,
+                            xref,
+                            publication,
+                            pub_zdb_id,
+                            author_string,
+                            year,
+                            gene_sort,
+                            name,
+                            full_name,
+                            name_sort,
+                            date2
+                            FROM solr_expression_base
+"
+
         >
+            <field column="direct_esags" name="expression_expression_anatomy_related_by_gene_and_experiment_direct" splitBy="\|\|" />
+            <field column="parent_esags" name="expression_expression_anatomy_related_by_gene_and_experiment_parent" splitBy="\|\|" />
 
             <entity name="expression_clone"
                     query="select
@@ -3311,6 +3322,7 @@
             <!-- These two expression anatomy queries return so many rows without the where clause that it
             actually makes using SortedMapBackedCache slower than just running the them with a where clause
             for each parent entity. So we're intentionally not using the cache for these. -->
+            <!--
             <entity name="expression_expression_anatomy_related_by_gene_and_experiment_direct"
                     query="select esag_term_name as expression_anatomy_related_by_gene_and_experiment_direct
                             from expression_search_anatomy_generated
@@ -3322,6 +3334,7 @@
                             from expression_search_anatomy_generated
                             where esag_efs_id='${expression.id}'"
             />
+            -->
 
             <entity name="expression_image"
                     query="select
@@ -5516,7 +5529,7 @@ and child.term_ontology = 'disease_ontology';
                     query="select
                         mrkr_abbrev as zebrafish_gene,
                         mrkr_name as zebrafish_gene_full_name,
-                        xpatfig_fig_zdb_id as fig_zdb_id
+                        efs_fig_zdb_id as fig_zdb_id
                         from expression_experiment2
                              join marker on xpatex_gene_zdb_id = mrkr_zdb_id
                              join expression_figure_stage on xpatex_zdb_id = efs_xpatex_zdb_id
@@ -5529,7 +5542,7 @@ and child.term_ontology = 'disease_ontology';
             <entity name="figure_zebrafish_gene_alias"
                     query="select
                             dalias_alias as zebrafish_gene_previous_name,
-                            xpatfig_fig_zdb_id as fig_zdb_id
+                            efs_fig_zdb_id as fig_zdb_id
                             from expression_experiment2
                                  join data_alias on xpatex_gene_zdb_id = dalias_data_zdb_id
                                  join expression_figure_stage on xpatex_zdb_id = efs_xpatex_zdb_id
@@ -5542,7 +5555,7 @@ and child.term_ontology = 'disease_ontology';
             <entity name="figure_reporter_gene"
                     query="select
                             mrkr_abbrev as reporter_gene,
-                            xpatfig_fig_zdb_id as fig_zdb_id
+                            efs_fig_zdb_id as fig_zdb_id
                             from expression_experiment2
                                  join expression_figure_stage on xpatex_zdb_id = efs_xpatex_zdb_id
                                  join expression_result2 on efs_pk_id = xpatres_efs_id
@@ -5951,7 +5964,7 @@ and child.term_ontology = 'disease_ontology';
                     query="
                         select
                             construct_name as construct,
-                            xpatfig_fig_zdb_id as fig_zdb_id,
+                            efs_fig_zdb_id as fig_zdb_id,
                             construct_zdb_id as xref
                         from construct
                              join feature_marker_relationship on construct_zdb_id = fmrel_mrkr_zdb_id
@@ -5975,7 +5988,7 @@ and child.term_ontology = 'disease_ontology';
                             distinct b.mrkr_zdb_id as xref,
                             b.mrkr_abbrev as coding_sequence,
                             dalias_alias as coding_sequence_full_name,
-                            xpatfig_fig_zdb_id as fig_zdb_id
+                            efs_fig_zdb_id as fig_zdb_id
                         from construct
                                  join feature_marker_relationship on construct_zdb_id = fmrel_mrkr_zdb_id
                                  join genotype_feature on fmrel_ftr_zdb_id = genofeat_feature_zdb_id
@@ -6044,9 +6057,11 @@ and child.term_ontology = 'disease_ontology';
                               address as postal_address,
                               nvl(person_country, 'Unknown') as country,
                               email as email_address,
-                              orcid_id as related_accession
+                              orcid_id as related_accession,
+                              nvl(pub_count, 0) as attribution_count
                        from person
-                       where pers_is_hidden = 'f'"
+                            left join (select source_id, count(target_id) as pub_count from int_person_pub group by source_id) as pub_counts on zdb_id = source_id
+                       where pers_is_hidden = false "
         >
             <field column="biography" stripHTML="true"/>
 
