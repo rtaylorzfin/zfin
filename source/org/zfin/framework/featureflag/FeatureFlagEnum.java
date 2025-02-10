@@ -5,6 +5,7 @@ import java.util.NoSuchElementException;
 
 public enum FeatureFlagEnum {
     JBROWSE("jBrowse", false),
+    JBROWSE2("jBrowse2", false),
     CURATOR_JOB_POSTING("Curator Job Posting", true),
     USE_NAVIGATION_COUNTER("Show Navigation Counter", false),
     SHOW_ALLIANCE_DATA("Show Alliance Data", false),
