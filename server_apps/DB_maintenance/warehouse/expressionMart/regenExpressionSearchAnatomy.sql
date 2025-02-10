@@ -23,7 +23,7 @@ CREATE TEMP TABLE expression_search_anatomy_generated_temp AS
      join
     fish fish2 on genox2.genox_fish_zdb_id = fish2.fish_zdb_id
      join
-    expression_result2 er on efs2.efs_pk_id = er.xpatres_efs_id and AND er.xpatres_expression_found = 't'
+    expression_result2 er on efs2.efs_pk_id = er.xpatres_efs_id AND er.xpatres_expression_found = 't'
      join
     all_term_contains atc on  (er.xpatres_superterm_zdb_id = atc.alltermcon_contained_zdb_id OR
          er.xpatres_subterm_zdb_id = atc.alltermcon_contained_zdb_id)
