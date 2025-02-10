@@ -24,11 +24,11 @@ public class GenomeBrowserFactory {
     }
 
     public GenomeBrowserImageBuilder getImageBuilder() {
-        if (FeatureFlags.isFlagEnabled(FeatureFlagEnum.JBROWSE)) {
+//        if (FeatureFlags.isFlagEnabled(FeatureFlagEnum.JBROWSE)) {
             return new JBrowseImageBuilder();
-        } else {
-            return new GBrowseImageBuilder();
-        }
+//        } else {
+//            return new GBrowseImageBuilder();
+//        }
     }
 
 }
