@@ -1,36 +1,36 @@
 export default {
-    name: "GRCz11",
-    displayName: "Danio rerio (GRCz11)",
+    name: 'GRCz11',
+    displayName: 'Danio rerio (GRCz11)',
     sequence: {
-        type: "ReferenceSequenceTrack",
-        trackId: "GRCz11_refseq",
+        type: 'ReferenceSequenceTrack',
+        trackId: 'GRCz11_refseq',
         adapter: {
-            type: "BgzipFastaAdapter",
+            type: 'BgzipFastaAdapter',
             fastaLocation: {
-                locationType: "UriLocation",
-                uri: "https://s3.amazonaws.com/agrjbrowse/fasta/GCF_000002035.6_GRCz11_genomic.fna.gz",
+                locationType: 'UriLocation',
+                uri: 'https://s3.amazonaws.com/agrjbrowse/fasta/GCF_000002035.6_GRCz11_genomic.fna.gz',
             },
             faiLocation: {
-                locationType: "UriLocation",
-                uri: "https://s3.amazonaws.com/agrjbrowse/fasta/GCF_000002035.6_GRCz11_genomic.fna.gz.fai",
+                locationType: 'UriLocation',
+                uri: 'https://s3.amazonaws.com/agrjbrowse/fasta/GCF_000002035.6_GRCz11_genomic.fna.gz.fai',
             },
             metadataLocation: {
-                locationType: "UriLocation",
-                uri: "https://s3.amazonaws.com/agrjbrowse/fasta/GCF_000002035.6_GRCz11_genomic.yaml",
+                locationType: 'UriLocation',
+                uri: 'https://s3.amazonaws.com/agrjbrowse/fasta/GCF_000002035.6_GRCz11_genomic.yaml',
             },
             gziLocation: {
-                locationType: "UriLocation",
-                uri: "https://s3.amazonaws.com/agrjbrowse/fasta/GCF_000002035.6_GRCz11_genomic.fna.gz.gzi",
+                locationType: 'UriLocation',
+                uri: 'https://s3.amazonaws.com/agrjbrowse/fasta/GCF_000002035.6_GRCz11_genomic.fna.gz.gzi',
             },
         },
         displays: [
             {
-                type: "LinearReferenceSequenceDisplay",
-                displayId: "GRCz11_refseq-LinearReferenceSequenceDisplay",
+                type: 'LinearReferenceSequenceDisplay',
+                displayId: 'GRCz11_refseq-LinearReferenceSequenceDisplay',
             },
             {
-                type: "LinearGCContentDisplay",
-                displayId: "GRCz11_refseq-LinearGCContentDisplay",
+                type: 'LinearGCContentDisplay',
+                displayId: 'GRCz11_refseq-LinearGCContentDisplay',
             },
         ],
     },

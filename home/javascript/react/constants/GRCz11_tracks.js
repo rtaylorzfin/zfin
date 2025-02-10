@@ -1,3 +1,4 @@
+/* eslint-disable quotes */
 export default [
     {
         type: "FeatureTrack",
@@ -475,3 +476,4 @@ export default [
         ],
     },
 ];
+/* eslint-enable quotes */
