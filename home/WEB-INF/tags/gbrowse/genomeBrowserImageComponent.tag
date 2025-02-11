@@ -15,6 +15,7 @@
          data-build="${image.build}"
          data-chromosome="${image.chromosome}"
          data-height="${image.height}"
+         data-landmark="${image.landmark}"
     ></div>
 </c:if>
 <c:if test="${empty image}">
