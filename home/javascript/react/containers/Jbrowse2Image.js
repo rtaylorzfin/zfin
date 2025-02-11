@@ -2,8 +2,8 @@ import React, {useRef, useState} from 'react';
 import PropTypes from 'prop-types';
 import NoData from '../components/NoData';
 
-import assembly from '../constants/GRCz11_assembly';
-import tracks from '../constants/GRCz11_tracks';
+import assembly from '../constants/GRCz11_assembly.json';
+import tracks from '../constants/GRCz11_tracks.json';
 import {createViewState, JBrowseLinearGenomeView} from '@jbrowse/react-linear-genome-view';
 
 const IMAGE_SIZE_STEP = 100;
@@ -89,6 +89,7 @@ const Jbrowse2Image = ({imageUrl, linkUrl, build, chromosome, height = '400', la
     return (
         <div className='position-relative'>
             <div ref={containerRef}>
+                {build && <div><span className='gbrowse-source-label'>Genome Build: {build}</span><span className='gbrowse-source-label'>Chromosome: {chromosome}</span></div>}
                 <JBrowseLinearGenomeView viewState={state} />
             </div>
         </div>
