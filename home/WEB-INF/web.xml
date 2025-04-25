@@ -6,6 +6,9 @@
 
     <display-name>ZFIN: Zebrafish Information Network</display-name>
 
+    <request-character-encoding>UTF-8</request-character-encoding>
+    <response-character-encoding>UTF-8</response-character-encoding>
+
     <context-param>
         <param-name>log4jConfigLocation</param-name>
         <param-value>/WEB-INF/log4j2.xml</param-value>
@@ -19,6 +22,23 @@
             /WEB-INF/spring/security.xml
         </param-value>
     </context-param>
+
+    <filter>
+        <filter-name>characterEncodingFilter</filter-name>
+        <filter-class>org.springframework.web.filter.CharacterEncodingFilter</filter-class>
+        <init-param>
+            <param-name>encoding</param-name>
+            <param-value>UTF-8</param-value>
+        </init-param>
+        <init-param>
+            <param-name>forceEncoding</param-name>
+            <param-value>true</param-value>
+        </init-param>
+    </filter>
+    <filter-mapping>
+        <filter-name>characterEncodingFilter</filter-name>
+        <url-pattern>/*</url-pattern>
+    </filter-mapping>
 
     <!--this forces it to use the default security bean in security.xml springSecurityFilterChain-->
     <filter>
@@ -71,6 +91,10 @@
             <param-name>dispatchOptionsRequest</param-name>
             <param-value>true</param-value>
         </init-param>
+        <init-param>
+            <param-name>defaultEncoding</param-name>
+            <param-value>UTF-8</param-value>
+        </init-param>
         <load-on-startup>1</load-on-startup>
         <multipart-config />
     </servlet>
@@ -86,6 +110,10 @@
         <init-param>
             <param-name>property-file-directory</param-name>
             <param-value>WEB-INF</param-value>
+        </init-param>
+        <init-param>
+            <param-name>defaultEncoding</param-name>
+            <param-value>UTF-8</param-value>
         </init-param>
         <load-on-startup>1</load-on-startup>
     </servlet>
@@ -259,7 +287,7 @@
 
     <servlet-mapping>
         <servlet-name>zfin</servlet-name>
-        <url-pattern>/@TARGETCGIBIN@/*</url-pattern>
+        <url-pattern>/cgi-bin/*</url-pattern>
     </servlet-mapping>
 
     <!--<servlet-mapping>-->

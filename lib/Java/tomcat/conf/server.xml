@@ -1,6 +1,6 @@
 <?xml version="1.0" encoding="UTF-8"?>
 
-<Server port="@SERVER-SHUTDOWN-PORT@" shutdown="SHUTDOWN">
+<Server port="2007" shutdown="SHUTDOWN">
   <Listener className="org.apache.catalina.startup.VersionLoggerListener" />
   <Listener className="org.apache.catalina.core.AprLifecycleListener" SSLEngine="on" />
   <Listener className="org.apache.catalina.core.JreMemoryLeakPreventionListener" />
@@ -17,12 +17,12 @@
 
   <Service name="Catalina">
 
-    <Connector port="@Non-SECUREPORT@" protocol="HTTP/1.1"
+    <Connector port="2008" protocol="HTTP/1.1"
                connectionTimeout="20000"
                redirectPort="8443"
                maxParameterCount="1000"
                />
-    <Connector port="@SECUREPORT@" maxHttpHeaderSize="8192"
+    <Connector port="8443" maxHttpHeaderSize="8192"
                proxyPort="443"
                acceptCount="200"
                maxThreads="100"
@@ -47,19 +47,26 @@
                secretRequired="false"
                />
 
-    <Engine name="Catalina" defaultHost="@DOMAIN-NAME@">
+    <Engine name="Catalina" defaultHost="zfin.org">
 
       <Realm className="org.apache.catalina.realm.LockOutRealm">
         <Realm className="org.apache.catalina.realm.UserDatabaseRealm"
                resourceName="UserDatabase"/>
       </Realm>
 
-      <Host name="@DOMAIN-NAME@"  appBase="webapps"
+      <Host name="zfin.org"  appBase="webapps"
             unpackWARs="true" autoDeploy="false">
 
-        <Valve className="org.apache.catalina.valves.AccessLogValve" directory="logs"
-               prefix="localhost_access_log" suffix=".txt"
-               pattern="%h %l %u %t &quot;%r&quot; %s %b" />
+<!--        <Valve className="org.apache.catalina.valves.AccessLogValve" directory="logs"-->
+<!--               prefix="localhost_access_log" suffix=".txt"-->
+<!--               pattern="%h %l %u %t &quot;%r&quot; %s %b" />-->
+
+        <Valve className="org.apache.catalina.valves.AccessLogValve"
+               directory="logs"
+               prefix="localhost_access_log"
+               suffix=".txt"
+               pattern="%h %l %u %t &quot;%r&quot; %s %b &quot;%{Content-Type}o&quot;"
+               rotatable="true" />
 
       </Host>
     </Engine>
