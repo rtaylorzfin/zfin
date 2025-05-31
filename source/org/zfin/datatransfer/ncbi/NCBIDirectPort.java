@@ -1,5 +1,7 @@
 package org.zfin.datatransfer.ncbi;
 
+import com.fasterxml.jackson.databind.ObjectMapper;
+import com.fasterxml.jackson.databind.node.ObjectNode;
 import jakarta.persistence.Tuple;
 import org.apache.commons.io.FileUtils;
 import org.apache.commons.lang3.StringUtils;
@@ -28,6 +30,7 @@ import static org.zfin.datatransfer.ncbi.port.PortSqlHelper.getSqlForGeneAndRnag
 import static org.zfin.framework.HibernateUtil.currentSession;
 import static org.zfin.properties.ZfinPropertiesEnum.SOURCEROOT;
 import static org.zfin.util.DateUtil.nowToString;
+import static org.zfin.util.ZfinStringUtils.objectToJson;
 
 
 public class NCBIDirectPort extends AbstractScriptWrapper {
@@ -920,6 +923,24 @@ public class NCBIDirectPort extends AbstractScriptWrapper {
             String symbol = (String) tuple.get(1);
             geneZDBidsSymbols.put(zdbId, symbol);
         }
+
+        //write for debugging purposes
+        ObjectMapper mapper = new ObjectMapper();
+        ObjectNode rootNode = mapper.createObjectNode();
+        rootNode.set("vegaIdsNCBIids", mapper.valueToTree(vegaIdsNCBIids));
+        rootNode.set("NCBIidsGeneSymbols", mapper.valueToTree(NCBIidsGeneSymbols));
+        rootNode.set("geneSymbolsNCBIids", mapper.valueToTree(geneSymbolsNCBIids));
+        rootNode.set("vegaIdwithMultipleNCBIids", mapper.valueToTree(vegaIdwithMultipleNCBIids));
+        rootNode.set("NCBIgeneWithMultipleVega", mapper.valueToTree(NCBIgeneWithMultipleVega));
+        rootNode.put("ctVegaIdsNCBI", ctVegaIdsNCBI);
+
+        try {
+            mapper.writeValue(new File(workingDir,"java_debug_readZfinGeneInfoFile.json"), rootNode);
+        } catch (IOException e) {
+            throw new RuntimeException(e);
+        }
+        System.exit(1);
+
     }
 
     private void initializeSetsOfZfinRecordsPart1() {

@@ -1105,6 +1105,27 @@ sub readZfinGeneInfoFile {
     }
 
     $curGeneZDBidsSymbols->finish();
+
+    # Global: $ctVegaIdsNCBI
+    # Global: %NCBIgeneWithMultipleVega
+    # Global: %NCBIidsGeneSymbols
+    # Global: %geneSymbolsNCBIids
+    # Global: %vegaIdsNCBIids
+    # Global: %vegaIdwithMultipleNCBIids
+    my $debugHash = {
+        ctVegaIdsNCBI             => $ctVegaIdsNCBI,
+        NCBIgeneWithMultipleVega  => \%NCBIgeneWithMultipleVega,
+        NCBIidsGeneSymbols        => \%NCBIidsGeneSymbols,
+        geneSymbolsNCBIids        => \%geneSymbolsNCBIids,
+        vegaIdsNCBIids            => \%vegaIdsNCBIids,
+        vegaIdwithMultipleNCBIids => \%vegaIdwithMultipleNCBIids
+    };
+
+    my $debugFile = "debug_readZfinGeneInfoFile";
+    open(my $debugOutputFile, ">$debugFile") || die("Cannot open  : $!\n");
+    print $debugOutputFile encode_json($debugHash);
+    close($debugOutputFile);
+    exit(1);
 }
 
 sub initializeSetsOfZfinRecordsPart1 {
