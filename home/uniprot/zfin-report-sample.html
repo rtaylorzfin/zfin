@@ -33,6 +33,7 @@
             },
             "actions": [
                 {
+                    "id": "88801d64",
                     "type": "INFO",
                     "subType": "ZFIN Gene Lost All UniProt Accessions",
                     "accession": null,
@@ -46,9 +47,11 @@
                             "href": "https://zfin.org/ZDB-GENE-030131-2956"
                         }
                     ],
-                    "tags": []
+                    "tags": [],
+                    "relatedActionsKeys": ["ZDB-GENE-030131-2956"]
                 },
                 {
+                    "id": "fa70dc9a",
                     "type": "LOAD",
                     "subType": "Matched via RefSeq: Single Gene per Accession",
                     "accession": "A0A0G2KCC7",
@@ -74,9 +77,11 @@
                             "href": "https://zfin.org/ZDB-GENE-130530-678"
                         }
                     ],
-                    "tags": []
+                    "tags": [],
+                    "relatedActionsKeys": ["ZDB-GENE-030131-2956"]
                 },
                 {
+                    "id": "12e5eae8",
                     "type": "DELETE",
                     "subType": "ZFIN Gene Losing UniProt Accession",
                     "accession": "A0A0R4ICM1",
@@ -102,6 +107,7 @@
                     ]
                 },
                 {
+                    "id": "64773228",
                     "type": "WARNING",
                     "subType": "Multiple Genes per Accession: Contains Approved Accession",
                     "accession": "A0A8M1RER7",
@@ -142,6 +148,7 @@
                     "tags": []
                 },
                 {
+                    "id": "d8fbbc1b",
                     "type": "ERROR",
                     "subType": "Multiple Genes per Accession",
                     "accession": "A0A8M2B204",
@@ -174,6 +181,7 @@
                     "tags": []
                 },
                 {
+                    "id": "a38d79a3",
                     "type": "LOAD",
                     "subType": "Matched via RefSeq: Single Gene per Accession",
                     "accession": "A0A8M2B3T5",
@@ -202,6 +210,7 @@
                     "tags": []
                 },
                 {
+                    "id": "be09efa9",
                     "type": "LOAD",
                     "subType": "Matched via RefSeq: Single Gene per Accession",
                     "accession": "A0A8M2B3V8",
@@ -230,6 +239,7 @@
                     "tags": []
                 },
                 {
+                    "id": "5bbf7c74",
                     "type": "DELETE",
                     "subType": "ZFIN Gene Losing UniProt Accession",
                     "accession": "A0A8M2B434",
@@ -464,6 +474,10 @@
             background-color: #b3e5c9;
         }
 
+        .hidden {
+            display: none;
+        }
+
     </style>
 </head>
 <body>
@@ -603,7 +617,7 @@
             `;
         }
 
-        function DetailDisplay({item, prevClick, nextClick, supplementalData}) {
+        function DetailDisplay({items, item, prevClick, nextClick, goToDetail, supplementalData}) {
             function detailSummary(item) {
                 if (!item) {
                     return '';
@@ -619,6 +633,18 @@
                 .filter(k => k !== null)
                 .join("\n======================\n");
 
+
+            //figure out if there are any related actions
+            let relatedActions = [];
+            if (item.relatedActionsKeys && item.relatedActionsKeys.length > 0) {
+                relatedActions = items.filter(
+                    i => {
+                        if (i.id == item.id) {return false;}
+                        return (i.relatedActionsKeys || []).some(r => item.relatedActionsKeys.includes(r));
+                    }
+                );
+            }
+
             return html`
                 <div>
                     <h2>Details for Accession</h2>
@@ -632,6 +658,13 @@
                     <ul>
                         ${item.links.map(link => html`<li><a target="_blank" href="${link.href}">${link.title}</a></li>`)}
                     </ul>
+                    ${ relatedActions && relatedActions.length > 0 &&
+                        html`<h4>Related Actions</h4>
+                            <ul>
+                            ${relatedActions.map( i => html`<li><a href="#" onClick="${() => goToDetail(i.id)}" >${i.type}: ${i.subType}: <span class="hidden">${i.id}</span></a></li>`)}
+                            </ul>
+                        `
+                    }
                 </div>
             `;
         }
@@ -804,6 +837,14 @@
                 }
             }
 
+            function goToDetail(id) {
+                foundDetail = reportActions.find(i => i.id === id);
+
+                setShowTypeData(foundDetail.type);
+                setSubTypeName(foundDetail.subType);
+                setActiveDetails(foundDetail);
+            }
+
             if (!reportActions || !reportNavigation) {
                 return html`
                     <div>
@@ -832,7 +873,7 @@
                                 <${SubTypeListing} items="${reportActions}" type="${showTypeData}" subtype="${subTypeName}" onClick="${(item) => itemClicked(item)}" />
                             `}
                             ${activeTab == 'details' && html`
-                                <${DetailDisplay} item="${activeDetails}" supplementalData="${reportData.supplementalData}" prevClick="${previousDetail}" nextClick="${nextDetail}" />
+                                <${DetailDisplay} items="${reportActions}" item="${activeDetails}" supplementalData="${reportData.supplementalData}" prevClick="${previousDetail}" nextClick="${nextDetail}" goToDetail="${goToDetail}"/>
                             `}
                             ${activeTab == '' && html`
                                 <${ReportSummary} reportSummary="${reportSummary}" meta=${reportData.meta} />

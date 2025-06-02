@@ -22,6 +22,7 @@
   },
   "actions": [
     {
+      "id": "c48581e7",
       "type": "INFO",
       "subType": "ZFIN Gene Lost All UniProt Accessions",
       "accession": null,
@@ -38,6 +39,7 @@
       "tags": []
     },
     {
+      "id": "c48581e0",
       "type": "LOAD",
       "subType": "Matched via RefSeq: Single Gene per Accession",
       "accession": "A0A0G2KCC7",
@@ -66,6 +68,7 @@
       "tags": []
     },
     {
+      "id": "c48581e1",
       "type": "DELETE",
       "subType": "ZFIN Gene Losing UniProt Accession",
       "accession": "A0A0R4ICM1",
@@ -91,6 +94,7 @@
       ]
     },
     {
+      "id": "c48581e2",
       "type": "WARNING",
       "subType": "Multiple Genes per Accession: Contains Approved Accession",
       "accession": "A0A8M1RER7",
@@ -131,6 +135,7 @@
       "tags": []
     },
     {
+      "id": "c48581e4",
       "type": "ERROR",
       "subType": "Multiple Genes per Accession",
       "accession": "A0A8M2B204",
@@ -163,6 +168,7 @@
       "tags": []
     },
     {
+      "id": "c48581f4",
       "type": "LOAD",
       "subType": "Matched via RefSeq: Single Gene per Accession",
       "accession": "A0A8M2B3T5",
@@ -191,6 +197,7 @@
       "tags": []
     },
     {
+      "id": "c48581c4",
       "type": "LOAD",
       "subType": "Matched via RefSeq: Single Gene per Accession",
       "accession": "A0A8M2B3V8",
@@ -216,9 +223,11 @@
           "href": "https://zfin.org/ZDB-GENE-100927-1"
         }
       ],
-      "tags": []
+      "tags": [],
+      "relatedActionsKeys": ["thisWillLinkActions"]
     },
     {
+      "id": "c4858bf4",
       "type": "DELETE",
       "subType": "ZFIN Gene Losing UniProt Accession",
       "accession": "A0A8M2B434",
@@ -241,7 +250,8 @@
           "name": "LOST_ALL_UNIPROTS",
           "value": "ZFIN Gene Losing All UniProt Accessions"
         }
-      ]
+      ],
+      "relatedActionsKeys": ["thisWillLinkActions"]
     }
   ],
   "supplementalData": {

@@ -210,6 +210,10 @@
             background-color: #b3e5c9;
         }
 
+        .hidden {
+            display: none;
+        }
+
     </style>
 </head>
 <body>
@@ -349,7 +353,7 @@
             `;
         }
 
-        function DetailDisplay({item, prevClick, nextClick, supplementalData}) {
+        function DetailDisplay({items, item, prevClick, nextClick, goToDetail, supplementalData}) {
             function detailSummary(item) {
                 if (!item) {
                     return '';
@@ -365,6 +369,18 @@
                 .filter(k => k !== null)
                 .join("\n======================\n");
 
+
+            //figure out if there are any related actions
+            let relatedActions = [];
+            if (item.relatedActionsKeys && item.relatedActionsKeys.length > 0) {
+                relatedActions = items.filter(
+                    i => {
+                        if (i.id == item.id) {return false;}
+                        return (i.relatedActionsKeys || []).some(r => item.relatedActionsKeys.includes(r));
+                    }
+                );
+            }
+
             return html`
                 <div>
                     <h2>Details for Accession</h2>
@@ -378,6 +394,13 @@
                     <ul>
                         ${item.links.map(link => html`<li><a target="_blank" href="${link.href}">${link.title}</a></li>`)}
                     </ul>
+                    ${ relatedActions && relatedActions.length > 0 &&
+                        html`<h4>Related Actions</h4>
+                            <ul>
+                            ${relatedActions.map( i => html`<li><a href="#" onClick="${() => goToDetail(i.id)}" >${i.type}: ${i.subType}: <span class="hidden">${i.id}</span></a></li>`)}
+                            </ul>
+                        `
+                    }
                 </div>
             `;
         }
@@ -550,6 +573,14 @@
                 }
             }
 
+            function goToDetail(id) {
+                foundDetail = reportActions.find(i => i.id === id);
+
+                setShowTypeData(foundDetail.type);
+                setSubTypeName(foundDetail.subType);
+                setActiveDetails(foundDetail);
+            }
+
             if (!reportActions || !reportNavigation) {
                 return html`
                     <div>
@@ -578,7 +609,7 @@
                                 <${SubTypeListing} items="${reportActions}" type="${showTypeData}" subtype="${subTypeName}" onClick="${(item) => itemClicked(item)}" />
                             `}
                             ${activeTab == 'details' && html`
-                                <${DetailDisplay} item="${activeDetails}" supplementalData="${reportData.supplementalData}" prevClick="${previousDetail}" nextClick="${nextDetail}" />
+                                <${DetailDisplay} items="${reportActions}" item="${activeDetails}" supplementalData="${reportData.supplementalData}" prevClick="${previousDetail}" nextClick="${nextDetail}" goToDetail="${goToDetail}"/>
                             `}
                             ${activeTab == '' && html`
                                 <${ReportSummary} reportSummary="${reportSummary}" meta=${reportData.meta} />
