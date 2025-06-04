@@ -13,6 +13,7 @@ import org.zfin.datatransfer.webservice.BatchNCBIFastaFetchTask;
 import org.zfin.framework.HibernateUtil;
 import org.zfin.framework.exec.ExecProcess;
 import org.zfin.ontology.datatransfer.AbstractScriptWrapper;
+import org.zfin.properties.ZfinPropertiesEnum;
 
 import java.io.*;
 import java.nio.charset.StandardCharsets;
@@ -33,6 +34,7 @@ import static org.zfin.util.DateUtil.nowToString;
 
 
 public class NCBIDirectPort extends AbstractScriptWrapper {
+    private static final String JSON_PLACEHOLDER_IN_TEMPLATE = "JSON_GOES_HERE";
     private File workingDir;
 
 //    use DBI;
@@ -3025,10 +3027,45 @@ public class NCBIDirectPort extends AbstractScriptWrapper {
         print(STATS, getArtifactComparisonURLs());
         print(STATS, finalReportContent);
 
+        NCBIReportBuilder builder = new NCBIReportBuilder();
+        ObjectNode jsonReportData = builder.buildJsonReportData(
+                numNCBIgeneIdBefore, numNCBIgeneIdAfter,
+                numRefSeqRNABefore, numRefSeqRNAAfter,
+                numRefPeptBefore, numRefPeptAfter,
+                numRefSeqDNABefore, numRefSeqDNABefore,
+                numGenBankRNABefore, numGenBankRNAAfter);
+
+        // Get JSON string
+        String jsonString = null;
+        try {
+            jsonString = builder.getJsonString(jsonReportData);
+
+            // Write to file
+            builder.writeJsonToFile(jsonReportData, new File(workingDir, "ncbi_report.json"));
+            writeOutputReportFile(jsonString);
+
+        } catch (IOException e) {
+            print(LOG, "ERROR: JSON reporting failed: " + e.getMessage());
+        }
+
         // Delete the two files
         new File(workingDir, "reportStatistics_p1").delete();
         new File(workingDir, "reportStatistics_p2").delete();
     }
+
+    private void writeOutputReportFile(String jsonString) {
+
+        File reportFile = new File(workingDir, "ncbi_report.html");
+        try {
+            String template = ZfinPropertiesEnum.SOURCEROOT.value() + "/home/uniprot/zfin-report-template.html";
+            String templateContents = FileUtils.readFileToString(new File(template));
+            String filledTemplate = templateContents.replace(JSON_PLACEHOLDER_IN_TEMPLATE, jsonString);
+            FileUtils.writeStringToFile(reportFile, filledTemplate);
+        } catch (IOException e) {
+            print(LOG, "ERROR: Could not write report file: " + e.getMessage());
+        }
+    }
+
 
     private void captureAfterState() {
         captureState("after_load_" + nowToString("yyyy-MM-dd_HH-mm-ss" ));
