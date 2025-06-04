@@ -30,7 +30,6 @@ import static org.zfin.datatransfer.ncbi.port.PortSqlHelper.getSqlForGeneAndRnag
 import static org.zfin.framework.HibernateUtil.currentSession;
 import static org.zfin.properties.ZfinPropertiesEnum.SOURCEROOT;
 import static org.zfin.util.DateUtil.nowToString;
-import static org.zfin.util.ZfinStringUtils.objectToJson;
 
 
 public class NCBIDirectPort extends AbstractScriptWrapper {
@@ -117,8 +116,8 @@ public class NCBIDirectPort extends AbstractScriptWrapper {
     private Map<String, String>  RefSeqDNAncbiGeneIds;
     private Map<String, String>  RefSeqRNAncbiGeneIds;
     private Map<String, String>  noLength;
-    private Map<String, List<String>>  supportedGeneNCBI;
-    private Map<String, List<String>>  supportingAccNCBI;
+    private Map<String, Set<String>>  supportedGeneNCBI;
+    private Map<String, Set<String>>  supportingAccNCBI;
 
     //  used in eg. initializeHashOfNCBIAccessionsSupportingMultipleGenes
     private Map<String, List<String>>  accNCBIsupportingMoreThan1;
@@ -545,22 +544,21 @@ public class NCBIDirectPort extends AbstractScriptWrapper {
     }
 
     private void captureBeforeState() {
-        String subjectPrefix = "Auto from " + instance + ": NCBI_gene_load.pl :: ";
+        captureState("before_load_" + nowToString("yyyy-MM-dd_HH-mm-ss" ));
+    }
+
+    private void captureState(String prefix) {
         try {
+            String sqlQuery = "\\copy (select d.*, string_agg(r.recattrib_source_zdb_id, '|' order by r.recattrib_source_zdb_id) as recattrib_source_zdb_id " +
+                    " from db_link d left join record_attribution r on d.dblink_zdb_id = r.recattrib_data_zdb_id " +
+                    " group by dblink_linked_recid,dblink_acc_num,dblink_info,dblink_zdb_id,dblink_acc_num_display,dblink_length,dblink_fdbcont_zdb_id " +
+                    " order by dblink_linked_recid, dblink_acc_num ) to  '" + new File(workingDir,prefix + ".csv").getAbsolutePath() + "'  with csv header ";
+
             HibernateUtil.createTransaction();
             doSystemCommand(
                     List.of(
-                            "psql", "--echo-all", "-v", "ON_ERROR_STOP=1", "-U", env("PGUSER"), "-h", env("PGHOST"), "-d", env("DB_NAME"), "-a", "-c", "\\copy (select * from db_link order by dblink_linked_recid, dblink_acc_num) to '" + new File(workingDir,"before_db_link.csv").getAbsolutePath() + "' with csv header"
+                            "psql", "--echo-all", "-v", "ON_ERROR_STOP=1", "-U", env("PGUSER"), "-h", env("PGHOST"), "-d", env("DB_NAME"), "-a", "-c", sqlQuery
                     ), "prepareLog1", "prepareLog2");
-            sendMailWithAttachedReport(env("SWISSPROT_EMAIL_ERR"),subjectPrefix + "prepareLog1 file","prepareLog1", workingDir);
-            sendMailWithAttachedReport(env("SWISSPROT_EMAIL_ERR"),subjectPrefix + "prepareLog2 file","prepareLog2", workingDir);
-            doSystemCommand(
-                    List.of(
-                            "psql", "--echo-all", "-v", "ON_ERROR_STOP=1", "-U", env("PGUSER"), "-h", env("PGHOST"), "-d", env("DB_NAME"), "-a", "-c", "\\copy (select * from record_attribution order by recattrib_data_zdb_id, recattrib_source_zdb_id) to '" + new File(workingDir,"before_recattrib.csv").getAbsolutePath() + "' with csv header"
-                    ),
-                    "prepareLog1", "prepareLog2");
-            sendMailWithAttachedReport(env("SWISSPROT_EMAIL_ERR"),subjectPrefix + "prepareLog1 file","prepareLog1", workingDir);
-            sendMailWithAttachedReport(env("SWISSPROT_EMAIL_ERR"),subjectPrefix + "prepareLog2 file","prepareLog2", workingDir);
             HibernateUtil.flushAndCommitCurrentSession();
         } catch (Exception e) {
             HibernateUtil.rollbackTransaction();
@@ -932,15 +930,13 @@ public class NCBIDirectPort extends AbstractScriptWrapper {
         rootNode.set("geneSymbolsNCBIids", mapper.valueToTree(geneSymbolsNCBIids));
         rootNode.set("vegaIdwithMultipleNCBIids", mapper.valueToTree(vegaIdwithMultipleNCBIids));
         rootNode.set("NCBIgeneWithMultipleVega", mapper.valueToTree(NCBIgeneWithMultipleVega));
-        rootNode.put("ctVegaIdsNCBI", ctVegaIdsNCBI);
+        rootNode.put("ctVegaIdsNCBI", Integer.toString(ctVegaIdsNCBI));
 
         try {
             mapper.writeValue(new File(workingDir,"java_debug_readZfinGeneInfoFile.json"), rootNode);
         } catch (IOException e) {
             throw new RuntimeException(e);
         }
-        System.exit(1);
-
     }
 
     private void initializeSetsOfZfinRecordsPart1() {
@@ -1221,8 +1217,8 @@ public class NCBIDirectPort extends AbstractScriptWrapper {
                 if ("-".equals(status)) {
                     if (stringStartsWithLetter(rnaAccVersion)) {
                         String rnaAcc = rnaAccVersion.replaceFirst("\\.\\d+$", "");
-                        supportedGeneNCBI.computeIfAbsent(ncbiGeneId, k -> new ArrayList<>()).add(rnaAcc);
-                        supportingAccNCBI.computeIfAbsent(rnaAcc, k -> new ArrayList<>()).add(ncbiGeneId);
+                        supportedGeneNCBI.computeIfAbsent(ncbiGeneId, k -> new LinkedHashSet<>()).add(rnaAcc);
+                        supportingAccNCBI.computeIfAbsent(rnaAcc, k -> new LinkedHashSet<>()).add(ncbiGeneId);
                         checkAndStoreNoLength.accept(rnaAcc, ncbiGeneId);
                     }
                     if (stringStartsWithLetter(proteinAccVersion)) {
@@ -1303,19 +1299,19 @@ public class NCBIDirectPort extends AbstractScriptWrapper {
         long ctAccNCBISupportingMoreThan1 = 0;
         long ctAccNCBISupportingOnly1 = 0;
 
-        for (Map.Entry<String, List<String>> entry : supportingAccNCBI.entrySet()) {
+        for (Map.Entry<String, Set<String>> entry : supportingAccNCBI.entrySet()) {
             ctAllSupportingAccNCBI++;
             String acc = entry.getKey();
-            List<String> ncbiGeneIds = entry.getValue();
+            Set<String> ncbiGeneIds = entry.getValue();
 
             if (ncbiGeneIds.size() > 1) {
                 ctAccNCBISupportingMoreThan1++;
-                accNCBIsupportingMoreThan1.put(acc, ncbiGeneIds);
+                accNCBIsupportingMoreThan1.put(acc, ncbiGeneIds.stream().collect(Collectors.toList()));
 
                 for (String geneId : ncbiGeneIds) {
                     // Populate geneNCBIwithAccSupportingMoreThan1 with the list of all accessions supporting this geneId
                     if (supportedGeneNCBI.containsKey(geneId)) {
-                        geneNCBIwithAccSupportingMoreThan1.put(geneId, supportedGeneNCBI.get(geneId));
+                        geneNCBIwithAccSupportingMoreThan1.put(geneId, supportedGeneNCBI.get(geneId).stream().collect(Collectors.toList()));
                     } else {
                         // This case should ideally not happen if data is consistent
                         print(LOG, "WARN: NCBI Gene ID " + geneId + " found in supportingAccNCBI's list for ACC " + acc +
@@ -1325,7 +1321,7 @@ public class NCBIDirectPort extends AbstractScriptWrapper {
                 }
             } else if (ncbiGeneIds.size() == 1) { // Should always be 1 if not > 1, but good to be explicit
                 ctAccNCBISupportingOnly1++;
-                accNCBIsupportingOnly1.put(acc, ncbiGeneIds.get(0));
+                accNCBIsupportingOnly1.put(acc, ncbiGeneIds.stream().findFirst().get());
             } else {
                 // This case (empty list for an accession) should ideally not happen
                 print(LOG, "WARN: Accession " + acc + " in supportingAccNCBI has an empty list of NCBI Gene IDs.\n");
@@ -1521,9 +1517,9 @@ public class NCBIDirectPort extends AbstractScriptWrapper {
         long ctNCBIgenesSupported = supportedGeneNCBI.size();
         long ctNCBIgenesWithAllAccsNotFoundAtZFIN = 0;
 
-        for (Map.Entry<String, List<String>> ncbiEntry : supportedGeneNCBI.entrySet()) {
+        for (Map.Entry<String, Set<String>> ncbiEntry : supportedGeneNCBI.entrySet()) {
             String ncbiGene = ncbiEntry.getKey();
-            List<String> rnaAccessionsForNcbiGene = ncbiEntry.getValue();
+            Set<String> rnaAccessionsForNcbiGene = ncbiEntry.getValue();
 
             if (geneNCBIwithAccSupportingMoreThan1.containsKey(ncbiGene)) {
                 continue; // Skip NCBI genes that have problematic accessions (supporting multiple NCBI genes)
@@ -1559,7 +1555,7 @@ public class NCBIDirectPort extends AbstractScriptWrapper {
                 oneToNNCBItoZFIN.put(ncbiGene, new HashMap<>(currentGeneMappedZFINgeneIds));
                 ct1toNNCBItoZFIN++;
             } else { // mapped1to1 is true, but firstMappedZFINgeneIdSaved is "None" (no valid ZFIN mapping)
-                genesNCBIwithAllAccsNotFoundAtZFIN.put(ncbiGene, rnaAccessionsForNcbiGene);
+                genesNCBIwithAllAccsNotFoundAtZFIN.put(ncbiGene, rnaAccessionsForNcbiGene.stream().collect(Collectors.toList()));
                 ctNCBIgenesWithAllAccsNotFoundAtZFIN++;
             }
         }
@@ -1914,7 +1910,7 @@ public class NCBIDirectPort extends AbstractScriptWrapper {
                         }
 
                         for (String ncbiId : associatedNCBIgenes.keySet().stream().sorted().collect(Collectors.toList())) {
-                            List<String> refArrayAccsNCBI = supportedGeneNCBI.getOrDefault(ncbiId, Collections.emptyList());
+                            Set<String> refArrayAccsNCBI = supportedGeneNCBI.getOrDefault(ncbiId, Collections.emptySet());
                             String ncbiSymbol = NCBIidsGeneSymbols.getOrDefault(ncbiId, "<no symbol>");
                             ntonWriter.write(String.format("\t%s (%s) [%s]\n", ncbiId, ncbiSymbol, String.join(" ", refArrayAccsNCBI)));
                         }
@@ -1922,7 +1918,7 @@ public class NCBIDirectPort extends AbstractScriptWrapper {
                     ntonWriter.write("~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~\n");
 
                     for (String ncbiGene : ref_hashNCBIids.keySet().stream().sorted().collect(Collectors.toList())) {
-                        List<String> refArrayAccsNCBI = supportedGeneNCBI.getOrDefault(ncbiGene, Collections.emptyList());
+                        Set<String> refArrayAccsNCBI = supportedGeneNCBI.getOrDefault(ncbiGene, Collections.emptySet());
                         String ncbiSymbol = NCBIidsGeneSymbols.getOrDefault(ncbiGene, "<no symbol>");
                         ntonWriter.write(String.format("%s (%s) [%s]\n", ncbiGene, ncbiSymbol, String.join(" ", refArrayAccsNCBI)));
 
@@ -2016,7 +2012,7 @@ public class NCBIDirectPort extends AbstractScriptWrapper {
                 ntonWriter.write(String.format("%d -------------------------------------------------------------------------------------------------\n", ctNtoNfromNCBI));
 
                 for (String ncbiIdNtoN : ncbiIdsOfNtoN.keySet().stream().sorted().collect(Collectors.toList())) {
-                    List<String> refArrayAccsNCBI = supportedGeneNCBI.getOrDefault(ncbiIdNtoN, Collections.emptyList());
+                    Set<String> refArrayAccsNCBI = supportedGeneNCBI.getOrDefault(ncbiIdNtoN, Collections.emptySet());
                     String ncbiSymbol = NCBIidsGeneSymbols.getOrDefault(ncbiIdNtoN, "<no symbol>");
                     ntonWriter.write(String.format("%s (%s) [%s]\n", ncbiIdNtoN, ncbiSymbol, String.join(" ", refArrayAccsNCBI)));
 
@@ -2049,7 +2045,7 @@ public class NCBIDirectPort extends AbstractScriptWrapper {
                     }
 
                     for (String ncbiGene : associatedNCBIgenes.keySet().stream().sorted().collect(Collectors.toList())) {
-                        List<String> refArrayAccsNCBI = supportedGeneNCBI.getOrDefault(ncbiGene, Collections.emptyList());
+                        Set<String> refArrayAccsNCBI = supportedGeneNCBI.getOrDefault(ncbiGene, Collections.emptySet());
                         String ncbiSymbol = NCBIidsGeneSymbols.getOrDefault(ncbiGene, "<no symbol>");
                         ntonWriter.write(String.format("\t%s (%s) [%s]\n", ncbiGene, ncbiSymbol, String.join(" ", refArrayAccsNCBI)));
                     }
@@ -2097,7 +2093,7 @@ public class NCBIDirectPort extends AbstractScriptWrapper {
 
                 for (String ncbiId : sortedNcbiGeneIds) {
                     // String mappingAccession = refHashMultiNCBIgenes.get(ncbiId); // Not used in output per instruction
-                    List<String> ncbiAccessions = supportedGeneNCBI.getOrDefault(ncbiId, Collections.emptyList());
+                    Set<String> ncbiAccessions = supportedGeneNCBI.getOrDefault(ncbiId, Collections.emptySet());
                     String ncbiSymbol = NCBIidsGeneSymbols.getOrDefault(ncbiId, "<no gene symbol>"); // Perl used <no gene symbol>
                     writer.write(String.format("   %s (%s) [%s]\n\n", ncbiId, ncbiSymbol, String.join(" ", ncbiAccessions)));
                 }
@@ -2127,7 +2123,7 @@ public class NCBIDirectPort extends AbstractScriptWrapper {
                 ct++;
                 writer.write(String.format("%d) ---------------------------------------------\n", ct));
 
-                List<String> ncbiAccessions = supportedGeneNCBI.getOrDefault(ncbiId, Collections.emptyList());
+                Set<String> ncbiAccessions = supportedGeneNCBI.getOrDefault(ncbiId, Collections.emptySet());
                 String ncbiSymbol = NCBIidsGeneSymbols.getOrDefault(ncbiId, "<unknown NCBI symbol>");
                 writer.write(String.format("%s (%s) [%s]\n\n", ncbiId, ncbiSymbol, String.join(" ", ncbiAccessions)));
 
@@ -2185,10 +2181,8 @@ public class NCBIDirectPort extends AbstractScriptWrapper {
                     if (ZDBgeneAndVegaGeneIds.containsKey(k)) list.add(ZDBgeneAndVegaGeneIds.get(k)); // Add the first one found
                     return list;
                 }).add(vegaGeneId);
-                // Remove duplicates if any were added by the above logic, ensure original logic of list construction
-                if (ZDBgeneWithMultipleVegaGeneIds.containsKey(geneZdbId)) {
-                    ZDBgeneWithMultipleVegaGeneIds.put(geneZdbId, ZDBgeneWithMultipleVegaGeneIds.get(geneZdbId).stream().distinct().collect(Collectors.toList()));
-                }
+
+                // Keep duplicates
             }
             ZDBgeneAndVegaGeneIds.put(geneZdbId, vegaGeneId); // This will overwrite, keeping the last one, as in Perl
 
@@ -2200,9 +2194,8 @@ public class NCBIDirectPort extends AbstractScriptWrapper {
                     if (VegaGeneAndZDBgeneIds.containsKey(k)) list.add(VegaGeneAndZDBgeneIds.get(k));
                     return list;
                 }).add(geneZdbId);
-                if (vegaGeneIdWithMultipleZFINgenes.containsKey(vegaGeneId)) {
-                    vegaGeneIdWithMultipleZFINgenes.put(vegaGeneId, vegaGeneIdWithMultipleZFINgenes.get(vegaGeneId).stream().distinct().collect(Collectors.toList()));
-                }
+
+                // Keep duplicates
             }
             VegaGeneAndZDBgeneIds.put(vegaGeneId, geneZdbId); // This will overwrite, keeping the last one
         }
@@ -3038,32 +3031,7 @@ public class NCBIDirectPort extends AbstractScriptWrapper {
     }
 
     private void captureAfterState() {
-        String subjectPrefix = "Auto from " + instance + ": NCBI_gene_load.pl :: ";
-        try {
-            HibernateUtil.createTransaction(); // Or ensure transaction management context
-            doSystemCommand(
-                    List.of(
-                            "psql", "--echo-all", "-v", "ON_ERROR_STOP=1", "-U", env("PGUSER"), "-h", env("PGHOST"), "-d", env("DB_NAME"), "-a", "-c", "\\copy (select * from db_link order by dblink_linked_recid, dblink_acc_num) to '" + new File(workingDir,"after_db_link.csv").getAbsolutePath() + "' with csv header"
-                    ), "prepareLog1", "prepareLog2");
-            sendMailWithAttachedReport(env("SWISSPROT_EMAIL_ERR"), subjectPrefix + "prepareLog1 file", "prepareLog1", workingDir);
-            sendMailWithAttachedReport(env("SWISSPROT_EMAIL_ERR"), subjectPrefix + "prepareLog2 file", "prepareLog2", workingDir);
-
-            doSystemCommand(
-                    List.of(
-                            "psql", "--echo-all", "-v", "ON_ERROR_STOP=1", "-U", env("PGUSER"), "-h", env("PGHOST"), "-d", env("DB_NAME"), "-a", "-c", "\\copy (select * from record_attribution order by recattrib_data_zdb_id, recattrib_source_zdb_id) to '" + new File(workingDir,"after_recattrib.csv").getAbsolutePath() + "' with csv header"
-                    ),
-                    "prepareLog1", "prepareLog2");
-            sendMailWithAttachedReport(env("SWISSPROT_EMAIL_ERR"), subjectPrefix + "prepareLog1 file", "prepareLog1", workingDir);
-            sendMailWithAttachedReport(env("SWISSPROT_EMAIL_ERR"), subjectPrefix + "prepareLog2 file", "prepareLog2", workingDir);
-
-            HibernateUtil.flushAndCommitCurrentSession();
-        } catch (Exception e) {
-            HibernateUtil.rollbackTransaction();
-            reportErrAndExit("Auto from " + instance + ": NCBI_gene_load.pl :: failed at after capture - " + e.getMessage());
-            return; // Should be unreachable
-        }
-        print(LOG, "Done with capturing after state.\n\n"); // Adjusted message from Perl
-
+        captureState("after_load_" + nowToString("yyyy-MM-dd_HH-mm-ss" ));
     }
 
     private void emailLoadReports() {
@@ -3144,7 +3112,7 @@ public class NCBIDirectPort extends AbstractScriptWrapper {
         }
     }
 
-    private void writeMapOfListsToFileForDebug(String filename, Map<String, List<String>> mapToPrint) {
+    private void writeMapOfListsToFileForDebug(String filename, Map<String, ? extends Collection<String>> mapToPrint) {
         if (!debug) {
             return;
         }
@@ -3152,7 +3120,7 @@ public class NCBIDirectPort extends AbstractScriptWrapper {
         try (BufferedWriter writer = new BufferedWriter(new FileWriter(file))) {
             List<String> sortedKeys = mapToPrint.keySet().stream().sorted().collect(Collectors.toList());
             for (String key : sortedKeys) {
-                List<String> values = mapToPrint.get(key);
+                Collection<String> values = mapToPrint.get(key);
                 if (values != null) {
                     writer.write(key + "\t" + String.join(" ", values) + "\n");
                 } else {
@@ -3174,9 +3142,8 @@ public class NCBIDirectPort extends AbstractScriptWrapper {
             for (String outerKey : sortedOuterKeys) {
                 Map<String, String> innerMap = mapToPrint.get(outerKey);
                 String innerMapStr = innerMap.entrySet().stream()
-                        .sorted(Map.Entry.comparingByKey())
-                        .map(entry -> entry.getKey() + "=" + entry.getValue())
-                        .collect(Collectors.joining("; "));
+                        .map(entry -> entry.getKey() + ":" + entry.getValue())
+                        .collect(Collectors.joining(" "));
                 writer.write(outerKey + "\t" + innerMapStr + "\n");
             }
         } catch (IOException e) {
@@ -3185,88 +3152,23 @@ public class NCBIDirectPort extends AbstractScriptWrapper {
     }
 
     private void writeDebug16Output() {
-        File dbgFile = new File(workingDir, "debug16");
-        try (BufferedWriter writer = new BufferedWriter(new FileWriter(dbgFile))) {
-            BiConsumer<String, Map<?, ?>> printMap = (title, map) -> {
-                try {
-                    writer.write("\n" + title + "\n==================================================\n");
-                    // Sort keys for consistent output
-                    List<?> sortedKeys = map.keySet().stream()
-                            .map(Object::toString) // Convert keys to string for sorting if they are not already
-                            .sorted()
-                            .collect(Collectors.toList());
+        //write for debugging purposes
+        ObjectMapper mapper = new ObjectMapper();
+        ObjectNode rootNode = mapper.createObjectNode();
 
-                    for (Object keyObj : sortedKeys) {
-                        String key = keyObj.toString(); // Use the string version of the key
-                        Object value = map.get(key); // Retrieve original value using original key type if map allows mixed types
-                        // If keys are guaranteed String, then map.get(key) is fine.
-                        // For safety with ?, we might need to iterate entries.
-                        // Let's assume keys are effectively strings for sorting, but retrieve with original key type.
-                        // A better way if keys are not strings:
-                        // map.entrySet().stream().sorted(Map.Entry.comparingByKey(Comparator.comparing(Object::toString)))
-                        if (value == null && map instanceof Map) { // try to get value again if key was stringified
-                            for(Object originalKey : map.keySet()) {
-                                if (originalKey.toString().equals(key)) {
-                                    value = map.get(originalKey);
-                                    break;
-                                }
-                            }
-                        }
+            rootNode.set("GenBankDNAncbiGeneIds", mapper.valueToTree(GenBankDNAncbiGeneIds));
+            rootNode.set("GenPeptNCBIgeneIds", mapper.valueToTree(GenPeptNCBIgeneIds));
+            rootNode.set("RefPeptNCBIgeneIds", mapper.valueToTree(RefPeptNCBIgeneIds));
+            rootNode.set("RefSeqDNAncbiGeneIds", mapper.valueToTree(RefSeqDNAncbiGeneIds));
+            rootNode.set("RefSeqRNAncbiGeneIds", mapper.valueToTree(RefSeqRNAncbiGeneIds));
+            rootNode.set("supportedGeneNCBI", mapper.valueToTree(supportedGeneNCBI));
+            rootNode.set("supportingAccNCBI", mapper.valueToTree(supportingAccNCBI));
+            rootNode.set("noLength", mapper.valueToTree(noLength)); // Assuming keys in noLength are strings or have consistent toString())
 
-
-                        String valueStr;
-                        if (value instanceof List) {
-                            valueStr = ((List<?>) value).stream().map(Object::toString).collect(Collectors.joining(" "));
-                        } else if (value != null) {
-                            valueStr = value.toString();
-                        } else {
-                            valueStr = "null";
-                        }
-                        writer.write(key + "\t" + valueStr + "\n");
-                    }
-                } catch (IOException e) {
-                    throw new RuntimeException("Error writing to debug16", e);
-                }
-            };
-            // For maps where keys are not guaranteed to be strings, but we need to sort by their string representation:
-            BiConsumer<String, Map<?, ?>> printMapSortedAsString = (title, map) -> {
-                try {
-                    writer.write("\n" + title + "\n==================================================\n");
-                    map.entrySet().stream()
-                            .sorted(Comparator.comparing(entry -> entry.getKey().toString()))
-                            .forEach(entry -> {
-                                Object value = entry.getValue();
-                                String valueStr;
-                                if (value instanceof List) {
-                                    valueStr = ((List<?>) value).stream().map(Object::toString).collect(Collectors.joining(" "));
-                                } else if (value != null) {
-                                    valueStr = value.toString();
-                                } else {
-                                    valueStr = "null";
-                                }
-                                try {
-                                    writer.write(entry.getKey().toString() + "\t" + valueStr + "\n");
-                                } catch (IOException e) {
-                                    throw new RuntimeException("Error writing map entry to debug16", e);
-                                }
-                            });
-                } catch (IOException e) {
-                    throw new RuntimeException("Error writing to debug16", e);
-                }
-            };
-
-
-            printMapSortedAsString.accept("GenBankDNAncbiGeneIds", GenBankDNAncbiGeneIds);
-            printMapSortedAsString.accept("GenPeptNCBIgeneIds", GenPeptNCBIgeneIds);
-            printMapSortedAsString.accept("RefPeptNCBIgeneIds", RefPeptNCBIgeneIds);
-            printMapSortedAsString.accept("RefSeqDNAncbiGeneIds", RefSeqDNAncbiGeneIds);
-            printMapSortedAsString.accept("RefSeqRNAncbiGeneIds", RefSeqRNAncbiGeneIds);
-            printMapSortedAsString.accept("supportedGeneNCBI", supportedGeneNCBI);
-            printMapSortedAsString.accept("supportingAccNCBI", supportingAccNCBI);
-            printMapSortedAsString.accept("noLength", noLength); // Assuming keys in noLength are strings or have consistent toString()
-
-        } catch (IOException | RuntimeException e) {
-            print(LOG, "ERROR: Could not write to debug16 file: " + e.getMessage() + "\n");
+        try {
+            mapper.writeValue(new File(workingDir,"debug16.json"), rootNode);
+        } catch (IOException e) {
+            throw new RuntimeException(e);
         }
     }
 

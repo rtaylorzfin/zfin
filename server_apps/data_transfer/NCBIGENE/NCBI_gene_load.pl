@@ -1125,7 +1125,6 @@ sub readZfinGeneInfoFile {
     open(my $debugOutputFile, ">$debugFile") || die("Cannot open  : $!\n");
     print $debugOutputFile encode_json($debugHash);
     close($debugOutputFile);
-    exit(1);
 }
 
 sub initializeSetsOfZfinRecordsPart1 {
@@ -1583,6 +1582,24 @@ sub parseGene2AccessionFile {
         foreach my $acc (keys %supportingAccNCBI) {print DBG16 "$acc\t" . joinElementsFromMaybeArray($supportingAccNCBI{$acc}) . "\n";}
 
         close DBG16;
+    }
+    
+    if ($debug) {
+        my $debugHash = {
+            "GenBankDNAncbiGeneIds", => \%GenBankDNAncbiGeneIds,
+            "GenPeptNCBIgeneIds",    => \%GenPeptNCBIgeneIds,
+            "RefPeptNCBIgeneIds",    => \%RefPeptNCBIgeneIds,
+            "RefSeqDNAncbiGeneIds",  => \%RefSeqDNAncbiGeneIds,
+            "RefSeqRNAncbiGeneIds",  => \%RefSeqRNAncbiGeneIds,
+            "supportedGeneNCBI",     => \%supportedGeneNCBI,
+            "supportingAccNCBI",     => \%supportingAccNCBI,
+            "noLength",              => \%noLength
+        };
+
+        my $debugFile = "debug16.json";
+        open(my $debugOutputFile, ">$debugFile") || die("Cannot open  : $!\n");
+        print $debugOutputFile encode_json($debugHash);
+        close($debugOutputFile);
     }
 
 }
