@@ -7,6 +7,7 @@ import com.fasterxml.jackson.databind.node.ObjectNode;
 import java.io.File;
 import java.io.IOException;
 
+//TODO: replace this with a class that matches the new json schema in home/uniprot/zfin-report-schema.json
 public class NCBIReportBuilder {
 
     private ObjectMapper objectMapper;

@@ -3,12 +3,14 @@ package org.zfin.datatransfer.ncbi;
 import com.fasterxml.jackson.databind.ObjectMapper;
 import com.fasterxml.jackson.databind.node.ObjectNode;
 import jakarta.persistence.Tuple;
+import org.apache.commons.csv.CSVRecord;
 import org.apache.commons.io.FileUtils;
 import org.apache.commons.lang3.StringUtils;
 import org.apache.commons.text.StringSubstitutor;
 import org.hibernate.query.NativeQuery;
 import org.zfin.datatransfer.ncbi.port.PortHelper;
 import org.zfin.datatransfer.ncbi.port.PortSqlHelper;
+import org.zfin.datatransfer.util.CSVDiff;
 import org.zfin.datatransfer.webservice.BatchNCBIFastaFetchTask;
 import org.zfin.framework.HibernateUtil;
 import org.zfin.framework.exec.ExecProcess;
@@ -61,6 +63,9 @@ public class NCBIDirectPort extends AbstractScriptWrapper {
     private String fdcontRefSeqRNA = "ZDB-FDBCONT-040412-38";
     private String fdcontRefPept = "ZDB-FDBCONT-040412-39";
     private String fdcontRefSeqDNA = "ZDB-FDBCONT-040527-1";
+
+    private File beforeFile;
+    private File afterFile;
 
     // used in eg. initializeDatabase
     private String dbname;
@@ -384,11 +389,11 @@ public class NCBIDirectPort extends AbstractScriptWrapper {
         sendLoadLogs(); // This was called if loadNCBIgeneAccs.sql failed, good to call after too.
         printTimingInformation(41);
 
+        captureAfterState();
+        printTimingInformation(4101);
+
         reportAllLoadStatistics();
         printTimingInformation(42);
-
-        captureAfterState();
-        printTimingInformation(4201);
 
         emailLoadReports();
         printTimingInformation(43);
@@ -546,15 +551,16 @@ public class NCBIDirectPort extends AbstractScriptWrapper {
     }
 
     private void captureBeforeState() {
-        captureState("before_load_" + nowToString("yyyy-MM-dd_HH-mm-ss" ));
+        beforeFile = new File(workingDir, "before_load_" + nowToString("yyyy-MM-dd_HH-mm-ss") + ".csv");
+        captureState(beforeFile);
     }
 
-    private void captureState(String prefix) {
+    private void captureState(File outputFile) {
         try {
             String sqlQuery = "\\copy (select d.*, string_agg(r.recattrib_source_zdb_id, '|' order by r.recattrib_source_zdb_id) as recattrib_source_zdb_id " +
                     " from db_link d left join record_attribution r on d.dblink_zdb_id = r.recattrib_data_zdb_id " +
                     " group by dblink_linked_recid,dblink_acc_num,dblink_info,dblink_zdb_id,dblink_acc_num_display,dblink_length,dblink_fdbcont_zdb_id " +
-                    " order by dblink_linked_recid, dblink_acc_num ) to  '" + new File(workingDir,prefix + ".csv").getAbsolutePath() + "'  with csv header ";
+                    " order by dblink_linked_recid, dblink_acc_num ) to  '" + outputFile.getAbsolutePath() + "'  with csv header ";
 
             HibernateUtil.createTransaction();
             doSystemCommand(
@@ -3027,6 +3033,29 @@ public class NCBIDirectPort extends AbstractScriptWrapper {
         print(STATS, getArtifactComparisonURLs());
         print(STATS, finalReportContent);
 
+        writeHtmlReport();
+
+
+        // Delete the two files
+        new File(workingDir, "reportStatistics_p1").delete();
+        new File(workingDir, "reportStatistics_p2").delete();
+    }
+
+    private void writeHtmlReport() {
+        //break down changes into subsets using the provided before and after files
+        String outputPrefix = new File(workingDir, "ncbi_compare_").toString();
+        CSVDiff diff = new CSVDiff(outputPrefix,
+                new String[]{"dblink_linked_recid","dblink_acc_num","dblink_fdbcont_zdb_id","recattrib_source_zdb_id"},
+                new String[]{"dblink_info","dblink_zdb_id"});
+        CSVRecord beforeAfterSummary = null;
+        try {
+            Map<String, List<CSVRecord>> beforeAfterComparison = diff.processToMap(beforeFile.getAbsolutePath(), afterFile.getAbsolutePath());
+            List<CSVRecord> beforeAfterSummaryList = beforeAfterComparison.get("summary");
+            beforeAfterSummary = beforeAfterSummaryList.get(0);
+        } catch (IOException e) {
+            print(LOG, "ERROR: Can't create before after comparison");
+        }
+
         NCBIReportBuilder builder = new NCBIReportBuilder();
         ObjectNode jsonReportData = builder.buildJsonReportData(
                 numNCBIgeneIdBefore, numNCBIgeneIdAfter,
@@ -3047,10 +3076,6 @@ public class NCBIDirectPort extends AbstractScriptWrapper {
         } catch (IOException e) {
             print(LOG, "ERROR: JSON reporting failed: " + e.getMessage());
         }
-
-        // Delete the two files
-        new File(workingDir, "reportStatistics_p1").delete();
-        new File(workingDir, "reportStatistics_p2").delete();
     }
 
     private void writeOutputReportFile(String jsonString) {
@@ -3066,9 +3091,9 @@ public class NCBIDirectPort extends AbstractScriptWrapper {
         }
     }
 
-
     private void captureAfterState() {
-        captureState("after_load_" + nowToString("yyyy-MM-dd_HH-mm-ss" ));
+        afterFile = new File(workingDir, "after_load_" + nowToString("yyyy-MM-dd_HH-mm-ss" ) + ".csv");
+        captureState(afterFile);
     }
 
     private void emailLoadReports() {
