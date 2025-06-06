@@ -37,7 +37,7 @@ import static org.zfin.util.DateUtil.nowToString;
 
 public class NCBIDirectPort extends AbstractScriptWrapper {
     private static final String JSON_PLACEHOLDER_IN_TEMPLATE = "JSON_GOES_HERE";
-    private File workingDir;
+    public File workingDir;
 
 //    use DBI;
 //    use Cwd;
@@ -64,8 +64,8 @@ public class NCBIDirectPort extends AbstractScriptWrapper {
     private String fdcontRefPept = "ZDB-FDBCONT-040412-39";
     private String fdcontRefSeqDNA = "ZDB-FDBCONT-040527-1";
 
-    private File beforeFile;
-    private File afterFile;
+    public File beforeFile;
+    public File afterFile;
 
     // used in eg. initializeDatabase
     private String dbname;
@@ -81,17 +81,17 @@ public class NCBIDirectPort extends AbstractScriptWrapper {
 
     // used in eg. getRecordCounts
     private Map<String, String>  genesWithRefSeqBeforeLoad = new HashMap<>();
-    private Integer ctGenesWithRefSeqBefore;
-    private Integer numNCBIgeneIdBefore;
-    private Integer numRefSeqRNABefore; // Changed to Integer for consistency
-    private Integer numRefPeptBefore;   // Changed to Integer
-    private Integer numRefSeqDNABefore; // Changed to Integer
-    private Integer numGenBankRNABefore; // Changed to Integer
-    private Integer numGenPeptBefore;    // Changed to Integer
-    private Integer numGenBankDNABefore; // Changed to Integer
-    private Integer numGenesRefSeqRNABefore; // Changed to Integer
-    private Integer numGenesRefSeqPeptBefore; // Changed to Integer
-    private Integer numGenesGenBankBefore;   // Changed to Integer
+    public Integer ctGenesWithRefSeqBefore;
+    public Integer numNCBIgeneIdBefore;
+    public Integer numRefSeqRNABefore;
+    public Integer numRefPeptBefore;
+    public Integer numRefSeqDNABefore;
+    public Integer numGenBankRNABefore;
+    public Integer numGenPeptBefore;
+    public Integer numGenBankDNABefore;
+    public Integer numGenesRefSeqRNABefore;
+    public Integer numGenesRefSeqPeptBefore;
+    public Integer numGenesGenBankBefore;
 
     // used in eg. readZfinGeneInfoFile
     private int ctVegaIdsNCBI; // Changed to int
@@ -199,18 +199,18 @@ public class NCBIDirectPort extends AbstractScriptWrapper {
     // After the load
     private Map<String, String> allGenPeptWithGeneAfterLoad = new HashMap<>();
     private Map<String, List<String>> GenPeptWithMultipleZDBgeneAfterLoad = new HashMap<>();
-    private Integer numNCBIgeneIdAfter;
-    private Integer numRefSeqRNAAfter;
-    private Integer numRefPeptAfter;
-    private Integer numRefSeqDNAAfter;
-    private Integer numGenBankRNAAfter;
-    private Integer numGenPeptAfter;
-    private Integer numGenBankDNAAfter;
-    private Integer numGenesRefSeqRNAAfter;
-    private Integer numGenesRefSeqPeptAfter;
-    private Integer numGenesGenBankAfter;
+    public Integer numNCBIgeneIdAfter;
+    public Integer numRefSeqRNAAfter;
+    public Integer numRefPeptAfter;
+    public Integer numRefSeqDNAAfter;
+    public Integer numGenBankRNAAfter;
+    public Integer numGenPeptAfter;
+    public Integer numGenBankDNAAfter;
+    public Integer numGenesRefSeqRNAAfter;
+    public Integer numGenesRefSeqPeptAfter;
+    public Integer numGenesGenBankAfter;
     private Map<String, String> genesWithRefSeqAfterLoad = new HashMap<>();
-    private Integer ctGenesWithRefSeqAfter;
+    public Integer ctGenesWithRefSeqAfter;
 
 
     public static void main(String[] args) {
@@ -3041,7 +3041,7 @@ public class NCBIDirectPort extends AbstractScriptWrapper {
         new File(workingDir, "reportStatistics_p2").delete();
     }
 
-    private void writeHtmlReport() {
+    public void writeHtmlReport() {
         //break down changes into subsets using the provided before and after files
         String outputPrefix = new File(workingDir, "ncbi_compare_").toString();
         CSVDiff diff = new CSVDiff(outputPrefix,
@@ -3052,7 +3052,7 @@ public class NCBIDirectPort extends AbstractScriptWrapper {
             Map<String, List<CSVRecord>> beforeAfterComparison = diff.processToMap(beforeFile.getAbsolutePath(), afterFile.getAbsolutePath());
             List<CSVRecord> beforeAfterSummaryList = beforeAfterComparison.get("summary");
             beforeAfterSummary = beforeAfterSummaryList.get(0);
-        } catch (IOException e) {
+        } catch (Exception e) {
             print(LOG, "ERROR: Can't create before after comparison");
         }
 
@@ -3060,21 +3060,33 @@ public class NCBIDirectPort extends AbstractScriptWrapper {
         NCBIReportBuilder builder = new NCBIReportBuilder();
 
         NCBIReportBuilder.SummaryTable table = builder.addSummaryTable("number of db_link records with gene");
-        table.addSummaryRow("NCBI gene Id", numNCBIgeneIdBefore, numNCBIgeneIdAfter);
-        table.addSummaryRow("RefSeq RNA", numRefSeqRNABefore, numRefSeqRNAAfter);
-        table.addSummaryRow("RefPept", numRefPeptBefore, numRefPeptAfter);
-        table.addSummaryRow("RefSeq DNA", numRefSeqDNABefore, numRefSeqDNAAfter);
-        table.addSummaryRow("GenBank RNA", numGenBankRNABefore, numGenBankRNAAfter);
-        table.addSummaryRow("GenPept", numGenPeptBefore, numGenPeptAfter);
-        table.addSummaryRow("GenBank DNA", numGenBankDNABefore, numGenBankDNAAfter);
+        table.setHeaders(List.of("Category", "Before Load", "After Load", "Percentage Change"));
+        table.addBeforeAfterCountSummaryRow("NCBI gene Id", numNCBIgeneIdBefore, numNCBIgeneIdAfter);
+        table.addBeforeAfterCountSummaryRow("RefSeq RNA", numRefSeqRNABefore, numRefSeqRNAAfter);
+        table.addBeforeAfterCountSummaryRow("RefPept", numRefPeptBefore, numRefPeptAfter);
+        table.addBeforeAfterCountSummaryRow("RefSeq DNA", numRefSeqDNABefore, numRefSeqDNAAfter);
+        table.addBeforeAfterCountSummaryRow("GenBank RNA", numGenBankRNABefore, numGenBankRNAAfter);
+        table.addBeforeAfterCountSummaryRow("GenPept", numGenPeptBefore, numGenPeptAfter);
+        table.addBeforeAfterCountSummaryRow("GenBank DNA", numGenBankDNABefore, numGenBankDNAAfter);
 
         NCBIReportBuilder.SummaryTable table2 = builder.addSummaryTable("number of genes");
-        table2.addSummaryRow("with RefSeq", ctGenesWithRefSeqBefore, ctGenesWithRefSeqAfter);
-        table2.addSummaryRow("with RefSeq NM", numGenesRefSeqRNABefore, numGenesRefSeqRNAAfter);
-        table2.addSummaryRow("with RefSeq NP", numGenesRefSeqPeptBefore, numGenesRefSeqPeptAfter);
-        table2.addSummaryRow("with GenBank", numGenesGenBankBefore, numGenesGenBankAfter);
+        table2.setHeaders(List.of("Category", "Before Load", "After Load", "Percentage Change"));
+        table2.addBeforeAfterCountSummaryRow("with RefSeq", ctGenesWithRefSeqBefore, ctGenesWithRefSeqAfter);
+        table2.addBeforeAfterCountSummaryRow("with RefSeq NM", numGenesRefSeqRNABefore, numGenesRefSeqRNAAfter);
+        table2.addBeforeAfterCountSummaryRow("with RefSeq NP", numGenesRefSeqPeptBefore, numGenesRefSeqPeptAfter);
+        table2.addBeforeAfterCountSummaryRow("with GenBank", numGenesGenBankBefore, numGenesGenBankAfter);
 
-
+        if (beforeAfterSummary != null) {
+            NCBIReportBuilder.SummaryTable table3 = builder.addSummaryTable("totals before and after load");
+            table3.setHeaders(List.of("Category", "Count"));
+            table3.addSummaryRow(List.of("Number of db_link records before load", beforeAfterSummary.get("beforeCount")));
+            table3.addSummaryRow(List.of("Number of db_link records after load", beforeAfterSummary.get("afterCount")));
+            table3.addSummaryRow(List.of("Number of db_link records unchanged", beforeAfterSummary.get("retainedCount")));
+            table3.addSummaryRow(List.of("Number of db_link records changed superficially", beforeAfterSummary.get("ignoredCount1")));
+            table3.addSummaryRow(List.of("Number of db_link records updated", beforeAfterSummary.get("updated1Count")));
+            table3.addSummaryRow(List.of("Number of db_link records added", beforeAfterSummary.get("addedCount")));
+            table3.addSummaryRow(List.of("Number of db_link records deleted", beforeAfterSummary.get("deletedCount")));
+        }
 
         ObjectNode report = builder.build();
 
@@ -3091,10 +3103,13 @@ public class NCBIDirectPort extends AbstractScriptWrapper {
     }
 
     private void writeOutputReportFile(String jsonString) {
-
+        String sourceRoot = ZfinPropertiesEnum.SOURCEROOT.value();
+        if (sourceRoot == null) {
+            sourceRoot = System.getenv("SOURCEROOT");
+        }
         File reportFile = new File(workingDir, "ncbi_report.html");
         try {
-            String template = ZfinPropertiesEnum.SOURCEROOT.value() + "/home/uniprot/zfin-report-template.html";
+            String template = sourceRoot + "/home/uniprot/zfin-report-template.html";
             String templateContents = FileUtils.readFileToString(new File(template));
             String filledTemplate = templateContents.replace(JSON_PLACEHOLDER_IN_TEMPLATE, jsonString);
             FileUtils.writeStringToFile(reportFile, filledTemplate);

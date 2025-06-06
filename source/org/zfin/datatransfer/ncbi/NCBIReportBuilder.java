@@ -7,7 +7,9 @@ import com.fasterxml.jackson.databind.node.ObjectNode;
 import java.io.File;
 import java.io.IOException;
 import java.util.ArrayList;
+import java.util.LinkedHashMap;
 import java.util.List;
+import java.util.Map;
 
 //TODO: replace this with a class that matches the new json schema in home/uniprot/zfin-report-schema.json
 public class NCBIReportBuilder {
@@ -99,8 +101,43 @@ public class NCBIReportBuilder {
             return this;
         }
 
-        public SummaryTable addSummaryRow(String description, int before, int after) {
-            rows.add(new SummaryRow(description, before, after));
+        public SummaryTable setHeaders(List<String> keys) {
+            this.headerKeys.clear();
+            this.headerTitles.clear();
+            for (String key : keys) {
+                this.headerKeys.add(key);
+                this.headerTitles.add(key); // Default title is the same as key
+            }
+            return this;
+        }
+
+        public SummaryTable addBeforeAfterCountSummaryRow(String title, int beforeCount, int afterCount) {
+            if (headerKeys.isEmpty()) {
+                throw new IllegalStateException("Headers must be set before adding rows");
+            }
+            Map<String, String> row = new LinkedHashMap<>();
+            row.put(headerKeys.get(0), title);
+            row.put(headerKeys.get(1), String.valueOf(beforeCount));
+            row.put(headerKeys.get(2), String.valueOf(afterCount));
+            row.put(headerKeys.get(3), percentageDisplay(beforeCount, afterCount));
+            return addSummaryRow(row);
+
+        }
+        public SummaryTable addSummaryRow(List<String> row) {
+            // Ensure the row matches the header size
+            if (row.size() != headerKeys.size()) {
+                throw new IllegalArgumentException("Row size must match header size");
+            }
+            Map<String, String> rowMap = new LinkedHashMap<>();
+            for (int i = 0; i < row.size(); i++) {
+                rowMap.put(headerKeys.get(i), row.get(i));
+            }
+            rows.add(new SummaryRow(rowMap));
+            return this;
+        }
+
+        public SummaryTable addSummaryRow(Map<String, String> row) {
+            rows.add(new SummaryRow(row));
             return this;
         }
 
@@ -134,22 +171,22 @@ public class NCBIReportBuilder {
     }
 
     public class SummaryRow {
-        private String description;
-        private int before;
-        private int after;
+        private final Map<String, String> values = new LinkedHashMap<>();
 
-        public SummaryRow(String description, int before, int after) {
-            this.description = description;
-            this.before = before;
-            this.after = after;
+        public SummaryRow(Map<String, String> row) {
+            this.values.putAll(row);
+        }
+
+        public SummaryRow put(String key, String value) {
+            values.put(key, value);
+            return this;
         }
 
         public ObjectNode build(ObjectMapper objectMapper) {
             ObjectNode row = objectMapper.createObjectNode();
-            row.put("desc", description);
-            row.put("before", before);
-            row.put("after", after);
-            row.put("perc", percentageDisplay(before, after));
+            for (Map.Entry<String, String> entry : values.entrySet()) {
+                row.put(entry.getKey(), entry.getValue());
+            }
             return row;
         }
     }

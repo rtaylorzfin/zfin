@@ -408,6 +408,7 @@
         function ReportSummaryTable({reportSummaryTable}) {
             const summaryRows = reportSummaryTable["rows"];
             const summaryHeaders = reportSummaryTable["headers"];
+            const summaryDescription = reportSummaryTable["description"];
             if (!summaryRows || summaryRows.length === 0) {
                 return null;
             }
@@ -427,6 +428,7 @@
                 </tr>`;
             });
             return html`
+                <h4>${summaryDescription}</h4>
                 <table class="summary">
                     <thead>
                     ${headerRow}
