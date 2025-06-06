@@ -3056,21 +3056,33 @@ public class NCBIDirectPort extends AbstractScriptWrapper {
             print(LOG, "ERROR: Can't create before after comparison");
         }
 
-        NCBIReportBuilder builder = new NCBIReportBuilder();
-        ObjectNode jsonReportData = builder.buildJsonReportData(
-                numNCBIgeneIdBefore, numNCBIgeneIdAfter,
-                numRefSeqRNABefore, numRefSeqRNAAfter,
-                numRefPeptBefore, numRefPeptAfter,
-                numRefSeqDNABefore, numRefSeqDNABefore,
-                numGenBankRNABefore, numGenBankRNAAfter);
 
-        // Get JSON string
-        String jsonString = null;
+        NCBIReportBuilder builder = new NCBIReportBuilder();
+
+        NCBIReportBuilder.SummaryTable table = builder.addSummaryTable("number of db_link records with gene");
+        table.addSummaryRow("NCBI gene Id", numNCBIgeneIdBefore, numNCBIgeneIdAfter);
+        table.addSummaryRow("RefSeq RNA", numRefSeqRNABefore, numRefSeqRNAAfter);
+        table.addSummaryRow("RefPept", numRefPeptBefore, numRefPeptAfter);
+        table.addSummaryRow("RefSeq DNA", numRefSeqDNABefore, numRefSeqDNAAfter);
+        table.addSummaryRow("GenBank RNA", numGenBankRNABefore, numGenBankRNAAfter);
+        table.addSummaryRow("GenPept", numGenPeptBefore, numGenPeptAfter);
+        table.addSummaryRow("GenBank DNA", numGenBankDNABefore, numGenBankDNAAfter);
+
+        NCBIReportBuilder.SummaryTable table2 = builder.addSummaryTable("number of genes");
+        table2.addSummaryRow("with RefSeq", ctGenesWithRefSeqBefore, ctGenesWithRefSeqAfter);
+        table2.addSummaryRow("with RefSeq NM", numGenesRefSeqRNABefore, numGenesRefSeqRNAAfter);
+        table2.addSummaryRow("with RefSeq NP", numGenesRefSeqPeptBefore, numGenesRefSeqPeptAfter);
+        table2.addSummaryRow("with GenBank", numGenesGenBankBefore, numGenesGenBankAfter);
+
+
+
+        ObjectNode report = builder.build();
+
         try {
-            jsonString = builder.getJsonString(jsonReportData);
+            String jsonString = builder.getJsonString(report);
 
             // Write to file
-            builder.writeJsonToFile(jsonReportData, new File(workingDir, "ncbi_report.json"));
+            FileUtils.writeStringToFile(new File(workingDir, "ncbi_report.json"), jsonString, StandardCharsets.UTF_8);
             writeOutputReportFile(jsonString);
 
         } catch (IOException e) {

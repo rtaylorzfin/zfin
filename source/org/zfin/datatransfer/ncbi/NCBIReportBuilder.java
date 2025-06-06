@@ -6,86 +6,152 @@ import com.fasterxml.jackson.databind.node.ObjectNode;
 
 import java.io.File;
 import java.io.IOException;
+import java.util.ArrayList;
+import java.util.List;
 
 //TODO: replace this with a class that matches the new json schema in home/uniprot/zfin-report-schema.json
 public class NCBIReportBuilder {
 
     private ObjectMapper objectMapper;
+    private String title;
+    private String releaseID;
+    private List<SummaryTable> summaryTables;
+    private ArrayNode actions;
 
     public NCBIReportBuilder() {
         this.objectMapper = new ObjectMapper();
+        this.title = "NCBI Load Report";
+        this.releaseID = "";
+        this.summaryTables = new ArrayList<>();
+        this.actions = objectMapper.createArrayNode();
     }
 
-    public ObjectNode buildJsonReportData(
-            int numNCBIgeneIdBefore, int numNCBIgeneIdAfter,
-            int numRefSeqRNABefore, int numRefSeqRNAAfter,
-            int numRefPeptBefore, int numRefPeptAfter,
-            int numRefSeqDNABefore, int numRefSeqDNAAfter,
-            int numGenBankRNABefore, int numGenBankRNAAfter) {
+    public NCBIReportBuilder setTitle(String title) {
+        this.title = title;
+        return this;
+    }
 
+    public NCBIReportBuilder setReleaseID(String releaseID) {
+        this.releaseID = releaseID;
+        return this;
+    }
+
+    public SummaryTable addSummaryTable(String description) {
+        SummaryTable table = new SummaryTable(description);
+        summaryTables.add(table);
+        return table;
+    }
+
+    public ObjectNode build() {
         // Create root object
         ObjectNode jsonReportData = objectMapper.createObjectNode();
 
         // Create meta section
         ObjectNode meta = objectMapper.createObjectNode();
-        meta.put("title", "NCBI Load Report");
-        meta.put("releaseID", "");
+        meta.put("title", title);
+        meta.put("releaseID", releaseID);
         meta.put("creationDate", System.currentTimeMillis());
         jsonReportData.set("meta", meta);
 
         // Create summary section
         ObjectNode summary = objectMapper.createObjectNode();
-        summary.put("description", "NCBI Load: Percentage change of various categories of records");
+        summary.put("description", "Summary of NCBI Load Report");
 
         // Create tables array
         ArrayNode tables = objectMapper.createArrayNode();
+        for (SummaryTable summaryTable : summaryTables) {
+            tables.add(summaryTable.build(objectMapper));
+        }
 
-        // Create first table
-        ObjectNode firstTable = objectMapper.createObjectNode();
-        firstTable.put("description", "First Table");
-
-        // Create headers array
-        ArrayNode headers = objectMapper.createArrayNode();
-        headers.add(createHeader("desc", "number of db_link records with gene"));
-        headers.add(createHeader("before", "before load"));
-        headers.add(createHeader("after", "after load"));
-        headers.add(createHeader("perc", "percentage change"));
-        firstTable.set("headers", headers);
-
-        // Create rows array
-        ArrayNode rows = objectMapper.createArrayNode();
-        rows.add(createRow("NCBI gene Id", numNCBIgeneIdBefore, numNCBIgeneIdAfter));
-        rows.add(createRow("RefSeq RNA", numRefSeqRNABefore, numRefSeqRNAAfter));
-        rows.add(createRow("RefPept", numRefPeptBefore, numRefPeptAfter));
-        rows.add(createRow("RefSeq DNA", numRefSeqDNABefore, numRefSeqDNAAfter));
-        rows.add(createRow("GenBank RNA", numGenBankRNABefore, numGenBankRNAAfter));
-        firstTable.set("rows", rows);
-
-        tables.add(firstTable);
         summary.set("tables", tables);
         jsonReportData.set("summary", summary);
 
-        // Create empty actions array
-        ArrayNode actions = objectMapper.createArrayNode();
+        // Add actions
         jsonReportData.set("actions", actions);
 
         return jsonReportData;
     }
 
-    private ObjectNode createHeader(String key, String title) {
-        ObjectNode header = objectMapper.createObjectNode();
-        header.put("key", key);
-        header.put("title", title);
-        return header;
+    public class SummaryTable {
+        private String description;
+        private List<String> headerKeys;
+        private List<String> headerTitles;
+        private List<SummaryRow> rows;
+
+        public SummaryTable(String description) {
+            this.description = description;
+            this.headerKeys = new ArrayList<>();
+            this.headerTitles = new ArrayList<>();
+            this.rows = new ArrayList<>();
+            
+        }
+
+        public SummaryTable setHeaders(String[] keys, String[] titles) {
+            if (keys.length != titles.length) {
+                throw new IllegalArgumentException("Keys and titles arrays must have the same length");
+            }
+            this.headerKeys.clear();
+            this.headerTitles.clear();
+            for (int i = 0; i < keys.length; i++) {
+                this.headerKeys.add(keys[i]);
+                this.headerTitles.add(titles[i]);
+            }
+            return this;
+        }
+
+        public SummaryTable addSummaryRow(String description, int before, int after) {
+            rows.add(new SummaryRow(description, before, after));
+            return this;
+        }
+
+        public ObjectNode build(ObjectMapper objectMapper) {
+            ObjectNode table = objectMapper.createObjectNode();
+            table.put("description", description);
+
+            // Create headers array
+            ArrayNode headers = objectMapper.createArrayNode();
+            for (int i = 0; i < headerKeys.size(); i++) {
+                headers.add(createHeader(objectMapper, headerKeys.get(i), headerTitles.get(i)));
+            }
+            table.set("headers", headers);
+
+            // Create rows array
+            ArrayNode rowsArray = objectMapper.createArrayNode();
+            for (SummaryRow row : rows) {
+                rowsArray.add(row.build(objectMapper));
+            }
+            table.set("rows", rowsArray);
+
+            return table;
+        }
+
+        private ObjectNode createHeader(ObjectMapper objectMapper, String key, String title) {
+            ObjectNode header = objectMapper.createObjectNode();
+            header.put("key", key);
+            header.put("title", title);
+            return header;
+        }
     }
 
-    private ObjectNode createRow(String desc, int before, int after) {
-        ObjectNode row = objectMapper.createObjectNode();
-        row.put("desc", desc);
-        row.put("before", before);
-        row.put("after", after);
-        row.put("perc", percentageDisplay(before, after));
-        return row;
+    public class SummaryRow {
+        private String description;
+        private int before;
+        private int after;
+
+        public SummaryRow(String description, int before, int after) {
+            this.description = description;
+            this.before = before;
+            this.after = after;
+        }
+
+        public ObjectNode build(ObjectMapper objectMapper) {
+            ObjectNode row = objectMapper.createObjectNode();
+            row.put("desc", description);
+            row.put("before", before);
+            row.put("after", after);
+            row.put("perc", percentageDisplay(before, after));
+            return row;
+        }
     }
 
     private String percentageDisplay(int before, int after) {
@@ -104,29 +170,4 @@ public class NCBIReportBuilder {
         return objectMapper.writerWithDefaultPrettyPrinter().writeValueAsString(jsonData);
     }
 
-    // Example usage
-    public static void main(String[] args) {
-        try {
-            NCBIReportBuilder builder = new NCBIReportBuilder();
-
-            // Sample data
-            ObjectNode jsonReportData = builder.buildJsonReportData(
-                    100, 120,  // NCBI gene Id before/after
-                    200, 180,  // RefSeq RNA before/after
-                    150, 160,  // RefPept before/after
-                    300, 350,  // RefSeq DNA before/after
-                    250, 240   // GenBank RNA before/after
-            );
-
-            // Get JSON string
-            String jsonString = builder.getJsonString(jsonReportData);
-            System.out.println(jsonString);
-
-            // Write to file
-            builder.writeJsonToFile(jsonReportData, new File( "ncbi_report.json"));
-
-        } catch (IOException e) {
-            e.printStackTrace();
-        }
-    }
 }
