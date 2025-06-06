@@ -24,13 +24,12 @@ public class CSVToXLSXConverter {
             return;
         }
 
+        List<String> createdSheetNames = new ArrayList<>();
         try (Workbook workbook = new XSSFWorkbook()) {
-            int sheetIndex = 0;
             for (File csvFile : csvFiles) {
-                String sheetName = csvFile.getName().replace(".csv", "");
-                if (sheetNames != null && sheetIndex < sheetNames.size()) {
-                    sheetName = sheetNames.get(sheetIndex++);
-                }
+                String sheetName = getNextSheetName(csvFile, sheetNames, createdSheetNames);
+
+                System.out.println("Processing CSV file: " + csvFile.getName() + " into sheet: " + sheetName);
                 Sheet sheet = workbook.createSheet(sheetName);
                 int rowIndex = 0;
                 try (BufferedReader br = new BufferedReader(new FileReader(csvFile));
@@ -63,6 +62,23 @@ public class CSVToXLSXConverter {
         } catch (IOException e) {
             System.err.println("Error processing files: " + e.getMessage());
         }
+    }
+
+    private String getNextSheetName(File csvFile, List<String> sheetNames, List<String> createdSheetNames) {
+        String sheetName = csvFile.getName().replace(".csv", "");
+        if (sheetNames != null && sheetNames.size() > 0) {
+            sheetName = sheetNames.remove(0);
+        }
+        sheetName = sheetName.substring(0, 30); // Limit sheet name to 31 characters
+        if (createdSheetNames.contains(sheetName)) {
+            int count = 1;
+            String originalSheetName = sheetName;
+            while (createdSheetNames.contains(sheetName)) {
+                sheetName = originalSheetName.substring(0, 27) + "_" + count++;
+            }
+        }
+        createdSheetNames.add(sheetName);
+        return sheetName;
     }
 
     public static void main(String[] args) {
