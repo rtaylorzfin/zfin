@@ -7,6 +7,7 @@ import org.apache.poi.ss.usermodel.Cell;
 import org.apache.poi.ss.usermodel.Row;
 import org.apache.poi.ss.usermodel.Sheet;
 import org.apache.poi.ss.usermodel.Workbook;
+import org.apache.poi.xssf.streaming.SXSSFWorkbook;
 import org.apache.poi.xssf.usermodel.XSSFWorkbook;
 
 import java.io.*;
@@ -24,12 +25,11 @@ public class CSVToXLSXConverter {
             return;
         }
 
-        List<String> createdSheetNames = new ArrayList<>();
-        try (Workbook workbook = new XSSFWorkbook()) {
+        // Use SXSSFWorkbook for low-memory footprint
+        try (SXSSFWorkbook workbook = new SXSSFWorkbook(100)) { // keep 100 rows in memory
+            List<String> createdSheetNames = new ArrayList<>();
             for (File csvFile : csvFiles) {
                 String sheetName = getNextSheetName(csvFile, sheetNames, createdSheetNames);
-
-                System.out.println("Processing CSV file: " + csvFile.getName() + " into sheet: " + sheetName);
                 Sheet sheet = workbook.createSheet(sheetName);
                 int rowIndex = 0;
                 try (BufferedReader br = new BufferedReader(new FileReader(csvFile));
@@ -59,6 +59,7 @@ public class CSVToXLSXConverter {
             } catch (IOException e) {
                 System.err.println("Error writing XLSX file: " + e.getMessage());
             }
+            workbook.dispose(); // dispose of temporary files
         } catch (IOException e) {
             System.err.println("Error processing files: " + e.getMessage());
         }
