@@ -3116,7 +3116,7 @@ public class NCBIDirectPort extends AbstractScriptWrapper {
         List<String> sheetNames = csvs.stream().map(File::getName)
                 .map(name -> name.replace(".csv", ""))
                 .map(name -> name.replace("before_after_cmp_" + LOAD_TIMESTAMP, ""))
-                .toList();
+                .collect(Collectors.toList());
         converter.run(new File(workingDir, "before_after_cmp_" + LOAD_TIMESTAMP + ".xlsx"), csvs, sheetNames);
         print(LOG, "Combined CSVs into Excel report: before_after_cmp_" + LOAD_TIMESTAMP + ".xlsx\n");
     }

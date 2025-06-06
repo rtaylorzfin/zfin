@@ -33,6 +33,7 @@
     <hudson.tasks.Shell>
       <command><![CDATA[
 WORKING_DIR=$TARGETROOT/server_apps/data_transfer/NCBIGENE/
+cd $SOURCEROOT
 gradle ncbiPort
         ]]>
       </command>
