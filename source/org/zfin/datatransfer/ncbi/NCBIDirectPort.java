@@ -11,6 +11,7 @@ import org.hibernate.query.NativeQuery;
 import org.zfin.datatransfer.ncbi.port.PortHelper;
 import org.zfin.datatransfer.ncbi.port.PortSqlHelper;
 import org.zfin.datatransfer.util.CSVDiff;
+import org.zfin.datatransfer.util.CSVToXLSXConverter;
 import org.zfin.datatransfer.webservice.BatchNCBIFastaFetchTask;
 import org.zfin.framework.HibernateUtil;
 import org.zfin.framework.exec.ExecProcess;
@@ -190,6 +191,7 @@ public class NCBIDirectPort extends AbstractScriptWrapper {
 
     private Long stepCount = 0L;
     private Long STEP_TIMESTAMP = 0L;
+    private String LOAD_TIMESTAMP = nowToString("yyyy-MM-dd_HH-mm-ss");
 
     private BufferedWriter LOG;
     private BufferedWriter STATS_PRIORITY1;
@@ -551,7 +553,7 @@ public class NCBIDirectPort extends AbstractScriptWrapper {
     }
 
     private void captureBeforeState() {
-        beforeFile = new File(workingDir, "before_load_" + nowToString("yyyy-MM-dd_HH-mm-ss") + ".csv");
+        beforeFile = new File(workingDir, "before_load_" + LOAD_TIMESTAMP + ".csv");
         captureState(beforeFile);
     }
 
@@ -3050,12 +3052,19 @@ public class NCBIDirectPort extends AbstractScriptWrapper {
         CSVRecord beforeAfterSummary = null;
         try {
             Map<String, List<CSVRecord>> beforeAfterComparison = diff.processToMap(beforeFile.getAbsolutePath(), afterFile.getAbsolutePath());
+            System.out.println("Generated before-after comparison with " + beforeAfterComparison.size() + " categories.");
+            System.out.println(beforeAfterComparison.keySet().stream().sorted().collect(Collectors.joining("; ")));
+            List<File> csvs = diff.writeMapToCSVs(workingDir, "before_after_cmp_" + LOAD_TIMESTAMP, beforeAfterComparison);
+            System.out.println("Generated " + csvs.size() + " CSV files for before-after comparison.");
             List<CSVRecord> beforeAfterSummaryList = beforeAfterComparison.get("summary");
-            beforeAfterSummary = beforeAfterSummaryList.get(0);
+            beforeAfterSummary = beforeAfterSummaryList.remove(0);
+            beforeAfterComparison.clear();
+            combineCsvsToExcelReport(csvs);
         } catch (Exception e) {
-            print(LOG, "ERROR: Can't create before after comparison");
+            System.out.println("ERROR: " + e.getMessage());
+            e.printStackTrace();
+            print(LOG, "ERROR: Can't create before after comparison\n");
         }
-
 
         NCBIReportBuilder builder = new NCBIReportBuilder();
 
@@ -3102,6 +3111,16 @@ public class NCBIDirectPort extends AbstractScriptWrapper {
         }
     }
 
+    private void combineCsvsToExcelReport(List<File> csvs) {
+        CSVToXLSXConverter converter = new CSVToXLSXConverter();
+        List<String> sheetNames = csvs.stream().map(File::getName)
+                .map(name -> name.replace(".csv", ""))
+                .map(name -> name.replace("before_after_cmp_" + LOAD_TIMESTAMP, ""))
+                .toList();
+        converter.run(new File(workingDir, "before_after_cmp_" + LOAD_TIMESTAMP + ".xlsx"), csvs, sheetNames);
+        print(LOG, "Combined CSVs into Excel report: before_after_cmp_" + LOAD_TIMESTAMP + ".xlsx\n");
+    }
+
     private void writeOutputReportFile(String jsonString) {
         String sourceRoot = ZfinPropertiesEnum.SOURCEROOT.value();
         if (sourceRoot == null) {
@@ -3119,7 +3138,7 @@ public class NCBIDirectPort extends AbstractScriptWrapper {
     }
 
     private void captureAfterState() {
-        afterFile = new File(workingDir, "after_load_" + nowToString("yyyy-MM-dd_HH-mm-ss" ) + ".csv");
+        afterFile = new File(workingDir, "after_load_" + LOAD_TIMESTAMP + ".csv");
         captureState(afterFile);
     }
 

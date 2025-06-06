@@ -464,6 +464,17 @@ public class CSVDiff {
         }
     }
 
+    private void writeCSVFile(String filePath, List<CSVRecord> records) throws IOException {
+        if (records.isEmpty()) {
+            System.out.println("No records to write to " + filePath);
+            writeCSVFile(filePath, records, Collections.emptyList());
+            return;
+        }
+        List<String> headers = new ArrayList<>(records.get(0).getParser().getHeaderNames());
+        writeCSVFile(filePath, records, headers);
+    }
+
+
     /**
      * Main method to demonstrate usage of the CSVDifferenceUtility.
      *
@@ -564,4 +575,20 @@ public class CSVDiff {
         return result;
     }
 
+    public List<File> writeMapToCSVs(File workingDir, String prefix, Map<String, List<CSVRecord>> beforeAfterComparison) {
+        List<File> outputFiles = new ArrayList<>();
+        for (Map.Entry<String, List<CSVRecord>> entry : beforeAfterComparison.entrySet()) {
+            System.out.println("Writing " + entry.getValue().size() + " records to file for key " + entry.getKey());
+            String fileName = prefix + "_" + entry.getKey() + ".csv";
+            File outputFile = new File(workingDir, fileName);
+            outputFiles.add(outputFile);
+            try {
+                writeCSVFile(outputFile.getAbsolutePath(), entry.getValue());
+                System.out.println("Wrote " + entry.getValue().size() + " records to " + outputFile.getAbsolutePath());
+            } catch (IOException e) {
+                System.err.println("Error writing file " + outputFile.getAbsolutePath() + ": " + e.getMessage());
+            }
+        }
+        return outputFiles;
+    }
 }
