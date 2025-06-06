@@ -17,11 +17,13 @@ import org.zfin.framework.HibernateUtil;
 import org.zfin.framework.exec.ExecProcess;
 import org.zfin.ontology.datatransfer.AbstractScriptWrapper;
 import org.zfin.properties.ZfinPropertiesEnum;
+import org.zfin.uniprot.task.NcbiMatchThroughEnsemblTask;
 
 import java.io.*;
 import java.nio.charset.StandardCharsets;
 import java.nio.file.Files;
 import java.nio.file.StandardCopyOption;
+import java.sql.SQLException;
 import java.util.*;
 import java.util.function.BiConsumer;
 import java.util.regex.Matcher;
@@ -1720,19 +1722,23 @@ public class NCBIDirectPort extends AbstractScriptWrapper {
             inputFile = new File(overrideReportFile);
             print(LOG, "Using provided report file through LOAD_NCBI_ONE_WAY_REPORT: " + inputFile.getAbsolutePath() + "\n");
         } else {
-            inputFile = new File(sourceRoot, "ncbi_matches_through_ensembl.csv");
-            String gradleCommand = String.format("cd %s ; ./gradlew -DncbiFileUrl=file://%s/zf_gene_info.gz ncbiMatchThroughEnsemblTask ; cd %s",
-                    sourceRoot,
-                    workingDir.getAbsolutePath(), // zf_gene_info.gz is in workingDir
-                    workingDir.getAbsolutePath()); // cd back to workingDir, though doSystemCommand handles this
+            //TODO: refactor to not use gradle
 
-            print(LOG, "Executing Gradle task: " + gradleCommand + "\n");
-            // Assuming doSystemCommand can handle complex commands with 'cd' and ';'
-            // It might be safer to execute gradle directly from SOURCEROOT if ExecProcess has issues with compound commands.
-            // For now, proceeding with the direct translation.
-            // The ExecProcess in this project seems to take a list of arguments, so we might need to split this or use bash -c
-            List<String> commandParts = List.of("bash", "-c", gradleCommand);
-            doSystemCommand(commandParts, "gradle_ncbi_match_out.log", "gradle_ncbi_match_err.log");
+            inputFile = new File(sourceRoot, "ncbi_matches_through_ensembl.csv");
+//            String gradleCommand = String.format("cd %s ; ./gradlew -DncbiFileUrl=file://%s/zf_gene_info.gz ncbiMatchThroughEnsemblTask ; cd %s",
+//                    sourceRoot,
+//                    workingDir.getAbsolutePath(), // zf_gene_info.gz is in workingDir
+//                    workingDir.getAbsolutePath()); // cd back to workingDir, though doSystemCommand handles this
+
+            NcbiMatchThroughEnsemblTask task = new NcbiMatchThroughEnsemblTask();
+            try {
+                task.runTask(new String[]{});
+            } catch (IOException e) {
+                throw new RuntimeException(e);
+            } catch (SQLException e) {
+                throw new RuntimeException(e);
+            }
+
         }
 
         print(LOG, "Reading supplementary mapping input file: " + inputFile.getAbsolutePath() + "\n");
