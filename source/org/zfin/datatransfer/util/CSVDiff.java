@@ -135,7 +135,9 @@ public class CSVDiff {
 
             Iterable<CSVRecord> summaryRecords = format.parse(new StringReader(csvData));
             CSVRecord summaryRow = summaryRecords.iterator().next();
-            results.put("summary", Collections.singletonList(summaryRow));
+            List<CSVRecord> summaryRowAsList = new ArrayList<>();
+            summaryRowAsList.add(summaryRow);
+            results.put("summary", summaryRowAsList);
         } catch (IOException e) {
             e.printStackTrace();
         }
