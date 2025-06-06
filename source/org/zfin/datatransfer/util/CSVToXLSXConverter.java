@@ -14,6 +14,8 @@ import java.io.*;
 import java.util.ArrayList;
 import java.util.List;
 
+import static java.lang.Math.min;
+
 public class CSVToXLSXConverter {
     public void run(File xlsxFilePath, List<File> csvFiles) {
         run(xlsxFilePath, csvFiles, null);
@@ -70,12 +72,12 @@ public class CSVToXLSXConverter {
         if (sheetNames != null && sheetNames.size() > 0) {
             sheetName = sheetNames.remove(0);
         }
-        sheetName = sheetName.substring(0, 30); // Limit sheet name to 31 characters
+        sheetName = sheetName.substring(0, min(sheetName.length(), 30)); // Limit sheet name to 31 characters
         if (createdSheetNames.contains(sheetName)) {
             int count = 1;
             String originalSheetName = sheetName;
             while (createdSheetNames.contains(sheetName)) {
-                sheetName = originalSheetName.substring(0, 27) + "_" + count++;
+                sheetName = originalSheetName.substring(0, min(sheetName.length(), 27)) + "_" + count++;
             }
         }
         createdSheetNames.add(sheetName);
