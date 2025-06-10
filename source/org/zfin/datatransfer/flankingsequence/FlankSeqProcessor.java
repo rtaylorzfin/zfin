@@ -1,7 +1,6 @@
 package org.zfin.datatransfer.flankingsequence;
 
 import htsjdk.samtools.reference.IndexedFastaSequenceFile;
-import org.apache.commons.beanutils.PropertyUtils;
 import org.apache.commons.lang.StringUtils;
 import org.apache.commons.lang.exception.ExceptionUtils;
 import org.apache.logging.log4j.LogManager;
@@ -20,11 +19,12 @@ import org.zfin.publication.repository.HibernatePublicationRepository;
 import org.zfin.publication.repository.PublicationRepository;
 
 import java.io.File;
-import java.lang.reflect.InvocationTargetException;
+import java.sql.Date;
 import java.util.ArrayList;
 import java.util.List;
 import java.util.Objects;
 
+import static java.time.LocalDate.now;
 import static org.zfin.framework.HibernateUtil.currentSession;
 
 
@@ -91,7 +91,7 @@ public class FlankSeqProcessor {
 
                 //Once a week, get all non-sa features with genomic mutation details and update their flanking sequences.
                 //Otherwise, just those that have a modified date in the last 48 hours (24 should be fine, but 48 for caution.
-                Boolean isItTuesday = (java.time.LocalDate.now().getDayOfWeek().getValue() == 2);
+                Boolean isItTuesday = (now().getDayOfWeek().getValue() == 2);
                 List<Feature> nonSaFeaturesWithGenomicMutDets;
                 if (isItTuesday) {
                     System.out.println("Updating all non-sa features with genomic mutation details");
@@ -99,7 +99,7 @@ public class FlankSeqProcessor {
                     System.out.println("nonSaFeaturesWithGenomicMutDets.size() = " + nonSaFeaturesWithGenomicMutDets.size());
                 } else {
                     System.out.println("Updating non-sa features with genomic mutation details modified in the last 48 hours");
-                    nonSaFeaturesWithGenomicMutDets = featureRepository.getNonSaFeaturesWithGenomicMutDets(java.sql.Date.valueOf(java.time.LocalDate.now().minusDays(2)));
+                    nonSaFeaturesWithGenomicMutDets = featureRepository.getNonSaFeaturesWithGenomicMutDets(Date.valueOf(now().minusDays(2)));
                     System.out.println("nonSaFeaturesWithGenomicMutDets.size() = " + nonSaFeaturesWithGenomicMutDets.size());
                 }
 
