@@ -5,30 +5,30 @@
 # to try and prevent user downtime.
 
 # rm the current fasta files
-rm @BLASTSERVER_FASTA_FILE_PATH@/fasta/GenBank/*.fa
+rm /research/zblastfiles/files/blastRegeneration/fasta/GenBank/*.fa
 
 # mv the fasta files from last time back into place
-mv @BLASTSERVER_FASTA_FILE_PATH@/fasta/Backup/*.fa @BLASTSERVER_FASTA_FILE_PATH@/fasta/GenBank
+mv /research/zblastfiles/files/blastRegeneration/fasta/Backup/*.fa /research/zblastfiles/files/blastRegeneration/fasta/GenBank
 
 # swap the symlinks b/c these files are sooo big.
-rm @BLASTSERVER_BLAST_DATABASE_PATH@/wu-db
+rm /research/zblastfiles/zmore/blastRegeneration/wu-db
 
 # re-link to the backup for processesing
-ln -s @BLASTSERVER_BLAST_DATABASE_PATH@/Backup @BLASTSERVER_BLAST_DATABASE_PATH@/wu-db
+ln -s /research/zblastfiles/zmore/blastRegeneration/Backup /research/zblastfiles/zmore/blastRegeneration/wu-db
 
 # remove the current gb blastdb
-rm @BLASTSERVER_BLAST_DATABASE_PATH@/Current/gbk_*
+rm /research/zblastfiles/zmore/blastRegeneration/Current/gbk_*
 
 # cp the backup to the current
-cp @BLASTSERVER_BLAST_DATABASE_PATH@/Backup/gbk_* @BLASTSERVER_BLAST_DATABASE_PATH@/Current/
+cp /research/zblastfiles/zmore/blastRegeneration/Backup/gbk_* /research/zblastfiles/zmore/blastRegeneration/Current/
 
 # swap the symlinks again.
-rm @BLASTSERVER_BLAST_DATABASE_PATH@/wu-db
-ln -s @BLASTSERVER_BLAST_DATABASE_PATH@/Current @BLASTSERVER_BLAST_DATABASE_PATH@/wu-db
+rm /research/zblastfiles/zmore/blastRegeneration/wu-db
+ln -s /research/zblastfiles/zmore/blastRegeneration/Current /research/zblastfiles/zmore/blastRegeneration/wu-db
 
 # only to the distributeToNodes bit on Genomix
-#if (@HOSTNAME@ == /genomix.cs.uoregon.edu) then
-#    @TARGET_PATH@/GenBank/distributeToNodesGenBank.sh
+#if (watson.zfin.org == /genomix.cs.uoregon.edu) then
+#    /research/zusers/blast/BLAST_load/target/GenBank/distributeToNodesGenBank.sh
 #endif
 
 exit

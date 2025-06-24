@@ -1,13 +1,13 @@
 #!/bin/tcsh
 #
 
-rm -f @BLASTSERVER_BLAST_DATABASE_PATH@/Backup/gbk*.x*
+rm -f /research/zblastfiles/zmore/blastRegeneration/Backup/gbk*.x*
 
-cp @BLASTSERVER_BLAST_DATABASE_PATH@/Current/gbk*.x* @BLASTSERVER_BLAST_DATABASE_PATH@/Backup 
+cp /research/zblastfiles/zmore/blastRegeneration/Current/gbk*.x* /research/zblastfiles/zmore/blastRegeneration/Backup 
 
-cp @BLASTSERVER_FASTA_FILE_PATH@/fasta/GenBank/*.fa @BLASTSERVER_FASTA_FILE_PATH@/fasta/Backup
+cp /research/zblastfiles/files/blastRegeneration/fasta/GenBank/*.fa /research/zblastfiles/files/blastRegeneration/fasta/Backup
 
-scp @WEBHOST_BLAST_DATABASE_PATH@/Current/gbk*.x* @BLASTSERVER_BLAST_DATABASE_PATH@/Current
+scp /research/zfin.org/blastdb/Current/gbk*.x* /research/zblastfiles/zmore/blastRegeneration/Current
 
 echo "finish downloading zfin_mrph.fa from embryonix and making backup of current files"
 

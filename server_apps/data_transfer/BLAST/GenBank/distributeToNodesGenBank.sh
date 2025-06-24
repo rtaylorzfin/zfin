@@ -9,9 +9,9 @@
 
 echo "==| Rsync dbs for GenBank |=="
 
-if ({@HOSTNAME@} == genomix.cs.uoregon.edu) then
+if ({watson.zfin.org} == genomix.cs.uoregon.edu) then
  foreach i (001  003 004 005)
-   rsync -avz -e ssh @BLASTSERVER_BLAST_DATABASE_PATH@/Current/gbk_* node${i}:@BLASTSERVER_BLAST_DATABASE_PATH@/Current
+   rsync -avz -e ssh /research/zblastfiles/zmore/blastRegeneration/Current/gbk_* node${i}:/research/zblastfiles/zmore/blastRegeneration/Current
  end
 endif 
 

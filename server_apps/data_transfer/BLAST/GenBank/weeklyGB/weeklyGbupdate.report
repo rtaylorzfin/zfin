@@ -6,122 +6,122 @@ cp: No match.
 done with weeklyCpGenBank.sh
 == merge one week's nc files into nonredundant fasta files. weeklyNrdbGenBank.sh ==
 == Merge one week's nc files into nonredundant fasta files ==
-Fri Jun 20 19:00:01 PDT 2025
-Fri Jun 20 19:00:22 PDT 2025
+Fri Jul 14 19:00:02 PDT 2023
+Fri Jul 14 19:00:39 PDT 2023
 done with weeklyNrdbGenBank.sh
 == make blastdbs weeklyWudbFormatGenBank.sh ==
 == Copy current genbank db to backup, and switch the wu-db link in weeklyGbUpdate.sh ==
 == FORMAT hs_dna, ms_dna, zf_dna ==
 XDFORMAT 3.0SE-AB [2012-12-05] [linux26-x64-I32LPF64 2012-12-06T00:06:44]
-Start:  2025-06-20T19:02:22
+Start:  2023-07-14T19:05:24
 XDF Output Database (Append Mode):  /research/zblastfiles/zmore/blastRegeneration/Current/gbk_zf_dna
  Alphabet:  NCBI2na.1
  Identifier index cache size:  512 MiB
 Input: "/research/zblastfiles/files/blastRegeneration/fasta/GB_daily/nc_zf_dna.fa"
  No. of sequences (letters) appended:  394  (40,031,136)
- No. of sequences (letters) in database:  213,630  (12,472,643,805)
- Longest sequence appended (in database):  272,840  (80,330,649)
+ No. of sequences (letters) in database:  211,749  (10,867,120,874)
+ Longest sequence appended (in database):  272,840  (79,022,091)
  Edit Alphabet:  WUStLna.1
  Sequences edited for ambiguity codes:  0
  No. of edits (total length) appended:  0  (0)
  No. of edits in database:  0
- Index entries appended (in database):  1576  (432,776)
- Duplicate identifiers appended (in database):  1549  (9777)
+ Index entries appended (in database):  1576  (425,862)
+ Duplicate identifiers appended (in database):  1546  (3580)
 Total cpu time:  0.14u 0.04s 0.18t   Elapsed:  00:00:00
-End:  2025-06-20T19:02:22
+End:  2023-07-14T19:05:24
 XDFORMAT 3.0SE-AB [2012-12-05] [linux26-x64-I32LPF64 2012-12-06T00:06:44]
-Start:  2025-06-20T19:02:22
+Start:  2023-07-14T19:05:24
 XDF Output Database (Append Mode):  /research/zblastfiles/zmore/blastRegeneration/Current/gbk_hs_dna
  Alphabet:  NCBI2na.1
  Identifier index cache size:  512 MiB
 Input: "/research/zblastfiles/files/blastRegeneration/fasta/GB_daily/nc_hs_dna.fa"
  No. of sequences (letters) appended:  78,698  (671,734,824)
- No. of sequences (letters) in database:  3,133,054  (26,647,540,966)
- Longest sequence appended (in database):  2,132,949  (252,060,642)
+ No. of sequences (letters) in database:  2,808,400  (17,931,180,609)
+ Longest sequence appended (in database):  2,132,949  (248,387,328)
  Edit Alphabet:  WUStLna.1
  Sequences edited for ambiguity codes:  0
  No. of edits (total length) appended:  0  (0)
  No. of edits in database:  0
- Index entries appended (in database):  398,949  (7,956,977)
- Duplicate identifiers appended (in database):  398,891  (2,437,943)
- Redundant identifiers skipped (in database):  1599  (11,195)
-Total cpu time:  4.20u 2.80s 7.00t   Elapsed:  00:00:08
-End:  2025-06-20T19:02:30
+ Index entries appended (in database):  398,949  (6,341,458)
+ Duplicate identifiers appended (in database):  398,888  (842,376)
+ Redundant identifiers skipped (in database):  1599  (4798)
+Total cpu time:  3.74u 2.56s 6.30t   Elapsed:  00:00:09
+End:  2023-07-14T19:05:33
 XDFORMAT 3.0SE-AB [2012-12-05] [linux26-x64-I32LPF64 2012-12-06T00:06:44]
-Start:  2025-06-20T19:02:30
+Start:  2023-07-14T19:05:33
 XDF Output Database (Append Mode):  /research/zblastfiles/zmore/blastRegeneration/Current/gbk_ms_dna
  Alphabet:  NCBI2na.1
  Identifier index cache size:  512 MiB
 Input: "/research/zblastfiles/files/blastRegeneration/fasta/GB_daily/nc_ms_dna.fa"
  No. of sequences (letters) appended:  436  (30,428,043)
- No. of sequences (letters) in database:  3,776,587  (39,517,923,051)
+ No. of sequences (letters) in database:  3,774,729  (39,395,226,960)
  Longest sequence appended (in database):  260,935  (200,230,676)
  Edit Alphabet:  WUStLna.1
  Sequences edited for ambiguity codes:  0
  No. of edits (total length) appended:  0  (0)
  No. of edits in database:  0
- Index entries appended (in database):  1856  (7,560,062)
- Duplicate identifiers appended (in database):  1855  (11,694)
- Redundant identifiers skipped (in database):  100  (700)
-Total cpu time:  0.12u 0.03s 0.15t   Elapsed:  00:00:01
-End:  2025-06-20T19:02:31
+ Index entries appended (in database):  1856  (7,552,410)
+ Duplicate identifiers appended (in database):  1855  (4275)
+ Redundant identifiers skipped (in database):  100  (300)
+Total cpu time:  0.10u 0.04s 0.14t   Elapsed:  00:00:00
+End:  2023-07-14T19:05:33
 == FORMAT hs_mrna, ms_mrna, zf_mrna ==
 XDFORMAT 3.0SE-AB [2012-12-05] [linux26-x64-I32LPF64 2012-12-06T00:06:44]
-Start:  2025-06-20T19:02:31
+Start:  2023-07-14T19:05:33
 XDF Output Database (Append Mode):  /research/zblastfiles/zmore/blastRegeneration/Current/gbk_zf_mrna
  Alphabet:  NCBI2na.1
  Identifier index cache size:  512 MiB
 Input: "/research/zblastfiles/files/blastRegeneration/fasta/GB_daily/nc_zf_mrna.fa"
  No. of sequences (letters) appended:  42  (97,743)
- No. of sequences (letters) in database:  1,518,671  (941,854,685)
+ No. of sequences (letters) in database:  1,518,494  (941,446,433)
  Longest sequence appended (in database):  5992  (31,404)
  Edit Alphabet:  WUStLna.1
  Sequences edited for ambiguity codes:  0
  No. of edits (total length) appended:  0  (0)
  No. of edits in database:  0
- Index entries appended (in database):  168  (3,037,930)
- Duplicate identifiers appended (in database):  168  (1092)
+ Index entries appended (in database):  168  (3,037,240)
+ Duplicate identifiers appended (in database):  168  (420)
 Total cpu time:  0.00u 0.00s 0.00t   Elapsed:  00:00:00
-End:  2025-06-20T19:02:31
+End:  2023-07-14T19:05:33
 XDFORMAT 3.0SE-AB [2012-12-05] [linux26-x64-I32LPF64 2012-12-06T00:06:44]
-Start:  2025-06-20T19:02:31
+Start:  2023-07-14T19:05:33
 XDF Output Database (Append Mode):  /research/zblastfiles/zmore/blastRegeneration/Current/gbk_hs_mrna
  Alphabet:  NCBI2na.1
  Identifier index cache size:  512 MiB
 Input: "/research/zblastfiles/files/blastRegeneration/fasta/GB_daily/nc_hs_mrna.fa"
  No. of sequences (letters) appended:  1718  (912,632)
- No. of sequences (letters) in database:  9,039,839  (4,873,659,575)
+ No. of sequences (letters) in database:  9,030,743  (4,868,947,550)
  Longest sequence appended (in database):  8053  (81,940)
  Edit Alphabet:  WUStLna.1
  Sequences edited for ambiguity codes:  0
  No. of edits (total length) appended:  0  (0)
  No. of edits in database:  0
- Index entries appended (in database):  7424  (18,107,594)
- Duplicate identifiers appended (in database):  7424  (48,256)
- Redundant identifiers skipped (in database):  132  (924)
-Total cpu time:  0.03u 0.05s 0.08t   Elapsed:  00:00:00
-End:  2025-06-20T19:02:31
+ Index entries appended (in database):  7424  (18,073,450)
+ Duplicate identifiers appended (in database):  7424  (18,560)
+ Redundant identifiers skipped (in database):  132  (396)
+Total cpu time:  0.03u 0.05s 0.08t   Elapsed:  00:00:01
+End:  2023-07-14T19:05:34
 XDFORMAT 3.0SE-AB [2012-12-05] [linux26-x64-I32LPF64 2012-12-06T00:06:44]
-Start:  2025-06-20T19:02:31
+Start:  2023-07-14T19:05:34
 XDF Output Database (Append Mode):  /research/zblastfiles/zmore/blastRegeneration/Current/gbk_ms_mrna
  Alphabet:  NCBI2na.1
  Identifier index cache size:  512 MiB
 Input: "/research/zblastfiles/files/blastRegeneration/fasta/GB_daily/nc_ms_mrna.fa"
  No. of sequences (letters) appended:  186  (152,316)
- No. of sequences (letters) in database:  5,399,923  (2,716,884,946)
+ No. of sequences (letters) in database:  5,398,642  (2,716,059,822)
  Longest sequence appended (in database):  6117  (23,414)
  Edit Alphabet:  WUStLna.1
  Sequences edited for ambiguity codes:  0
  No. of edits (total length) appended:  0  (0)
  No. of edits in database:  0
- Index entries appended (in database):  748  (10,802,478)
- Duplicate identifiers appended (in database):  748  (4852)
- Redundant identifiers skipped (in database):  12  (84)
-Total cpu time:  0.00u 0.00s 0.00t   Elapsed:  00:00:00
-End:  2025-06-20T19:02:31
+ Index entries appended (in database):  748  (10,798,412)
+ Duplicate identifiers appended (in database):  748  (1860)
+ Redundant identifiers skipped (in database):  12  (36)
+Total cpu time:  0.00u 0.01s 0.01t   Elapsed:  00:00:00
+End:  2023-07-14T19:05:34
 == FORMAT zf_rna ==
 XDFORMAT 3.0SE-AB [2012-12-05] [linux26-x64-I32LPF64 2012-12-06T00:06:44]
-Start:  2025-06-20T19:02:31
+Start:  2023-07-14T19:05:34
 XDF Output Database (Append Mode):  /research/zblastfiles/zmore/blastRegeneration/Current/gbk_zf_rna
  Alphabet:  NCBI2na.1
  Identifier index cache size:  512 MiB
@@ -136,10 +136,10 @@ Input: "/research/zblastfiles/files/blastRegeneration/fasta/GB_daily/nc_zf_rna.f
  Index entries appended (in database):  0  (92)
  Duplicate identifiers appended (in database):  0  (46)
 Total cpu time:  0.00u 0.00s 0.00t   Elapsed:  00:00:00
-End:  2025-06-20T19:02:31
+End:  2023-07-14T19:05:34
 == FORMAT est_hs, est_ms, and est_zf ==
 XDFORMAT 3.0SE-AB [2012-12-05] [linux26-x64-I32LPF64 2012-12-06T00:06:44]
-Start:  2025-06-20T19:02:31
+Start:  2023-07-14T19:05:34
 XDF Output Database (Append Mode):  /research/zblastfiles/zmore/blastRegeneration/Current/gbk_est_zf
  Alphabet:  NCBI2na.1
  Identifier index cache size:  512 MiB
@@ -153,45 +153,45 @@ Input: "/research/zblastfiles/files/blastRegeneration/fasta/GB_daily/nc_est_zf.f
  No. of edits in database:  0
  Index entries appended (in database):  0  (2,976,686)
 Total cpu time:  0.00u 0.00s 0.00t   Elapsed:  00:00:00
-End:  2025-06-20T19:02:31
+End:  2023-07-14T19:05:34
 XDFORMAT 3.0SE-AB [2012-12-05] [linux26-x64-I32LPF64 2012-12-06T00:06:44]
-Start:  2025-06-20T19:02:31
+Start:  2023-07-14T19:05:34
 XDF Output Database (Append Mode):  /research/zblastfiles/zmore/blastRegeneration/Current/gbk_est_hs
  Alphabet:  NCBI2na.1
  Identifier index cache size:  512 MiB
 Input: "/research/zblastfiles/files/blastRegeneration/fasta/GB_daily/nc_est_hs.fa"
  No. of sequences (letters) appended:  4  (2246)
- No. of sequences (letters) in database:  8,705,165  (4,435,823,358)
+ No. of sequences (letters) in database:  8,705,149  (4,435,814,374)
  Longest sequence appended (in database):  589  (5205)
  Edit Alphabet:  WUStLna.1
  Sequences edited for ambiguity codes:  0
  No. of edits (total length) appended:  0  (0)
  No. of edits in database:  0
- Index entries appended (in database):  16  (17,410,386)
- Duplicate identifiers appended (in database):  16  (104)
- Redundant identifiers skipped (in database):  16  (112)
+ Index entries appended (in database):  16  (17,410,322)
+ Duplicate identifiers appended (in database):  16  (40)
+ Redundant identifiers skipped (in database):  16  (48)
 Total cpu time:  0.00u 0.00s 0.00t   Elapsed:  00:00:00
-End:  2025-06-20T19:02:31
+End:  2023-07-14T19:05:34
 XDFORMAT 3.0SE-AB [2012-12-05] [linux26-x64-I32LPF64 2012-12-06T00:06:44]
-Start:  2025-06-20T19:02:31
+Start:  2023-07-14T19:05:34
 XDF Output Database (Append Mode):  /research/zblastfiles/zmore/blastRegeneration/Current/gbk_est_ms
  Alphabet:  NCBI2na.1
  Identifier index cache size:  512 MiB
 Input: "/research/zblastfiles/files/blastRegeneration/fasta/GB_daily/nc_est_ms.fa"
  No. of sequences (letters) appended:  4  (1164)
- No. of sequences (letters) in database:  4,871,016  (2,254,148,505)
+ No. of sequences (letters) in database:  4,871,000  (2,254,143,849)
  Longest sequence appended (in database):  448  (4838)
  Edit Alphabet:  WUStLna.1
  Sequences edited for ambiguity codes:  0
  No. of edits (total length) appended:  0  (0)
  No. of edits in database:  0
- Index entries appended (in database):  16  (9,742,088)
- Duplicate identifiers appended (in database):  16  (104)
+ Index entries appended (in database):  16  (9,742,024)
+ Duplicate identifiers appended (in database):  16  (40)
 Total cpu time:  0.00u 0.00s 0.00t   Elapsed:  00:00:00
-End:  2025-06-20T19:02:31
+End:  2023-07-14T19:05:34
 == FORMAT gss_zf, htg_zf and zf_all ==
 XDFORMAT 3.0SE-AB [2012-12-05] [linux26-x64-I32LPF64 2012-12-06T00:06:44]
-Start:  2025-06-20T19:02:31
+Start:  2023-07-14T19:05:34
 XDF Output Database (Append Mode):  /research/zblastfiles/zmore/blastRegeneration/Current/gbk_gss_zf
  Alphabet:  NCBI2na.1
  Identifier index cache size:  512 MiB
@@ -205,24 +205,24 @@ Input: "/research/zblastfiles/files/blastRegeneration/fasta/GB_daily/nc_gss_zf.f
  No. of edits in database:  0
  Index entries appended (in database):  0  (361,924)
 Total cpu time:  0.00u 0.00s 0.00t   Elapsed:  00:00:00
-End:  2025-06-20T19:02:31
+End:  2023-07-14T19:05:34
 XDFORMAT 3.0SE-AB [2012-12-05] [linux26-x64-I32LPF64 2012-12-06T00:06:44]
-Start:  2025-06-20T19:02:31
+Start:  2023-07-14T19:05:34
 XDF Output Database (Append Mode):  /research/zblastfiles/zmore/blastRegeneration/Current/gbk_htg_zf
  Alphabet:  NCBI2na.1
  Identifier index cache size:  512 MiB
 Input: "/research/zblastfiles/files/blastRegeneration/fasta/GB_daily/nc_htg_zf.fa"
  No. of sequences (letters) appended:  149  (11,099,460)
- No. of sequences (letters) in database:  5628  (647,595,281)
+ No. of sequences (letters) in database:  5032  (603,197,441)
  Longest sequence appended (in database):  197,007  (2,437,744)
  Edit Alphabet:  WUStLna.1
  Sequences edited for ambiguity codes:  0
  No. of edits (total length) appended:  0  (0)
  No. of edits in database:  0
- Index entries appended (in database):  596  (13,342)
- Duplicate identifiers appended (in database):  577  (3521)
-Total cpu time:  0.03u 0.02s 0.05t   Elapsed:  00:00:00
-End:  2025-06-20T19:02:31
+ Index entries appended (in database):  596  (10,958)
+ Duplicate identifiers appended (in database):  574  (1218)
+Total cpu time:  0.04u 0.01s 0.05t   Elapsed:  00:00:00
+End:  2023-07-14T19:05:34
 done with weeklyWudbFormatGenBank.sh
 == Switch wu-db link back to Current dir ==
 == Clear up the files in /research/zblastfiles/files/blastRegeneration/fasta/GB_daily == 

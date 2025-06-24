@@ -3,10 +3,10 @@
 # Assemble GB release
 # 
 
-# requires that a GB subdir is already created in @BLASTSERVER_FASTA_FILE_PATH@/fasta
+# requires that a GB subdir is already created in /research/zblastfiles/files/blastRegeneration/fasta
 # this is done automatically by downloadGenBank.sh
 
-cd @BLASTSERVER_FASTA_FILE_PATH@/fasta/GB
+cd /research/zblastfiles/files/blastRegeneration/fasta/GB
 
 
 #---------------------------
@@ -24,7 +24,7 @@ foreach dir (*)
     echo "==| parse $dir files GenBank|=="
     foreach file (*.seq)
       echo "parsing file: $file";
-      @TARGET_PATH@/GenBank/gb2fa.pl $file
+      /research/zusers/blast/BLAST_load/target/GenBank/gb2fa.pl $file
     end
 
     echo "==|remove .seq files GenBank |=="
