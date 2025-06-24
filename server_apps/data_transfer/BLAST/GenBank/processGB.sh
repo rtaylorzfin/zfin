@@ -2,20 +2,21 @@
 #
 # Process GB release
 # 
+
 source /research/zusers/blast/BLAST_load/properties/current;
 
-cd /research/zusers/blast/BLAST_load/target
+cd @TARGET_PATH@
 
-/research/zusers/blast/BLAST_load/target/GenBank/downloadGenBank.sh
-/research/zusers/blast/BLAST_load/target/GenBank/assembleGenBank.sh
-/research/zusers/blast/BLAST_load/target/GenBank/convertGenBank.sh
+@TARGET_PATH@/GenBank/downloadGenBank.sh
+@TARGET_PATH@/GenBank/assembleGenBank.sh
+@TARGET_PATH@/GenBank/convertGenBank.sh
 
-echo "==| New release is formatted at /research/zblastfiles/files/blastRegeneration/fasta/GenBank, running: /research/zusers/blast/BLAST_load/target/GenBank/postGbRelease.sh |== If errors encountered, move /research/zblastfiles/files/blastRegeneration/fasta/Backup/ files into /research/zblastfiles/files/blastRegeneration/fasta/Current/ and figure out what is wrong before running blastdbupdate.pl again."
+echo "==| New release is formatted at @BLASTSERVER_FASTA_FILE_PATH@/fasta/GenBank, running: @TARGET_PATH@/GenBank/postGbRelease.sh |== If errors encountered, move @BLASTSERVER_FASTA_FILE_PATH@/fasta/Backup/ files into @BLASTSERVER_FASTA_FILE_PATH@/fasta/Current/ and figure out what is wrong before running blastdbupdate.pl again."
 
-/research/zusers/blast/BLAST_load/target/GenBank/postGbRelease.sh
+@TARGET_PATH@/GenBank/postGbRelease.sh
 
-#if (watson.zfin.org == genomix.cs.uoregon.edu) then
-# /research/zusers/blast/BLAST_load/target/distributeToNodesGenBank.sh
+#if (@HOSTNAME@ == genomix.cs.uoregon.edu) then
+# @TARGET_PATH@/distributeToNodesGenBank.sh
 #endif
 
 echo "==| Done with GenBank process |=="

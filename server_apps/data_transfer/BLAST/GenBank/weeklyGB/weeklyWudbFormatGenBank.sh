@@ -1,45 +1,45 @@
 #!/bin/tcsh
 
-cd /research/zblastfiles/files/blastRegeneration/fasta/GB_daily
+cd @BLASTSERVER_FASTA_FILE_PATH@/fasta/GB_daily
 
 echo "== Copy current genbank db to backup, and switch the wu-db link in weeklyGbUpdate.sh =="
-rm /research/zblastfiles/zmore/blastRegeneration/Backup/gbk_*
-cp /research/zblastfiles/zmore/blastRegeneration/Current/gbk_* /research/zblastfiles/zmore/blastRegeneration/Backup/
+rm @BLASTSERVER_BLAST_DATABASE_PATH@/Backup/gbk_*
+cp @BLASTSERVER_BLAST_DATABASE_PATH@/Current/gbk_* @BLASTSERVER_BLAST_DATABASE_PATH@/Backup/
 
-rm /research/zblastfiles/zmore/blastRegeneration/wu-db
+rm @BLASTSERVER_BLAST_DATABASE_PATH@/wu-db
 
 # move the symlink to the Backup directory; so we don't have user downtime.
-ln -s /research/zblastfiles/zmore/blastRegeneration/Backup /research/zblastfiles/zmore/blastRegeneration/wu-db
+ln -s @BLASTSERVER_BLAST_DATABASE_PATH@/Backup @BLASTSERVER_BLAST_DATABASE_PATH@/wu-db
 
 echo "== FORMAT hs_dna, ms_dna, zf_dna =="; 
-/opt/ab-blast/xdformat -n -e ../GenBank/xdformat_zf_dna.log -a /research/zblastfiles/zmore/blastRegeneration/Current/gbk_zf_dna /research/zblastfiles/files/blastRegeneration/fasta/GB_daily/nc_zf_dna.fa ;
+@BLASTSERVER_XDFORMAT@ -n -e ../GenBank/xdformat_zf_dna.log -a @BLASTSERVER_BLAST_DATABASE_PATH@/Current/gbk_zf_dna @BLASTSERVER_FASTA_FILE_PATH@/fasta/GB_daily/nc_zf_dna.fa ;
 
-/opt/ab-blast/xdformat -n -e ../GenBank/xdformat_hs_dna.log -a /research/zblastfiles/zmore/blastRegeneration/Current/gbk_hs_dna /research/zblastfiles/files/blastRegeneration/fasta/GB_daily/nc_hs_dna.fa ;
+@BLASTSERVER_XDFORMAT@ -n -e ../GenBank/xdformat_hs_dna.log -a @BLASTSERVER_BLAST_DATABASE_PATH@/Current/gbk_hs_dna @BLASTSERVER_FASTA_FILE_PATH@/fasta/GB_daily/nc_hs_dna.fa ;
 
-/opt/ab-blast/xdformat -n -e ../GenBank/xdformat_ms_dna.log -a /research/zblastfiles/zmore/blastRegeneration/Current/gbk_ms_dna /research/zblastfiles/files/blastRegeneration/fasta/GB_daily/nc_ms_dna.fa 
+@BLASTSERVER_XDFORMAT@ -n -e ../GenBank/xdformat_ms_dna.log -a @BLASTSERVER_BLAST_DATABASE_PATH@/Current/gbk_ms_dna @BLASTSERVER_FASTA_FILE_PATH@/fasta/GB_daily/nc_ms_dna.fa 
 
 echo "== FORMAT hs_mrna, ms_mrna, zf_mrna =="; 
-/opt/ab-blast/xdformat -n -e ../GenBank/xdformat_zf_mrna.log -a /research/zblastfiles/zmore/blastRegeneration/Current/gbk_zf_mrna /research/zblastfiles/files/blastRegeneration/fasta/GB_daily/nc_zf_mrna.fa ;
+@BLASTSERVER_XDFORMAT@ -n -e ../GenBank/xdformat_zf_mrna.log -a @BLASTSERVER_BLAST_DATABASE_PATH@/Current/gbk_zf_mrna @BLASTSERVER_FASTA_FILE_PATH@/fasta/GB_daily/nc_zf_mrna.fa ;
 
-/opt/ab-blast/xdformat -n -e ../GenBank/xdformat_hs_mrna.log -a /research/zblastfiles/zmore/blastRegeneration/Current/gbk_hs_mrna /research/zblastfiles/files/blastRegeneration/fasta/GB_daily/nc_hs_mrna.fa ;
+@BLASTSERVER_XDFORMAT@ -n -e ../GenBank/xdformat_hs_mrna.log -a @BLASTSERVER_BLAST_DATABASE_PATH@/Current/gbk_hs_mrna @BLASTSERVER_FASTA_FILE_PATH@/fasta/GB_daily/nc_hs_mrna.fa ;
 
-/opt/ab-blast/xdformat -n -e ../GenBank/xdformat_ms_mrna.log -a /research/zblastfiles/zmore/blastRegeneration/Current/gbk_ms_mrna /research/zblastfiles/files/blastRegeneration/fasta/GB_daily/nc_ms_mrna.fa ;
+@BLASTSERVER_XDFORMAT@ -n -e ../GenBank/xdformat_ms_mrna.log -a @BLASTSERVER_BLAST_DATABASE_PATH@/Current/gbk_ms_mrna @BLASTSERVER_FASTA_FILE_PATH@/fasta/GB_daily/nc_ms_mrna.fa ;
 
 echo "== FORMAT zf_rna =="; 
-/opt/ab-blast/xdformat -n -e ../GenBank/xdformat_zf_mrna.log -a /research/zblastfiles/zmore/blastRegeneration/Current/gbk_zf_rna /research/zblastfiles/files/blastRegeneration/fasta/GB_daily/nc_zf_rna.fa ;
+@BLASTSERVER_XDFORMAT@ -n -e ../GenBank/xdformat_zf_mrna.log -a @BLASTSERVER_BLAST_DATABASE_PATH@/Current/gbk_zf_rna @BLASTSERVER_FASTA_FILE_PATH@/fasta/GB_daily/nc_zf_rna.fa ;
 
 echo "== FORMAT est_hs, est_ms, and est_zf =="; 
-/opt/ab-blast/xdformat -n -e ../GenBank/xdformat_est_zf.log -a /research/zblastfiles/zmore/blastRegeneration/Current/gbk_est_zf /research/zblastfiles/files/blastRegeneration/fasta/GB_daily/nc_est_zf.fa ;
+@BLASTSERVER_XDFORMAT@ -n -e ../GenBank/xdformat_est_zf.log -a @BLASTSERVER_BLAST_DATABASE_PATH@/Current/gbk_est_zf @BLASTSERVER_FASTA_FILE_PATH@/fasta/GB_daily/nc_est_zf.fa ;
 
-/opt/ab-blast/xdformat -n -e ../GenBank/xdformat_est_hs.log -a /research/zblastfiles/zmore/blastRegeneration/Current/gbk_est_hs /research/zblastfiles/files/blastRegeneration/fasta/GB_daily/nc_est_hs.fa ;
+@BLASTSERVER_XDFORMAT@ -n -e ../GenBank/xdformat_est_hs.log -a @BLASTSERVER_BLAST_DATABASE_PATH@/Current/gbk_est_hs @BLASTSERVER_FASTA_FILE_PATH@/fasta/GB_daily/nc_est_hs.fa ;
 
-/opt/ab-blast/xdformat -n -e ../GenBank/xdformat_est_ms.log -a /research/zblastfiles/zmore/blastRegeneration/Current/gbk_est_ms /research/zblastfiles/files/blastRegeneration/fasta/GB_daily/nc_est_ms.fa ;
+@BLASTSERVER_XDFORMAT@ -n -e ../GenBank/xdformat_est_ms.log -a @BLASTSERVER_BLAST_DATABASE_PATH@/Current/gbk_est_ms @BLASTSERVER_FASTA_FILE_PATH@/fasta/GB_daily/nc_est_ms.fa ;
 
 
 echo "== FORMAT gss_zf, htg_zf and zf_all =="
-/opt/ab-blast/xdformat -n -e ../GenBank/xdformat_gss_zf.log -a /research/zblastfiles/zmore/blastRegeneration/Current/gbk_gss_zf /research/zblastfiles/files/blastRegeneration/fasta/GB_daily/nc_gss_zf.fa ;
+@BLASTSERVER_XDFORMAT@ -n -e ../GenBank/xdformat_gss_zf.log -a @BLASTSERVER_BLAST_DATABASE_PATH@/Current/gbk_gss_zf @BLASTSERVER_FASTA_FILE_PATH@/fasta/GB_daily/nc_gss_zf.fa ;
 
-/opt/ab-blast/xdformat -n -e ../GenBank/xdformat_htg_zf.log -a /research/zblastfiles/zmore/blastRegeneration/Current/gbk_htg_zf /research/zblastfiles/files/blastRegeneration/fasta/GB_daily/nc_htg_zf.fa ;
+@BLASTSERVER_XDFORMAT@ -n -e ../GenBank/xdformat_htg_zf.log -a @BLASTSERVER_BLAST_DATABASE_PATH@/Current/gbk_htg_zf @BLASTSERVER_FASTA_FILE_PATH@/fasta/GB_daily/nc_htg_zf.fa ;
 
 echo "done with weeklyWudbFormatGenBank.sh"
 

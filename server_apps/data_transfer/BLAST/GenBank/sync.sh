@@ -1,11 +1,11 @@
 #!/bin/bash
 
-/research/zblastfiles/zmore/blastRegeneration="/private/blastdb"
+@BLASTSERVER_BLAST_DATABASE_PATH@="/private/blastdb"
 
 
 for i in 001 003 004 005
 do
-  rsync -avz -e ssh /research/zblastfiles/zmore/blastRegeneration/Current/zfin_cdna*.x* node${i}:/research/zblastfiles/zmore/blastRegeneration/Current
+  rsync -avz -e ssh @BLASTSERVER_BLAST_DATABASE_PATH@/Current/zfin_cdna*.x* node${i}:@BLASTSERVER_BLAST_DATABASE_PATH@/Current
 done
 
 

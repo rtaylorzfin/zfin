@@ -1,21 +1,21 @@
 #!/bin/tcsh
 
-cd /research/zblastfiles/files/blastRegeneration/fasta/GB_daily
+cd @BLASTSERVER_FASTA_FILE_PATH@/fasta/GB_daily
 
 echo "== cp the files over from embryonix, and move old files to backup; weeklyCpGenBank.sh =="
 # cp the files over from embryonix, and move old files to backup.
-/research/zusers/blast/BLAST_load/target/GenBank/weeklyGB/weeklyCpGenBank.sh
+@TARGET_PATH@/GenBank/weeklyGB/weeklyCpGenBank.sh
 
 echo "== merge one week's nc files into nonredundant fasta files. weeklyNrdbGenBank.sh =="
 # merge one week's nc files into nonredundant fasta files.
-/research/zusers/blast/BLAST_load/target/GenBank/weeklyGB/weeklyNrdbGenBank.sh
+@TARGET_PATH@/GenBank/weeklyGB/weeklyNrdbGenBank.sh
 
 echo "== make blastdbs weeklyWudbFormatGenBank.sh =="
 # make blastdbs
-/research/zusers/blast/BLAST_load/target/GenBank/weeklyGB/weeklyWudbFormatGenBank.sh
+@TARGET_PATH@/GenBank/weeklyGB/weeklyWudbFormatGenBank.sh
 
 # push new blastdbs to /Current
-/research/zusers/blast/BLAST_load/target/GenBank/weeklyGB/weeklyPushGenBank.sh
+@TARGET_PATH@/GenBank/weeklyGB/weeklyPushGenBank.sh
 
 exit 0
 

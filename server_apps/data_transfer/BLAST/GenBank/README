@@ -1,12 +1,12 @@
 Progression of files:
 --------------------------------------------------
 All files downloaded to: 
-/research/zblastfiles/files/blastRegeneration/fasta/GB/
+@BLASTSERVER_FASTA_FILE_PATH@/fasta/GB/
 (script itself creates and manages this directory).
 
 Blastdbs and log files generated in:
 /tmp  and (depending on mode)
-/research/zblastfiles/files/blastRegeneration/fasta/GenBank
+@BLASTSERVER_FASTA_FILE_PATH@/fasta/GenBank
 
 Blastdbs moved to:
 $BLASTSERVER_BLAST_DATABASE_PATH/Current
@@ -42,9 +42,9 @@ $BLASTSERVER_BLAST_DATABASE_PATH/Current/ by moving symlinks around.
 --------------------------------------------------
 Files created:
 --------------------------------------------------
-/research/zblastfiles/files/blastRegeneration/fasta/GenBank/*
-/research/zblastfiles/files/blastRegeneration/fasta/GB/*
-/research/zblastfiles/files/blastRegeneration/fasta/GB_daily/*
+@BLASTSERVER_FASTA_FILE_PATH@/fasta/GenBank/*
+@BLASTSERVER_FASTA_FILE_PATH@/fasta/GB/*
+@BLASTSERVER_FASTA_FILE_PATH@/fasta/GB_daily/*
 
 
 --------------------------------------------------

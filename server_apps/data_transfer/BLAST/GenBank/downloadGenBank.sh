@@ -3,13 +3,13 @@
 # Download GB release
 # 
 
-cd /research/zblastfiles/files/blastRegeneration/fasta/
+cd @BLASTSERVER_FASTA_FILE_PATH@/fasta/
 
 #-----------------------------
 # Clean up previous log 
 #-----------------------------
 rm -f GenBank/xdformat*.log
-mv GB/*.fa /research/zblastfiles/files/blastRegeneration/Backup
+mv GB/*.fa @BLASTSERVER_FASTA_FILE_PATH@/Backup
 rm -rf GB/ftp.ncbi.nih.gov
 rm -rf GB
 mkdir GB
@@ -20,21 +20,21 @@ cd GB
 #---------------------
 echo "==| DOWNLOAD GenBank Release |=="
 
-/research/zusers/blast/BLAST_load/target/GenBank/loadGBdiv.sh est;
+@TARGET_PATH@/GenBank/loadGBdiv.sh est;
 
-/research/zusers/blast/BLAST_load/target/GenBank/loadGBdiv.sh gss;
+@TARGET_PATH@/GenBank/loadGBdiv.sh gss;
 
-/research/zusers/blast/BLAST_load/target/GenBank/loadGBdiv.sh htc;
+@TARGET_PATH@/GenBank/loadGBdiv.sh htc;
 
-/research/zusers/blast/BLAST_load/target/GenBank/loadGBdiv.sh htg;
+@TARGET_PATH@/GenBank/loadGBdiv.sh htg;
 
-/research/zusers/blast/BLAST_load/target/GenBank/loadGBdiv.sh sts;
+@TARGET_PATH@/GenBank/loadGBdiv.sh sts;
 
-/research/zusers/blast/BLAST_load/target/GenBank/loadGBdiv.sh pri;
+@TARGET_PATH@/GenBank/loadGBdiv.sh pri;
 
-/research/zusers/blast/BLAST_load/target/GenBank/loadGBdiv.sh rod;
+@TARGET_PATH@/GenBank/loadGBdiv.sh rod;
 
-/research/zusers/blast/BLAST_load/target/GenBank/loadGBdiv.sh vrt;
+@TARGET_PATH@/GenBank/loadGBdiv.sh vrt;
 
 #---------------------------
 # Clean up intermediate data 

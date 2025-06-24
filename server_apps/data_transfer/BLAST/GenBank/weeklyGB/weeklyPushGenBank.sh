@@ -1,22 +1,22 @@
 #!/bin/tcsh
 
-cd /research/zblastfiles/files/blastRegeneration/fasta/GB_daily
+cd @BLASTSERVER_FASTA_FILE_PATH@/fasta/GB_daily
 
 echo "== Switch wu-db link back to Current dir =="
-rm /research/zblastfiles/zmore/blastRegeneration/wu-db
-ln -s /research/zblastfiles/zmore/blastRegeneration/Current /research/zblastfiles/zmore/blastRegeneration/wu-db
+rm @BLASTSERVER_BLAST_DATABASE_PATH@/wu-db
+ln -s @BLASTSERVER_BLAST_DATABASE_PATH@/Current @BLASTSERVER_BLAST_DATABASE_PATH@/wu-db
 
 # only to the distributeToNodes bit on Genomix
-if (watson.zfin.org == genomix.cs.uoregon.edu) then
-    /research/zusers/blast/BLAST_load/target/GenBank/distributeToNodesGenBank.sh
+if (@HOSTNAME@ == genomix.cs.uoregon.edu) then
+    @TARGET_PATH@/GenBank/distributeToNodesGenBank.sh
 endif
 
-cd /research/zblastfiles/zmore/blastRegeneration/Current ;
+cd @BLASTSERVER_BLAST_DATABASE_PATH@/Current ;
 
 
 #===========================
 
-echo "== Clear up the files in /research/zblastfiles/files/blastRegeneration/fasta/GB_daily == "
+echo "== Clear up the files in @BLASTSERVER_FASTA_FILE_PATH@/fasta/GB_daily == "
 rm -f Last/*
 mv nc*.flat Last
 rm -f nc????_*_*.fa

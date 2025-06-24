@@ -15,7 +15,7 @@ if ($#argv != 0 ) then
     
     echo "download gb$prefix*.seq.gz"
     date
-    /local/bin/wget -q -r -l 2 -A "gb$prefix*.seq.gz" ftp://ftp.ncbi.nlm.nih.gov/genbank/ 
+    /local/bin/wget -q -r -l 2 -A "gb$prefix*.seq.gz" ftp://ftp.ncbi.nih.gov/genbank/ 
     date
 
     mkdir $prefix
