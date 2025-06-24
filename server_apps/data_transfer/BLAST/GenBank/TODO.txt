@@ -1,0 +1,19 @@
+Fill these in:
+
+BLASTSERVER_BLAST_DATABASE_PATH
+BLASTSERVER_FASTA_FILE_PATH
+HOSTNAME
+SCRIPT_PATH
+TARGET_PATH
+WEBHOST_BLAST_DATABASE_PATH
+WEBHOST_FASTA_FILE_PATH
+
+These are the values on playground:
+BLASTSERVER_BLAST_DATABASE_PATH=/research/zblastfiles/zmore/testdb
+BLASTSERVER_FASTA_FILE_PATH=/tmp/fasta_file_path
+HOSTNAME=testbed.zfin.org
+WEBHOST_BLAST_DATABASE_PATH=/research/zblastfiles/zmore/testdb
+WEBHOST_FASTA_FILE_PATH=/research/zblastfiles/dev_files
+SCRIPT_PATH=/research/zusers/blast/BLAST_load/data_transfer
+TARGET_PATH=/research/zusers/blast/BLAST_load/target
+
