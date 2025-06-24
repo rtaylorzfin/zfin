@@ -2,7 +2,7 @@
 #
 # The script checks several ftp sites for new release,
 # and invokes corresponding scripts to transfer and 
-# process data. It executes at @BLASTSERVER_FASTA_FILE_PATH@/fasta, 
+# process data.
 # uses timestamped *.ftp file to probe new release,
 # then calls scripts under @SCRIPT_PATH@ to execute.
 # Outputs are saved in *.report file. This script
@@ -34,7 +34,7 @@ print MAIL "Subject: DB release detection report\n";
 #===============================
 
 # No need to chdir here, the script is executed in the right directory ???
-# chdir "@BLASTSERVER_FASTA_FILE_PATH@/fasta";
+# was chdir "BLASTSERVER_FASTA_FILE_PATH/fasta"; #(temp directory)
 
 if ( &checkRelease ("genbank") ) { 
     # no new release
@@ -49,38 +49,10 @@ close MAIL;
 
 ###############################################################
 # Copy recently updated blastdbs to almost copy.
-# 
+# example: gbk* files
 ###############################################################
 sub cpToProductionAndRsyncDev() {
-    chdir "@BLASTSERVER_BLAST_DATABASE_PATH@/Current" ;
-    
-    # WEBHOST_BLAST_DATABASE_PATH is always /research/zfin.org/blastdb.  
-    # we do these one by one because we don't want to overwrite any load files on zfin.org    # from ZFIN (especially curated ones)
-
-    system("rm -f @WEBHOST_BLAST_DATABASE_PATH@/Backup/gbk*") && die "@WEBHOST_BLAST_DATABASE_PATH@/Backup delete failed for blastdbupdate.pl";
-
-    # check if files exist; if they don't we don't want to put the current files to backup and then 
-    # have nothing to move.
-
-    my $ckFile = "@BLASTSERVER_FASTA_FILE_PATH@/fasta/GenBank/gbk_zf_mrna.xnd";
-    if  (-e $ckFile) {
-	# rm the current files for blastdbupdate members.
-	system("mv -f @WEBHOST_BLAST_DATABASE_PATH@/Current/gbk*.x* @WEBHOST_BLAST_DATABASE_PATH@/Backup/" ) && die "@WEBHOST_BLAST_DATABASE_PATH@/Current/gbk* delete failed for blastdbupdate.pl";
-	system("mv -f @BLASTSERVER_FASTA_FILE_PATH@/fasta/GenBank/gbk*.x* @WEBHOST_BLAST_DATABASE_PATH@/Current/") && die "@WEBHOST_BLAST_DATABASE_PATH@/Current mv failed from @BLASTSERVER_BLAST_DATABASE_PATH@/Current/gbk";
-	}
-
-
-    # change group to zfishweb for informix files.
-    system("/bin/chgrp -R -L zfishweb @WEBHOST_BLAST_DATABASE_PATH@/Current/*.x*") ;
-    system("/bin/chgrp -R -L zfishweb @WEBHOST_BLAST_DATABASE_PATH@/Backup/*.x*") ;
-    system("/bin/chmod -R -L g+w @WEBHOST_BLAST_DATABASE_PATH@/Current/*.x*") ;
-    system("/bin/chmod -R -L g+w @WEBHOST_BLAST_DATABASE_PATH@/Backup/*.x*") ;
-
-    # this rsync will update the default environment on genomix for developers.
-    system("/local/bin/rsync -vu @BLASTSERVER_BLAST_DATABASE_PATH@/Current/gbk*.x* /research/zblastfiles/zmore/dev_blastdb/Current/") ;
-    system("/local/bin/rsync -vu @BLASTSERVER_BLAST_DATABASE_PATH@/Current/gbk*.x* /research/zblastfiles/zmore/trunk/Current/") ;
-    system("/local/bin/rsync -vu @BLASTSERVER_BLAST_DATABASE_PATH@/Current/gbk*.x* /research/zblastfiles/zmore/test/Current/") ;
-
+    #REMOVED: These files can be copied by another job
 }
 
 
@@ -159,9 +131,10 @@ sub checkNewfile ($) {
         chdir "./GenBank";
 		system ("$script $optmode > $reptfile 2>&1") &&  print MAIL "\t Update Failed! \n";
         chdir "..";
+        my $currentDir = `pwd`;
 
 		print MAIL "\t Finish update at ".`date`;
-		print MAIL "\t please check @BLASTSERVER_FASTA_FILE_PATH@/fasta$reptfile.\n";
+		print MAIL "\t please check $currentDir/fasta$reptfile.\n";
 		return 0;
     }else {
 		
