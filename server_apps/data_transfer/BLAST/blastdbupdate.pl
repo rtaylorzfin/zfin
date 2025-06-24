@@ -1,4 +1,4 @@
-#!/private/bin/perl -w
+#!/usr/bin/env perl -w
 #
 # The script checks several ftp sites for new release,
 # and invokes corresponding scripts to transfer and 
