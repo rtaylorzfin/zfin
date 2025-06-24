@@ -17,11 +17,11 @@ use Net::FTP;
 #====================================== 
 my ($mailprog, %scripts, %reptfiles, %stampfiles, $ftpFile);
 
-$scripts{"genbank"} = "./processGB.sh";
+$scripts{"genbank"} = "@TARGET_PATH@/GenBank/processGB.sh";
 
-$reptfiles{"genbank"} = "./genbankupdate.report";
+$reptfiles{"genbank"} = "@SCRIPT_PATH@/genbankupdate.report";
 
-$stampfiles{"genbank"} = "./GenBank/genbank.ftp";
+$stampfiles{"genbank"} = "@SCRIPT_PATH@/GenBank/genbank.ftp";
 
 $mailprog = "/usr/sbin/sendmail -t -oi -oem" ;
 
@@ -33,18 +33,16 @@ print MAIL "Subject: DB release detection report\n";
 #= Execute checking & updates
 #===============================
 
-# No need to chdir here, the script is executed in the right directory ???
-# chdir "@BLASTSERVER_FASTA_FILE_PATH@/fasta";
+chdir "@BLASTSERVER_FASTA_FILE_PATH@/fasta";
 
 if ( &checkRelease ("genbank") ) { 
     # no new release
     &genbankWeeklyUpdate ();
 }
 
-#  Do we need to copy the current files to production and rsync to dev?
-# if ("@HOSTNAME@" eq "watson.zfin.org" && "@WEBHOST_BLAST_DATABASE_PATH@" eq "/research/zfin.org/blastdb"){
-#     &cpToProductionAndRsyncDev();
-# }
+if ("@HOSTNAME@" eq "watson.zfin.org" && "@WEBHOST_BLAST_DATABASE_PATH@" eq "/research/zfin.org/blastdb"){
+    &cpToProductionAndRsyncDev();
+}
 close MAIL;
 
 ###############################################################
@@ -92,6 +90,7 @@ sub checkRelease ($) {
     print "Check release for $_[0] at ".`date`;
 
     $ftpFile = '';        # ensembl needs specified ftpFile name
+    my $dbkey = $_[0];
     my $script = $scripts{ $dbkey };
     print $script;
     my $reptfile = $reptfiles{ $dbkey };
@@ -113,11 +112,7 @@ sub checkRelease ($) {
 		system ("/bin/rm -f $reptfile");
 		my $optmode = ($dbkey eq "trace") ? "1" : "";
 		# initial the update process and write the output to a file
-
-        chdir "./GenBank";
 		system ("$script $optmode $ftpFile > $reptfile  2>&1") &&  print MAIL "\t Update Failed! \n";
-        chdir "..";
-
 		print MAIL "\t Finish update at ".`date`;
 		print MAIL "\t please check $reptfile.\n";
 		if ($dbkey eq "genbank") {
@@ -155,11 +150,7 @@ sub checkNewfile ($) {
 		my $optmode = ($dbkey eq "trace") ? "0" : "";
 		system ("/bin/rm -f $reptfile") unless ($dbkey eq "trace");
 		# initial the update process and write the output to a file
-
-        chdir "./GenBank";
 		system ("$script $optmode > $reptfile 2>&1") &&  print MAIL "\t Update Failed! \n";
-        chdir "..";
-
 		print MAIL "\t Finish update at ".`date`;
 		print MAIL "\t please check @BLASTSERVER_FASTA_FILE_PATH@/fasta$reptfile.\n";
 		return 0;
@@ -229,12 +220,8 @@ sub getRemoteFileTimestamp ($$) {
 #
 sub genbankWeeklyUpdate (){
 
-    system ("/bin/rm -f ./GenBank/weeklyGB/weeklyGbupdate.report") && die "weeklyGbupdate: report deletion fail";
-
-    chdir "./GenBank/weeklyGB";
-    system ("./weeklyGbUpdate.sh > ./weeklyGbupdate.report 2>&1 ") &&  print MAIL "\t Update Failed! \n" ;
-    chdir "../..";
-
-    print MAIL "\t please check "."GenBank/weeklyGB/"."weeklyGbupdate.report. \n";
+    system ("/bin/rm -f @BLASTSERVER_FASTA_FILE_PATH@/fasta/GenBank/weeklyGB/weeklyGbupdate.report") && die "weeklyGbupdate: report deletion fail";
+    system ("@TARGET_PATH@/GenBank/weeklyGB/weeklyGbUpdate.sh > @SCRIPT_PATH@/GenBank/weeklyGB/weeklyGbupdate.report 2>&1 ") &&  print MAIL "\t Update Failed! \n" ;
+    print MAIL "\t please check "."@SCRIPT_PATH@/GenBank/weeklyGB/"."weeklyGbupdate.report. \n";
 }
 
