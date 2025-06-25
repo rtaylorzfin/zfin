@@ -14,7 +14,7 @@ cd GenBank
 
 echo "==| New release is formatted at .../fasta/GenBank, running: .../GenBank/postGbRelease.sh |== If errors encountered, move .../fasta/Backup/ files into .../fasta/Current/ and figure out what is wrong before running blastdbupdate.pl again."
 
-./GenBank/postGbRelease.sh
+./postGbRelease.sh
 
 #if (@HOSTNAME@ == genomix.cs.uoregon.edu) then
 # @TARGET_PATH@/distributeToNodesGenBank.sh

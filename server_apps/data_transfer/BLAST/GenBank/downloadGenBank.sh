@@ -2,14 +2,15 @@
 #
 # Download GB release
 # 
-
-cd @BLASTSERVER_FASTA_FILE_PATH@/fasta/
+SCRIPT_DIR=$(dirname "$0")
+source "../config.sh"
+cd ../fasta/
 
 #-----------------------------
 # Clean up previous log 
 #-----------------------------
 rm -f GenBank/xdformat*.log
-mv GB/*.fa @BLASTSERVER_FASTA_FILE_PATH@/Backup
+mv GB/*.fa ../Backup
 rm -rf GB/ftp.ncbi.nih.gov
 rm -rf GB
 mkdir GB
@@ -20,21 +21,21 @@ cd GB
 #---------------------
 echo "==| DOWNLOAD GenBank Release |=="
 
-@TARGET_PATH@/GenBank/loadGBdiv.sh est;
+$SCRIPT_DIR/loadGBdiv.sh est;
 
-@TARGET_PATH@/GenBank/loadGBdiv.sh gss;
+$SCRIPT_DIR/loadGBdiv.sh gss;
 
-@TARGET_PATH@/GenBank/loadGBdiv.sh htc;
+$SCRIPT_DIR/loadGBdiv.sh htc;
 
-@TARGET_PATH@/GenBank/loadGBdiv.sh htg;
+$SCRIPT_DIR/loadGBdiv.sh htg;
 
-@TARGET_PATH@/GenBank/loadGBdiv.sh sts;
+$SCRIPT_DIR/loadGBdiv.sh sts;
 
-@TARGET_PATH@/GenBank/loadGBdiv.sh pri;
+$SCRIPT_DIR/loadGBdiv.sh pri;
 
-@TARGET_PATH@/GenBank/loadGBdiv.sh rod;
+$SCRIPT_DIR/loadGBdiv.sh rod;
 
-@TARGET_PATH@/GenBank/loadGBdiv.sh vrt;
+$SCRIPT_DIR/loadGBdiv.sh vrt;
 
 #---------------------------
 # Clean up intermediate data 

@@ -1,4 +1,4 @@
-#!/bin/tcsh
+#!/bin/bash
 #
 # rollback a GenBank Update
 # Since GenBank is so large, we have to move symlinks around
