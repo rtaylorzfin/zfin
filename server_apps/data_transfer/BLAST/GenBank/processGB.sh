@@ -7,7 +7,6 @@
 
 #cd @TARGET_PATH@
 
-cd GenBank
 ./downloadGenBank.sh
 ./assembleGenBank.sh
 ./convertGenBank.sh
@@ -22,6 +21,5 @@ echo "==| New release is formatted at .../fasta/GenBank, running: .../GenBank/po
 
 echo "==| Done with GenBank process |=="
 
-cd ..
 
 exit
