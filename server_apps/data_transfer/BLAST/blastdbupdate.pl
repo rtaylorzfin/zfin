@@ -24,7 +24,7 @@ $reptfiles{"genbank"} = "./genbankupdate.report";
 
 $stampfiles{"genbank"} = "./GenBank/genbank.ftp";
 
-$mailprog = "/usr/sbin/sendmail -t -oi -oem" ;
+$mailprog = "/usr/lib/sendmail -t -oi -oem" ;
 
 open(MAIL, "| $mailprog") || die "cannot open mailprog $mailprog, stopped";
 print MAIL "To: informix\@zfin.org\n";
