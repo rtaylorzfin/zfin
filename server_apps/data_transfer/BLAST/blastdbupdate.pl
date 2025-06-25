@@ -72,7 +72,7 @@ sub checkRelease ($) {
     my $stampfile = $stampfiles{ $dbkey };
     
     my $l_mdtm = (stat($stampfile))[9];
-    my $ltime = scalar(localtime($l_mdtm));
+    # my $ltime = scalar(localtime($l_mdtm));
 
     # ftpFile is global (used for Ensembl and is set in getRemoteFileTimeStamp method
     my $r_mdtm = &getRemoteFileTimestamp($stampfile, "0");
