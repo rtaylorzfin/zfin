@@ -62,6 +62,7 @@ sub cpToProductionAndRsyncDev() {
 # if so initiate the update process
 #
 sub checkRelease ($) {
+    my $dbkey = $_[0];
     print "Check release for $_[0] at ".`date`;
 
     $ftpFile = '';        # ensembl needs specified ftpFile name
