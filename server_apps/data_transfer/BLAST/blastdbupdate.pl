@@ -1,4 +1,4 @@
-#!/usr/bin/env perl -w
+#!/usr/bin/env perl
 #
 # The script checks several ftp sites for new release,
 # and invokes corresponding scripts to transfer and 
@@ -8,6 +8,7 @@
 # Outputs are saved in *.report file. This script
 # runs weekly and sends out summary via email.
 
+use warnings;
 
 use strict;
 use Net::FTP;
