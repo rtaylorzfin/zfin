@@ -69,6 +69,16 @@ public class LoadReportAction {
         }
     }
 
+    public void addRelatedActionsKeys(String key) {
+        if (this.relatedActionsKeys == null) {
+            this.relatedActionsKeys = new java.util.ArrayList<>();
+        }
+        if (!this.relatedActionsKeys.contains(key)) {
+            this.relatedActionsKeys.add(key);
+        }
+        this.relatedActionsKeys.add(key);
+    }
+
     public enum Type {LOAD, INFO, WARNING, ERROR, DELETE, IGNORE, DUPES, UPDATE}
 
     // Required fields
