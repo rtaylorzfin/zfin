@@ -25,6 +25,44 @@ public class LoadReportAction {
         this.tags.add(tag);
     }
 
+    public void addLink(LoadReportActionLink link) {
+        if (this.links == null) {
+            this.links = new java.util.ArrayList<>();
+        }
+        this.links.add(link);
+    }
+
+    public void addLinks(List<LoadReportActionLink> links) {
+        if (this.links == null) {
+            this.links = new java.util.ArrayList<>();
+        }
+        this.links.addAll(links);
+    }
+
+    public void addRefSeqLink(String refseq) {
+        this.addLink(new LoadReportActionLink(refseq, "https://www.ncbi.nlm.nih.gov/nuccore/" + refseq));
+    }
+
+    public void addNcbiGeneIdLink(String ncbiId) {
+        this.addLink(new LoadReportActionLink(ncbiId, "https://www.ncbi.nlm.nih.gov/gene/" + ncbiId));
+    }
+
+    public void addZdbIdLink(String zdbId) {
+        this.addLink(new LoadReportActionLink(zdbId, "https://zfin.org/" + zdbId));
+    }
+
+    public void addZdbIdLink(String zdbId, String abbreviation) {
+        this.addLink(new LoadReportActionLink(abbreviation, "https://zfin.org/" + zdbId));
+    }
+
+    public void addDetails(String details) {
+        if (this.details == null) {
+            this.details = details;
+        } else {
+            this.details += "\n" + details;
+        }
+    }
+
     public enum Type {LOAD, INFO, WARNING, ERROR, DELETE, IGNORE, DUPES, UPDATE}
 
     // Required fields
