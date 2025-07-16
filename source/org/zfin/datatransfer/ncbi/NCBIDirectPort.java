@@ -218,6 +218,8 @@ public class NCBIDirectPort extends AbstractScriptWrapper {
     public Integer ctGenesWithRefSeqAfter;
     private List<String> geneIDsNotInCurrentAnnotationRelease = null;
     private List<LoadReportAction> manyToManyWarningActions = new ArrayList<>();
+    private List<LoadReportAction> oneToManyWarningActions = new ArrayList<>();
+    private List<LoadReportAction> manyToOneWarningActions = new ArrayList<>();
 
 
     public static void main(String[] args) {
@@ -336,11 +338,11 @@ public class NCBIDirectPort extends AbstractScriptWrapper {
         printTimingInformation(24);
 
 //    #--------------------- report 1:N ---------------------------------------------
-        reportOneToN();
+        oneToManyWarningActions = reportOneToN();
         printTimingInformation(25);
 
 //    #------------------- report N:1 -------------------------------------------------
-        reportNtoOne();
+        manyToOneWarningActions = reportNtoOne();
         printTimingInformation(26);
 
 
@@ -2172,8 +2174,9 @@ public class NCBIDirectPort extends AbstractScriptWrapper {
 
     // Overload for initial call without a writer
 
-    private void reportOneToN() {
+    private List<LoadReportAction> reportOneToN() {
         File reportFile = new File(workingDir, "reportOneToN");
+        List<LoadReportAction> warningActions = new ArrayList<>();
         try (BufferedWriter writer = new BufferedWriter(new FileWriter(reportFile))) {
             writer.write(getArtifactComparisonURLs());
             long ct = 0;
@@ -2181,6 +2184,9 @@ public class NCBIDirectPort extends AbstractScriptWrapper {
             List<String> sortedZfinGeneIds = oneToN.keySet().stream().sorted().collect(Collectors.toList());
 
             for (String zdbId : sortedZfinGeneIds) {
+                LoadReportAction warningAction = new LoadReportAction();
+                warningAction.setType(LoadReportAction.Type.WARNING);
+                warningAction.setSubType("1 to N");
                 Map<String, String> refHashMultiNCBIgenes = oneToN.get(zdbId);
                 ct++;
                 writer.write(String.format("%d) ---------------------------------------------\n", ct));
@@ -2188,6 +2194,11 @@ public class NCBIDirectPort extends AbstractScriptWrapper {
                 List<String> zfinAccessions = supportedGeneZFIN.getOrDefault(zdbId, Collections.emptyList());
                 String zfinSymbol = geneZDBidsSymbols.getOrDefault(zdbId, "<unknown ZFIN symbol>");
                 writer.write(String.format("%s (%s) [%s]\n\n", zdbId, zfinSymbol, String.join(" ", zfinAccessions)));
+                warningAction.addZdbIdLink(zdbId, zfinSymbol);
+                warningAction.setGeneZdbID(zdbId);
+                for (String refseq : zfinAccessions) {
+                    warningAction.addRefSeqLink(refseq);
+                }
 
                 List<String> sortedNcbiGeneIds = refHashMultiNCBIgenes.keySet().stream().sorted().collect(Collectors.toList());
 
@@ -2196,6 +2207,8 @@ public class NCBIDirectPort extends AbstractScriptWrapper {
                     Set<String> ncbiAccessions = supportedGeneNCBI.getOrDefault(ncbiId, Collections.emptySet());
                     String ncbiSymbol = NCBIidsGeneSymbols.getOrDefault(ncbiId, "<no gene symbol>"); // Perl used <no gene symbol>
                     writer.write(String.format("   %s (%s) [%s]\n\n", ncbiId, ncbiSymbol, String.join(" ", ncbiAccessions)));
+                    warningAction.addDetails(String.format("   %s (%s) [%s]\n\n", ncbiId, ncbiSymbol, String.join(" ", ncbiAccessions)));
+                    warningAction.addNcbiGeneIdLink(ncbiId);
                 }
             }
         }
@@ -2208,10 +2221,12 @@ public class NCBIDirectPort extends AbstractScriptWrapper {
                 "Auto from " + instance + ": NCBI_gene_load.pl :: List of 1 to N",
                 reportFile.getAbsolutePath()
         );
+        return warningActions;
     }
 
-    private void reportNtoOne() {
+    private List<LoadReportAction> reportNtoOne() {
         File reportFile = new File(workingDir, "reportNtoOne");
+        List<LoadReportAction> warningActions = new ArrayList<>();
         try (BufferedWriter writer = new BufferedWriter(new FileWriter(reportFile))) {
             writer.write(getArtifactComparisonURLs());
             long ct = 0;
@@ -2219,6 +2234,12 @@ public class NCBIDirectPort extends AbstractScriptWrapper {
             List<String> sortedNcbiGeneIds = nToOne.keySet().stream().sorted().collect(Collectors.toList());
 
             for (String ncbiId : sortedNcbiGeneIds) {
+                LoadReportAction warningAction = new LoadReportAction();
+                warningAction.setType(LoadReportAction.Type.WARNING);
+                warningAction.setSubType("N to 1");
+                warningAction.setAccession(ncbiId);
+                warningAction.addDetails("NCBI gene " + ncbiId + " maps to multiple ZFIN genes.\n");
+
                 Map<String, String> refHashMultiZFINgenes = nToOne.get(ncbiId);
                 ct++;
                 writer.write(String.format("%d) ---------------------------------------------\n", ct));
@@ -2226,14 +2247,17 @@ public class NCBIDirectPort extends AbstractScriptWrapper {
                 Set<String> ncbiAccessions = supportedGeneNCBI.getOrDefault(ncbiId, Collections.emptySet());
                 String ncbiSymbol = NCBIidsGeneSymbols.getOrDefault(ncbiId, "<unknown NCBI symbol>");
                 writer.write(String.format("%s (%s) [%s]\n\n", ncbiId, ncbiSymbol, String.join(" ", ncbiAccessions)));
-
+                warningAction.addDetails(String.format("%s (%s) [%s]\n\n", ncbiId, ncbiSymbol, String.join(" ", ncbiAccessions)));
                 List<String> sortedZfinGeneIds = refHashMultiZFINgenes.keySet().stream().sorted().collect(Collectors.toList());
 
                 for (String zdbId : sortedZfinGeneIds) {
                     List<String> zfinAccessions = supportedGeneZFIN.getOrDefault(zdbId, Collections.emptyList());
                     String zfinSymbol = geneZDBidsSymbols.getOrDefault(zdbId, "<unknown ZFIN symbol>");
                     writer.write(String.format("   %s (%s) [%s]\n\n", zdbId, zfinSymbol, String.join(" ", zfinAccessions)));
+                    warningAction.addDetails(String.format("   %s (%s) [%s]\n\n", zdbId, zfinSymbol, String.join(" ", zfinAccessions)));
+                    warningAction.addZdbIdLink(zdbId);
                 }
+                warningActions.add(warningAction);
             }
         }
         catch (IOException e) {
@@ -2245,6 +2269,7 @@ public class NCBIDirectPort extends AbstractScriptWrapper {
                 "Auto from " + instance + ": NCBI_gene_load.pl :: List of N to 1",
                 reportFile.getAbsolutePath()
         );
+        return warningActions;
     }
 
     private void buildVegaIDMappings()  {
@@ -3201,6 +3226,8 @@ public class NCBIDirectPort extends AbstractScriptWrapper {
 
         builder.addActions(createActions(beforeAfterComparison));
         builder.addActions(manyToManyWarningActions);
+        builder.addActions(oneToManyWarningActions);
+        builder.addActions(manyToOneWarningActions);
 
         ObjectNode report = builder.build();
 
