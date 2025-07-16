@@ -1927,7 +1927,6 @@ public class NCBIDirectPort extends AbstractScriptWrapper {
             List<String> sortedOneToNZFINtoNCBIKeys = oneToNZFINtoNCBI.keySet().stream().sorted().collect(Collectors.toList());
 
             for (String geneZFINtoMultiNCBI : sortedOneToNZFINtoNCBIKeys) {
-                LoadReportAction warningAction = new LoadReportAction();
                 Map<String, Integer> zdbIdsOfNtoN = new HashMap<>(); // In Perl: key -> 1 (exists)
                 boolean oneToNflag = true;
                 Map<String, String> ref_hashNCBIids = oneToNZFINtoNCBI.get(geneZFINtoMultiNCBI);
@@ -1949,6 +1948,7 @@ public class NCBIDirectPort extends AbstractScriptWrapper {
                 if (!oneToNflag) { // N to N case
                     ctNtoNfromZFINCount++;
                     ntonWriter.write(String.format("%d) -------------------------------------------------------------------------------------------------\n", ctNtoNfromZFINCount));
+                    LoadReportAction warningAction = new LoadReportAction();
 
                     for (String zdbIdNtoN : zdbIdsOfNtoN.keySet().stream().sorted().collect(Collectors.toList())) {
                         List<String> refArrayAccsZFIN = supportedGeneZFIN.getOrDefault(zdbIdNtoN, Collections.emptyList());
@@ -1957,11 +1957,11 @@ public class NCBIDirectPort extends AbstractScriptWrapper {
                         warningAction.setType(LoadReportAction.Type.WARNING);
                         warningAction.setSubType("N to N");
                         warningAction.setGeneZdbID(zdbIdNtoN);
-                        warningAction.setDetails(String.format("ZFIN gene %s (%s) maps to multiple NCBI genes. Refseqs: %s", zdbIdNtoN, zfinSymbol, String.join(" ", refArrayAccsZFIN)));
+                        warningAction.addDetails(String.format("ZFIN gene %s (%s) maps to multiple NCBI genes.\n", zdbIdNtoN, zfinSymbol));
+                        warningAction.addDetails(String.format("%s (%s) [%s]", zdbIdNtoN, zfinSymbol, String.join(" ", refArrayAccsZFIN)));
                         for(String refseq : refArrayAccsZFIN) {
                             warningAction.addRefSeqLink(refseq);
                         }
-                        warningAction.addLink(new LoadReportActionLink());
 
 
                         Map<String, String> associatedNCBIgenes = new HashMap<>();
@@ -1977,6 +1977,7 @@ public class NCBIDirectPort extends AbstractScriptWrapper {
                             ntonWriter.write(String.format("\t%s (%s) [%s]\n", ncbiId, ncbiSymbol, String.join(" ", refArrayAccsNCBI)));
                             warningAction.addDetails(String.format("\t%s (%s) [%s]\n", ncbiId, ncbiSymbol, String.join(" ", refArrayAccsNCBI)));
                             warningAction.addNcbiGeneIdLink(ncbiId);
+                            warningAction.setAccession(ncbiId);
                         }
                     }
                     ntonWriter.write("~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~\n");
@@ -2007,11 +2008,11 @@ public class NCBIDirectPort extends AbstractScriptWrapper {
                         }
                     }
                     ntonWriter.write("\n");
+                    loadReportActions.add(warningAction);
                 } else { // 1 to N (ZFIN to NCBI) case
                     ctOneToNCount++;
                     oneToN.put(geneZFINtoMultiNCBI, ref_hashNCBIids);
                 }
-                loadReportActions.add(warningAction);
             }
             print(LOG, "\nctOneToN = " + ctOneToNCount + "\nctNtoNfromZFIN = " + ctNtoNfromZFINCount + "\n\n");
             print(STATS_PRIORITY2, "\nMapping result statistics: number of 1:N (ZFIN to NCBI) - " + ctOneToNCount + "\n\n");
@@ -2020,7 +2021,8 @@ public class NCBIDirectPort extends AbstractScriptWrapper {
             // Append the second part of N:N reporting (from NCBI to ZFIN perspective) to the same file.
             // This part is generated in getNtoOneAndNtoNfromZFINtoNCBI() in Perl.
             // For Java, we'll call that method and let it append.
-            getNtoOneAndNtoNfromZFINtoNCBI(ntonWriter); // Pass the writer
+            List<LoadReportAction> moreActions = getNtoOneAndNtoNfromZFINtoNCBI(ntonWriter); // Pass the writer
+            loadReportActions.addAll(moreActions);
         } catch (IOException e) {
             reportErrAndExit("Cannot open or write to reportNtoN: " + e.getMessage());
         }
@@ -2050,11 +2052,12 @@ public class NCBIDirectPort extends AbstractScriptWrapper {
         }
     }
 
-    private void getNtoOneAndNtoNfromZFINtoNCBI(BufferedWriter ntonWriter) throws IOException {
+    private List<LoadReportAction> getNtoOneAndNtoNfromZFINtoNCBI(BufferedWriter ntonWriter) throws IOException {
         // This method now receives the BufferedWriter to append to reportNtoN
         long ctNtoOne = 0;
         long ctNtoNfromNCBI = 0;
         zdbGeneIdsNtoOneAndNtoN = new HashMap<>(); // ZFIN Gene ID -> NCBI Gene ID (for N:1 ZFIN->NCBI cases)
+        List<LoadReportAction> warningActions = new ArrayList<>();
 
         List<String> sortedOneToNNCBItoZFINKeys = oneToNNCBItoZFIN.keySet().stream().sorted().collect(Collectors.toList());
 
@@ -2082,11 +2085,23 @@ public class NCBIDirectPort extends AbstractScriptWrapper {
             if (!oneToNflag) { // N to N case (from NCBI perspective)
                 ctNtoNfromNCBI++;
                 ntonWriter.write(String.format("%d -------------------------------------------------------------------------------------------------\n", ctNtoNfromNCBI));
+                LoadReportAction warningAction = new LoadReportAction();
+
 
                 for (String ncbiIdNtoN : ncbiIdsOfNtoN.keySet().stream().sorted().collect(Collectors.toList())) {
                     Set<String> refArrayAccsNCBI = supportedGeneNCBI.getOrDefault(ncbiIdNtoN, Collections.emptySet());
                     String ncbiSymbol = NCBIidsGeneSymbols.getOrDefault(ncbiIdNtoN, "<no symbol>");
                     ntonWriter.write(String.format("%s (%s) [%s]\n", ncbiIdNtoN, ncbiSymbol, String.join(" ", refArrayAccsNCBI)));
+
+                    warningAction.setType(LoadReportAction.Type.WARNING);
+                    warningAction.setSubType("N to N");
+//                    warningAction.setGeneZdbID(zdbIdNtoN);
+                    warningAction.setAccession(ncbiIdNtoN);
+                    warningAction.addDetails("NCBI gene " + ncbiIdNtoN + " (" + ncbiSymbol + ") maps to multiple ZFIN genes.\n");
+                    warningAction.addDetails(String.format("%s (%s) [%s]\n", ncbiIdNtoN, ncbiSymbol, String.join(" ", refArrayAccsNCBI)));
+                    for(String refseq : refArrayAccsNCBI) {
+                        warningAction.addRefSeqLink(refseq);
+                    }
 
                     Map<String, String> associatedZFINgenes = new HashMap<>();
                     if (oneToNNCBItoZFIN.containsKey(ncbiIdNtoN)) {
@@ -2100,14 +2115,23 @@ public class NCBIDirectPort extends AbstractScriptWrapper {
                         List<String> refArrayAccsZFIN = supportedGeneZFIN.getOrDefault(zdbId, Collections.emptyList());
                         String zfinSymbol = geneZDBidsSymbols.getOrDefault(zdbId, "<no symbol>");
                         ntonWriter.write(String.format("\t%s (%s) [%s]\n", zdbId, zfinSymbol, String.join(" ", refArrayAccsZFIN)));
+                        warningAction.addDetails(String.format("\t%s (%s) [%s]\n", zdbId, zfinSymbol, String.join(" ", refArrayAccsZFIN)));
+                        warningAction.addZdbIdLink(zdbId, zfinSymbol);
+                        warningAction.setGeneZdbID(zdbId);
+                        for(String refseq : refArrayAccsZFIN) {
+                            warningAction.addRefSeqLink(refseq);
+                        }
                     }
                 }
                 ntonWriter.write("~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~\n");
+                warningAction.addDetails("~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~\n");
 
                 for (String zdbId : ref_hashZFINids.keySet().stream().sorted().collect(Collectors.toList())) {
                     List<String> refArrayAccsZFIN = supportedGeneZFIN.getOrDefault(zdbId, Collections.emptyList());
                     String zfinSymbol = geneZDBidsSymbols.getOrDefault(zdbId, "<no symbol>");
                     ntonWriter.write(String.format("%s (%s) [%s]\n", zdbId, zfinSymbol, String.join(" ", refArrayAccsZFIN)));
+                    warningAction.addDetails(String.format("%s (%s) [%s]\n", zdbId, zfinSymbol, String.join(" ", refArrayAccsZFIN)));
+                    warningAction.addZdbIdLink(zdbId, zfinSymbol);
 
                     Map<String, String> associatedNCBIgenes = new HashMap<>();
                     if (oneToNZFINtoNCBI.containsKey(zdbId)) {
@@ -2120,9 +2144,12 @@ public class NCBIDirectPort extends AbstractScriptWrapper {
                         Set<String> refArrayAccsNCBI = supportedGeneNCBI.getOrDefault(ncbiGene, Collections.emptySet());
                         String ncbiSymbol = NCBIidsGeneSymbols.getOrDefault(ncbiGene, "<no symbol>");
                         ntonWriter.write(String.format("\t%s (%s) [%s]\n", ncbiGene, ncbiSymbol, String.join(" ", refArrayAccsNCBI)));
+                        warningAction.addDetails(String.format("\t%s (%s) [%s]\n", ncbiGene, ncbiSymbol, String.join(" ", refArrayAccsNCBI)));
+                        warningAction.addNcbiGeneIdLink(ncbiGene);
                     }
                 }
                 ntonWriter.write("\n");
+                warningActions.add(warningAction);
             } else { // 1 to N (NCBI to ZFIN), which is N:1 (ZFIN to NCBI)
                 ctNtoOne++;
                 nToOne.put(geneNCBItoMultiZFIN, ref_hashZFINids);
@@ -2139,6 +2166,7 @@ public class NCBIDirectPort extends AbstractScriptWrapper {
         // The file is managed by the caller, so it should be complete at this point.
         String subject = "Auto from " + instance + ": NCBI_gene_load.pl :: List of N to N";
         sendMailWithAttachedReport(env("SWISSPROT_EMAIL_REPORT"), subject, new File(workingDir, "reportNtoN").getAbsolutePath());
+        return warningActions;
     }
 
 

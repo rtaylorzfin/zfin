@@ -629,7 +629,8 @@
                 }
             }
 
-            let supplementals = item.supplementalDataKeys.map(k => supplementalData[k])
+            const supplementalDataKeys = item.supplementalDataKeys || [];
+            let supplementals = supplementalDataKeys.map(k => supplementalData[k])
                 .filter(k => k !== null)
                 .join("\n======================\n");
 
@@ -645,6 +646,7 @@
                 );
             }
 
+            const links = item.links || [];
             const relatedEntityFields = item.relatedEntityFields;
             return html`
                 <div>
@@ -657,7 +659,7 @@
                     <pre>${supplementals}</pre>
                     <h4>Links</h4>
                     <ul>
-                        ${item.links.map(link => html`<li><a target="_blank" href="${link.href}">${link.title}</a></li>`)}
+                        ${links.map(link => html`<li><a target="_blank" href="${link.href}">${link.title}</a></li>`)}
                     </ul>
                     ${ relatedActions && relatedActions.length > 0 &&
                         html`<h4>Related Actions</h4>
