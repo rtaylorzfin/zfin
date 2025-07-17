@@ -34,9 +34,9 @@ services:
       DOCKER_INSTANCE: ${DOCKER_INSTANCE}
       OPENIDC_CLIENTID: ${OPENIDC_CLIENTID}
       OPENIDC_CLIENTSECRET: ${OPENIDC_CLIENTSECRET}
-#      #UNCOMMENT BELOW FOR PERL DEBUGGING
-#    ports:
-#      - "127.0.0.1:12345-12354:12345"
+      #      #UNCOMMENT BELOW FOR PERL DEBUGGING
+      #    ports:
+      #      - "127.0.0.1:12345-12354:12345"
     volumes:
       - www_data:/opt/zfin/www_homes/zfin.org
       - downloads_data:/opt/zfin/download-files
@@ -69,12 +69,14 @@ services:
       POSTGRES_DB: zfindb
       POSTGRES_HOST_AUTH_METHOD: trust
     shm_size: 1g
-#    ports:
-#      - "127.0.0.1:5432-5441:5432"
+    #    ports:
+    #      - "127.0.0.1:5432-5441:5432"
     volumes:
       - pg_data:/var/lib/postgresql/data/
       - ${DOCKER_SOURCE_ROOTS_PATH}/docker/pg_pass:/run/secrets/pg_pass:ro
       - www_data:/opt/zfin/www_homes/zfin.org
+    ports:
+      - 127.0.0.2:5432:5432
   solr:
     build: ./solr/
     environment:
@@ -96,6 +98,7 @@ services:
     ports:
       - "8080-8089:80"
       - "8443-8452:443"
+      - 127.0.0.2:443:443
     volumes:
       - www_data:/opt/zfin/www_homes/zfin.org
       - httpd_log:/var/log/httpd
@@ -114,12 +117,21 @@ services:
       - certbot_data:/etc/letsencrypt
       - www_data:/opt/zfin/www_homes/zfin.org
   tomcat:
+    hostname: tomcat
     build: ./tomcat/
+    profiles:
+      - debug
     environment:
       CATALINA_BASE: /opt/zfin/catalina_bases/zfin.org
       INSTANCE: docker
       JVM_OPTS: -Xms2048m -Xmx8192m -Xss2m
       UMASK: "002"
+      JPDA_ADDRESS: "*:5000"
+      JPDA_TRANSPORT: dt_socket
+    entrypoint: ["catalina.sh", "jpda", "run"]
+    ports:
+      - "127.0.0.1:5000:5000"
+      - "127.0.0.2:5000:5000"
     volumes:
       - www_data:/opt/zfin/www_homes/zfin.org
       - catalina_base:/opt/zfin/catalina_bases/zfin.org
@@ -188,18 +200,18 @@ services:
       - ${DOCKER_BLASTSERVER_BLAST_DATABASE_PATH}:/opt/zfin/blastdb
       - ${DOCKER_DOWNLOADS_PATH}:/opt/zfin/download-files
       - ${DOCKER_LOADUP_PATH}:/opt/zfin/loadUp
-#UNCOMMENT for ncbiload test container.
-#  ncbiload:
-#    build: ./ncbiload/
-#    environment:
-#      PGHOST: localhost
-#      PGUSER: postgres
-#      TZ: ${TZ}
-#      INSTANCE: ${DOCKER_INSTANCE}
-#    volumes:
-#      - ${DOCKER_SOURCE_ROOTS_PATH}:/opt/zfin/source_roots/zfin.org
-#      - ./ncbiload-inputs:/tmp/inputs
-#      - ${DOCKER_RESEARCH_PATH}:/mnt/research
+      #UNCOMMENT for ncbiload test container.
+      #  ncbiload:
+      #    build: ./ncbiload/
+      #    environment:
+      #      PGHOST: localhost
+      #      PGUSER: postgres
+      #      TZ: ${TZ}
+      #      INSTANCE: ${DOCKER_INSTANCE}
+      #    volumes:
+      #      - ${DOCKER_SOURCE_ROOTS_PATH}:/opt/zfin/source_roots/zfin.org
+      #      - ./ncbiload-inputs:/tmp/inputs
+      #      - ${DOCKER_RESEARCH_PATH}:/mnt/research
   fail2ban:
     build: ./fail2ban/
     cap_add:
@@ -271,7 +283,6 @@ services:
       dockerfile: ./Dockerfile.processgff
     volumes:
       - jbrowse_data:/data
-
 volumes:
   www_data:
   httpd_log:
