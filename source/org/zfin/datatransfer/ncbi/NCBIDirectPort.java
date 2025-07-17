@@ -1951,8 +1951,10 @@ public class NCBIDirectPort extends AbstractScriptWrapper {
                     ctNtoNfromZFINCount++;
                     ntonWriter.write(String.format("%d) -------------------------------------------------------------------------------------------------\n", ctNtoNfromZFINCount));
                     LoadReportAction warningAction = new LoadReportAction();
+                    List<String> zdbIdsOfNtoNList = zdbIdsOfNtoN.keySet().stream().sorted().collect(Collectors.toList());
+                    List<String> ncbiIdsOfNtoNList = ref_hashNCBIids.keySet().stream().sorted().collect(Collectors.toList());
 
-                    for (String zdbIdNtoN : zdbIdsOfNtoN.keySet().stream().sorted().collect(Collectors.toList())) {
+                    for (String zdbIdNtoN : zdbIdsOfNtoNList) {
                         List<String> refArrayAccsZFIN = supportedGeneZFIN.getOrDefault(zdbIdNtoN, Collections.emptyList());
                         String zfinSymbol = geneZDBidsSymbols.getOrDefault(zdbIdNtoN, "<no symbol>");
                         ntonWriter.write(String.format("%s (%s) [%s]\n", zdbIdNtoN, zfinSymbol, String.join(" ", refArrayAccsZFIN)));
@@ -1987,7 +1989,7 @@ public class NCBIDirectPort extends AbstractScriptWrapper {
                     ntonWriter.write("~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~\n");
                     warningAction.addDetails("~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~\n");
 
-                    for (String ncbiGene : ref_hashNCBIids.keySet().stream().sorted().collect(Collectors.toList())) {
+                    for (String ncbiGene : ncbiIdsOfNtoNList) {
                         Set<String> refArrayAccsNCBI = supportedGeneNCBI.getOrDefault(ncbiGene, Collections.emptySet());
                         String ncbiSymbol = NCBIidsGeneSymbols.getOrDefault(ncbiGene, "<no symbol>");
                         ntonWriter.write(String.format("%s (%s) [%s]\n", ncbiGene, ncbiSymbol, String.join(" ", refArrayAccsNCBI)));
@@ -2012,6 +2014,8 @@ public class NCBIDirectPort extends AbstractScriptWrapper {
                         }
                     }
                     ntonWriter.write("\n");
+                    warningAction.setGeneZdbID(String.join(" ", zdbIdsOfNtoNList));
+                    warningAction.setAccession(String.join(" ", ncbiIdsOfNtoNList));
                     loadReportActions.add(warningAction);
                 } else { // 1 to N (ZFIN to NCBI) case
                     ctOneToNCount++;
@@ -2199,6 +2203,7 @@ public class NCBIDirectPort extends AbstractScriptWrapper {
                 List<String> zfinAccessions = supportedGeneZFIN.getOrDefault(zdbId, Collections.emptyList());
                 String zfinSymbol = geneZDBidsSymbols.getOrDefault(zdbId, "<unknown ZFIN symbol>");
                 writer.write(String.format("%s (%s) [%s]\n\n", zdbId, zfinSymbol, String.join(" ", zfinAccessions)));
+                warningAction.addDetails(String.format("%s (%s) [%s]", zdbId, zfinSymbol, String.join(" ", zfinAccessions)));
                 warningAction.addZdbIdLink(zdbId, zfinSymbol);
                 warningAction.setGeneZdbID(zdbId);
                 warningAction.addRelatedActionsKeys(zdbId);
@@ -2216,9 +2221,9 @@ public class NCBIDirectPort extends AbstractScriptWrapper {
                     writer.write(String.format("   %s (%s) [%s]\n\n", ncbiId, ncbiSymbol, String.join(" ", ncbiAccessions)));
                     warningAction.addDetails(String.format("   %s (%s) [%s]\n\n", ncbiId, ncbiSymbol, String.join(" ", ncbiAccessions)));
                     warningAction.addNcbiGeneIdLink(ncbiId);
-                    warningAction.setAccession(ncbiId);
                     warningAction.addRelatedActionsKeys(ncbiId);
                 }
+                warningAction.setAccession(String.join(" ", sortedNcbiGeneIds));
                 warningActions.add(warningAction);
             }
         }
@@ -2268,9 +2273,9 @@ public class NCBIDirectPort extends AbstractScriptWrapper {
                     writer.write(String.format("   %s (%s) [%s]\n\n", zdbId, zfinSymbol, String.join(" ", zfinAccessions)));
                     warningAction.addDetails(String.format("   %s (%s) [%s]\n\n", zdbId, zfinSymbol, String.join(" ", zfinAccessions)));
                     warningAction.addZdbIdLink(zdbId);
-                    warningAction.setGeneZdbID(zdbId);
                     warningAction.addRelatedActionsKeys(zdbId);
                 }
+                warningAction.setGeneZdbID(String.join(" ", sortedZfinGeneIds));
                 warningActions.add(warningAction);
             }
         }
@@ -3352,9 +3357,19 @@ public class NCBIDirectPort extends AbstractScriptWrapper {
             CSVRecord record2 = iterator2.next();
             assertRecordsMatch(record1, record2);
             LoadReportAction action = csvRecordToAction(record1, LoadReportAction.Type.UPDATE);
-            action.setDetails("Updated record from " + record1.get("dblink_zdb_id") + " to " + record2.get("dblink_zdb_id") + ", " +
-                              record1.get("dblink_length") + " to " + record2.get("dblink_length") + ", " +
-                              record1.get("recattrib_source_zdb_id") + " to " + record2.get("recattrib_source_zdb_id"));
+            String details = """
+                    ZDB ID: %s
+                    Accession or ID: %s
+                    DBLink ID: %s -> %s
+                    Length: %s -> %s
+                    Pub ZDB ID: %s -> %s
+                    """.formatted(
+                    record1.get("dblink_linked_recid"),
+                    record1.get("dblink_acc_num"),
+                    record1.get("dblink_zdb_id"), record2.get("dblink_zdb_id"),
+                    record1.get("dblink_length"), record2.get("dblink_length"),
+                    record1.get("recattrib_source_zdb_id"), record2.get("recattrib_source_zdb_id"));
+            action.setDetails(details);
             actions.add(action);
         }
         return actions;
@@ -3380,7 +3395,7 @@ public class NCBIDirectPort extends AbstractScriptWrapper {
         action.setType(type);
 
         String dbName = switch(fdbcontZdbId) {
-            case fdcontNCBIgeneId -> "NCBI Gene";
+            case fdcontNCBIgeneId -> "NCBI";
             case fdcontVega -> "NCBI Vega";
             case fdcontGenBankRNA -> "GenBank RNA";
             case fdcontGenPept -> "GenPept";
@@ -3408,8 +3423,12 @@ public class NCBIDirectPort extends AbstractScriptWrapper {
         action.setAccession(accNum);
         action.setGeneZdbID(zdbId);
         action.setId(accNum + zdbId + fdbcontZdbId);
-        action.setDetails(String.format(dbLinkType + " %s for gene %s in database %s (%s)",
-                accNum, zdbId, dbName, fdbcontZdbId));
+        String details = """
+        %s: %s
+        Gene ZDB ID: %s
+        Database: %s (%s)
+        """.formatted(dbLinkType, accNum, zdbId, dbName, fdbcontZdbId);
+        action.setDetails(details);
         action.setSupplementalDataKeys(Collections.emptyList());
         action.setLinks(List.of(
                 new LoadReportActionLink("ZFIN Gene", "https://zfin.org/" + zdbId),

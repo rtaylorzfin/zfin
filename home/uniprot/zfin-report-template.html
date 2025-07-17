@@ -386,9 +386,9 @@
             const relatedEntityFields = item.relatedEntityFields;
             return html`
                 <div>
-                    <h2>Details for Accession</h2>
+                    <h2>Details for Action</h2>
                     <div><button href="#" onClick="${() => prevClick()}" className="prev">Prev</button>  <button href="#" onClick="${() => nextClick()}" className="next">Next</button></div>
-                    <h3>${item.accession}</h3>
+                    <h3>${item.geneZdbID} - ${item.accession}</h3>
                     <p>${detailSummary(item)}</p>
                     <h3>${item.subType}</h3>
                     <pre>${item.details}</pre>
@@ -400,7 +400,7 @@
                     ${ relatedActions && relatedActions.length > 0 &&
                         html`<h4>Related Actions</h4>
                             <ul>
-                            ${relatedActions.map( i => html`<li><a href="#" onClick="${() => goToDetail(i.id)}" >${i.type}: ${i.subType}: ${i.accession}<span class="hidden">${i.id}</span></a></li>`)}
+                                ${relatedActions.map( i => html`<li><a href="#" onClick="${() => goToDetail(i.id)}" >${i.type}: ${i.subType}: ${i.geneZdbID}/${i.accession}<span class="hidden">${i.id}</span></a></li>`)}
                             </ul>
                         `
                     }
