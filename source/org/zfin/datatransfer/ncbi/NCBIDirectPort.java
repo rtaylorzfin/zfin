@@ -2216,8 +2216,10 @@ public class NCBIDirectPort extends AbstractScriptWrapper {
                     writer.write(String.format("   %s (%s) [%s]\n\n", ncbiId, ncbiSymbol, String.join(" ", ncbiAccessions)));
                     warningAction.addDetails(String.format("   %s (%s) [%s]\n\n", ncbiId, ncbiSymbol, String.join(" ", ncbiAccessions)));
                     warningAction.addNcbiGeneIdLink(ncbiId);
+                    warningAction.setAccession(ncbiId);
                     warningAction.addRelatedActionsKeys(ncbiId);
                 }
+                warningActions.add(warningAction);
             }
         }
         catch (IOException e) {
@@ -2247,6 +2249,7 @@ public class NCBIDirectPort extends AbstractScriptWrapper {
                 warningAction.setSubType("N to 1");
                 warningAction.setAccession(ncbiId);
                 warningAction.addRelatedActionsKeys(ncbiId);
+                warningAction.addNcbiGeneIdLink(ncbiId);
 //                warningAction.addDetails("NCBI gene " + ncbiId + " maps to multiple ZFIN genes.\n");
 
                 Map<String, String> refHashMultiZFINgenes = nToOne.get(ncbiId);
@@ -2265,6 +2268,7 @@ public class NCBIDirectPort extends AbstractScriptWrapper {
                     writer.write(String.format("   %s (%s) [%s]\n\n", zdbId, zfinSymbol, String.join(" ", zfinAccessions)));
                     warningAction.addDetails(String.format("   %s (%s) [%s]\n\n", zdbId, zfinSymbol, String.join(" ", zfinAccessions)));
                     warningAction.addZdbIdLink(zdbId);
+                    warningAction.setGeneZdbID(zdbId);
                     warningAction.addRelatedActionsKeys(zdbId);
                 }
                 warningActions.add(warningAction);
