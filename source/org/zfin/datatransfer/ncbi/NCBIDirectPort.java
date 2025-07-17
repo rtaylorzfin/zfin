@@ -3430,10 +3430,8 @@ public class NCBIDirectPort extends AbstractScriptWrapper {
         """.formatted(dbLinkType, accNum, zdbId, dbName, fdbcontZdbId);
         action.setDetails(details);
         action.setSupplementalDataKeys(Collections.emptyList());
-        action.setLinks(List.of(
-                new LoadReportActionLink("ZFIN Gene", "https://zfin.org/" + zdbId),
-                new LoadReportActionLink("NCBI Gene", "https://www.ncbi.nlm.nih.gov/gene/" + accNum)
-        ));
+        action.addZdbIdLink(zdbId);
+        action.addNcbiGeneIdLink(accNum);
         action.setRelatedActionsKeys(List.of(zdbId));
         return action;
     }
