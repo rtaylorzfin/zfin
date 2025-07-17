@@ -3282,31 +3282,36 @@ public class NCBIDirectPort extends AbstractScriptWrapper {
             String accession = action.getAccession();
             if (this.geneIDsNotInCurrentAnnotationRelease.contains(accession)) {
                 action.setDetails("This NCBI Gene ID is not in the current annotation release.");
-                action.addTag(new LoadReportActionTag("NotInCurrentAnnotationRelease", "This NCBI Gene ID is not in the current annotation release."));
+                action.addTag(new LoadReportActionTag("Not In Current Annotation Release", "This NCBI Gene ID is not in the current annotation release."));
             }
         }
         return action;
     }
 
     private List<String> fetchGeneIDsNotInCurrentAnnotationReleaseSet() {
+        List<String> geneIDsNotInCurrentAnnotationRelease = new ArrayList<>();
         if (envTrue("SKIP_DOWNLOADS")) {
             File cachedListOfGeneIDs = new File(workingDir, "geneIDsNotInCurrentAnnotationRelease.txt");
             if (cachedListOfGeneIDs.exists()) {
                 try {
-                    return FileUtils.readLines(cachedListOfGeneIDs, StandardCharsets.UTF_8);
+                    System.out.println("Reading cached gene IDs from: " + cachedListOfGeneIDs.getAbsolutePath());
+                    geneIDsNotInCurrentAnnotationRelease = FileUtils.readLines(cachedListOfGeneIDs, StandardCharsets.UTF_8);
                 } catch (IOException e) {
+                    System.out.println("ERROR: SKIP_DOWNLOADS set, yet failed to read cached gene IDs: " + e.getMessage());
                     print(LOG, "ERROR: SKIP_DOWNLOADS set, yet failed to read cached gene IDs: " + e.getMessage());
                     List<String> fetchedIDs = NCBIEfetch.fetchGeneIDsNotInCurrentAnnotationReleaseSet();
                     print(LOG, "Fetched " + fetchedIDs.size() + " gene IDs from NCBI: \n" + String.join("\n", fetchedIDs));
-                    return fetchedIDs;
+                    geneIDsNotInCurrentAnnotationRelease = fetchedIDs;
                 }
             } else {
+                System.out.println("WARNING: Cached gene IDs file not found. Will skip fetch from NCBI as SKIP_DOWNLOADS is set.");
                 print(LOG, "WARNING: Cached gene IDs file not found. Will skip fetch from NCBI as SKIP_DOWNLOADS is set.");
-                return Collections.emptyList();
             }
         } else {
-            return NCBIEfetch.fetchGeneIDsNotInCurrentAnnotationReleaseSet();
+            geneIDsNotInCurrentAnnotationRelease = NCBIEfetch.fetchGeneIDsNotInCurrentAnnotationReleaseSet();
         }
+        System.out.println("Total of " + geneIDsNotInCurrentAnnotationRelease.size() + " gene IDs not in current annotation release.");
+        return geneIDsNotInCurrentAnnotationRelease;
     }
 
     private List<LoadReportAction> createActions(Map<String, List<CSVRecord>> beforeAfterComparison) {
