@@ -3358,11 +3358,11 @@ public class NCBIDirectPort extends AbstractScriptWrapper {
             assertRecordsMatch(record1, record2);
             LoadReportAction action = csvRecordToAction(record1, LoadReportAction.Type.UPDATE);
             String details = """
-                    ZDB ID: %s
-                    Accession or ID: %s
-                    DBLink ID: %s -> %s
-                    Length: %s -> %s
-                    Pub ZDB ID: %s -> %s
+                    ZDB ID          : %s
+                    Accession or ID : %s
+                    DBLink ID       : %s -> %s
+                    Length          : %s -> %s
+                    Pub ZDB ID      : %s -> %s
                     """.formatted(
                     record1.get("dblink_linked_recid"),
                     record1.get("dblink_acc_num"),
