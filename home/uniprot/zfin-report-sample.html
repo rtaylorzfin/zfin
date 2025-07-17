@@ -511,7 +511,7 @@
 
             function countByType(type) {
                 const item = reportNavigation.find(item => item.type === type);
-                return item ? item.count : 0;
+                return item ? item.count.toLocaleString() : 0;
             }
 
             return html`
@@ -546,7 +546,7 @@
                 <ul>
                     ${titleSummary.map(item => html`
                         <li><a href="#" onClick=${() => onClick(item.type)}>
-                            ${item.type} (${item.count})
+                            ${item.type} (${item.count.toLocaleString()})
                         </a>
                         </li>
                     `)}
