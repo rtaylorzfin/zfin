@@ -3266,11 +3266,7 @@ public class NCBIDirectPort extends AbstractScriptWrapper {
     }
 
     private List<LoadReportAction> postProcessActions(List<LoadReportAction> actions) {
-        return actions.stream().map(
-                action -> {
-                    return modifyDeleteActionForNotInCurrentAnnotationRelease(action);
-                }
-        ).toList();
+        return actions.stream().map(this::modifyDeleteActionForNotInCurrentAnnotationRelease).toList();
     }
 
     private LoadReportAction modifyDeleteActionForNotInCurrentAnnotationRelease(LoadReportAction action) {
@@ -3278,7 +3274,7 @@ public class NCBIDirectPort extends AbstractScriptWrapper {
             dbgLogOnce("Skipping modification for action type: " + action.getType());
             return action;
         }
-        if (!action.getDbName().equals("NCBI Gene")) {
+        if (!action.getDbName().equals("NCBI Gene") && !action.getDbName().equals("NCBI")) {
             dbgLogOnce("Skipping modification for action db name: " + action.getDbName());
             return action;
         }
