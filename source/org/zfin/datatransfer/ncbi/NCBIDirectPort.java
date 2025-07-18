@@ -8,11 +8,9 @@ import org.apache.commons.io.FileUtils;
 import org.apache.commons.lang3.StringUtils;
 import org.apache.commons.text.StringSubstitutor;
 import org.hibernate.query.NativeQuery;
-import org.zfin.construct.name.Cassettes;
 import org.zfin.datatransfer.ncbi.port.PortHelper;
 import org.zfin.datatransfer.ncbi.port.PortSqlHelper;
 import org.zfin.datatransfer.report.model.LoadReportAction;
-import org.zfin.datatransfer.report.model.LoadReportActionLink;
 import org.zfin.datatransfer.report.model.LoadReportActionTag;
 import org.zfin.datatransfer.util.CSVDiff;
 import org.zfin.datatransfer.util.CSVToXLSXConverter;
@@ -72,6 +70,40 @@ public class NCBIDirectPort extends AbstractScriptWrapper {
     private static final String fdcontRefSeqRNA = "ZDB-FDBCONT-040412-38";
     private static final String fdcontRefPept = "ZDB-FDBCONT-040412-39";
     private static final String fdcontRefSeqDNA = "ZDB-FDBCONT-040527-1";
+
+    //enum to wrap these values
+    public enum DBName {
+        NCBI("NCBI"),
+        NCBI_VEGA("NCBI Vega"),
+        GENBANK_RNA("GenBank RNA"),
+        GENPEPT("GenPept"),
+        GENBANK_DNA("GenBank DNA"),
+        REFSEQ_RNA("RefSeq RNA"),
+        REFSEQ_PEPTIDE("RefSeq Peptide"),
+        REFSEQ_DNA("RefSeq DNA");
+
+        private final String displayName;
+        DBName(String displayName) {
+            this.displayName = displayName;
+        }
+
+        public String getDisplayName() {
+            return displayName;
+        }
+        public static String getDisplayNameForForeignDB(String fdbcontId) {
+            return switch (fdbcontId) {
+                case fdcontNCBIgeneId -> NCBI.getDisplayName();
+                case fdcontVega -> NCBI_VEGA.getDisplayName();
+                case fdcontGenBankRNA -> GENBANK_RNA.getDisplayName();
+                case fdcontGenPept -> GENPEPT.getDisplayName();
+                case fdcontGenBankDNA -> GENBANK_DNA.getDisplayName();
+                case fdcontRefSeqRNA -> REFSEQ_RNA.getDisplayName();
+                case fdcontRefPept -> REFSEQ_PEPTIDE.getDisplayName();
+                case fdcontRefSeqDNA -> REFSEQ_DNA.getDisplayName();
+                default -> "Unknown Foreign DB";
+            };
+        }
+    }
 
     public File beforeFile;
     public File afterFile;
@@ -3274,7 +3306,7 @@ public class NCBIDirectPort extends AbstractScriptWrapper {
             dbgLogOnce("Skipping modification for action type: " + action.getType());
             return action;
         }
-        if (!action.getDbName().equals("NCBI Gene") && !action.getDbName().equals("NCBI")) {
+        if (!action.getDbName().equals(DBName.NCBI.getDisplayName())) {
             dbgLogOnce("Skipping modification for action db name: " + action.getDbName());
             return action;
         }
@@ -3297,6 +3329,7 @@ public class NCBIDirectPort extends AbstractScriptWrapper {
         return action;
     }
 
+    //TODO: remove this method once debugging is complete
     private void dbgLogOnce(String message) {
         if (loggedMessages.contains(message)) {
             return; // Skip if already logged
@@ -3416,17 +3449,7 @@ public class NCBIDirectPort extends AbstractScriptWrapper {
         LoadReportAction action = new LoadReportAction();
         action.setType(type);
 
-        String dbName = switch(fdbcontZdbId) {
-            case fdcontNCBIgeneId -> "NCBI";
-            case fdcontVega -> "NCBI Vega";
-            case fdcontGenBankRNA -> "GenBank RNA";
-            case fdcontGenPept -> "GenPept";
-            case fdcontGenBankDNA -> "GenBank DNA";
-            case fdcontRefSeqRNA -> "RefSeq RNA";
-            case fdcontRefPept -> "RefSeq Peptide";
-            case fdcontRefSeqDNA -> "RefSeq DNA";
-            default -> "Unknown Database";
-        };
+        String dbName = DBName.getDisplayNameForForeignDB(fdbcontZdbId);
         action.setDbName(dbName);
         action.setRelatedEntityFields(Map.of("Database", dbName));
 
