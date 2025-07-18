@@ -8,6 +8,7 @@ import org.apache.commons.io.FileUtils;
 import org.apache.commons.lang3.StringUtils;
 import org.apache.commons.text.StringSubstitutor;
 import org.hibernate.query.NativeQuery;
+import org.zfin.construct.name.Cassettes;
 import org.zfin.datatransfer.ncbi.port.PortHelper;
 import org.zfin.datatransfer.ncbi.port.PortSqlHelper;
 import org.zfin.datatransfer.report.model.LoadReportAction;
@@ -220,6 +221,7 @@ public class NCBIDirectPort extends AbstractScriptWrapper {
     private List<LoadReportAction> manyToManyWarningActions = new ArrayList<>();
     private List<LoadReportAction> oneToManyWarningActions = new ArrayList<>();
     private List<LoadReportAction> manyToOneWarningActions = new ArrayList<>();
+    private Set<String> loggedMessages = new HashSet<>(); // To avoid duplicate log messages
 
 
     public static void main(String[] args) {
@@ -3266,26 +3268,45 @@ public class NCBIDirectPort extends AbstractScriptWrapper {
     private List<LoadReportAction> postProcessActions(List<LoadReportAction> actions) {
         return actions.stream().map(
                 action -> {
-                    if (action.getType().equals(LoadReportAction.Type.DELETE)) {
-                        action = modifyDeleteActionForNotInCurrentAnnotationRelease(action);
-                    }
-                    return action;
+                    return modifyDeleteActionForNotInCurrentAnnotationRelease(action);
                 }
         ).toList();
     }
 
     private LoadReportAction modifyDeleteActionForNotInCurrentAnnotationRelease(LoadReportAction action) {
+        if (!action.getType().equals(LoadReportAction.Type.DELETE)) {
+            dbgLogOnce("Skipping modification for action type: " + action.getType());
+            return action;
+        }
+        if (!action.getDbName().equals("NCBI Gene")) {
+            dbgLogOnce("Skipping modification for action db name: " + action.getDbName());
+            return action;
+        }
+
         if (this.geneIDsNotInCurrentAnnotationRelease == null) {
+            System.out.println("Fetching gene IDs not in current annotation release...");
             this.geneIDsNotInCurrentAnnotationRelease = this.fetchGeneIDsNotInCurrentAnnotationReleaseSet();
+            System.out.println(String.join(",", this.geneIDsNotInCurrentAnnotationRelease));
         }
-        if (action.getDbName().equals("NCBI Gene")) {
-            String accession = action.getAccession();
-            if (this.geneIDsNotInCurrentAnnotationRelease.contains(accession)) {
-                action.setDetails("This NCBI Gene ID is not in the current annotation release.");
-                action.addTag(new LoadReportActionTag("Not In Current Annotation Release", "This NCBI Gene ID is not in the current annotation release."));
-            }
+
+        String accession = action.getAccession();
+        if (this.geneIDsNotInCurrentAnnotationRelease.contains(accession)) {
+            System.out.println("NCBI Gene ID " + accession + " is NOT in the current annotation release.");
+            action.setDetails("This NCBI Gene ID is not in the current annotation release.");
+            action.addTag(new LoadReportActionTag("Not In Current Annotation Release", "This NCBI Gene ID is not in the current annotation release."));
+        } else {
+            System.out.println("NCBI Gene ID " + accession + " is in the current annotation release.");
         }
+
         return action;
+    }
+
+    private void dbgLogOnce(String message) {
+        if (loggedMessages.contains(message)) {
+            return; // Skip if already logged
+        }
+        loggedMessages.add(message);
+        System.out.println("DEBUG: " + message);
     }
 
     private List<String> fetchGeneIDsNotInCurrentAnnotationReleaseSet() {
