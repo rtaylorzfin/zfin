@@ -44,6 +44,7 @@ cd $SOURCEROOT
 # Option for troubleshooting: load the database from a backup
 #gradle loaddb -DB=/research/zunloads/databases/zfindb/2025.07.06.1/2025.07.06.1.bak
 gradle ncbiPort
+gzip -9 seq.fasta
         ]]>
       </command>
     </hudson.tasks.Shell>
