@@ -43,7 +43,7 @@
 
 cd $TARGETROOT/server_apps/data_transfer/NCBIGENE
 ./NCBI_gene_load.pl
-gzip -9 seq.fasta
+gzip -f -9 seq.fasta
       ]]></command>
     </hudson.tasks.Shell>
   </builders>
