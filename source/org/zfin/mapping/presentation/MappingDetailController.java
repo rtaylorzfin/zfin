@@ -20,7 +20,6 @@ import org.zfin.gwt.root.util.StringUtils;
 import org.zfin.infrastructure.ActiveData;
 import org.zfin.infrastructure.repository.InfrastructureRepository;
 import org.zfin.infrastructure.seo.CanonicalLinkConfig;
-import org.zfin.jbrowse.presentation.JBrowseImage;
 import org.zfin.mapping.*;
 import org.zfin.marker.Marker;
 import org.zfin.marker.repository.MarkerRepository;
@@ -296,7 +295,6 @@ public class MappingDetailController {
 
         model.addAttribute("otherMappingDetail", isOtherMappingDetail);
 
-        //The "locations" attribute for the model need to be massaged a bit based on new GRCz12 data
         return "mapping/mapping-detail";
     }
 
