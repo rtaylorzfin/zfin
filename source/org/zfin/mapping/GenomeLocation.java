@@ -40,12 +40,8 @@ public class GenomeLocation implements Serializable, Comparable<GenomeLocation> 
     protected GBrowseTrack gbrowseTrack;
     protected String assembly;
     private GenericTerm evidence;
-    private String overrideUrl;
 
     public String getUrl() {
-        if (overrideUrl != null && !overrideUrl.isEmpty()) {
-            return overrideUrl;
-        }
         if (List.of(ZFIN, ZFIN_Zv9, ZFIN_NCBI).contains(source)) {
             return "/action/jbrowse/byName?name=" + accessionNumber + "&source=" + source.name();
         } else {
