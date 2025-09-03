@@ -60,7 +60,7 @@ public class ManyToManyProblem {
     }
 
     // List of accession mappings (GenBank/RefSeq)
-    private List<AccessionMapping> accessions = new ArrayList<>();
+    private Map<String, AccessionMapping> accessions = new TreeMap<>();
 
 
     /**
@@ -72,9 +72,9 @@ public class ManyToManyProblem {
      * @return the list of issues found
      */
     public Map<String, List<NameIdPair>> getIssues() {
-        Map<String, List<NameIdPair>> issues = new HashMap<>();
+        Map<String, List<NameIdPair>> issues = new TreeMap<>();
         Set<String> distinctGeneSymbolNames = new HashSet<>();
-        for(AccessionMapping mapping : accessions) {
+        for(AccessionMapping mapping : accessions.values()) {
             Set<String> ncbiGeneSymbols = new HashSet<>();
             ncbiGeneSymbols.addAll(mapping.getNcbiIds().stream().map(nameIdPair -> nameIdPair.name()).toList());
 
@@ -115,8 +115,8 @@ public class ManyToManyProblem {
      * @return
      */
     public Map<String, Pair<MarkerNameAndZdbId, String>> getSupportedPairs() {
-        Map<String, Pair<MarkerNameAndZdbId, String>> supportedPairs = new HashMap<>();
-        for(AccessionMapping mapping : accessions) {
+        Map<String, Pair<MarkerNameAndZdbId, String>> supportedPairs = new TreeMap<>();
+        for(AccessionMapping mapping : accessions.values()) {
             Set<NameIdPair> ncbiIDs = mapping.getNcbiIds();
             Set<NameIdPair> zdbIDs = mapping.getZdbIds();
             if (ncbiIDs.size() == 1 && zdbIDs.size() == 1) {
@@ -139,7 +139,16 @@ public class ManyToManyProblem {
         Set<String> visitedAccessions = new HashSet<>();
         StringBuilder summary = new StringBuilder();
         summary.append("Total accessions: ").append(accessions.size()).append("\n");
-        summary.append("\nSupported pairs (1:1 with no conflicts): ").append(getSupportedPairs().size()).append("\n");
+
+        summary.append("\nAccessions with issues: ").append(issues.size()).append("\n");
+        for(String accession : issues.keySet()) {
+            List<NameIdPair> conflictingIDs = issues.get(accession);
+            summary.append("\t" + accession + " -> " +
+                    conflictingIDs.stream().map(id -> id.id() + " (" + id.name() + ")").toList() + "\n");
+            visitedAccessions.add(accession);
+        }
+
+        summary.append("\nSupported pairs (1 to 1 mapping): ").append(getSupportedPairs().size()).append("\n");
         for(String accession : getSupportedPairs().keySet()) {
             Pair<MarkerNameAndZdbId, String> supportedPair = getSupportedPairs().get(accession);
             summary.append("\t" + accession + " -> " +
@@ -148,24 +157,17 @@ public class ManyToManyProblem {
             visitedAccessions.add(accession);
         }
 //        summary.append("Accessions without issues: ").append(accessions.size() - issues.size()).append("\n");
-        summary.append("\nAccessions with issues: ").append(issues.size()).append("\n");
-        for(String accession : issues.keySet()) {
-            List<NameIdPair> conflictingIDs = issues.get(accession);
-            summary.append("\t" + accession + " -> " +
-                    conflictingIDs.stream().map(id -> id.id() + " (" + id.name() + ")").toList() + "\n");
-            visitedAccessions.add(accession);
-        }
-        summary.append("\n");
 
-        Set<String> remainingAccessions = new HashSet<>();
-        for(AccessionMapping mapping : accessions) {
+        Set<String> remainingAccessions = new TreeSet<>();
+        for(AccessionMapping mapping : accessions.values()) {
             if (!visitedAccessions.contains(mapping.getAccession())) {
                 remainingAccessions.add(mapping.getAccession());
             }
         }
 
+        summary.append("\n");
         summary.append("Other accessions: ").append(remainingAccessions.size()).append("\n");
-        for(AccessionMapping mapping : accessions) {
+        for(AccessionMapping mapping : accessions.values()) {
             if (remainingAccessions.contains(mapping.getAccession())) {
                 summary.append("\t" + mapping.getAccession() + " -> ");
                 if (!mapping.getZdbIds().isEmpty()) {
@@ -197,16 +199,12 @@ public class ManyToManyProblem {
         }
     }
 
-    // Utility method to add a mapping
     private void addMapping(String accession, NameIdPair ncbiId, NameIdPair zdbId) {
-        AccessionMapping mapping = accessions.stream()
-                .filter(a -> a.getAccession().equals(accession))
-                .findFirst()
-                .orElseGet(() -> {
-                    AccessionMapping newMapping = new AccessionMapping(accession);
-                    accessions.add(newMapping);
-                    return newMapping;
-                });
+        AccessionMapping mapping = accessions.get(accession);
+        if (mapping == null) {
+            mapping = new AccessionMapping(accession);
+            accessions.put(accession, mapping);
+        }
         if (ncbiId != null) mapping.getNcbiIds().add(ncbiId);
         if (zdbId != null) mapping.getZdbIds().add(zdbId);
     }

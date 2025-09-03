@@ -81,6 +81,12 @@ public class ManyToManyProblemTest {
         ManyToManyProblem prob2 = allProblems().get(1);
         String summary = prob2.summary();
         System.out.println(summary);
+
+        for(ManyToManyProblem prob : allProblems()) {
+            System.out.println("Problem:");
+            System.out.println(prob.summary());
+            System.out.println("---");
+        }
     }
 
     private List<ManyToManyProblem> allProblems() {
