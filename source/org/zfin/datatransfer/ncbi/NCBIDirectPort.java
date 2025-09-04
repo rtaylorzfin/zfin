@@ -3405,8 +3405,8 @@ public class NCBIDirectPort extends AbstractScriptWrapper {
 
     private List<LoadReportAction> createLoadActions(Map<String, List<CSVRecord>> beforeAfterComparison) {
         List<LoadReportAction> actions = new ArrayList<>();
-        List<CSVRecord> deletedRecords = beforeAfterComparison.getOrDefault("added", Collections.emptyList());
-        for(CSVRecord record : deletedRecords) {
+        List<CSVRecord> addedRecords = beforeAfterComparison.getOrDefault("added", Collections.emptyList());
+        for(CSVRecord record : addedRecords) {
             LoadReportAction action = csvRecordToAction(record, LoadReportAction.Type.LOAD);
             actions.add(action);
         }
