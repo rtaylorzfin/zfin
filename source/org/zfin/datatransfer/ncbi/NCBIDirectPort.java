@@ -40,6 +40,7 @@ import static org.zfin.framework.HibernateUtil.currentSession;
 import static org.zfin.properties.ZfinPropertiesEnum.SOURCEROOT;
 import static org.zfin.util.DateUtil.nowToString;
 import static org.zfin.util.FileUtil.writeToFileOrZip;
+import static org.zfin.util.ZfinCollectionUtils.removeAndReturnDuplicateMapEntries;
 
 
 public class NCBIDirectPort extends AbstractScriptWrapper {
@@ -1906,6 +1907,17 @@ public class NCBIDirectPort extends AbstractScriptWrapper {
                 return;
             }
 
+            //remove from map any duplicate entries
+            //these should have already been filtered earlier but this is a safety net
+            //if we find any here we want to log them, and find out how they got through
+            Map<String, Set<String>> duplicateNcbiIssues = removeAndReturnDuplicateMapEntries(mapped);
+            Files.writeString(new File(workingDir, "duplicates_in_mapped.csv").toPath(),
+                    duplicateNcbiIssues.entrySet().stream()
+                            .sorted(Map.Entry.comparingByKey())
+                            .map(entry -> entry.getKey() + "," + String.join("|", entry.getValue()) + "\n")
+                            .collect(Collectors.joining())
+                    );
+
             mapped.entrySet().stream()
                     .sorted(Map.Entry.comparingByKey())
                     .forEach(entry -> {
@@ -1927,6 +1939,8 @@ public class NCBIDirectPort extends AbstractScriptWrapper {
             } else {
                 reportErrAndExit("Unexpected error in writeNCBIgeneIdsMappedBasedOnGenBankRNA: " + e.getMessage());
             }
+        } catch (IOException e) {
+            throw new RuntimeException(e);
         }
     }
 

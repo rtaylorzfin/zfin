@@ -142,8 +142,23 @@ delete from record_attribution
               )
    and not exists (select 'x' from ncbi_dblink_to_preserve where prsv_dblink_zdb_id = recattrib_data_zdb_id);
 
-\echo 'Skipping duplicate entries in db_link table for the new records that would violate key:';
+-- NCBI Gene IDs that are in the load list, but already exist in db_link table for the same gene under a manually curated pub
+\echo 'Deleting from ncbi_gene_load for those NCBI GeneID records that are in the load list but already exist in db_link table for the same gene (with different ncbi id) under a manually curated pub';
+select * into temp table manual_conflict_warnings from ncbi_gene_load
+         inner join db_link on mapped_zdb_gene_id = dblink_linked_recid
+                                   and ncbi_accession <> dblink_acc_num
+                                   and fdbcont_zdb_id = 'ZDB-FDBCONT-040412-1'
+                                   and dblink_fdbcont_zdb_id = 'ZDB-FDBCONT-040412-1'
+ where TRUE
+   and exists (select 'x' from record_attribution
+                where recattrib_data_zdb_id = dblink_zdb_id
+                  and recattrib_source_zdb_id not in ('ZDB-PUB-020723-3','ZDB-PUB-130725-2', 'ZDB-PUB-230516-87')
+              );
+\copy (select * from manual_conflict_warnings) to 'manual_conflict_warnings.csv' with header csv;
+delete from ncbi_gene_load where fdbcont_zdb_id = 'ZDB-FDBCONT-040412-1'
+ and mapped_zdb_gene_id in (select mapped_zdb_gene_id from manual_conflict_warnings);
 
+\echo 'Skipping duplicate entries in db_link table for the new records that would violate key:';
 \echo 'Insert the new records into db_link table';
 insert into db_link (dblink_linked_recid, dblink_acc_num, dblink_acc_num_display, dblink_info, dblink_zdb_id, dblink_length, dblink_fdbcont_zdb_id) 
 select mapped_zdb_gene_id, ncbi_accession, ncbi_accession, 'uncurated: NCBI gene load ' || now(), zdb_id, sequence_length, fdbcont_zdb_id 
