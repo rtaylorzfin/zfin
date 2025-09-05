@@ -27,7 +27,7 @@ INSERT INTO ncbi_id_to_delete (
     GROUP BY        dblink_linked_recid
     HAVING        count(dblink_acc_num) > 1);
 
--- Now delete the recent NCBI Gene IDs (from 8/25/25) for each ZDB gene record where there are issues
+-- Now delete the recent NCBI Gene IDs (from 8/29/25) for each ZDB gene record where there are issues
 -- Get these by joining to db_link table
 SELECT * INTO temp TABLE ncbi_id_to_delete_with_dblink
 FROM
@@ -36,149 +36,139 @@ FROM
     AND ncbi_id = dblink_acc_num
     AND dblink_fdbcont_zdb_id = 'ZDB-FDBCONT-040412-1'
 WHERE
-    dblink_zdb_id LIKE '%250825%';
+    dblink_zdb_id LIKE '%250829%';
 
 DELETE FROM zdb_active_data WHERE zactvd_zdb_id IN (SELECT dblink_zdb_id FROM ncbi_id_to_delete_with_dblink);
 
 -- These are the expected deletions (this is the view of the ncbi_id_to_delete_with_dblink table)
--- zdb_id	ncbi_id	reason	dblink_info	delete_this_record?
--- ZDB-GENE-070912-75	100150732	many genes to one ncbi id	uncurated: NCBI gene load 2024-03-14 22:08:11.484846-07	No
--- ZDB-GENE-060503-70	100150732	many genes to one ncbi id	uncurated: NCBI gene load 2025-08-25 18:48:50.287319-07	Yes
--- ZDB-GENE-161017-34	570448	many genes to one ncbi id	uncurated: NCBI gene load 2024-03-14 22:08:11.484846-07	No
--- ZDB-GENE-100820-1	570448	many genes to one ncbi id	uncurated: NCBI gene load 2025-08-25 18:48:50.287319-07	Yes
--- ZDB-GENE-070820-22	100001739	many genes to one ncbi id	uncurated: NCBI gene load 2023-07-10 18:14:22.673585-07	No
--- ZDB-GENE-030131-7635	100001739	many genes to one ncbi id	uncurated: NCBI gene load 2025-08-25 18:48:50.287319-07	Yes
--- ZDB-GENE-110913-77	101882544	many genes to one ncbi id	uncurated: NCBI gene load 2025-08-25 18:48:50.287319-07	Yes
--- ZDB-GENE-141212-233	101882544	many genes to one ncbi id	uncurated: NCBI gene load 2025-08-25 18:48:50.287319-07	Yes
--- ZDB-GENE-141212-333	100151151	many genes to one ncbi id	uncurated: NCBI gene load 2024-03-14 22:08:11.484846-07	No
--- ZDB-GENE-070912-117	100151151	many genes to one ncbi id	uncurated: NCBI gene load 2025-08-25 18:48:50.287319-07	Yes
--- ZDB-GENE-120215-186	101884911	many genes to one ncbi id	uncurated: NCBI gene load 2024-03-14 22:08:11.484846-07	No
--- ZDB-GENE-030131-7339	101884911	many genes to one ncbi id	uncurated: NCBI gene load 2025-08-25 18:48:50.287319-07	Yes
--- ZDB-GENE-041210-316	792119	many genes to one ncbi id	uncurated: NCBI gene load 2024-03-14 22:08:11.484846-07	No
--- ZDB-GENE-060825-105	792119	many genes to one ncbi id	uncurated: NCBI gene load 2025-08-25 18:48:50.287319-07	Yes
--- ZDB-GENE-230622-1	110440145	many genes to one ncbi id		No
--- ZDB-GENE-220914-1	110440145	many genes to one ncbi id		No
--- ZDB-LINCRNAG-131121-11	101884646	many genes to one ncbi id	uncurated: NCBI gene load 2024-09-13 19:47:59.747003-07	No
--- ZDB-GENE-030131-8748	101884646	many genes to one ncbi id	uncurated: NCBI gene load 2025-08-25 18:48:50.287319-07	Yes
--- ZDB-GENE-041014-55	794359	many genes to one ncbi id	uncurated: NCBI gene load 2024-03-14 22:08:11.484846-07	No
--- ZDB-GENE-041014-49	794359	many genes to one ncbi id	uncurated: NCBI gene load 2025-08-25 18:48:50.287319-07	Yes
--- ZDB-GENE-050309-44	503914	many genes to one ncbi id	uncurated: NCBI gene load 2025-05-09 19:43:14.214854-07	No
--- ZDB-GENE-161017-107	503914	many genes to one ncbi id	uncurated: NCBI gene load 2025-08-25 18:02:28.824207-07	Yes
--- ZDB-GENE-070705-236	569265	many genes to one ncbi id		No
--- ZDB-GENE-130530-2	569265	many genes to one ncbi id	uncurated: NCBI gene load 2025-08-25 18:48:50.287319-07	Yes
--- ZDB-GENE-090312-72	557378	many genes to one ncbi id	uncurated: NCBI gene load 2024-01-12 19:46:48.716629-08	No
--- ZDB-GENE-041210-279	557378	many genes to one ncbi id	uncurated: NCBI gene load 2025-08-25 18:48:50.287319-07	Yes
--- ZDB-GENE-060526-325	100333943	many genes to one ncbi id	uncurated: NCBI gene load 2024-03-14 22:08:11.484846-07	No
--- ZDB-GENE-060526-324	100333943	many genes to one ncbi id	uncurated: NCBI gene load 2025-08-25 18:48:50.287319-07	Yes
--- ZDB-GENE-081104-208	100319064	many genes to one ncbi id	uncurated: NCBI gene load 2024-03-14 22:08:11.484846-07	No
--- ZDB-GENE-030131-6962	100319064	many genes to one ncbi id	uncurated: NCBI gene load 2025-08-25 18:48:50.287319-07	Yes
--- ZDB-GENE-070912-362	570229	many genes to one ncbi id	uncurated: NCBI gene load 2024-03-14 22:08:11.484846-07	No
--- ZDB-GENE-070912-457	570229	many genes to one ncbi id	uncurated: NCBI gene load 2025-08-25 18:48:50.287319-07	Yes
--- ZDB-GENE-131121-474	100536324	many genes to one ncbi id	uncurated: NCBI gene load 2024-03-14 22:08:11.484846-07	No
--- ZDB-GENE-131121-612	100536324	many genes to one ncbi id	uncurated: NCBI gene load 2025-08-25 18:48:50.287319-07	Yes
--- ZDB-GENE-191113-1	100535454	one gene to many ncbi ids	uncurated: NCBI gene load 2025-05-09 19:43:14.214854-07	No
--- ZDB-GENE-191113-1	137495371	one gene to many ncbi ids	uncurated: NCBI gene load 2025-08-25 18:48:50.287319-07	Yes
--- ZDB-GENE-030131-10056	337840	one gene to many ncbi ids	uncurated: NCBI gene load 2025-05-09 19:43:14.214854-07	No
--- ZDB-GENE-030131-10056	337849	one gene to many ncbi ids	uncurated: NCBI gene load 2025-08-25 18:48:50.287319-07	Yes
--- ZDB-GENE-030131-660	321941	one gene to many ncbi ids	uncurated: NCBI gene load 2025-05-09 19:43:14.214854-07	No
--- ZDB-GENE-030131-660	101885539	one gene to many ncbi ids	uncurated: NCBI gene load 2025-08-25 18:48:50.287319-07	Yes
--- ZDB-GENE-140106-138	103911794	one gene to many ncbi ids	uncurated: NCBI gene load 2025-05-09 19:43:14.214854-07	No
--- ZDB-GENE-140106-138	100329789	one gene to many ncbi ids	uncurated: NCBI gene load 2025-08-25 18:48:50.287319-07	Yes
--- ZDB-GENE-030131-3514	324793	one gene to many ncbi ids	uncurated: NCBI gene load 2025-05-09 19:43:14.214854-07	No
--- ZDB-GENE-030131-3514	100334815	one gene to many ncbi ids	uncurated: NCBI gene load 2025-08-25 18:48:50.287319-07	Yes
--- ZDB-GENE-100203-2	571155	one gene to many ncbi ids	uncurated: NCBI gene load 2024-03-14 22:08:11.484846-07	No
--- ZDB-GENE-100203-2	141375633	one gene to many ncbi ids	uncurated: NCBI gene load 2025-08-25 18:48:50.287319-07	Yes
--- ZDB-GENE-170110-1	110440078	one gene to many ncbi ids	uncurated: NCBI gene load 2025-05-09 19:43:14.214854-07	No
--- ZDB-GENE-170110-1	103910581	one gene to many ncbi ids	uncurated: NCBI gene load 2025-08-25 18:48:50.287319-07	Yes
--- ZDB-GENE-050809-69	606625	one gene to many ncbi ids	uncurated: NCBI gene load 2025-05-09 19:43:14.214854-07	No
--- ZDB-GENE-050809-69	100005092	one gene to many ncbi ids	uncurated: NCBI gene load 2025-08-25 18:48:50.287319-07	Yes
--- ZDB-GENE-030131-7635	557454	one gene to many ncbi ids	uncurated: NCBI gene load 2025-05-09 19:43:14.214854-07	No
--- ZDB-GENE-030131-7635	100001739	one gene to many ncbi ids	uncurated: NCBI gene load 2025-08-25 18:48:50.287319-07	Yes
--- ZDB-GENE-041001-198	561077	one gene to many ncbi ids	uncurated: NCBI gene load 2023-07-10 18:14:22.673585-07	No
--- ZDB-GENE-041001-198	103909278	one gene to many ncbi ids	uncurated: NCBI gene load 2025-08-25 18:48:50.287319-07	Yes
--- ZDB-GENE-030131-9329	337383	one gene to many ncbi ids	uncurated: NCBI gene load 2025-05-09 19:43:14.214854-07	No
--- ZDB-GENE-030131-9329	100004591	one gene to many ncbi ids	uncurated: NCBI gene load 2025-08-25 18:48:50.287319-07	Yes
--- ZDB-GENE-070912-352	100007758	one gene to many ncbi ids	uncurated: NCBI gene load 2024-03-14 22:08:11.484846-07	No
--- ZDB-GENE-070912-352	137488017	one gene to many ncbi ids	uncurated: NCBI gene load 2025-08-25 18:48:50.287319-07	Yes
--- ZDB-GENE-210112-1	100537771	one gene to many ncbi ids	uncurated: NCBI gene load 2025-05-09 19:43:14.214854-07	No
--- ZDB-GENE-210112-1	100329477	one gene to many ncbi ids	uncurated: NCBI gene load 2025-08-25 18:48:50.287319-07	Yes
--- ZDB-GENE-140106-66	100534721	one gene to many ncbi ids	uncurated: NCBI gene load 2025-05-09 19:43:14.214854-07	No
--- ZDB-GENE-140106-66	101885457	one gene to many ncbi ids	uncurated: NCBI gene load 2025-08-25 18:48:50.287319-07	Yes
--- ZDB-GENE-030131-1967	323247	one gene to many ncbi ids	uncurated: NCBI gene load 2025-05-09 19:43:14.214854-07	No
--- ZDB-GENE-030131-1967	110437841	one gene to many ncbi ids	uncurated: NCBI gene load 2025-08-25 18:48:50.287319-07	Yes
--- ZDB-GENE-060825-105	751748	one gene to many ncbi ids	uncurated: NCBI gene load 2025-05-09 19:43:14.214854-07	No
--- ZDB-GENE-060825-105	792119	one gene to many ncbi ids	uncurated: NCBI gene load 2025-08-25 18:48:50.287319-07	Yes
--- ZDB-GENE-030131-3552	100536575	one gene to many ncbi ids		No
--- ZDB-GENE-030131-3552	567613	one gene to many ncbi ids	uncurated: NCBI gene load 2025-08-25 18:48:50.287319-07	Yes
--- ZDB-GENE-070912-546	794575	one gene to many ncbi ids	uncurated: NCBI gene load 2024-03-14 22:08:11.484846-07	No
--- ZDB-GENE-070912-546	137487822	one gene to many ncbi ids	uncurated: NCBI gene load 2025-08-25 18:48:50.287319-07	Yes
--- ZDB-GENE-030131-8025	562883	one gene to many ncbi ids	uncurated: NCBI gene load 2025-05-09 19:43:14.214854-07	No
--- ZDB-GENE-030131-8025	137490612	one gene to many ncbi ids	uncurated: NCBI gene load 2025-08-25 18:48:50.287319-07	Yes
--- ZDB-GENE-140106-233	101882032	one gene to many ncbi ids	uncurated: NCBI gene load 2025-05-09 19:43:14.214854-07	No
--- ZDB-GENE-140106-233	100535087	one gene to many ncbi ids	uncurated: NCBI gene load 2025-08-25 18:48:50.287319-07	Yes
--- ZDB-GENE-050208-733	100002776	one gene to many ncbi ids	uncurated: NCBI gene load 2023-07-10 18:14:22.673585-07	No
--- ZDB-GENE-050208-733	141380149	one gene to many ncbi ids	uncurated: NCBI gene load 2025-08-25 18:48:50.287319-07	Yes
--- ZDB-GENE-111123-2	110438237	one gene to many ncbi ids	uncurated: NCBI gene load 2025-05-09 19:43:14.214854-07	No
--- ZDB-GENE-111123-2	100538007	one gene to many ncbi ids	uncurated: NCBI gene load 2025-08-25 18:48:50.287319-07	Yes
--- ZDB-GENE-050506-108	553027	one gene to many ncbi ids	uncurated: NCBI gene load 2025-05-09 19:43:14.214854-07	No
--- ZDB-GENE-050506-108	100536119	one gene to many ncbi ids	uncurated: NCBI gene load 2025-08-25 18:48:50.287319-07	Yes
--- ZDB-GENE-060825-281	751687	one gene to many ncbi ids	uncurated: NCBI gene load 2025-05-09 19:43:14.214854-07	No
--- ZDB-GENE-060825-281	569678	one gene to many ncbi ids	uncurated: NCBI gene load 2025-08-25 18:48:50.287319-07	Yes
--- ZDB-GENE-141216-146	LOC101884594	one gene to many ncbi ids		No
--- ZDB-GENE-141216-146	LOC101883894	one gene to many ncbi ids		No
--- ZDB-GENE-131121-612	137488158	one gene to many ncbi ids	uncurated: NCBI gene load 2025-05-09 19:43:14.214854-07	No
--- ZDB-GENE-131121-612	100536324	one gene to many ncbi ids	uncurated: NCBI gene load 2025-08-25 18:48:50.287319-07	Yes
--- ZDB-GENE-041111-137	101883783	one gene to many ncbi ids	uncurated: NCBI gene load 2025-05-09 19:43:14.214854-07	No
--- ZDB-GENE-041111-137	141378238	one gene to many ncbi ids	uncurated: NCBI gene load 2025-08-25 18:48:50.287319-07	Yes
--- ZDB-GENE-030131-2133	323413	one gene to many ncbi ids	uncurated: NCBI gene load 2025-05-09 19:43:14.214854-07	No
--- ZDB-GENE-030131-2133	137490068	one gene to many ncbi ids	uncurated: NCBI gene load 2025-08-25 18:48:50.287319-07	Yes
--- ZDB-NCRNAG-030131-2	10053516	one gene to many ncbi ids		No
--- ZDB-NCRNAG-030131-2	100535167	one gene to many ncbi ids	uncurated: NCBI gene load 2025-08-25 18:48:50.287319-07	Yes
--- ZDB-GENE-001201-1	559475	one gene to many ncbi ids	uncurated: NCBI gene load 2025-05-09 19:43:14.214854-07	No
--- ZDB-GENE-001201-1	141380276	one gene to many ncbi ids	uncurated: NCBI gene load 2025-08-25 18:48:50.287319-07	Yes
--- ZDB-GENE-130503-2	101885701	one gene to many ncbi ids	uncurated: NCBI gene load 2025-05-09 19:43:14.214854-07	No
--- ZDB-GENE-130503-2	570938	one gene to many ncbi ids	uncurated: NCBI gene load 2025-08-25 18:48:50.287319-07	Yes
--- ZDB-GENE-041210-304	562065	one gene to many ncbi ids	uncurated: NCBI gene load 2023-07-10 18:14:22.673585-07	No
--- ZDB-GENE-041210-304	141376230	one gene to many ncbi ids	uncurated: NCBI gene load 2025-08-25 18:48:50.287319-07	Yes
--- ZDB-GENE-030131-5439	327228	one gene to many ncbi ids	uncurated: NCBI gene load 2025-05-09 19:43:14.214854-07	No
--- ZDB-GENE-030131-5439	100333807	one gene to many ncbi ids	uncurated: NCBI gene load 2025-08-25 18:48:50.287319-07	Yes
--- ZDB-GENE-060503-325	100034394	one gene to many ncbi ids	uncurated: NCBI gene load 2025-05-09 19:43:14.214854-07	No
--- ZDB-GENE-060503-325	137490581	one gene to many ncbi ids	uncurated: NCBI gene load 2025-08-25 18:48:50.287319-07	Yes
--- ZDB-GENE-060526-350	567416	one gene to many ncbi ids	uncurated: NCBI gene load 2024-09-13 19:47:59.747003-07	No
--- ZDB-GENE-060526-350	110439812	one gene to many ncbi ids	uncurated: NCBI gene load 2025-08-25 18:48:50.287319-07	Yes
--- ZDB-GENE-041210-279	100317818	one gene to many ncbi ids	uncurated: NCBI gene load 2024-01-12 19:46:48.716629-08	No
--- ZDB-GENE-041210-279	557378	one gene to many ncbi ids	uncurated: NCBI gene load 2025-08-25 18:48:50.287319-07	Yes
--- ZDB-GENE-130116-1	101884341	one gene to many ncbi ids	uncurated: NCBI gene load 2025-05-09 19:43:14.214854-07	No
--- ZDB-GENE-130116-1	101884937	one gene to many ncbi ids	uncurated: NCBI gene load 2025-08-25 18:48:50.287319-07	Yes
--- ZDB-GENE-120206-3	100332706	one gene to many ncbi ids	uncurated: NCBI gene load 2025-05-09 19:43:14.214854-07	No
--- ZDB-GENE-120206-3	141376900	one gene to many ncbi ids	uncurated: NCBI gene load 2025-08-25 18:48:50.287319-07	Yes
--- ZDB-GENE-200624-1	101882856	one gene to many ncbi ids	uncurated: NCBI gene load 2025-05-09 19:43:14.214854-07	No
--- ZDB-GENE-200624-1	141378921	one gene to many ncbi ids	uncurated: NCBI gene load 2025-08-25 18:48:50.287319-07	Yes
--- ZDB-GENE-040718-33	436616	one gene to many ncbi ids	uncurated: NCBI gene load 2025-05-09 19:43:14.214854-07	No
--- ZDB-GENE-040718-33	100005907	one gene to many ncbi ids	uncurated: NCBI gene load 2025-08-25 18:48:50.287319-07	Yes
--- ZDB-GENE-130213-1	100329711	one gene to many ncbi ids	uncurated: NCBI gene load 2025-05-09 19:43:14.214854-07	No
--- ZDB-GENE-130213-1	100334605	one gene to many ncbi ids	uncurated: NCBI gene load 2025-08-25 18:48:50.287319-07	Yes
--- ZDB-GENE-141216-82	567749	one gene to many ncbi ids	uncurated: NCBI gene load 2024-09-13 19:47:59.747003-07	No
--- ZDB-GENE-141216-82	137490405	one gene to many ncbi ids	uncurated: NCBI gene load 2025-08-25 18:48:50.287319-07	Yes
--- ZDB-GENE-030131-7339	335399	one gene to many ncbi ids	uncurated: NCBI gene load 2025-05-09 19:43:14.214854-07	No
--- ZDB-GENE-030131-7339	101884911	one gene to many ncbi ids	uncurated: NCBI gene load 2025-08-25 18:48:50.287319-07	Yes
--- ZDB-GENE-030131-8830	100537613	one gene to many ncbi ids	uncurated: NCBI gene load 2025-05-09 19:43:14.214854-07	No
--- ZDB-GENE-030131-8830	100333625	one gene to many ncbi ids	uncurated: NCBI gene load 2025-08-25 18:48:50.287319-07	Yes
--- ZDB-GENE-030131-1076	322357	one gene to many ncbi ids	uncurated: NCBI gene load 2025-05-09 19:43:14.214854-07	No
--- ZDB-GENE-030131-1076	141377165	one gene to many ncbi ids	uncurated: NCBI gene load 2025-08-25 18:48:50.287319-07	Yes
--- ZDB-GENE-080212-8	100137105	one gene to many ncbi ids	uncurated: NCBI gene load 2025-05-09 19:43:14.214854-07	No
--- ZDB-GENE-080212-8	100307087	one gene to many ncbi ids	uncurated: NCBI gene load 2025-08-25 18:48:50.287319-07	Yes
--- ZDB-GENE-091204-469	103911758	one gene to many ncbi ids	uncurated: NCBI gene load 2023-07-10 18:14:22.673585-07	No
--- ZDB-GENE-091204-469	141384207	one gene to many ncbi ids	uncurated: NCBI gene load 2025-08-25 18:48:50.287319-07	Yes
--- ZDB-GENE-041111-100	492526	one gene to many ncbi ids	uncurated: NCBI gene load 2025-05-09 19:43:14.214854-07	No
--- ZDB-GENE-041111-100	110437883	one gene to many ncbi ids	uncurated: NCBI gene load 2025-08-25 18:48:50.287319-07	Yes
--- ZDB-GENE-030131-4539	325814	one gene to many ncbi ids	uncurated: NCBI gene load 2025-05-09 19:43:14.214854-07	No
--- ZDB-GENE-030131-4539	101884850	one gene to many ncbi ids	uncurated: NCBI gene load 2025-08-25 18:48:50.287319-07	Yes
--- ZDB-GENE-050411-102	550293	one gene to many ncbi ids	uncurated: NCBI gene load 2025-05-09 19:43:14.214854-07	No
--- ZDB-GENE-050411-102	110437756	one gene to many ncbi ids	uncurated: NCBI gene load 2025-08-25 18:48:50.287319-07	Yes
--- ZDB-GENE-030131-8748	336804	one gene to many ncbi ids	uncurated: NCBI gene load 2025-05-09 19:43:14.214854-07	No
--- ZDB-GENE-030131-8748	101884646	one gene to many ncbi ids	uncurated: NCBI gene load 2025-08-25 18:48:50.287319-07	Yes
--- ZDB-GENE-060503-800	100034508	one gene to many ncbi ids	uncurated: NCBI gene load 2025-05-09 19:43:14.214854-07	No
--- ZDB-GENE-060503-800	137488446	one gene to many ncbi ids	uncurated: NCBI gene load 2025-08-25 18:48:50.287319-07	Yes
--- ZDB-GENE-030131-6962	335022	one gene to many ncbi ids	uncurated: NCBI gene load 2025-05-09 19:43:14.214854-07	No
--- ZDB-GENE-030131-6962	100319064	one gene to many ncbi ids	uncurated: NCBI gene load 2025-08-25 18:48:50.287319-07	Yes
+-- zdb_id         |   ncbi_id    |       group_id        |          reason           |  dblink_linked_recid   | dblink_acc_num |                       dblink_info                       |      dblink_zdb_id       | dblink_acc_num_display | dblink_length | dblink_fdbcont_zdb_id
+-- ------------------------+--------------+-----------------------+---------------------------+------------------------+----------------+---------------------------------------------------------+--------------------------+------------------------+---------------+-----------------------
+--  ZDB-GENE-070912-75     | 100150732    | 100150732             | many genes to one ncbi id | ZDB-GENE-070912-75     | 100150732      | uncurated: NCBI gene load 2024-03-14 22:08:11.484846-07 | ZDB-DBLINK-240314-151605 | 100150732              |               | ZDB-FDBCONT-040412-1
+--  ZDB-GENE-060503-70     | 100150732    | 100150732             | many genes to one ncbi id | ZDB-GENE-060503-70     | 100150732      | uncurated: NCBI gene load 2025-08-29 22:31:39.758086-07 | ZDB-DBLINK-250829-552689 | 100150732              |               | ZDB-FDBCONT-040412-1
+--  ZDB-GENE-161017-34     | 570448       | 570448                | many genes to one ncbi id | ZDB-GENE-161017-34     | 570448         | uncurated: NCBI gene load 2024-03-14 22:08:11.484846-07 | ZDB-DBLINK-240314-153801 | 570448                 |               | ZDB-FDBCONT-040412-1
+--  ZDB-GENE-100820-1      | 570448       | 570448                | many genes to one ncbi id | ZDB-GENE-100820-1      | 570448         | uncurated: NCBI gene load 2025-08-29 22:31:39.758086-07 | ZDB-DBLINK-250829-557244 | 570448                 |               | ZDB-FDBCONT-040412-1
+--  ZDB-GENE-070820-22     | 100001739    | 100001739             | many genes to one ncbi id | ZDB-GENE-070820-22     | 100001739      | uncurated: NCBI gene load 2023-07-10 18:14:22.673585-07 | ZDB-DBLINK-230710-96038  | 100001739              |               | ZDB-FDBCONT-040412-1
+--  ZDB-GENE-030131-7635   | 100001739    | 100001739             | many genes to one ncbi id | ZDB-GENE-030131-7635   | 100001739      | uncurated: NCBI gene load 2025-08-29 22:31:39.758086-07 | ZDB-DBLINK-250829-543225 | 100001739              |               | ZDB-FDBCONT-040412-1
+--  ZDB-GENE-110913-77     | 101882544    | 101882544             | many genes to one ncbi id | ZDB-GENE-110913-77     | 101882544      | uncurated: NCBI gene load 2025-08-29 22:31:39.758086-07 | ZDB-DBLINK-250829-562546 | 101882544              |               | ZDB-FDBCONT-040412-1
+--  ZDB-GENE-141212-233    | 101882544    | 101882544             | many genes to one ncbi id | ZDB-GENE-141212-233    | 101882544      | uncurated: NCBI gene load 2025-08-29 22:31:39.758086-07 | ZDB-DBLINK-250829-563396 | 101882544              |               | ZDB-FDBCONT-040412-1
+--  ZDB-GENE-141212-333    | 100151151    | 100151151             | many genes to one ncbi id | ZDB-GENE-141212-333    | 100151151      | uncurated: NCBI gene load 2024-03-14 22:08:11.484846-07 | ZDB-DBLINK-240314-153493 | 100151151              |               | ZDB-FDBCONT-040412-1
+--  ZDB-GENE-070912-117    | 100151151    | 100151151             | many genes to one ncbi id | ZDB-GENE-070912-117    | 100151151      | uncurated: NCBI gene load 2025-08-29 22:31:39.758086-07 | ZDB-DBLINK-250829-554922 | 100151151              |               | ZDB-FDBCONT-040412-1
+--  ZDB-GENE-120215-186    | 101884911    | 101884911             | many genes to one ncbi id | ZDB-GENE-120215-186    | 101884911      | uncurated: NCBI gene load 2024-03-14 22:08:11.484846-07 | ZDB-DBLINK-240314-152769 | 101884911              |               | ZDB-FDBCONT-040412-1
+--  ZDB-GENE-030131-7339   | 101884911    | 101884911             | many genes to one ncbi id | ZDB-GENE-030131-7339   | 101884911      | uncurated: NCBI gene load 2025-08-29 22:31:39.758086-07 | ZDB-DBLINK-250829-543074 | 101884911              |               | ZDB-FDBCONT-040412-1
+--  ZDB-GENE-041210-316    | 792119       | 792119                | many genes to one ncbi id | ZDB-GENE-041210-316    | 792119         | uncurated: NCBI gene load 2024-03-14 22:08:11.484846-07 | ZDB-DBLINK-240314-150632 | 792119                 |               | ZDB-FDBCONT-040412-1
+--  ZDB-GENE-060825-105    | 792119       | 792119                | many genes to one ncbi id | ZDB-GENE-060825-105    | 792119         | uncurated: NCBI gene load 2025-08-29 22:31:39.758086-07 | ZDB-DBLINK-250829-553134 | 792119                 |               | ZDB-FDBCONT-040412-1
+--  ZDB-GENE-230622-1      | 110440145    | 110440145             | many genes to one ncbi id | ZDB-GENE-230622-1      | 110440145      |                                                         | ZDB-DBLINK-230622-1      | 110440145              |               | ZDB-FDBCONT-040412-1
+--  ZDB-GENE-220914-1      | 110440145    | 110440145             | many genes to one ncbi id | ZDB-GENE-220914-1      | 110440145      |                                                         | ZDB-DBLINK-220914-6      | 110440145              |               | ZDB-FDBCONT-040412-1
+--  ZDB-LINCRNAG-131121-11 | 101884646    | 101884646             | many genes to one ncbi id | ZDB-LINCRNAG-131121-11 | 101884646      | uncurated: NCBI gene load 2024-09-13 19:47:59.747003-07 | ZDB-DBLINK-240913-158333 | 101884646              |               | ZDB-FDBCONT-040412-1
+--  ZDB-GENE-030131-8748   | 101884646    | 101884646             | many genes to one ncbi id | ZDB-GENE-030131-8748   | 101884646      | uncurated: NCBI gene load 2025-08-29 22:31:39.758086-07 | ZDB-DBLINK-250829-543782 | 101884646              |               | ZDB-FDBCONT-040412-1
+--  ZDB-GENE-041014-55     | 794359       | 794359                | many genes to one ncbi id | ZDB-GENE-041014-55     | 794359         | uncurated: NCBI gene load 2024-03-14 22:08:11.484846-07 | ZDB-DBLINK-240314-150583 | 794359                 |               | ZDB-FDBCONT-040412-1
+--  ZDB-GENE-041014-49     | 794359       | 794359                | many genes to one ncbi id | ZDB-GENE-041014-49     | 794359         | uncurated: NCBI gene load 2025-08-29 22:31:39.758086-07 | ZDB-DBLINK-250829-549070 | 794359                 |               | ZDB-FDBCONT-040412-1
+--  ZDB-GENE-070705-236    | 569265       | 569265                | many genes to one ncbi id | ZDB-GENE-070705-236    | 569265         |                                                         | ZDB-DBLINK-230724-2      | 569265                 |               | ZDB-FDBCONT-040412-1
+--  ZDB-GENE-130530-2      | 569265       | 569265                | many genes to one ncbi id | ZDB-GENE-130530-2      | 569265         | uncurated: NCBI gene load 2025-08-29 22:31:39.758086-07 | ZDB-DBLINK-250829-562837 | 569265                 |               | ZDB-FDBCONT-040412-1
+--  ZDB-GENE-090312-72     | 557378       | 557378                | many genes to one ncbi id | ZDB-GENE-090312-72     | 557378         | uncurated: NCBI gene load 2024-01-12 19:46:48.716629-08 | ZDB-DBLINK-240112-165394 | 557378                 |               | ZDB-FDBCONT-040412-1
+--  ZDB-GENE-041210-279    | 557378       | 557378                | many genes to one ncbi id | ZDB-GENE-041210-279    | 557378         | uncurated: NCBI gene load 2025-08-29 22:31:39.758086-07 | ZDB-DBLINK-250829-549610 | 557378                 |               | ZDB-FDBCONT-040412-1
+--  ZDB-GENE-060526-325    | 100333943    | 100333943             | many genes to one ncbi id | ZDB-GENE-060526-325    | 100333943      | uncurated: NCBI gene load 2024-03-14 22:08:11.484846-07 | ZDB-DBLINK-240314-151118 | 100333943              |               | ZDB-FDBCONT-040412-1
+--  ZDB-GENE-060526-324    | 100333943    | 100333943             | many genes to one ncbi id | ZDB-GENE-060526-324    | 100333943      | uncurated: NCBI gene load 2025-08-29 22:31:39.758086-07 | ZDB-DBLINK-250829-560865 | 100333943              |               | ZDB-FDBCONT-040412-1
+--  ZDB-GENE-081104-208    | 100319064    | 100319064             | many genes to one ncbi id | ZDB-GENE-081104-208    | 100319064      | uncurated: NCBI gene load 2024-03-14 22:08:11.484846-07 | ZDB-DBLINK-240314-151738 | 100319064              |               | ZDB-FDBCONT-040412-1
+--  ZDB-GENE-030131-6962   | 100319064    | 100319064             | many genes to one ncbi id | ZDB-GENE-030131-6962   | 100319064      | uncurated: NCBI gene load 2025-08-29 22:31:39.758086-07 | ZDB-DBLINK-250829-542886 | 100319064              |               | ZDB-FDBCONT-040412-1
+--  ZDB-GENE-070912-362    | 570229       | 570229                | many genes to one ncbi id | ZDB-GENE-070912-362    | 570229         | uncurated: NCBI gene load 2024-03-14 22:08:11.484846-07 | ZDB-DBLINK-240314-151509 | 570229                 |               | ZDB-FDBCONT-040412-1
+--  ZDB-GENE-070912-457    | 570229       | 570229                | many genes to one ncbi id | ZDB-GENE-070912-457    | 570229         | uncurated: NCBI gene load 2025-08-29 22:31:39.758086-07 | ZDB-DBLINK-250829-561306 | 570229                 |               | ZDB-FDBCONT-040412-1
+--  ZDB-GENE-131121-474    | 100536324    | 100536324             | many genes to one ncbi id | ZDB-GENE-131121-474    | 100536324      | uncurated: NCBI gene load 2024-03-14 22:08:11.484846-07 | ZDB-DBLINK-240314-153203 | 100536324              |               | ZDB-FDBCONT-040412-1
+--  ZDB-GENE-131121-612    | 100536324    | 100536324             | many genes to one ncbi id | ZDB-GENE-131121-612    | 100536324      | uncurated: NCBI gene load 2025-08-29 22:31:39.758086-07 | ZDB-DBLINK-250829-558695 | 100536324              |               | ZDB-FDBCONT-040412-1
+--  ZDB-GENE-030131-10056  | 337840       | ZDB-GENE-030131-10056 | one gene to many ncbi ids | ZDB-GENE-030131-10056  | 337840         | uncurated: NCBI gene load 2025-05-09 19:43:14.214854-07 | ZDB-DBLINK-250509-144585 | 337840                 |               | ZDB-FDBCONT-040412-1
+--  ZDB-GENE-030131-10056  | 337849       | ZDB-GENE-030131-10056 | one gene to many ncbi ids | ZDB-GENE-030131-10056  | 337849         | uncurated: NCBI gene load 2025-08-29 22:31:39.758086-07 | ZDB-DBLINK-250829-539925 | 337849                 |               | ZDB-FDBCONT-040412-1
+--  ZDB-GENE-030131-660    | 321941       | ZDB-GENE-030131-660   | one gene to many ncbi ids | ZDB-GENE-030131-660    | 321941         | uncurated: NCBI gene load 2025-05-09 19:43:14.214854-07 | ZDB-DBLINK-250509-142903 | 321941                 |               | ZDB-FDBCONT-040412-1
+--  ZDB-GENE-030131-660    | 101885539    | ZDB-GENE-030131-660   | one gene to many ncbi ids | ZDB-GENE-030131-660    | 101885539      | uncurated: NCBI gene load 2025-08-29 22:31:39.758086-07 | ZDB-DBLINK-250829-542743 | 101885539              |               | ZDB-FDBCONT-040412-1
+--  ZDB-GENE-140106-138    | 103911794    | ZDB-GENE-140106-138   | one gene to many ncbi ids | ZDB-GENE-140106-138    | 103911794      | uncurated: NCBI gene load 2025-05-09 19:43:14.214854-07 | ZDB-DBLINK-250509-158987 | 103911794              |               | ZDB-FDBCONT-040412-1
+--  ZDB-GENE-140106-138    | 100329789    | ZDB-GENE-140106-138   | one gene to many ncbi ids | ZDB-GENE-140106-138    | 100329789      | uncurated: NCBI gene load 2025-08-29 22:31:39.758086-07 | ZDB-DBLINK-250829-558781 | 100329789              |               | ZDB-FDBCONT-040412-1
+--  ZDB-GENE-030131-3514   | 324793       | ZDB-GENE-030131-3514  | one gene to many ncbi ids | ZDB-GENE-030131-3514   | 324793         | uncurated: NCBI gene load 2025-05-09 19:43:14.214854-07 | ZDB-DBLINK-250509-141326 | 324793                 |               | ZDB-FDBCONT-040412-1
+--  ZDB-GENE-030131-3514   | 100334815    | ZDB-GENE-030131-3514  | one gene to many ncbi ids | ZDB-GENE-030131-3514   | 100334815      | uncurated: NCBI gene load 2025-08-29 22:31:39.758086-07 | ZDB-DBLINK-250829-541176 | 100334815              |               | ZDB-FDBCONT-040412-1
+--  ZDB-GENE-100203-2      | 571155       | ZDB-GENE-100203-2     | one gene to many ncbi ids | ZDB-GENE-100203-2      | 571155         | uncurated: NCBI gene load 2024-03-14 22:08:11.484846-07 | ZDB-DBLINK-240314-151716 | 571155                 |               | ZDB-FDBCONT-040412-1
+--  ZDB-GENE-100203-2      | 141375633    | ZDB-GENE-100203-2     | one gene to many ncbi ids | ZDB-GENE-100203-2      | 141375633      | uncurated: NCBI gene load 2025-08-29 22:31:39.758086-07 | ZDB-DBLINK-250829-557031 | 141375633              |               | ZDB-FDBCONT-040412-1
+--  ZDB-GENE-170110-1      | 110440078    | ZDB-GENE-170110-1     | one gene to many ncbi ids | ZDB-GENE-170110-1      | 110440078      | uncurated: NCBI gene load 2025-05-09 19:43:14.214854-07 | ZDB-DBLINK-250509-159295 | 110440078              |               | ZDB-FDBCONT-040412-1
+--  ZDB-GENE-170110-1      | 103910581    | ZDB-GENE-170110-1     | one gene to many ncbi ids | ZDB-GENE-170110-1      | 103910581      | uncurated: NCBI gene load 2025-08-29 22:31:39.758086-07 | ZDB-DBLINK-250829-559089 | 103910581              |               | ZDB-FDBCONT-040412-1
+--  ZDB-GENE-050809-69     | 606625       | ZDB-GENE-050809-69    | one gene to many ncbi ids | ZDB-GENE-050809-69     | 606625         | uncurated: NCBI gene load 2025-05-09 19:43:14.214854-07 | ZDB-DBLINK-250509-152064 | 606625                 |               | ZDB-FDBCONT-040412-1
+--  ZDB-GENE-050809-69     | 100005092    | ZDB-GENE-050809-69    | one gene to many ncbi ids | ZDB-GENE-050809-69     | 100005092      | uncurated: NCBI gene load 2025-08-29 22:31:39.758086-07 | ZDB-DBLINK-250829-551865 | 100005092              |               | ZDB-FDBCONT-040412-1
+--  ZDB-GENE-030131-7635   | 557454       | ZDB-GENE-030131-7635  | one gene to many ncbi ids | ZDB-GENE-030131-7635   | 557454         | uncurated: NCBI gene load 2025-05-09 19:43:14.214854-07 | ZDB-DBLINK-250509-143391 | 557454                 |               | ZDB-FDBCONT-040412-1
+--  ZDB-GENE-030131-7635   | 100001739    | ZDB-GENE-030131-7635  | one gene to many ncbi ids | ZDB-GENE-030131-7635   | 100001739      | uncurated: NCBI gene load 2025-08-29 22:31:39.758086-07 | ZDB-DBLINK-250829-543225 | 100001739              |               | ZDB-FDBCONT-040412-1
+--  ZDB-GENE-041001-198    | 561077       | ZDB-GENE-041001-198   | one gene to many ncbi ids | ZDB-GENE-041001-198    | 561077         | uncurated: NCBI gene load 2023-07-10 18:14:22.673585-07 | ZDB-DBLINK-230710-95783  | 561077                 |               | ZDB-FDBCONT-040412-1
+--  ZDB-GENE-041001-198    | 103909278    | ZDB-GENE-041001-198   | one gene to many ncbi ids | ZDB-GENE-041001-198    | 103909278      | uncurated: NCBI gene load 2025-08-29 22:31:39.758086-07 | ZDB-DBLINK-250829-548673 | 103909278              |               | ZDB-FDBCONT-040412-1
+--  ZDB-GENE-030131-9329   | 337383       | ZDB-GENE-030131-9329  | one gene to many ncbi ids | ZDB-GENE-030131-9329   | 337383         | uncurated: NCBI gene load 2025-05-09 19:43:14.214854-07 | ZDB-DBLINK-250509-144244 | 337383                 |               | ZDB-FDBCONT-040412-1
+--  ZDB-GENE-030131-9329   | 100004591    | ZDB-GENE-030131-9329  | one gene to many ncbi ids | ZDB-GENE-030131-9329   | 100004591      | uncurated: NCBI gene load 2025-08-29 22:31:39.758086-07 | ZDB-DBLINK-250829-544072 | 100004591              |               | ZDB-FDBCONT-040412-1
+--  ZDB-GENE-070912-352    | 100007758    | ZDB-GENE-070912-352   | one gene to many ncbi ids | ZDB-GENE-070912-352    | 100007758      | uncurated: NCBI gene load 2024-03-14 22:08:11.484846-07 | ZDB-DBLINK-240314-151506 | 100007758              |               | ZDB-FDBCONT-040412-1
+--  ZDB-GENE-070912-352    | 137488017    | ZDB-GENE-070912-352   | one gene to many ncbi ids | ZDB-GENE-070912-352    | 137488017      | uncurated: NCBI gene load 2025-08-29 22:31:39.758086-07 | ZDB-DBLINK-250829-554993 | 137488017              |               | ZDB-FDBCONT-040412-1
+--  ZDB-GENE-210112-1      | 100537771    | ZDB-GENE-210112-1     | one gene to many ncbi ids | ZDB-GENE-210112-1      | 100537771      | uncurated: NCBI gene load 2025-05-09 19:43:14.214854-07 | ZDB-DBLINK-250509-159443 | 100537771              |               | ZDB-FDBCONT-040412-1
+--  ZDB-GENE-210112-1      | 100329477    | ZDB-GENE-210112-1     | one gene to many ncbi ids | ZDB-GENE-210112-1      | 100329477      | uncurated: NCBI gene load 2025-08-29 22:31:39.758086-07 | ZDB-DBLINK-250829-559234 | 100329477              |               | ZDB-FDBCONT-040412-1
+--  ZDB-GENE-140106-66     | 100534721    | ZDB-GENE-140106-66    | one gene to many ncbi ids | ZDB-GENE-140106-66     | 100534721      | uncurated: NCBI gene load 2025-05-09 19:43:14.214854-07 | ZDB-DBLINK-250509-159054 | 100534721              |               | ZDB-FDBCONT-040412-1
+--  ZDB-GENE-140106-66     | 101885457    | ZDB-GENE-140106-66    | one gene to many ncbi ids | ZDB-GENE-140106-66     | 101885457      | uncurated: NCBI gene load 2025-08-29 22:31:39.758086-07 | ZDB-DBLINK-250829-558848 | 101885457              |               | ZDB-FDBCONT-040412-1
+--  ZDB-GENE-030131-1967   | 323247       | ZDB-GENE-030131-1967  | one gene to many ncbi ids | ZDB-GENE-030131-1967   | 323247         | uncurated: NCBI gene load 2025-05-09 19:43:14.214854-07 | ZDB-DBLINK-250509-140496 | 323247                 |               | ZDB-FDBCONT-040412-1
+--  ZDB-GENE-030131-1967   | 110437841    | ZDB-GENE-030131-1967  | one gene to many ncbi ids | ZDB-GENE-030131-1967   | 110437841      | uncurated: NCBI gene load 2025-08-29 22:31:39.758086-07 | ZDB-DBLINK-250829-540354 | 110437841              |               | ZDB-FDBCONT-040412-1
+--  ZDB-GENE-030131-3552   | 100536575    | ZDB-GENE-030131-3552  | one gene to many ncbi ids | ZDB-GENE-030131-3552   | 100536575      |                                                         | ZDB-DBLINK-230724-3      | 100536575              |               | ZDB-FDBCONT-040412-1
+--  ZDB-GENE-030131-3552   | 567613       | ZDB-GENE-030131-3552  | one gene to many ncbi ids | ZDB-GENE-030131-3552   | 567613         | uncurated: NCBI gene load 2025-08-29 22:31:39.758086-07 | ZDB-DBLINK-250829-541197 | 567613                 |               | ZDB-FDBCONT-040412-1
+--  ZDB-GENE-070912-546    | 794575       | ZDB-GENE-070912-546   | one gene to many ncbi ids | ZDB-GENE-070912-546    | 794575         | uncurated: NCBI gene load 2024-03-14 22:08:11.484846-07 | ZDB-DBLINK-240314-151559 | 794575                 |               | ZDB-FDBCONT-040412-1
+--  ZDB-GENE-070912-546    | 137487822    | ZDB-GENE-070912-546   | one gene to many ncbi ids | ZDB-GENE-070912-546    | 137487822      | uncurated: NCBI gene load 2025-08-29 22:31:39.758086-07 | ZDB-DBLINK-250829-555042 | 137487822              |               | ZDB-FDBCONT-040412-1
+--  ZDB-GENE-030131-8025   | 562883       | ZDB-GENE-030131-8025  | one gene to many ncbi ids | ZDB-GENE-030131-8025   | 562883         | uncurated: NCBI gene load 2025-05-09 19:43:14.214854-07 | ZDB-DBLINK-250509-143575 | 562883                 |               | ZDB-FDBCONT-040412-1
+--  ZDB-GENE-030131-8025   | 137490612    | ZDB-GENE-030131-8025  | one gene to many ncbi ids | ZDB-GENE-030131-8025   | 137490612      | uncurated: NCBI gene load 2025-08-29 22:31:39.758086-07 | ZDB-DBLINK-250829-543408 | 137490612              |               | ZDB-FDBCONT-040412-1
+--  ZDB-GENE-140106-233    | 101882032    | ZDB-GENE-140106-233   | one gene to many ncbi ids | ZDB-GENE-140106-233    | 101882032      | uncurated: NCBI gene load 2025-05-09 19:43:14.214854-07 | ZDB-DBLINK-250509-159024 | 101882032              |               | ZDB-FDBCONT-040412-1
+--  ZDB-GENE-140106-233    | 100535087    | ZDB-GENE-140106-233   | one gene to many ncbi ids | ZDB-GENE-140106-233    | 100535087      | uncurated: NCBI gene load 2025-08-29 22:31:39.758086-07 | ZDB-DBLINK-250829-558818 | 100535087              |               | ZDB-FDBCONT-040412-1
+--  ZDB-GENE-050208-733    | 100002776    | ZDB-GENE-050208-733   | one gene to many ncbi ids | ZDB-GENE-050208-733    | 100002776      | uncurated: NCBI gene load 2023-07-10 18:14:22.673585-07 | ZDB-DBLINK-230710-95851  | 100002776              |               | ZDB-FDBCONT-040412-1
+--  ZDB-GENE-050208-733    | 141380149    | ZDB-GENE-050208-733   | one gene to many ncbi ids | ZDB-GENE-050208-733    | 141380149      | uncurated: NCBI gene load 2025-08-29 22:31:39.758086-07 | ZDB-DBLINK-250829-550062 | 141380149              |               | ZDB-FDBCONT-040412-1
+--  ZDB-GENE-050506-108    | 553027       | ZDB-GENE-050506-108   | one gene to many ncbi ids | ZDB-GENE-050506-108    | 553027         | uncurated: NCBI gene load 2025-05-09 19:43:14.214854-07 | ZDB-DBLINK-250509-151363 | 553027                 |               | ZDB-FDBCONT-040412-1
+--  ZDB-GENE-050506-108    | 100536119    | ZDB-GENE-050506-108   | one gene to many ncbi ids | ZDB-GENE-050506-108    | 100536119      | uncurated: NCBI gene load 2025-08-29 22:31:39.758086-07 | ZDB-DBLINK-250829-551171 | 100536119              |               | ZDB-FDBCONT-040412-1
+--  ZDB-GENE-141216-146    | LOC101884594 | ZDB-GENE-141216-146   | one gene to many ncbi ids | ZDB-GENE-141216-146    | LOC101884594   |                                                         | ZDB-DBLINK-210203-24     | LOC101884594           |               | ZDB-FDBCONT-040412-1
+--  ZDB-GENE-141216-146    | LOC101883894 | ZDB-GENE-141216-146   | one gene to many ncbi ids | ZDB-GENE-141216-146    | LOC101883894   |                                                         | ZDB-DBLINK-210203-25     | LOC101883894           |               | ZDB-FDBCONT-040412-1
+--  ZDB-GENE-131121-612    | 137488158    | ZDB-GENE-131121-612   | one gene to many ncbi ids | ZDB-GENE-131121-612    | 137488158      | uncurated: NCBI gene load 2025-05-09 19:43:14.214854-07 | ZDB-DBLINK-250509-158903 | 137488158              |               | ZDB-FDBCONT-040412-1
+--  ZDB-GENE-131121-612    | 100536324    | ZDB-GENE-131121-612   | one gene to many ncbi ids | ZDB-GENE-131121-612    | 100536324      | uncurated: NCBI gene load 2025-08-29 22:31:39.758086-07 | ZDB-DBLINK-250829-558695 | 100536324              |               | ZDB-FDBCONT-040412-1
+--  ZDB-GENE-041111-137    | 101883783    | ZDB-GENE-041111-137   | one gene to many ncbi ids | ZDB-GENE-041111-137    | 101883783      | uncurated: NCBI gene load 2025-05-09 19:43:14.214854-07 | ZDB-DBLINK-250509-149337 | 101883783              |               | ZDB-FDBCONT-040412-1
+--  ZDB-GENE-041111-137    | 141378238    | ZDB-GENE-041111-137   | one gene to many ncbi ids | ZDB-GENE-041111-137    | 141378238      | uncurated: NCBI gene load 2025-08-29 22:31:39.758086-07 | ZDB-DBLINK-250829-549150 | 141378238              |               | ZDB-FDBCONT-040412-1
+--  ZDB-GENE-030131-2133   | 323413       | ZDB-GENE-030131-2133  | one gene to many ncbi ids | ZDB-GENE-030131-2133   | 323413         | uncurated: NCBI gene load 2025-05-09 19:43:14.214854-07 | ZDB-DBLINK-250509-140576 | 323413                 |               | ZDB-FDBCONT-040412-1
+--  ZDB-GENE-030131-2133   | 137490068    | ZDB-GENE-030131-2133  | one gene to many ncbi ids | ZDB-GENE-030131-2133   | 137490068      | uncurated: NCBI gene load 2025-08-29 22:31:39.758086-07 | ZDB-DBLINK-250829-540435 | 137490068              |               | ZDB-FDBCONT-040412-1
+--  ZDB-NCRNAG-030131-2    | 10053516     | ZDB-NCRNAG-030131-2   | one gene to many ncbi ids | ZDB-NCRNAG-030131-2    | 10053516       |                                                         | ZDB-DBLINK-230711-194729 | 10053516               |               | ZDB-FDBCONT-040412-1
+--  ZDB-NCRNAG-030131-2    | 100535167    | ZDB-NCRNAG-030131-2   | one gene to many ncbi ids | ZDB-NCRNAG-030131-2    | 100535167      | uncurated: NCBI gene load 2025-08-29 22:31:39.758086-07 | ZDB-DBLINK-250829-560119 | 100535167              |               | ZDB-FDBCONT-040412-1
+--  ZDB-GENE-001201-1      | 559475       | ZDB-GENE-001201-1     | one gene to many ncbi ids | ZDB-GENE-001201-1      | 559475         | uncurated: NCBI gene load 2025-05-09 19:43:14.214854-07 | ZDB-DBLINK-250509-139440 | 559475                 |               | ZDB-FDBCONT-040412-1
+--  ZDB-GENE-001201-1      | 141380276    | ZDB-GENE-001201-1     | one gene to many ncbi ids | ZDB-GENE-001201-1      | 141380276      | uncurated: NCBI gene load 2025-08-29 22:31:39.758086-07 | ZDB-DBLINK-250829-539302 | 141380276              |               | ZDB-FDBCONT-040412-1
+--  ZDB-GENE-130503-2      | 101885701    | ZDB-GENE-130503-2     | one gene to many ncbi ids | ZDB-GENE-130503-2      | 101885701      | uncurated: NCBI gene load 2025-05-09 19:43:14.214854-07 | ZDB-DBLINK-250509-158570 | 101885701              |               | ZDB-FDBCONT-040412-1
+--  ZDB-GENE-130503-2      | 570938       | ZDB-GENE-130503-2     | one gene to many ncbi ids | ZDB-GENE-130503-2      | 570938         | uncurated: NCBI gene load 2025-08-29 22:31:39.758086-07 | ZDB-DBLINK-250829-558361 | 570938                 |               | ZDB-FDBCONT-040412-1
+--  ZDB-GENE-041210-304    | 562065       | ZDB-GENE-041210-304   | one gene to many ncbi ids | ZDB-GENE-041210-304    | 562065         | uncurated: NCBI gene load 2023-07-10 18:14:22.673585-07 | ZDB-DBLINK-230710-95823  | 562065                 |               | ZDB-FDBCONT-040412-1
+--  ZDB-GENE-041210-304    | 141376230    | ZDB-GENE-041210-304   | one gene to many ncbi ids | ZDB-GENE-041210-304    | 141376230      | uncurated: NCBI gene load 2025-08-29 22:31:39.758086-07 | ZDB-DBLINK-250829-549619 | 141376230              |               | ZDB-FDBCONT-040412-1
+--  ZDB-GENE-030131-5439   | 327228       | ZDB-GENE-030131-5439  | one gene to many ncbi ids | ZDB-GENE-030131-5439   | 327228         | uncurated: NCBI gene load 2025-05-09 19:43:14.214854-07 | ZDB-DBLINK-250509-142330 | 327228                 |               | ZDB-FDBCONT-040412-1
+--  ZDB-GENE-030131-5439   | 100333807    | ZDB-GENE-030131-5439  | one gene to many ncbi ids | ZDB-GENE-030131-5439   | 100333807      | uncurated: NCBI gene load 2025-08-29 22:31:39.758086-07 | ZDB-DBLINK-250829-542172 | 100333807              |               | ZDB-FDBCONT-040412-1
+--  ZDB-GENE-060503-325    | 100034394    | ZDB-GENE-060503-325   | one gene to many ncbi ids | ZDB-GENE-060503-325    | 100034394      | uncurated: NCBI gene load 2025-05-09 19:43:14.214854-07 | ZDB-DBLINK-250509-152789 | 100034394              |               | ZDB-FDBCONT-040412-1
+--  ZDB-GENE-060503-325    | 137490581    | ZDB-GENE-060503-325   | one gene to many ncbi ids | ZDB-GENE-060503-325    | 137490581      | uncurated: NCBI gene load 2025-08-29 22:31:39.758086-07 | ZDB-DBLINK-250829-552587 | 137490581              |               | ZDB-FDBCONT-040412-1
+--  ZDB-GENE-090402-1      | 325815       | ZDB-GENE-090402-1     | one gene to many ncbi ids | ZDB-GENE-090402-1      | 325815         | uncurated: NCBI gene load 2025-05-09 19:43:14.214854-07 | ZDB-DBLINK-250509-141890 | 325815                 |               | ZDB-FDBCONT-040412-1
+--  ZDB-GENE-090402-1      | 571836       | ZDB-GENE-090402-1     | one gene to many ncbi ids | ZDB-GENE-090402-1      | 571836         | uncurated: NCBI gene load 2025-08-29 22:31:39.758086-07 | ZDB-DBLINK-250829-556593 | 571836                 |               | ZDB-FDBCONT-040412-1
+--  ZDB-GENE-060526-350    | 567416       | ZDB-GENE-060526-350   | one gene to many ncbi ids | ZDB-GENE-060526-350    | 567416         | uncurated: NCBI gene load 2024-09-13 19:47:59.747003-07 | ZDB-DBLINK-240913-158255 | 567416                 |               | ZDB-FDBCONT-040412-1
+--  ZDB-GENE-060526-350    | 110439812    | ZDB-GENE-060526-350   | one gene to many ncbi ids | ZDB-GENE-060526-350    | 110439812      | uncurated: NCBI gene load 2025-08-29 22:31:39.758086-07 | ZDB-DBLINK-250829-552881 | 110439812              |               | ZDB-FDBCONT-040412-1
+--  ZDB-GENE-041210-279    | 100317818    | ZDB-GENE-041210-279   | one gene to many ncbi ids | ZDB-GENE-041210-279    | 100317818      | uncurated: NCBI gene load 2024-01-12 19:46:48.716629-08 | ZDB-DBLINK-240112-165380 | 100317818              |               | ZDB-FDBCONT-040412-1
+--  ZDB-GENE-041210-279    | 557378       | ZDB-GENE-041210-279   | one gene to many ncbi ids | ZDB-GENE-041210-279    | 557378         | uncurated: NCBI gene load 2025-08-29 22:31:39.758086-07 | ZDB-DBLINK-250829-549610 | 557378                 |               | ZDB-FDBCONT-040412-1
+--  ZDB-GENE-130116-1      | 101884341    | ZDB-GENE-130116-1     | one gene to many ncbi ids | ZDB-GENE-130116-1      | 101884341      | uncurated: NCBI gene load 2025-05-09 19:43:14.214854-07 | ZDB-DBLINK-250509-158512 | 101884341              |               | ZDB-FDBCONT-040412-1
+--  ZDB-GENE-130116-1      | 101884937    | ZDB-GENE-130116-1     | one gene to many ncbi ids | ZDB-GENE-130116-1      | 101884937      | uncurated: NCBI gene load 2025-08-29 22:31:39.758086-07 | ZDB-DBLINK-250829-558303 | 101884937              |               | ZDB-FDBCONT-040412-1
+--  ZDB-GENE-120206-3      | 100332706    | ZDB-GENE-120206-3     | one gene to many ncbi ids | ZDB-GENE-120206-3      | 100332706      | uncurated: NCBI gene load 2025-05-09 19:43:14.214854-07 | ZDB-DBLINK-250509-158078 | 100332706              |               | ZDB-FDBCONT-040412-1
+--  ZDB-GENE-120206-3      | 141376900    | ZDB-GENE-120206-3     | one gene to many ncbi ids | ZDB-GENE-120206-3      | 141376900      | uncurated: NCBI gene load 2025-08-29 22:31:39.758086-07 | ZDB-DBLINK-250829-557871 | 141376900              |               | ZDB-FDBCONT-040412-1
+--  ZDB-GENE-200624-1      | 101882856    | ZDB-GENE-200624-1     | one gene to many ncbi ids | ZDB-GENE-200624-1      | 101882856      | uncurated: NCBI gene load 2025-05-09 19:43:14.214854-07 | ZDB-DBLINK-250509-159426 | 101882856              |               | ZDB-FDBCONT-040412-1
+--  ZDB-GENE-200624-1      | 141378921    | ZDB-GENE-200624-1     | one gene to many ncbi ids | ZDB-GENE-200624-1      | 141378921      | uncurated: NCBI gene load 2025-08-29 22:31:39.758086-07 | ZDB-DBLINK-250829-559219 | 141378921              |               | ZDB-FDBCONT-040412-1
+--  ZDB-GENE-040718-33     | 436616       | ZDB-GENE-040718-33    | one gene to many ncbi ids | ZDB-GENE-040718-33     | 436616         | uncurated: NCBI gene load 2025-05-09 19:43:14.214854-07 | ZDB-DBLINK-250509-147920 | 436616                 |               | ZDB-FDBCONT-040412-1
+--  ZDB-GENE-040718-33     | 100005907    | ZDB-GENE-040718-33    | one gene to many ncbi ids | ZDB-GENE-040718-33     | 100005907      | uncurated: NCBI gene load 2025-08-29 22:31:39.758086-07 | ZDB-DBLINK-250829-547740 | 100005907              |               | ZDB-FDBCONT-040412-1
+--  ZDB-GENE-141216-82     | 567749       | ZDB-GENE-141216-82    | one gene to many ncbi ids | ZDB-GENE-141216-82     | 567749         | uncurated: NCBI gene load 2024-09-13 19:47:59.747003-07 | ZDB-DBLINK-240913-158324 | 567749                 |               | ZDB-FDBCONT-040412-1
+--  ZDB-GENE-141216-82     | 137490405    | ZDB-GENE-141216-82    | one gene to many ncbi ids | ZDB-GENE-141216-82     | 137490405      | uncurated: NCBI gene load 2025-08-29 22:31:39.758086-07 | ZDB-DBLINK-250829-558975 | 137490405              |               | ZDB-FDBCONT-040412-1
+--  ZDB-GENE-030131-7339   | 335399       | ZDB-GENE-030131-7339  | one gene to many ncbi ids | ZDB-GENE-030131-7339   | 335399         | uncurated: NCBI gene load 2025-05-09 19:43:14.214854-07 | ZDB-DBLINK-250509-143238 | 335399                 |               | ZDB-FDBCONT-040412-1
+--  ZDB-GENE-030131-7339   | 101884911    | ZDB-GENE-030131-7339  | one gene to many ncbi ids | ZDB-GENE-030131-7339   | 101884911      | uncurated: NCBI gene load 2025-08-29 22:31:39.758086-07 | ZDB-DBLINK-250829-543074 | 101884911              |               | ZDB-FDBCONT-040412-1
+--  ZDB-GENE-030131-8830   | 100537613    | ZDB-GENE-030131-8830  | one gene to many ncbi ids | ZDB-GENE-030131-8830   | 100537613      | uncurated: NCBI gene load 2025-05-09 19:43:14.214854-07 | ZDB-DBLINK-250509-143997 | 100537613              |               | ZDB-FDBCONT-040412-1
+--  ZDB-GENE-030131-8830   | 100333625    | ZDB-GENE-030131-8830  | one gene to many ncbi ids | ZDB-GENE-030131-8830   | 100333625      | uncurated: NCBI gene load 2025-08-29 22:31:39.758086-07 | ZDB-DBLINK-250829-543827 | 100333625              |               | ZDB-FDBCONT-040412-1
+--  ZDB-GENE-030131-1076   | 322357       | ZDB-GENE-030131-1076  | one gene to many ncbi ids | ZDB-GENE-030131-1076   | 322357         | uncurated: NCBI gene load 2025-05-09 19:43:14.214854-07 | ZDB-DBLINK-250509-140101 | 322357                 |               | ZDB-FDBCONT-040412-1
+--  ZDB-GENE-030131-1076   | 141377165    | ZDB-GENE-030131-1076  | one gene to many ncbi ids | ZDB-GENE-030131-1076   | 141377165      | uncurated: NCBI gene load 2025-08-29 22:31:39.758086-07 | ZDB-DBLINK-250829-539964 | 141377165              |               | ZDB-FDBCONT-040412-1
+--  ZDB-GENE-091204-469    | 103911758    | ZDB-GENE-091204-469   | one gene to many ncbi ids | ZDB-GENE-091204-469    | 103911758      | uncurated: NCBI gene load 2023-07-10 18:14:22.673585-07 | ZDB-DBLINK-230710-96322  | 103911758              |               | ZDB-FDBCONT-040412-1
+--  ZDB-GENE-091204-469    | 141384207    | ZDB-GENE-091204-469   | one gene to many ncbi ids | ZDB-GENE-091204-469    | 141384207      | uncurated: NCBI gene load 2025-08-29 22:31:39.758086-07 | ZDB-DBLINK-250829-556985 | 141384207              |               | ZDB-FDBCONT-040412-1
+--  ZDB-GENE-041111-100    | 492526       | ZDB-GENE-041111-100   | one gene to many ncbi ids | ZDB-GENE-041111-100    | 492526         | uncurated: NCBI gene load 2025-05-09 19:43:14.214854-07 | ZDB-DBLINK-250509-149304 | 492526                 |               | ZDB-FDBCONT-040412-1
+--  ZDB-GENE-041111-100    | 110437883    | ZDB-GENE-041111-100   | one gene to many ncbi ids | ZDB-GENE-041111-100    | 110437883      | uncurated: NCBI gene load 2025-08-29 22:31:39.758086-07 | ZDB-DBLINK-250829-549119 | 110437883              |               | ZDB-FDBCONT-040412-1
+--  ZDB-GENE-030131-4539   | 325814       | ZDB-GENE-030131-4539  | one gene to many ncbi ids | ZDB-GENE-030131-4539   | 325814         | uncurated: NCBI gene load 2025-05-09 19:43:14.214854-07 | ZDB-DBLINK-250509-141888 | 325814                 |               | ZDB-FDBCONT-040412-1
+--  ZDB-GENE-030131-4539   | 101884850    | ZDB-GENE-030131-4539  | one gene to many ncbi ids | ZDB-GENE-030131-4539   | 101884850      | uncurated: NCBI gene load 2025-08-29 22:31:39.758086-07 | ZDB-DBLINK-250829-541732 | 101884850              |               | ZDB-FDBCONT-040412-1
+--  ZDB-GENE-050411-102    | 550293       | ZDB-GENE-050411-102   | one gene to many ncbi ids | ZDB-GENE-050411-102    | 550293         | uncurated: NCBI gene load 2025-05-09 19:43:14.214854-07 | ZDB-DBLINK-250509-150849 | 550293                 |               | ZDB-FDBCONT-040412-1
+--  ZDB-GENE-050411-102    | 110437756    | ZDB-GENE-050411-102   | one gene to many ncbi ids | ZDB-GENE-050411-102    | 110437756      | uncurated: NCBI gene load 2025-08-29 22:31:39.758086-07 | ZDB-DBLINK-250829-550657 | 110437756              |               | ZDB-FDBCONT-040412-1
+--  ZDB-GENE-030131-8748   | 336804       | ZDB-GENE-030131-8748  | one gene to many ncbi ids | ZDB-GENE-030131-8748   | 336804         | uncurated: NCBI gene load 2025-05-09 19:43:14.214854-07 | ZDB-DBLINK-250509-143951 | 336804                 |               | ZDB-FDBCONT-040412-1
+--  ZDB-GENE-030131-8748   | 101884646    | ZDB-GENE-030131-8748  | one gene to many ncbi ids | ZDB-GENE-030131-8748   | 101884646      | uncurated: NCBI gene load 2025-08-29 22:31:39.758086-07 | ZDB-DBLINK-250829-543782 | 101884646              |               | ZDB-FDBCONT-040412-1
+--  ZDB-GENE-060503-800    | 100034508    | ZDB-GENE-060503-800   | one gene to many ncbi ids | ZDB-GENE-060503-800    | 100034508      | uncurated: NCBI gene load 2025-05-09 19:43:14.214854-07 | ZDB-DBLINK-250509-152921 | 100034508              |               | ZDB-FDBCONT-040412-1
+--  ZDB-GENE-060503-800    | 137488446    | ZDB-GENE-060503-800   | one gene to many ncbi ids | ZDB-GENE-060503-800    | 137488446      | uncurated: NCBI gene load 2025-08-29 22:31:39.758086-07 | ZDB-DBLINK-250829-552720 | 137488446              |               | ZDB-FDBCONT-040412-1
+--  ZDB-GENE-030131-6962   | 335022       | ZDB-GENE-030131-6962  | one gene to many ncbi ids | ZDB-GENE-030131-6962   | 335022         | uncurated: NCBI gene load 2025-05-09 19:43:14.214854-07 | ZDB-DBLINK-250509-143047 | 335022                 |               | ZDB-FDBCONT-040412-1
+--  ZDB-GENE-030131-6962   | 100319064    | ZDB-GENE-030131-6962  | one gene to many ncbi ids | ZDB-GENE-030131-6962   | 100319064      | uncurated: NCBI gene load 2025-08-29 22:31:39.758086-07 | ZDB-DBLINK-250829-542886 | 100319064              |               | ZDB-FDBCONT-040412-1
+--
