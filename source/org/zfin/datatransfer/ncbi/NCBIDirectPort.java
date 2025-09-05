@@ -3279,7 +3279,7 @@ public class NCBIDirectPort extends AbstractScriptWrapper {
         //break down changes into subsets using the provided before and after files
         String outputPrefix = new File(workingDir, "ncbi_compare_").toString();
         CSVDiff diff = new CSVDiff(outputPrefix,
-                new String[]{"dblink_linked_recid", "dblink_acc_num", "dblink_fdbcont_zdb_id", "recattrib_source_zdb_id"},
+                new String[]{"dblink_linked_recid", "dblink_acc_num", "dblink_fdbcont_zdb_id"},
                 new String[]{"dblink_info", "dblink_zdb_id"});
         CSVRecord beforeAfterSummary = null;
         Map<String, List<CSVRecord>> beforeAfterComparison = null;
