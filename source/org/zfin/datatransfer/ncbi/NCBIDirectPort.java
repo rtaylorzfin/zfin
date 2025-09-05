@@ -1857,6 +1857,22 @@ public class NCBIDirectPort extends AbstractScriptWrapper {
                     continue;
                 }
 
+                // Check if the gene already has an NCBI Gene link in the database
+                String sqlCheckExistingNCBILink = """
+                 SELECT COUNT(*) FROM db_link
+                 WHERE dblink_linked_recid = :zdbId
+                 AND dblink_fdbcont_zdb_id = :fdcontNCBIgeneId
+                 """;
+                NativeQuery<Long> checkQuery = currentSession().createNativeQuery(sqlCheckExistingNCBILink, Long.class);
+                checkQuery.setParameter("zdbId", zdbId);
+                checkQuery.setParameter("fdcontNCBIgeneId", fdcontNCBIgeneId);
+                Long existingLinkCount = checkQuery.uniqueResult();
+
+                if (existingLinkCount != null && existingLinkCount > 0) {
+                    debugBuffer.append("Skip Gene with existing NCBI link: ").append(line).append("\n");
+                    continue;
+                }
+
                 debugBuffer.append("Supplemental mapping: ").append(line).append("\n");
                 ncbiSupplementMap.put(zdbId, ncbiId);
                 ncbiSupplementMapReversed.put(ncbiId, zdbId);
