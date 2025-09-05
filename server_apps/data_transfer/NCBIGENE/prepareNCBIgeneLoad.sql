@@ -18,7 +18,11 @@ create temp table pre_delete (dblink_loaded_zdb_id text);
 insert into pre_delete
 select distinct recattrib_data_zdb_id
   from record_attribution
- where recattrib_source_zdb_id in ('ZDB-PUB-020723-3', 'ZDB-PUB-130725-2');
+ where recattrib_source_zdb_id in (
+                                   'ZDB-PUB-020723-3', -- Curation of NCBI Gene Data Via Shared RNA Sequence IDs
+                                   'ZDB-PUB-130725-2', -- Curation of NCBI Gene Data Via Shared Vega Gene IDs
+                                   'ZDB-PUB-230516-87' -- Curation of NCBI Gene Data Via Shared Ensembl IDs (Supplemental NCBI Load)
+     );
 
 create index pd_data_id_index
  on pre_delete(dblink_loaded_zdb_id);

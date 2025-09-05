@@ -29,12 +29,13 @@ INSERT INTO ncbi_id_to_delete (
 
 -- Now delete the recent NCBI Gene IDs (from 8/29/25) for each ZDB gene record where there are issues
 -- Get these by joining to db_link table
-SELECT * INTO temp TABLE ncbi_id_to_delete_with_dblink
+SELECT marker.mrkr_abbrev as symbol, nid.*, db_link.dblink_info, db_link.dblink_zdb_id, db_link.dblink_fdbcont_zdb_id INTO temp TABLE ncbi_id_to_delete_with_dblink
 FROM
     ncbi_id_to_delete nid
     LEFT JOIN db_link ON zdb_id = dblink_linked_recid
     AND ncbi_id = dblink_acc_num
     AND dblink_fdbcont_zdb_id = 'ZDB-FDBCONT-040412-1'
+    LEFT JOIN marker ON mrkr_zdb_id = dblink_linked_recid
 WHERE
     dblink_zdb_id LIKE '%250829%';
 
