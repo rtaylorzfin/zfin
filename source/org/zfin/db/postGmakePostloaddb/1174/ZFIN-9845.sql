@@ -29,17 +29,20 @@ INSERT INTO ncbi_id_to_delete (
 
 -- Now delete the recent NCBI Gene IDs (from 8/29/25) for each ZDB gene record where there are issues
 -- Get these by joining to db_link table
-SELECT marker.mrkr_abbrev as symbol, nid.*, db_link.dblink_info, db_link.dblink_zdb_id, db_link.dblink_fdbcont_zdb_id INTO temp TABLE ncbi_id_to_delete_with_dblink
+SELECT marker.mrkr_abbrev as symbol, nid.zdb_id, nid.ncbi_id, nid.group_id, nid.reason, db_link.dblink_info, db_link.dblink_zdb_id, db_link.dblink_fdbcont_zdb_id, string_agg(record_attribution.recattrib_source_zdb_id, ',') AS source_pubs
+    INTO temp TABLE ncbi_id_to_delete_with_dblink
 FROM
     ncbi_id_to_delete nid
     LEFT JOIN db_link ON zdb_id = dblink_linked_recid
     AND ncbi_id = dblink_acc_num
     AND dblink_fdbcont_zdb_id = 'ZDB-FDBCONT-040412-1'
     LEFT JOIN marker ON mrkr_zdb_id = dblink_linked_recid
-WHERE
-    dblink_zdb_id LIKE '%250829%';
+    LEFT JOIN record_attribution ON recattrib_data_zdb_id = dblink_zdb_id
+GROUP BY marker.mrkr_abbrev, nid.zdb_id, nid.ncbi_id, nid.group_id, nid.reason, db_link.dblink_info, db_link.dblink_zdb_id, db_link.dblink_fdbcont_zdb_id
+;
 
-DELETE FROM zdb_active_data WHERE zactvd_zdb_id IN (SELECT dblink_zdb_id FROM ncbi_id_to_delete_with_dblink);
+-- Maybe we don't have to manually delete these due to other fixes in the load logic
+-- DELETE FROM zdb_active_data WHERE zactvd_zdb_id IN (SELECT dblink_zdb_id FROM ncbi_id_to_delete_with_dblink WHERE dblink_zdb_id LIKE '%250829%');
 
 -- These are the expected deletions (this is the view of the ncbi_id_to_delete_with_dblink table)
 -- zdb_id         |   ncbi_id    |       group_id        |          reason           |  dblink_linked_recid   | dblink_acc_num |                       dblink_info                       |      dblink_zdb_id       | dblink_acc_num_display | dblink_length | dblink_fdbcont_zdb_id

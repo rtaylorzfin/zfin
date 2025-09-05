@@ -98,6 +98,16 @@ select count(dblink_zdb_id) as noLengthBefore
 
     -- Anything in the to_delete table that matches the 13 vocab_term_id should be preserved
     -- This query removes them from the ncbi_gene_delete table, thus preserving them
+    -- But first, if there are new records coming in for the same gene (zdb_id), we want to keep those instead of the old ones
+    -- So we create a temp table of those deletes that should stay deletes (deletes_to_keep temp table)
+    SELECT dblink_zdb_id
+    into temp table deletes_to_keep
+    from ncbi_gene_load
+        inner join db_link on
+        mapped_zdb_gene_id = dblink_linked_recid
+        and fdbcont_zdb_id = 'ZDB-FDBCONT-040412-1'
+        and dblink_fdbcont_zdb_id = 'ZDB-FDBCONT-040412-1' ;
+
     DELETE FROM ncbi_gene_delete
     WHERE EXISTS (
         SELECT 1
@@ -108,7 +118,12 @@ select count(dblink_zdb_id) as noLengthBefore
             SELECT mrkr_zdb_id, ncbi_gene_id
             FROM ncbi_zdb_gene_not_in_current
         )
-    );
+    )
+    AND delete_dblink_zdb_id NOT IN (SELECT * FROM deletes_to_keep);
+
+    -- Question: In testing this only preserves about 50 records. Previously we were preserving about 2890 records.
+    -- I think we want a report of all "not_in_current" genes
+
 -- } END LOGIC FOR NOT_IN_CURRENT_ANNOTATION_RELEASE
 
 \echo 'Deleting from reference_protein';
