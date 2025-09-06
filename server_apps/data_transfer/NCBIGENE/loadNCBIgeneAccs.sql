@@ -178,8 +178,8 @@ select dblink_linked_recid as gene_id, dblink_acc_num as ncbi_id, dblink_zdb_id,
    and recattrib_source_zdb_id in ('ZDB-PUB-020723-3','ZDB-PUB-130725-2', 'ZDB-PUB-230516-87');
 
 insert into post_run_n_to_1_zdb_to_ncbi
-    (SELECT mapped_zdb_gene_id as gene_id, ncbi_accession as ncbi_id, zdb_id, load_pub_zdb_id as load_pub, false as existing)
-       from ncbi_gene_load;
+    (SELECT mapped_zdb_gene_id as gene_id, ncbi_accession as ncbi_id, zdb_id, load_pub_zdb_id as load_pub, false as existing
+       from ncbi_gene_load);
 
 \copy (select * from post_run_n_to_1_zdb_to_ncbi order by ncbi_id) to 'post_run_n_to_1_zdb_to_ncbi.csv' with header csv;
 delete from ncbi_gene_load where fdbcont_zdb_id = 'ZDB-FDBCONT-040412-1'
