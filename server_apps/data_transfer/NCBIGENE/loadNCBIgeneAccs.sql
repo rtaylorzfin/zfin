@@ -179,11 +179,12 @@ select dblink_linked_recid as gene_id, dblink_acc_num as ncbi_id, dblink_zdb_id,
 
 insert into post_run_n_to_1_zdb_to_ncbi
     (SELECT mapped_zdb_gene_id as gene_id, ncbi_accession as ncbi_id, zdb_id, load_pub_zdb_id as load_pub, false as existing
-       from ncbi_gene_load);
+       from n_gene_1_ncbi_conflict_warnings);
 
 \copy (select * from post_run_n_to_1_zdb_to_ncbi order by ncbi_id) to 'post_run_n_to_1_zdb_to_ncbi.csv' with header csv;
 delete from ncbi_gene_load where fdbcont_zdb_id = 'ZDB-FDBCONT-040412-1'
  and ncbi_accession in (select ncbi_id from post_run_n_to_1_zdb_to_ncbi);
+
 delete from db_link where dblink_zdb_id in (select dblink_zdb_id from post_run_n_to_1_zdb_to_ncbi);
 
 \echo 'Skipping duplicate entries in db_link table for the new records that would violate key:';
