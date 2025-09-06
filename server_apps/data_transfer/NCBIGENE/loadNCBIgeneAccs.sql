@@ -158,6 +158,18 @@ select * into temp table manual_conflict_warnings from ncbi_gene_load
 delete from ncbi_gene_load where fdbcont_zdb_id = 'ZDB-FDBCONT-040412-1'
  and mapped_zdb_gene_id in (select mapped_zdb_gene_id from manual_conflict_warnings);
 
+-- NCBI Gene IDs that are in the load list, but already exist in db_link table for a different gene
+\echo 'Deleting from ncbi_gene_load for those NCBI GeneID records that are in the load list but already exist in db_link table for a different gene';
+select * into temp table n_gene_1_ncbi_conflict_warnings  from ncbi_gene_load
+         inner join db_link on ncbi_accession = dblink_acc_num
+                                   and mapped_zdb_gene_id <> dblink_linked_recid
+                                   and fdbcont_zdb_id = 'ZDB-FDBCONT-040412-1'
+                                   and dblink_fdbcont_zdb_id = 'ZDB-FDBCONT-040412-1'
+        inner join record_attribution on recattrib_data_zdb_id = dblink_zdb_id;
+\copy (select * from n_gene_1_ncbi_conflict_warnings) to 'n_gene_1_ncbi_conflict_warnings.csv' with header csv;
+delete from ncbi_gene_load where fdbcont_zdb_id = 'ZDB-FDBCONT-040412-1'
+ and ncbi_accession in (select ncbi_accession from n_gene_1_ncbi_conflict_warnings);
+
 \echo 'Skipping duplicate entries in db_link table for the new records that would violate key:';
 \echo 'Insert the new records into db_link table';
 insert into db_link (dblink_linked_recid, dblink_acc_num, dblink_acc_num_display, dblink_info, dblink_zdb_id, dblink_length, dblink_fdbcont_zdb_id) 
