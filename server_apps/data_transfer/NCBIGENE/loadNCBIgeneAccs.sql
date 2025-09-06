@@ -152,7 +152,7 @@ select * into temp table manual_conflict_warnings from ncbi_gene_load
  where TRUE
    and exists (select 'x' from record_attribution
                 where recattrib_data_zdb_id = dblink_zdb_id
-                  and recattrib_source_zdb_id not in ('ZDB-PUB-020723-3','ZDB-PUB-130725-2', 'ZDB-PUB-230516-87')
+                  and recattrib_source_zdb_id not in ('ZDB-PUB-020723-3','ZDB-PUB-130725-2')
               );
 \copy (select * from manual_conflict_warnings) to 'manual_conflict_warnings.csv' with header csv;
 delete from ncbi_gene_load where fdbcont_zdb_id = 'ZDB-FDBCONT-040412-1'
@@ -205,7 +205,47 @@ select count(dblink_zdb_id) as noLenLoadedGenBank
                where recattrib_data_zdb_id = dblink_zdb_id
                  and recattrib_source_zdb_id in ('ZDB-PUB-020723-3','ZDB-PUB-020723-3'));
 
---rollback work;
+
+
+-- Many to Many report:
+SELECT
+    unnest(array_agg(dblink_linked_recid)) AS zdb_id,
+    dblink_acc_num AS ncbi_id,
+    dblink_acc_num AS group_id,
+    'many genes to one ncbi id' as reason
+INTO temp TABLE ncbi_many
+FROM    db_link
+WHERE    dblink_fdbcont_zdb_id = 'ZDB-FDBCONT-040412-1'
+GROUP BY    dblink_acc_num
+HAVING    count(dblink_linked_recid) > 1;
+
+-- Now get all ZDB gene records that have more than one NCBI Gene ID
+INSERT INTO ncbi_many (
+    SELECT
+        dblink_linked_recid AS zdb_id,
+        unnest(array_agg(dblink_acc_num)) AS ncbi_id,
+        dblink_linked_recid AS group_id,
+        'one gene to many ncbi ids' as reason
+    FROM        db_link
+    WHERE        dblink_fdbcont_zdb_id = 'ZDB-FDBCONT-040412-1'
+    GROUP BY        dblink_linked_recid
+    HAVING        count(dblink_acc_num) > 1);
+
+-- Now delete the recent NCBI Gene IDs (from 8/29/25) for each ZDB gene record where there are issues
+-- Get these by joining to db_link table
+SELECT marker.mrkr_abbrev as symbol, nid.zdb_id, nid.ncbi_id, nid.group_id, nid.reason, db_link.dblink_info, db_link.dblink_zdb_id, db_link.dblink_fdbcont_zdb_id, string_agg(record_attribution.recattrib_source_zdb_id, ',') AS source_pubs
+INTO temp TABLE ncbi_many_full
+FROM
+    ncbi_many nid
+    LEFT JOIN db_link ON zdb_id = dblink_linked_recid
+    AND ncbi_id = dblink_acc_num
+    AND dblink_fdbcont_zdb_id = 'ZDB-FDBCONT-040412-1'
+    LEFT JOIN marker ON mrkr_zdb_id = dblink_linked_recid
+    LEFT JOIN record_attribution ON recattrib_data_zdb_id = dblink_zdb_id
+GROUP BY marker.mrkr_abbrev, nid.zdb_id, nid.ncbi_id, nid.group_id, nid.reason, db_link.dblink_info, db_link.dblink_zdb_id, db_link.dblink_fdbcont_zdb_id;
+
+\copy (select * from ncbi_many_full order by group_id, dblink_zdb_id) to 'existing_many_to_many_report.csv' with header csv;
+-- End of Many to Many report
 
 commit work;
 
