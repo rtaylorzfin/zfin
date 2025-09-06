@@ -160,15 +160,31 @@ delete from ncbi_gene_load where fdbcont_zdb_id = 'ZDB-FDBCONT-040412-1'
 
 -- NCBI Gene IDs that are in the load list, but already exist in db_link table for a different gene
 \echo 'Deleting from ncbi_gene_load for those NCBI GeneID records that are in the load list but already exist in db_link table for a different gene';
-select * into temp table n_gene_1_ncbi_conflict_warnings  from ncbi_gene_load
+select mapped_zdb_gene_id, ncbi_accession, zdb_id, load_pub_zdb_id, dblink_linked_recid as existing_zdb_id,
+        dblink_zdb_id as existing_dblink_id, dblink_info, recattrib_source_zdb_id as existing_load_pub_zdb_id
+       into temp table n_gene_1_ncbi_conflict_warnings  from ncbi_gene_load
          inner join db_link on ncbi_accession = dblink_acc_num
                                    and mapped_zdb_gene_id <> dblink_linked_recid
                                    and fdbcont_zdb_id = 'ZDB-FDBCONT-040412-1'
                                    and dblink_fdbcont_zdb_id = 'ZDB-FDBCONT-040412-1'
         inner join record_attribution on recattrib_data_zdb_id = dblink_zdb_id;
-\copy (select * from n_gene_1_ncbi_conflict_warnings) to 'n_gene_1_ncbi_conflict_warnings.csv' with header csv;
+
+-- Get the right hand side of that join too
+select dblink_linked_recid as gene_id, dblink_acc_num as ncbi_id, dblink_zdb_id, recattrib_source_zdb_id as load_pub, true as existing
+ into temp table post_run_n_to_1_zdb_to_ncbi from db_link
+         inner join record_attribution on recattrib_data_zdb_id = dblink_zdb_id
+ where dblink_acc_num in (select ncbi_accession from n_gene_1_ncbi_conflict_warnings)
+   and dblink_fdbcont_zdb_id = 'ZDB-FDBCONT-040412-1'
+   and recattrib_source_zdb_id in ('ZDB-PUB-020723-3','ZDB-PUB-130725-2', 'ZDB-PUB-230516-87');
+
+insert into post_run_n_to_1_zdb_to_ncbi
+    (SELECT mapped_zdb_gene_id as gene_id, ncbi_accession as ncbi_id, zdb_id, load_pub_zdb_id as load_pub, false as existing)
+       from ncbi_gene_load;
+
+\copy (select * from post_run_n_to_1_zdb_to_ncbi order by ncbi_id) to 'post_run_n_to_1_zdb_to_ncbi.csv' with header csv;
 delete from ncbi_gene_load where fdbcont_zdb_id = 'ZDB-FDBCONT-040412-1'
- and ncbi_accession in (select ncbi_accession from n_gene_1_ncbi_conflict_warnings);
+ and ncbi_accession in (select ncbi_id from post_run_n_to_1_zdb_to_ncbi);
+delete from db_link where dblink_zdb_id in (select dblink_zdb_id from post_run_n_to_1_zdb_to_ncbi);
 
 \echo 'Skipping duplicate entries in db_link table for the new records that would violate key:';
 \echo 'Insert the new records into db_link table';
