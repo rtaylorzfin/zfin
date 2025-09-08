@@ -154,7 +154,7 @@ select * into temp table manual_conflict_warnings from ncbi_gene_load
                 where recattrib_data_zdb_id = dblink_zdb_id
                   and recattrib_source_zdb_id not in ('ZDB-PUB-020723-3','ZDB-PUB-130725-2')
               );
-\copy (select * from manual_conflict_warnings) to 'manual_conflict_warnings.csv' with header csv;
+-- \copy (select * from manual_conflict_warnings) to 'manual_conflict_warnings.csv' with header csv;
 delete from ncbi_gene_load where fdbcont_zdb_id = 'ZDB-FDBCONT-040412-1'
  and mapped_zdb_gene_id in (select mapped_zdb_gene_id from manual_conflict_warnings);
 
@@ -185,7 +185,7 @@ insert into post_run_n_to_1_zdb_to_ncbi
 delete from ncbi_gene_load where fdbcont_zdb_id = 'ZDB-FDBCONT-040412-1'
  and ncbi_accession in (select ncbi_id from post_run_n_to_1_zdb_to_ncbi);
 
-delete from db_link where dblink_zdb_id in (select dblink_zdb_id from post_run_n_to_1_zdb_to_ncbi);
+delete from zdb_active_data where zactvd_zdb_id in (select dblink_zdb_id from post_run_n_to_1_zdb_to_ncbi);
 
 \echo 'Skipping duplicate entries in db_link table for the new records that would violate key:';
 \echo 'Insert the new records into db_link table';

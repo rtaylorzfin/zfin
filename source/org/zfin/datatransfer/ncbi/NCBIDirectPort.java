@@ -443,6 +443,9 @@ public class NCBIDirectPort extends AbstractScriptWrapper {
         captureAfterState();
         printTimingInformation(4101);
 
+        captureMoreWarnings();
+        printTimingInformation(4102);
+
         reportAllLoadStatistics();
         printTimingInformation(42);
 
@@ -471,6 +474,81 @@ public class NCBIDirectPort extends AbstractScriptWrapper {
             if (TO_PRESERVE != null) TO_PRESERVE.close();
         } catch (IOException e) {
             e.printStackTrace();
+        }
+    }
+
+    /**
+     * Capture additional warnings from post-run reports not captured during the main load process.
+     */
+    private void captureMoreWarnings() {
+        // Report source: post_run_n_to_1_zdb_to_ncbi.csv
+        File warningsReportFile = new File(workingDir, "post_run_n_to_1_zdb_to_ncbi.csv");
+        try {
+            List<String> lines = Files.readAllLines(warningsReportFile.toPath());
+            //headers: gene_id	ncbi_id	dblink_zdb_id	load_pub	existing
+            List<Map<String, String>> records = new ArrayList<>();
+            for (String line : lines.subList(1, lines.size())) { // Skip header
+                String[] parts = line.split(",");
+                String zdbGeneId = parts[0];
+                String ncbiId = parts[1];
+                String dblinkZdbId = parts[2];
+                String loadPub = parts[3];
+                String existing = parts[4];
+
+                String message = String.format("N:1 Warning - ZFIN Gene %s mapped to NCBI Gene %s via DBLink %s (Load Pub: %s, Existing: %s)",
+                        zdbGeneId, ncbiId, dblinkZdbId, loadPub, existing);
+                print(LOG, message);
+                records.add(Map.of(
+                        "zdbGeneId", zdbGeneId,
+                        "ncbiId", ncbiId,
+                        "dblinkZdbId", dblinkZdbId,
+                        "loadPub", loadPub,
+                        "existing", existing,
+                        "message", message
+                ));
+            }
+
+            //group by ncbi id
+            Map<String, List<Map<String, String>>> recordsByNcbiId = records.stream()
+                    .collect(Collectors.groupingBy(r -> r.get("ncbiId")));
+            for (Map.Entry<String, List<Map<String, String>>> entry : recordsByNcbiId.entrySet()) {
+                String ncbiId = entry.getKey();
+                List<Map<String, String>> recs = entry.getValue();
+                if (recs.size() > 1) {
+                    String combinedMessage = "N:1 Warning - NCBI Gene " + ncbiId + " mapped to multiple ZFIN Genes: " +
+                            recs.stream()
+                                    .map(r -> r.get("zdbGeneId") + " via DBLink " + r.get("dblinkZdbId") +
+                                            " (Load Pub: " + r.get("loadPub") + ", Existing: " + r.get("existing") + ")")
+                                    .collect(Collectors.joining("; "));
+                    print(LOG, combinedMessage);
+                    LoadReportAction action = new LoadReportAction();
+                    action.setType(LoadReportAction.Type.WARNING);
+                    action.setSubType("N to One");
+                    action.setAccession(ncbiId);
+                    List<String> geneIDs = recs.stream()
+                            .map(r -> r.get("zdbGeneId"))
+                            .distinct().toList();
+                    String geneIDsCsv = String.join(", ", geneIDs);
+                    action.setGeneZdbID(geneIDsCsv);
+                    action.setDetails(combinedMessage);
+                    action.addRelatedActionsKeys(ncbiId);
+                    geneIDs.forEach(action::addRelatedActionsKeys);
+                    manyToOneWarningActions.add(action);
+                } else {
+                    Map<String, String> r = recs.get(0);
+                    LoadReportAction action = new LoadReportAction();
+                    action.setType(LoadReportAction.Type.WARNING);
+                    action.setSubType("N to One");
+                    action.setAccession(ncbiId);
+                    action.setGeneZdbID(r.get("zdbGeneId"));
+                    action.setDetails(r.get("message"));
+                    action.addRelatedActionsKeys(ncbiId);
+                    action.addRelatedActionsKeys(r.get("zdbGeneId"));
+                    manyToOneWarningActions.add(action);
+                }
+            }
+
+        } catch (IOException e) {
         }
     }
 
@@ -1911,12 +1989,14 @@ public class NCBIDirectPort extends AbstractScriptWrapper {
             //these should have already been filtered earlier but this is a safety net
             //if we find any here we want to log them, and find out how they got through
             Map<String, Set<String>> duplicateNcbiIssues = removeAndReturnDuplicateMapEntries(mapped);
-            Files.writeString(new File(workingDir, "duplicates_in_mapped.csv").toPath(),
+            String duplicatesInMappedReport =
                     duplicateNcbiIssues.entrySet().stream()
                             .sorted(Map.Entry.comparingByKey())
                             .map(entry -> entry.getKey() + "," + String.join("|", entry.getValue()) + "\n")
-                            .collect(Collectors.joining())
-                    );
+                            .collect(Collectors.joining());
+            if (!duplicatesInMappedReport.isEmpty()) {
+                Files.writeString(new File(workingDir, "duplicates_in_mapped.csv").toPath(), duplicatesInMappedReport);
+            }
 
             mapped.entrySet().stream()
                     .sorted(Map.Entry.comparingByKey())
@@ -3537,6 +3617,7 @@ public class NCBIDirectPort extends AbstractScriptWrapper {
         action.addZdbIdLink(zdbId);
         action.addNcbiGeneIdLink(accNum);
         action.setRelatedActionsKeys(List.of(zdbId));
+        action.setRelatedEntityFields(Map.of("Pub", record.get("recattrib_source_zdb_id")));
         return action;
     }
 
