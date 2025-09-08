@@ -11,6 +11,7 @@ import org.hibernate.query.NativeQuery;
 import org.zfin.datatransfer.ncbi.port.PortHelper;
 import org.zfin.datatransfer.ncbi.port.PortSqlHelper;
 import org.zfin.datatransfer.report.model.LoadReportAction;
+import org.zfin.datatransfer.report.model.LoadReportActionLink;
 import org.zfin.datatransfer.report.model.LoadReportActionTag;
 import org.zfin.datatransfer.util.CSVDiff;
 import org.zfin.datatransfer.util.CSVToXLSXConverter;
@@ -523,7 +524,7 @@ public class NCBIDirectPort extends AbstractScriptWrapper {
                     print(LOG, combinedMessage);
                     LoadReportAction action = new LoadReportAction();
                     action.setType(LoadReportAction.Type.WARNING);
-                    action.setSubType("N to One");
+                    action.setSubType("N to 1");
                     action.setAccession(ncbiId);
                     List<String> geneIDs = recs.stream()
                             .map(r -> r.get("zdbGeneId"))
@@ -538,7 +539,7 @@ public class NCBIDirectPort extends AbstractScriptWrapper {
                     Map<String, String> r = recs.get(0);
                     LoadReportAction action = new LoadReportAction();
                     action.setType(LoadReportAction.Type.WARNING);
-                    action.setSubType("N to One");
+                    action.setSubType("N to 1");
                     action.setAccession(ncbiId);
                     action.setGeneZdbID(r.get("zdbGeneId"));
                     action.setDetails(r.get("message"));
@@ -3617,7 +3618,8 @@ public class NCBIDirectPort extends AbstractScriptWrapper {
         action.addZdbIdLink(zdbId);
         action.addNcbiGeneIdLink(accNum);
         action.setRelatedActionsKeys(List.of(zdbId));
-        action.setRelatedEntityFields(Map.of("Pub", record.get("recattrib_source_zdb_id")));
+        action.addLink(new LoadReportActionLink(record.get("recattrib_source_zdb_id"),
+                "https://zfin.org/" + record.get("recattrib_source_zdb_id")));
         return action;
     }
 
