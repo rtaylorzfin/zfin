@@ -98,6 +98,7 @@ services:
     ports:
       - "8080-8089:80"
       - "8443-8452:443"
+      - "443:443"
     volumes:
       - www_data:/opt/zfin/www_homes/zfin.org
       - httpd_log:/var/log/httpd
