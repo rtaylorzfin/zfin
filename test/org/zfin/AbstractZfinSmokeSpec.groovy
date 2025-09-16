@@ -7,7 +7,8 @@ import geb.spock.GebSpec
  */
 abstract class AbstractZfinSmokeSpec extends GebSpec {
 
-    def setupSpec() {
+    @Override
+    public void setupSpec() {
         TestConfiguration.configure()
 
         //This is how we *could* enable javascript, but we'll need to upgrade HtmlUnit first, or use a different browser for geb

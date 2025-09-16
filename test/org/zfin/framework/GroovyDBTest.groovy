@@ -13,7 +13,8 @@ import spock.lang.Unroll
 
 class GroovyDBTest extends Specification {
 
-    def setupSpec() {
+    @Override
+    public void setupSpec() {
         TestConfiguration.configure();
         SessionFactory sessionFactory = HibernateUtil.getSessionFactory();
         if (sessionFactory == null) {
@@ -21,7 +22,8 @@ class GroovyDBTest extends Specification {
         }
     }
 
-    def cleanupSpec() {
+    @Override
+    public void cleanupSpec() {
         HibernateUtil.closeSession();
     }
 
