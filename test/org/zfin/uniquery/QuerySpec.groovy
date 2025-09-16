@@ -40,7 +40,6 @@ class QuerySpec extends ZfinIntegrationSpec {
         client = SolrService.getSolrClient()
     }
 
-    @Override
     public void cleanSpec() {
         client = null
     }
