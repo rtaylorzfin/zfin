@@ -818,9 +818,9 @@ public class NCBIDirectPort extends AbstractScriptWrapper {
         try {
             String sqlQuery = "\\copy (" +
                     """
-                    select d.*, string_agg(r.recattrib_source_zdb_id, '|' order by r.recattrib_source_zdb_id) as recattrib_source_zdb_id,
+                    select d.*, string_agg(distinct r.recattrib_source_zdb_id, '|' order by r.recattrib_source_zdb_id) as recattrib_source_zdb_id,
                     string_agg(ma_a_pk_id::varchar, '|' order by ma_a_pk_id) as marker_assemblies,
-                    string_agg(mas_vt_pk_id::varchar, '|') as marker_annotation_status
+                    string_agg(distinct mas_vt_pk_id::varchar, '|') as marker_annotation_status
                      from db_link d
                      left join record_attribution r on d.dblink_zdb_id = r.recattrib_data_zdb_id
                      left join marker_assembly on d.dblink_linked_recid = ma_mrkr_zdb_id
@@ -915,7 +915,8 @@ public class NCBIDirectPort extends AbstractScriptWrapper {
             // My current Java logic doesn't differentiate this way: if ctToDelete is 0, it's an error.
             // Let's refine to match Perl: error only if file exists and is empty or unreadable leading to 0 count.
             if (toDeleteFile.exists() && toDeleteFile.length() == 0) { // File exists but is empty
-                reportErrAndExit(subjectLine + " (file is present but empty).");
+                print(LOG, "Note: The delete list (toDelete.unl) is present, but empty. Continuing operation.\n");
+                System.out.println("Note: The delete list (toDelete.unl) is present, but empty. Continuing operation.\n");
             } else if (toDeleteFile.exists() && toDeleteFile.length() > 0 && ctToDelete == 0) { // File exists, not empty, but parsed to 0
                 reportErrAndExit(subjectLine + " (file is present and non-empty, but parsed to 0).");
             } else if (!toDeleteFile.exists()) {
