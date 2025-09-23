@@ -182,8 +182,8 @@ public class NCBIDirectPort extends AbstractScriptWrapper {
     private Map<String, String>  mappedReversed; // NCBI gene Id -> ZDB gene Id
     private long ctOneToOneNCBI; // Count of 1:1 mappings
 
-    private Map<String, String>  ncbiSupplementMap;
-    private Map<String, String>  ncbiSupplementMapReversed;
+    private Map<String, String>  ncbiSupplementMap = new HashMap<>();
+    private Map<String, String>  ncbiSupplementMapReversed = new HashMap<>();
 
     //  used in eg. writeNCBIgeneIdsMappedBasedOnGenBankRNA
     private long ctToLoad = 0L;
@@ -260,7 +260,7 @@ public class NCBIDirectPort extends AbstractScriptWrapper {
         System.exit(0);
     }
 
-    private void run() {
+    public void run() {
         assertEnvironment("PGHOST", "DB_NAME", "PGUSER"); // PGUSER is needed for psql commands
 
         initializeWorkingDir();
@@ -295,6 +295,9 @@ public class NCBIDirectPort extends AbstractScriptWrapper {
 //    # Get Record Counts using global variables
         getRecordCounts();
         printTimingInformation(5);
+
+        //Do we want to remove all Ensembl matches before proceeding?
+        removeEnsemblMatchesFromDB();
 
         readZfinGeneInfoFile();
         printTimingInformation(6);
@@ -485,6 +488,68 @@ public class NCBIDirectPort extends AbstractScriptWrapper {
     }
 
     /**
+     * Remove all Ensembl matches from the database. This includes anything in db_link with the recattrib source of
+     * pubMappedbasedOnNCBISupplement and the fdbcont of Vega, GenBank RNA, GenPept, GenBank DNA, RefSeq RNA, RefSeq Peptide (all the types we handle in this load)
+     */
+    private void removeEnsemblMatchesFromDB() {
+        List<String> contIDs = List.of(
+                fdcontNCBIgeneId,
+                fdcontVega,
+                fdcontGenBankRNA,
+                fdcontGenPept,
+                fdcontGenBankDNA,
+                fdcontRefSeqRNA,
+                fdcontRefPept,
+                fdcontRefSeqDNA);
+
+        createTransaction();
+
+        String selectSql = """
+            SELECT
+                dblink_zdb_id,
+                dblink_acc_num,
+                dblink_fdbcont_zdb_id,
+                recattrib_source_zdb_id
+            FROM
+                db_link
+                JOIN record_attribution ON recattrib_data_zdb_id = dblink_zdb_id
+            WHERE
+                dblink_fdbcont_zdb_id in (?)
+                AND recattrib_source_zdb_id = ?
+                """;
+        NativeQuery<Tuple> selectQuery = currentSession().createNativeQuery(selectSql, Tuple.class);
+        selectQuery.setParameter(1, contIDs);
+        selectQuery.setParameter(2, pubMappedbasedOnNCBISupplement);
+        List<Tuple> results = selectQuery.getResultList();
+        for (Tuple tuple : results) {
+            System.out.println("Removing Ensembl match: " +
+                    tuple.get("dblink_zdb_id") + " " +
+                    tuple.get("dblink_acc_num") + " " +
+                    tuple.get("dblink_fdbcont_zdb_id") + " " +
+                    tuple.get("recattrib_source_zdb_id"));
+        }
+
+        String sql = """
+            DELETE FROM zdb_active_data
+            WHERE zactvd_zdb_id IN (
+                SELECT
+                    dblink_zdb_id
+                FROM
+                    db_link
+                    JOIN record_attribution ON recattrib_data_zdb_id = dblink_zdb_id
+                WHERE
+                    dblink_fdbcont_zdb_id in (?)
+                    AND recattrib_source_zdb_id = ?);
+                """;
+
+        NativeQuery query = currentSession().createNativeQuery(sql);
+        query.setParameter(1, contIDs);
+        query.setParameter(2, pubMappedbasedOnNCBISupplement);
+        query.executeUpdate();
+        flushAndCommitCurrentSession();
+    }
+
+    /**
      * Iterate over all "CUD" operations and
      * store a row in the updates table
      */
@@ -510,11 +575,10 @@ public class NCBIDirectPort extends AbstractScriptWrapper {
 
     private void cleanupForJenkins() {
         //zip before_after captures
-        compressFilesForCleanup("before_after_load_csvs.zip", List.of("before_load.csv", "after_load.csv"), Collections.emptyList());
 
         //zip debug files: debug1 ... debug10 ...
         compressFilesForCleanup("debug_files.zip", List.of("debug1", "debug10", "debug12", "debug13", "debug14", "debug15", "debug16.json", "debug17",
-                "debug2", "debug3", "debug4", "debug5", "debug5a", "debug6", "debug9" , "java_debug_readZfinGeneInfoFile.json", "before_after_load_csvs.zip"),
+                "debug2", "debug3", "debug4", "debug5", "debug5a", "debug6", "debug9" , "java_debug_readZfinGeneInfoFile.json", "before_load.csv", "after_load.csv"),
                 Collections.emptyList());
 
         //zip log files
@@ -531,16 +595,16 @@ public class NCBIDirectPort extends AbstractScriptWrapper {
         File gene2accessionFile = findGene2AccessionFile();
         File refSeqCatalogFile = findRefSeqCatalogFile();
         renameFile(gene2accessionFile, "gene2accession.gz");
-        renameFile(refSeqCatalogFile, "refSeqCatalog.gz");
+        renameFile(refSeqCatalogFile, "RefSeqCatalog.gz");
         compressFilesForCleanup("downloaded_files.zip",
-                List.of("gene2accession.gz", "gene2vega.gz", "refSeqCatalog.gz", "seq.fasta", "RELEASE_NUMBER", "notInCurrentReleaseGeneIDs.unl", "ncbi_matches_through_ensembl.csv", "zf_gene_info.gz"),
+                List.of("gene2accession.gz", "gene2vega.gz", "RefSeqCatalog.gz", "seq.fasta", "RELEASE_NUMBER", "notInCurrentReleaseGeneIDs.unl", "ncbi_matches_through_ensembl.csv", "zf_gene_info.gz"),
                 Collections.emptyList());
 
         //clean up legacy report files
         compressFilesForCleanup("legacy_report_files.zip",
                 List.of("post_run_n_to_1_zdb_to_ncbi.csv",
                 "existing_many_to_many_report.csv",
-                "ncbi_report.json.zip",
+                "ncbi_report.json",
                 "reportNtoN.2",
                 "reportNtoN.3"),
                 Collections.emptyList());
@@ -562,6 +626,9 @@ public class NCBIDirectPort extends AbstractScriptWrapper {
     }
 
     private void compressFilesForCleanup(String zipFileName, List<String> filesToZip, List<String> filesToSave) {
+        if (envTrue("SKIP_COMPRESS_ARTIFACTS")) {
+            return;
+        }
         List<File> existingFiles = filesToZip.stream()
                 .map(filename -> new File(workingDir, filename))
                 .filter(File::exists)
@@ -655,7 +722,7 @@ public class NCBIDirectPort extends AbstractScriptWrapper {
     }
 
     private void initializeWorkingDir() {
-        String workingDirEnvironmentVariable = System.getenv("WORKING_DIR");
+        String workingDirEnvironmentVariable = env("WORKING_DIR");
         if (StringUtils.isNotEmpty(workingDirEnvironmentVariable)) {
             workingDir = new File(workingDirEnvironmentVariable);
         } else {
@@ -702,7 +769,6 @@ public class NCBIDirectPort extends AbstractScriptWrapper {
         String filesToRemoveMessage = "Removing prepareLog* loadLog* logNCBIgeneLoad.txt debug* report* toDelete.unl toMap.unl toLoad.unl length.unl noLength.unl";
         System.out.println(filesToRemoveMessage);
         rmFiles(workingDir, List.of(
-                "*.csv",
                 "*.danio.*",
                 "*.html",
                 "*.json",
@@ -744,11 +810,13 @@ public class NCBIDirectPort extends AbstractScriptWrapper {
             if (!envTrue("SKIP_EFETCH")) {
                 rmFile(workingDir, "seq.fasta", false);
             }
-            rmFile(workingDir, "zf_gene_info.gz", false);
-            rmFile(workingDir, "gene2vega.gz", false);
-            rmFile(workingDir, "gene2accession.gz", false);
-            rmFile(workingDir, "RefSeqCatalog.gz", false);
-            rmFile(workingDir, "RELEASE_NUMBER", false);
+            rmFiles(workingDir, List.of("*.csv",
+                    "zf_gene_info.gz",
+                    "gene2vega.gz",
+                    "gene2accession.gz",
+                    "RefSeqCatalog.gz",
+                    "RELEASE_NUMBER"
+                ));
         }
     }
 
@@ -818,9 +886,9 @@ public class NCBIDirectPort extends AbstractScriptWrapper {
         try {
             String sqlQuery = "\\copy (" +
                     """
-                    select d.*, string_agg(r.recattrib_source_zdb_id, '|' order by r.recattrib_source_zdb_id) as recattrib_source_zdb_id,
+                    select d.*, string_agg(distinct r.recattrib_source_zdb_id, '|' order by r.recattrib_source_zdb_id) as recattrib_source_zdb_id,
                     string_agg(ma_a_pk_id::varchar, '|' order by ma_a_pk_id) as marker_assemblies,
-                    string_agg(mas_vt_pk_id::varchar, '|') as marker_annotation_status
+                    string_agg(distinct mas_vt_pk_id::varchar, '|') as marker_annotation_status
                      from db_link d
                      left join record_attribution r on d.dblink_zdb_id = r.recattrib_data_zdb_id
                      left join marker_assembly on d.dblink_linked_recid = ma_mrkr_zdb_id
@@ -915,7 +983,8 @@ public class NCBIDirectPort extends AbstractScriptWrapper {
             // My current Java logic doesn't differentiate this way: if ctToDelete is 0, it's an error.
             // Let's refine to match Perl: error only if file exists and is empty or unreadable leading to 0 count.
             if (toDeleteFile.exists() && toDeleteFile.length() == 0) { // File exists but is empty
-                reportErrAndExit(subjectLine + " (file is present but empty).");
+                print(LOG, "Note: The delete list (toDelete.unl) is present, but empty. Continuing operation.\n");
+                System.out.println("Note: The delete list (toDelete.unl) is present, but empty. Continuing operation.\n");
             } else if (toDeleteFile.exists() && toDeleteFile.length() > 0 && ctToDelete == 0) { // File exists, not empty, but parsed to 0
                 reportErrAndExit(subjectLine + " (file is present and non-empty, but parsed to 0).");
             } else if (!toDeleteFile.exists()) {
@@ -1974,7 +2043,7 @@ public class NCBIDirectPort extends AbstractScriptWrapper {
     }
 
     private void addReverseMappedGenesFromNCBItoZFINFromSupplementaryLoad() {
-        if (!"true".equalsIgnoreCase(env("LOAD_NCBI_ONE_WAY_GENES"))) {
+        if (!envTrue("LOAD_NCBI_ONE_WAY_GENES")) {
             print(LOG, "Skipping the load of genes that are mapped from NCBI to ZFIN without being mapped back from ZFIN to NCBI (LOAD_NCBI_ONE_WAY_GENES not true).\n");
             return;
         }
@@ -2023,7 +2092,9 @@ public class NCBIDirectPort extends AbstractScriptWrapper {
         print(LOG, "Reading supplementary mapping input file: " + inputFile.getAbsolutePath() + "\n");
         File localInputFile = new File(workingDir, inputFile.getName());
         try {
-            Files.copy(inputFile.toPath(), localInputFile.toPath(), StandardCopyOption.REPLACE_EXISTING);
+            if (!localInputFile.equals(inputFile)) {
+                Files.copy(inputFile.toPath(), localInputFile.toPath(), StandardCopyOption.REPLACE_EXISTING);
+            }
         } catch (IOException e) {
             reportErrAndExit("Failed to copy input file " + inputFile.getAbsolutePath() + " to working directory: " + e.getMessage());
             return;
@@ -2825,7 +2896,7 @@ public class NCBIDirectPort extends AbstractScriptWrapper {
         System.out.println(seqFastaFile.getName() + " size: " + fileSize);
 
         File lengthUnlFile = new File(workingDir, "length.unl");
-        String fastaLenCommand = env("TARGETROOT") + "/server_apps/data_transfer/NCBIGENE/fasta_len.pl";
+        String fastaLenCommand = getFastLenCommand();
         if (!new File(fastaLenCommand).exists()) {
             System.out.println("FASTA_LEN_COMMAND not found at " + fastaLenCommand);
             print(LOG, "\nError happened when execute " + fastaLenCommand + " " + seqFastaFile.getName() + " > " + lengthUnlFile.getName() + "\n\n");
@@ -2865,6 +2936,15 @@ public class NCBIDirectPort extends AbstractScriptWrapper {
             throw new RuntimeException(e);
         }
         print(LOG, "\nctSeqLengthCalculated = " + ctSeqLengthCalculated + "\n\n");
+    }
+
+    private String getFastLenCommand() {
+        String cmd = env("TARGETROOT") + "/server_apps/data_transfer/NCBIGENE/fasta_len.pl";
+        if (!new File(cmd).exists()) {
+            cmd = env("SOURCEROOT") + "/server_apps/data_transfer/NCBIGENE/fasta_len.pl";
+        }
+
+        return cmd;
     }
 
     private void getGenBankAndRefSeqsWithZfinGenes() {
@@ -3270,12 +3350,14 @@ public class NCBIDirectPort extends AbstractScriptWrapper {
         if (!toLoadFile.exists() || this.ctToLoad == 0) {
             String message = "\nMissing the add list, toLoad.unl, or it is empty. Something is wrong!\n\n";
             print(LOG, message);
-            if (STATS_PRIORITY2 != null) {
-                try { STATS_PRIORITY2.close(); } catch (IOException e) { /* ignore */ }
+
+            String subjectLine = "Auto from " + instance + ": NCBI gene load :: missing or empty add list, toLoad.unl";
+            if (!toLoadFile.exists()) {
+                reportErrAndExit(subjectLine);
             }
-            String subjectLine = "Auto from " + instance + ": NCBI_gene_load.pl :: missing or empty add list, toLoad.unl";
-            reportErrAndExit(subjectLine);
-            return; // Should be unreachable due to reportErrAndExit
+
+            //file exists, so must be empty
+            reportErr(subjectLine);
         }
 
         String sqlFile = "loadNCBIgeneAccs.sql";
@@ -3783,7 +3865,7 @@ public class NCBIDirectPort extends AbstractScriptWrapper {
             String jsonString = builder.getJsonString(report);
 
             // Write to file
-            writeToFileOrZip(new File(workingDir, "ncbi_report.json.zip"), jsonString, "UTF-8");
+            writeToFileOrZip(new File(workingDir, "ncbi_report.json"), jsonString, "UTF-8");
             writeOutputReportFile(jsonString);
 
         } catch (IOException e) {
@@ -3998,7 +4080,7 @@ public class NCBIDirectPort extends AbstractScriptWrapper {
     private void writeOutputReportFile(String jsonString) {
         String sourceRoot = ZfinPropertiesEnum.SOURCEROOT.value();
         if (sourceRoot == null) {
-            sourceRoot = System.getenv("SOURCEROOT");
+            sourceRoot = env("SOURCEROOT");
         }
         File reportFile = new File(workingDir, "ncbi_report.html");
         try {
