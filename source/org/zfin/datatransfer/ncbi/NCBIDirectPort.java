@@ -182,8 +182,8 @@ public class NCBIDirectPort extends AbstractScriptWrapper {
     private Map<String, String>  mappedReversed; // NCBI gene Id -> ZDB gene Id
     private long ctOneToOneNCBI; // Count of 1:1 mappings
 
-    private Map<String, String>  ncbiSupplementMap;
-    private Map<String, String>  ncbiSupplementMapReversed;
+    private Map<String, String>  ncbiSupplementMap = new HashMap<>();
+    private Map<String, String>  ncbiSupplementMapReversed = new HashMap<>();
 
     //  used in eg. writeNCBIgeneIdsMappedBasedOnGenBankRNA
     private long ctToLoad = 0L;
@@ -260,7 +260,7 @@ public class NCBIDirectPort extends AbstractScriptWrapper {
         System.exit(0);
     }
 
-    private void run() {
+    public void run() {
         assertEnvironment("PGHOST", "DB_NAME", "PGUSER"); // PGUSER is needed for psql commands
 
         initializeWorkingDir();
@@ -510,11 +510,10 @@ public class NCBIDirectPort extends AbstractScriptWrapper {
 
     private void cleanupForJenkins() {
         //zip before_after captures
-        compressFilesForCleanup("before_after_load_csvs.zip", List.of("before_load.csv", "after_load.csv"), Collections.emptyList());
 
         //zip debug files: debug1 ... debug10 ...
         compressFilesForCleanup("debug_files.zip", List.of("debug1", "debug10", "debug12", "debug13", "debug14", "debug15", "debug16.json", "debug17",
-                "debug2", "debug3", "debug4", "debug5", "debug5a", "debug6", "debug9" , "java_debug_readZfinGeneInfoFile.json", "before_after_load_csvs.zip"),
+                "debug2", "debug3", "debug4", "debug5", "debug5a", "debug6", "debug9" , "java_debug_readZfinGeneInfoFile.json", "before_load.csv", "after_load.csv"),
                 Collections.emptyList());
 
         //zip log files
@@ -531,16 +530,16 @@ public class NCBIDirectPort extends AbstractScriptWrapper {
         File gene2accessionFile = findGene2AccessionFile();
         File refSeqCatalogFile = findRefSeqCatalogFile();
         renameFile(gene2accessionFile, "gene2accession.gz");
-        renameFile(refSeqCatalogFile, "refSeqCatalog.gz");
+        renameFile(refSeqCatalogFile, "RefSeqCatalog.gz");
         compressFilesForCleanup("downloaded_files.zip",
-                List.of("gene2accession.gz", "gene2vega.gz", "refSeqCatalog.gz", "seq.fasta", "RELEASE_NUMBER", "notInCurrentReleaseGeneIDs.unl", "ncbi_matches_through_ensembl.csv", "zf_gene_info.gz"),
+                List.of("gene2accession.gz", "gene2vega.gz", "RefSeqCatalog.gz", "seq.fasta", "RELEASE_NUMBER", "notInCurrentReleaseGeneIDs.unl", "ncbi_matches_through_ensembl.csv", "zf_gene_info.gz"),
                 Collections.emptyList());
 
         //clean up legacy report files
         compressFilesForCleanup("legacy_report_files.zip",
                 List.of("post_run_n_to_1_zdb_to_ncbi.csv",
                 "existing_many_to_many_report.csv",
-                "ncbi_report.json.zip",
+                "ncbi_report.json",
                 "reportNtoN.2",
                 "reportNtoN.3"),
                 Collections.emptyList());
@@ -562,6 +561,9 @@ public class NCBIDirectPort extends AbstractScriptWrapper {
     }
 
     private void compressFilesForCleanup(String zipFileName, List<String> filesToZip, List<String> filesToSave) {
+        if (envTrue("SKIP_COMPRESS_ARTIFACTS")) {
+            return;
+        }
         List<File> existingFiles = filesToZip.stream()
                 .map(filename -> new File(workingDir, filename))
                 .filter(File::exists)
@@ -655,7 +657,7 @@ public class NCBIDirectPort extends AbstractScriptWrapper {
     }
 
     private void initializeWorkingDir() {
-        String workingDirEnvironmentVariable = System.getenv("WORKING_DIR");
+        String workingDirEnvironmentVariable = env("WORKING_DIR");
         if (StringUtils.isNotEmpty(workingDirEnvironmentVariable)) {
             workingDir = new File(workingDirEnvironmentVariable);
         } else {
@@ -1975,7 +1977,7 @@ public class NCBIDirectPort extends AbstractScriptWrapper {
     }
 
     private void addReverseMappedGenesFromNCBItoZFINFromSupplementaryLoad() {
-        if (!"true".equalsIgnoreCase(env("LOAD_NCBI_ONE_WAY_GENES"))) {
+        if (!envTrue("LOAD_NCBI_ONE_WAY_GENES")) {
             print(LOG, "Skipping the load of genes that are mapped from NCBI to ZFIN without being mapped back from ZFIN to NCBI (LOAD_NCBI_ONE_WAY_GENES not true).\n");
             return;
         }
@@ -2826,7 +2828,7 @@ public class NCBIDirectPort extends AbstractScriptWrapper {
         System.out.println(seqFastaFile.getName() + " size: " + fileSize);
 
         File lengthUnlFile = new File(workingDir, "length.unl");
-        String fastaLenCommand = env("TARGETROOT") + "/server_apps/data_transfer/NCBIGENE/fasta_len.pl";
+        String fastaLenCommand = getFastLenCommand();
         if (!new File(fastaLenCommand).exists()) {
             System.out.println("FASTA_LEN_COMMAND not found at " + fastaLenCommand);
             print(LOG, "\nError happened when execute " + fastaLenCommand + " " + seqFastaFile.getName() + " > " + lengthUnlFile.getName() + "\n\n");
@@ -2866,6 +2868,15 @@ public class NCBIDirectPort extends AbstractScriptWrapper {
             throw new RuntimeException(e);
         }
         print(LOG, "\nctSeqLengthCalculated = " + ctSeqLengthCalculated + "\n\n");
+    }
+
+    private String getFastLenCommand() {
+        String cmd = env("TARGETROOT") + "/server_apps/data_transfer/NCBIGENE/fasta_len.pl";
+        if (!new File(cmd).exists()) {
+            cmd = env("SOURCEROOT") + "/server_apps/data_transfer/NCBIGENE/fasta_len.pl";
+        }
+
+        return cmd;
     }
 
     private void getGenBankAndRefSeqsWithZfinGenes() {
@@ -3657,7 +3668,7 @@ public class NCBIDirectPort extends AbstractScriptWrapper {
             String jsonString = builder.getJsonString(report);
 
             // Write to file
-            writeToFileOrZip(new File(workingDir, "ncbi_report.json.zip"), jsonString, "UTF-8");
+            writeToFileOrZip(new File(workingDir, "ncbi_report.json"), jsonString, "UTF-8");
             writeOutputReportFile(jsonString);
 
         } catch (IOException e) {
@@ -3872,7 +3883,7 @@ public class NCBIDirectPort extends AbstractScriptWrapper {
     private void writeOutputReportFile(String jsonString) {
         String sourceRoot = ZfinPropertiesEnum.SOURCEROOT.value();
         if (sourceRoot == null) {
-            sourceRoot = System.getenv("SOURCEROOT");
+            sourceRoot = env("SOURCEROOT");
         }
         File reportFile = new File(workingDir, "ncbi_report.html");
         try {

@@ -144,7 +144,11 @@ public class PortHelper {
 
 
     public static String env(String key) {
-        return System.getenv(key);
+        String value = System.getenv(key);
+        if (value == null) {
+            value = System.getProperty(key);
+        }
+        return value;
     }
 
     public static Boolean envTrue(String key) {
@@ -166,7 +170,8 @@ public class PortHelper {
     }
 
     public static boolean envExists(String key) {
-        return System.getenv(key) != null;
+        String value = env(key);
+        return value != null && !value.isEmpty();
     }
 
     public static boolean stringStartsWithLetter(String s) {
