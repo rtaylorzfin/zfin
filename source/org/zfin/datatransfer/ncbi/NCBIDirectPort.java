@@ -271,6 +271,10 @@ public class NCBIDirectPort extends AbstractScriptWrapper {
 
         // initializeDatabase(); // This is now called by initAll() via AbstractScriptWrapper
 
+        //TEMPORARY for testing
+        //TODO: remove later
+        removeEnsemblMatchesFromDB();
+
         removeOldFiles();
 
         openLoggingFileHandles();
@@ -482,6 +486,24 @@ public class NCBIDirectPort extends AbstractScriptWrapper {
         } catch (IOException e) {
             e.printStackTrace();
         }
+    }
+
+    private void removeEnsemblMatchesFromDB() {
+        createTransaction();
+        String sql = """
+            DELETE FROM zdb_active_data
+            WHERE zactvd_zdb_id IN (
+                SELECT
+                    dblink_zdb_id
+                FROM
+                    db_link
+                    JOIN record_attribution ON recattrib_data_zdb_id = dblink_zdb_id
+                WHERE
+                    dblink_fdbcont_zdb_id = 'ZDB-FDBCONT-040412-1'
+                    AND recattrib_source_zdb_id = 'ZDB-PUB-230516-87');
+                """;
+        currentSession().createNativeQuery(sql).executeUpdate();
+        flushAndCommitCurrentSession();
     }
 
     /**
