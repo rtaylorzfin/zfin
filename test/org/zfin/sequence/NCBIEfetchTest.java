@@ -13,6 +13,7 @@ import java.io.IOException;
 import java.nio.file.Files;
 import java.util.List;
 import java.util.Map;
+import java.util.Optional;
 
 import static org.junit.Assert.*;
 
@@ -122,6 +123,27 @@ public class NCBIEfetchTest {
         assertNotNull("Gene IDs list should not be null", geneIds);
 
         System.out.println("Fetched " + geneIds.size() + " gene IDs with default retmax");
+    }
+
+    @Test
+    public void testGetReplacedGeneIDWithReplacement() {
+        // Gene ID 103910949 has been replaced with 108183900
+        Optional<String> replacementId = NCBIEfetch.getReplacedGeneID("103910949");
+
+        assertTrue("Replacement gene ID should be present", replacementId.isPresent());
+        assertEquals("Expected replacement gene ID 108183900", "108183900", replacementId.get());
+
+        System.out.println("Gene ID 103910949 replaced with: " + replacementId.get());
+    }
+
+    @Test
+    public void testGetReplacedGeneIDWithoutReplacement() {
+        // Gene ID 30425 does not have a replacement
+        Optional<String> replacementId = NCBIEfetch.getReplacedGeneID("30425");
+
+        assertFalse("Replacement gene ID should not be present", replacementId.isPresent());
+
+        System.out.println("Gene ID 30425 has no replacement");
     }
 
     private File createTempFixtureFileForRefSeqJson() throws IOException {
