@@ -287,9 +287,6 @@ public class NCBIDirectPort extends AbstractScriptWrapper {
         captureBeforeState();
         printTimingInformation(201);
 
-        //TEMPORARY for testing
-        //TODO: remove later
-        removeEnsemblMatchesFromDB();
 
 
         prepareNCBIgeneLoadDatabaseQuery();
@@ -298,9 +295,16 @@ public class NCBIDirectPort extends AbstractScriptWrapper {
         getMetricsOfDbLinksToDelete();
         printTimingInformation(4);
 
+
 //    # Get Record Counts using global variables
         getRecordCounts();
         printTimingInformation(5);
+
+
+        //TEMPORARY for testing
+        //TODO: remove later
+        removeEnsemblMatchesFromDB();
+
 
         readZfinGeneInfoFile();
         printTimingInformation(6);
@@ -501,10 +505,20 @@ public class NCBIDirectPort extends AbstractScriptWrapper {
                     db_link
                     JOIN record_attribution ON recattrib_data_zdb_id = dblink_zdb_id
                 WHERE
-                    dblink_fdbcont_zdb_id = 'ZDB-FDBCONT-040412-1'
-                    AND recattrib_source_zdb_id = 'ZDB-PUB-230516-87');
+                    dblink_fdbcont_zdb_id in (?)
+                    AND recattrib_source_zdb_id = ?);
                 """;
-        currentSession().createNativeQuery(sql).executeUpdate();
+        List<String> contIDs = List.of(fdcontVega,
+                fdcontGenBankRNA,
+                fdcontGenPept,
+                fdcontGenBankDNA,
+                fdcontRefSeqRNA,
+                fdcontRefPept,
+                fdcontRefSeqDNA);
+
+        NativeQuery query = currentSession().createNativeQuery(sql);
+        query.setParameter(1, contIDs);
+        query.setParameter(2, pubMappedbasedOnNCBISupplement);
         flushAndCommitCurrentSession();
     }
 
