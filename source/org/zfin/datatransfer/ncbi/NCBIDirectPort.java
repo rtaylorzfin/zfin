@@ -300,11 +300,8 @@ public class NCBIDirectPort extends AbstractScriptWrapper {
         getRecordCounts();
         printTimingInformation(5);
 
-
-        //TEMPORARY for testing
-        //TODO: remove later
-        removeEnsemblMatchesFromDB();
-
+        //Do we want to remove all Ensembl matches first?
+//        removeEnsemblMatchesFromDB();
 
         readZfinGeneInfoFile();
         printTimingInformation(6);
@@ -494,6 +491,10 @@ public class NCBIDirectPort extends AbstractScriptWrapper {
         }
     }
 
+    /**
+     * Remove all Ensembl matches from the database. This includes anything in db_link with the recattrib source of
+     * pubMappedbasedOnNCBISupplement and the fdbcont of Vega, GenBank RNA, GenPept, GenBank DNA, RefSeq RNA, RefSeq Peptide (all the types we handle in this load)
+     */
     private void removeEnsemblMatchesFromDB() {
         createTransaction();
         String sql = """
