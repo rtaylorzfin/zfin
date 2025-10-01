@@ -12,6 +12,7 @@ import java.io.IOException;
 import java.nio.file.Files;
 import java.util.ArrayList;
 import java.util.List;
+import java.util.Map;
 import java.util.Optional;
 
 @Log4j2
@@ -44,14 +45,19 @@ public class NCBIReplacedGeneIDsTask extends AbstractScriptWrapper {
     @SneakyThrows
     private void run() {
         //fetch all genes not alive at NCBI
-        deadIDs = NCBIEfetch.fetchGeneIDsNotAlive(100_000);
+        deadIDs = getDeadIDs();
         System.out.println("Found " + deadIDs.size() + " dead gene IDs at NCBI");
         Files.writeString(deadIDsOutputFile.toPath(), String.join("\n", deadIDs));
 
+        //check if we are continuing from previous run
+        Map<String, String> mappedIDs = getMappedIDs();
+
         try (FileWriter writer = new FileWriter(mappedIDsOutputFile)) {
-            writer.write("OldID,NewID\n");
-            writer.flush();
             for (String deadID : deadIDs) {
+                if (mappedIDs.containsKey(deadID)) {
+                    //already have it
+                    continue;
+                }
                 printProgress();
                 Optional<String> replacedID = NCBIEfetch.getReplacedGeneID(deadID);
                 if (replacedID.isPresent()) {
@@ -61,6 +67,45 @@ public class NCBIReplacedGeneIDsTask extends AbstractScriptWrapper {
             }
         }
         System.out.println("Done");
+    }
+
+    private Map<String, String> getMappedIDs() throws IOException {
+        if (mappedIDsOutputFile.exists()) {
+            System.out.println("Mapped IDs output file already exists, reading from file: " + mappedIDsOutputFile.getAbsolutePath());
+            try {
+                List<String> lines = Files.readAllLines(mappedIDsOutputFile.toPath());
+                System.out.println("Read " + lines.size() + " mapped IDs from file.");
+                //skip header
+                lines.remove(0);
+                return lines.stream()
+                        .map(line -> line.split(","))
+                        .collect(java.util.stream.Collectors.toMap(parts -> parts[0], parts -> parts[1]));
+            } catch (IOException e) {
+                System.err.println("Could not read mapped IDs from file, will start fresh.");
+            }
+        } else {
+            Files.writeString(mappedIDsOutputFile.toPath(), "OldID,NewID\n");
+        }
+        return Map.of();
+    }
+
+    /**
+     * Fetch from endpoint unless the file already exists. In that case read from file.
+     * @return
+     */
+    private List<String> getDeadIDs() {
+        List<String> tmpIDs;
+        if (deadIDsOutputFile.exists()) {
+            System.out.println("Dead IDs output file already exists, reading from file: " + deadIDsOutputFile.getAbsolutePath());
+            try {
+                tmpIDs = Files.readAllLines(deadIDsOutputFile.toPath());
+                System.out.println("Read " + tmpIDs.size() + " dead IDs from file.");
+                return tmpIDs;
+            } catch (IOException e) {
+                System.err.println("Could not read dead IDs from file, will fetch from NCBI instead.");
+            }
+        }
+        return NCBIEfetch.fetchGeneIDsNotAlive(100_000);
     }
 
     private void printProgress() {
