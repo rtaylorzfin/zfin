@@ -271,9 +271,6 @@ public class NCBIDirectPort extends AbstractScriptWrapper {
 
         // initializeDatabase(); // This is now called by initAll() via AbstractScriptWrapper
 
-        //TEMPORARY for testing
-        //TODO: remove later
-        removeEnsemblMatchesFromDB();
 
         removeOldFiles();
 
@@ -289,6 +286,11 @@ public class NCBIDirectPort extends AbstractScriptWrapper {
 
         captureBeforeState();
         printTimingInformation(201);
+
+        //TEMPORARY for testing
+        //TODO: remove later
+        removeEnsemblMatchesFromDB();
+
 
         prepareNCBIgeneLoadDatabaseQuery();
         printTimingInformation(3);
