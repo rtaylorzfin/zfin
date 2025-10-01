@@ -373,54 +373,88 @@ public class NCBIEfetch {
     }
 
     /**
-     * Queries NCBI Gene database to find if a gene ID has been replaced with a new ID.
-     * Checks if the gene has status "secondary" and returns the current GeneID if a replacement exists.
+     * Queries NCBI Gene database to find if gene IDs have been replaced with new IDs.
+     * Checks if genes have status "secondary" and returns a map of old ID to new ID for any replacements found.
      *
-     * @param geneID The gene ID to check for replacement
-     * @return Optional containing the replacement gene ID if it exists, empty otherwise
+     * @param geneIDs List of gene IDs to check for replacements
+     * @return Map of old gene ID to replacement gene ID for any genes that have been replaced
      */
-    public static Optional<String> getReplacedGeneID(String geneID) {
+    public static Map<String, String> getReplacedGeneID(List<String> geneIDs) {
+        Map<String, String> replacements = new HashMap<>();
+
+        if (geneIDs == null || geneIDs.isEmpty()) {
+            return replacements;
+        }
+
         try {
+            // Join gene IDs with commas for batch request
+            String ids = String.join(",", geneIDs);
+
             Document result = new NCBIRequest(NCBIRequest.Eutil.FETCH)
                     .with("db", "gene")
-                    .with("id", geneID)
+                    .with("id", ids)
                     .with("retmode", "xml")
                     .go();
 
             XPath xPath = XPathFactory.newInstance().newXPath();
 
-            // Check if the gene has secondary status
-            String status = xPath.evaluate("//Gene-track/Gene-track_status/@value", result);
+            // Process each Entrezgene record in the response
+            NodeList entrezgeneList = result.getElementsByTagName("Entrezgene");
 
-            if ("secondary".equals(status)) {
-                // Look for the current GeneID in the Gene-track_current-id section
-                NodeList currentIds = result.getElementsByTagName("Gene-track_current-id");
-                if (currentIds.getLength() > 0) {
-                    Element currentIdElement = (Element) currentIds.item(0);
-                    NodeList dbtags = currentIdElement.getElementsByTagName("Dbtag");
+            for (int i = 0; i < entrezgeneList.getLength(); i++) {
+                Element entrezgene = (Element) entrezgeneList.item(i);
 
-                    for (int i = 0; i < dbtags.getLength(); i++) {
-                        Element dbtag = (Element) dbtags.item(i);
-                        String dbName = dbtag.getElementsByTagName("Dbtag_db").item(0).getTextContent();
+                // Get the original gene ID
+                NodeList geneIdNodes = entrezgene.getElementsByTagName("Gene-track_geneid");
+                if (geneIdNodes.getLength() == 0) {
+                    continue;
+                }
+                String originalGeneId = geneIdNodes.item(0).getTextContent();
 
-                        if ("GeneID".equals(dbName)) {
-                            String replacementId = dbtag.getElementsByTagName("Object-id_id").item(0).getTextContent();
-                            logger.info("Gene ID " + geneID + " has been replaced with " + replacementId);
-                            return Optional.of(replacementId);
+                // Check if the gene has secondary status
+                NodeList statusNodes = entrezgene.getElementsByTagName("Gene-track_status");
+                if (statusNodes.getLength() == 0) {
+                    continue;
+                }
+                Element statusElement = (Element) statusNodes.item(0);
+                String status = statusElement.getAttribute("value");
+
+                if ("secondary".equals(status)) {
+                    // Look for the current GeneID in the Gene-track_current-id section
+                    NodeList currentIds = entrezgene.getElementsByTagName("Gene-track_current-id");
+                    if (currentIds.getLength() > 0) {
+                        Element currentIdElement = (Element) currentIds.item(0);
+                        NodeList dbtags = currentIdElement.getElementsByTagName("Dbtag");
+
+                        for (int j = 0; j < dbtags.getLength(); j++) {
+                            Element dbtag = (Element) dbtags.item(j);
+                            NodeList dbNameNodes = dbtag.getElementsByTagName("Dbtag_db");
+                            if (dbNameNodes.getLength() == 0) {
+                                continue;
+                            }
+                            String dbName = dbNameNodes.item(0).getTextContent();
+
+                            if ("GeneID".equals(dbName)) {
+                                NodeList objectIdNodes = dbtag.getElementsByTagName("Object-id_id");
+                                if (objectIdNodes.getLength() > 0) {
+                                    String replacementId = objectIdNodes.item(0).getTextContent();
+                                    replacements.put(originalGeneId, replacementId);
+                                    logger.info("Gene ID " + originalGeneId + " has been replaced with " + replacementId);
+                                }
+                                break;
+                            }
                         }
                     }
                 }
             }
 
-            return Optional.empty();
-
         } catch (ServiceConnectionException e) {
-            logger.error("Failed to fetch gene replacement info for gene ID: " + geneID, e);
-            return Optional.empty();
-        } catch (XPathExpressionException e) {
-            logger.error("Error parsing XML response for gene ID: " + geneID, e);
-            return Optional.empty();
+            logger.error("Failed to fetch gene replacement info for gene IDs: " + geneIDs, e);
+        } catch (Exception e) {
+            logger.error("Error parsing XML response for gene IDs: " + geneIDs, e);
         }
+
+        return replacements;
     }
 
     public static GeoMicorarrayEntriesBean getMicroarraySequences() throws Exception {

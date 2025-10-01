@@ -2,6 +2,7 @@ package org.zfin.datatransfer.ncbi;
 
 import lombok.SneakyThrows;
 import lombok.extern.log4j.Log4j2;
+import org.apache.commons.collections4.ListUtils;
 import org.zfin.datatransfer.webservice.NCBIEfetch;
 import org.zfin.ontology.datatransfer.AbstractScriptWrapper;
 import org.zfin.properties.ZfinPropertiesEnum;
@@ -46,22 +47,24 @@ public class NCBIReplacedGeneIDsTask extends AbstractScriptWrapper {
     private void run() {
         //fetch all genes not alive at NCBI
         deadIDs = getDeadIDs();
+        List<List<String>> deadIDBatches = ListUtils.partition(deadIDs, 200);
         System.out.println("Found " + deadIDs.size() + " dead gene IDs at NCBI");
         Files.writeString(deadIDsOutputFile.toPath(), String.join("\n", deadIDs));
 
         //check if we are continuing from previous run
         Map<String, String> mappedIDs = getMappedIDs();
 
-        try (FileWriter writer = new FileWriter(mappedIDsOutputFile)) {
-            for (String deadID : deadIDs) {
-                if (mappedIDs.containsKey(deadID)) {
-                    //already have it
-                    continue;
-                }
-                printProgress();
-                Optional<String> replacedID = NCBIEfetch.getReplacedGeneID(deadID);
-                if (replacedID.isPresent()) {
-                    writer.write(deadID + "," + replacedID.get() + "\n");
+        try (FileWriter writer = new FileWriter(mappedIDsOutputFile, true)) {
+            for (List<String> deadIDBatch : deadIDBatches) {
+                List<String> filteredBatch = deadIDBatch.stream().filter(id -> !mappedIDs.containsKey(id)).toList();
+                printProgress(filteredBatch.size());
+                Map<String, String> replacedIDs = NCBIEfetch.getReplacedGeneID(filteredBatch);
+                for(String id : filteredBatch) {
+                    writer.write(id);
+                    if (replacedIDs.containsKey(id)) {
+                        writer.write("," + replacedIDs.get(id));
+                    }
+                    writer.write("\n");
                 }
                 writer.flush();
             }
@@ -79,7 +82,7 @@ public class NCBIReplacedGeneIDsTask extends AbstractScriptWrapper {
                 lines.remove(0);
                 return lines.stream()
                         .map(line -> line.split(","))
-                        .collect(java.util.stream.Collectors.toMap(parts -> parts[0], parts -> parts[1]));
+                        .collect(java.util.stream.Collectors.toMap(parts -> parts[0], parts -> (parts.length > 1 ? parts[1] : "")));
             } catch (IOException e) {
                 System.err.println("Could not read mapped IDs from file, will start fresh.");
             }
@@ -108,7 +111,7 @@ public class NCBIReplacedGeneIDsTask extends AbstractScriptWrapper {
         return NCBIEfetch.fetchGeneIDsNotAlive(100_000);
     }
 
-    private void printProgress() {
+    private void printProgress(int size) {
         System.out.print(".");
         if (fetchCount % 30 == 0) {
             System.out.println();
@@ -116,7 +119,7 @@ public class NCBIReplacedGeneIDsTask extends AbstractScriptWrapper {
         if (fetchCount % 100 == 0) {
             System.out.println("Processed " + fetchCount + " IDs of " + deadIDs.size());
         }
-        fetchCount++;
+        fetchCount += size;
     }
 
 }

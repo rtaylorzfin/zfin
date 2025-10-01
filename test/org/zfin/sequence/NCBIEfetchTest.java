@@ -128,22 +128,36 @@ public class NCBIEfetchTest {
     @Test
     public void testGetReplacedGeneIDWithReplacement() {
         // Gene ID 103910949 has been replaced with 108183900
-        Optional<String> replacementId = NCBIEfetch.getReplacedGeneID("103910949");
+        Map<String, String> replacements = NCBIEfetch.getReplacedGeneID(List.of("103910949"));
 
-        assertTrue("Replacement gene ID should be present", replacementId.isPresent());
-        assertEquals("Expected replacement gene ID 108183900", "108183900", replacementId.get());
+        assertFalse("Replacements map should not be empty", replacements.isEmpty());
+        assertTrue("Replacement should contain gene ID 103910949", replacements.containsKey("103910949"));
+        assertEquals("Expected replacement gene ID 108183900", "108183900", replacements.get("103910949"));
 
-        System.out.println("Gene ID 103910949 replaced with: " + replacementId.get());
+        System.out.println("Gene ID 103910949 replaced with: " + replacements.get("103910949"));
     }
 
     @Test
     public void testGetReplacedGeneIDWithoutReplacement() {
         // Gene ID 30425 does not have a replacement
-        Optional<String> replacementId = NCBIEfetch.getReplacedGeneID("30425");
+        Map<String, String> replacements = NCBIEfetch.getReplacedGeneID(List.of("30425"));
 
-        assertFalse("Replacement gene ID should not be present", replacementId.isPresent());
+        assertTrue("Replacements map should be empty", replacements.isEmpty());
 
         System.out.println("Gene ID 30425 has no replacement");
+    }
+
+    @Test
+    public void testGetReplacedGeneIDMultiple() {
+        // Test with both a replaced gene and a non-replaced gene
+        Map<String, String> replacements = NCBIEfetch.getReplacedGeneID(List.of("103910949", "30425"));
+
+        assertEquals("Should have exactly 1 replacement", 1, replacements.size());
+        assertTrue("Replacement should contain gene ID 103910949", replacements.containsKey("103910949"));
+        assertEquals("Expected replacement gene ID 108183900", "108183900", replacements.get("103910949"));
+        assertFalse("Should not contain non-replaced gene ID 30425", replacements.containsKey("30425"));
+
+        System.out.println("Found replacements: " + replacements);
     }
 
     private File createTempFixtureFileForRefSeqJson() throws IOException {
