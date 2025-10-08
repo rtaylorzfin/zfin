@@ -523,12 +523,20 @@ public class NCBIDirectPort extends AbstractScriptWrapper {
         selectQuery.setParameter(1, contIDs);
         selectQuery.setParameter(2, PUB_MAPPED_BASED_ON_NCBI_SUPPLEMENT);
         List<Tuple> results = selectQuery.getResultList();
-        for (Tuple tuple : results) {
-            System.out.println("Removing Ensembl match: " +
-                    tuple.get("dblink_zdb_id") + " " +
-                    tuple.get("dblink_acc_num") + " " +
-                    tuple.get("dblink_fdbcont_zdb_id") + " " +
-                    tuple.get("recattrib_source_zdb_id"));
+        System.out.println("Found " + results.size() + " Ensembl matched db links to remove from the database");
+        try {
+            Files.writeString(workingDir.toPath().resolve("removed_ensembl.csv"),
+                    "dblink_zdb_id,dblink_acc_num,dblink_fdbcont_zdb_id,recattrib_source_zdb_id\n" +
+                    results.stream()
+                            .map(t -> String.join(",",
+                                    t.get("dblink_zdb_id", String.class),
+                                    t.get("dblink_acc_num", String.class),
+                                    t.get("dblink_fdbcont_zdb_id", String.class),
+                                    t.get("recattrib_source_zdb_id", String.class)))
+                            .collect(Collectors.joining("\n"))
+            );
+        } catch (IOException e) {
+            throw new RuntimeException(e);
         }
 
         String referenceProteinDeleteSql = """
@@ -597,7 +605,7 @@ public class NCBIDirectPort extends AbstractScriptWrapper {
 
         //zip debug files: debug1 ... debug10 ...
         compressFilesForCleanup("debug_files.zip", List.of("debug1", "debug10", "debug12", "debug13", "debug14", "debug15", "debug16.json", "debug17",
-                "debug2", "debug3", "debug4", "debug5", "debug5a", "debug6", "debug9" , "java_debug_readZfinGeneInfoFile.json", "before_load.csv", "after_load.csv"),
+                "debug2", "debug3", "debug4", "debug5", "debug5a", "debug6", "debug9" , "java_debug_readZfinGeneInfoFile.json", "before_load.csv", "after_load.csv", "removed_ensembl.csv"),
                 Collections.emptyList());
 
         //zip log files
