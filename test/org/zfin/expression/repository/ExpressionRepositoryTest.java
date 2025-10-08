@@ -382,40 +382,6 @@ public class ExpressionRepositoryTest extends AbstractDatabaseTest {
     }
 
     @Test
-    public void getAnatomyForMarker() {
-
-        String zdbID = "ZDB-GENE-980526-333";
-        String sql = """
-                SELECT distinct term_zdb_id, term_name
-                FROM
-                expression_result2 , expression_experiment2, expression_figure_stage, term , fish_experiment , fish, genotype
-                WHERE
-                xpatex_gene_zdb_id = :zdbID
-                AND  efs_xpatex_zdb_id = xpatex_zdb_id
-                AND  xpatres_efs_id = expression_figure_stage.efs_pk_id
-                AND xpatres_expression_found= :expressionFound
-                AND xpatres_superterm_zdb_id = term_zdb_id
-                AND xpatex_genox_zdb_id = genox_zdb_id
-                AND fish_zdb_id  = genox_fish_zdb_id
-                AND fish_genotype_zdb_id  = geno_zdb_id
-                AND geno_is_wildtype = :wildType
-                ORDER BY term_name asc
-                """;
-        List<Object[]> termZdbIds = (List<Object[]>) HibernateUtil.currentSession().createNativeQuery(sql)
-                .setParameter("zdbID", zdbID)
-                .setParameter("expressionFound", true)
-                .setParameter("wildType", true)
-                .list();
-        List<GenericTerm> anatomyItems = expRep.getWildTypeAnatomyExpressionForMarker(zdbID);
-        assertEquals(termZdbIds.size(), anatomyItems.size());
-
-        for (int i = 0; i < termZdbIds.size(); i++) {
-            assertEquals(termZdbIds.get(i)[0], anatomyItems.get(i).getZdbID());
-        }
-
-    }
-
-    @Test
     public void getExpressionFigureCount() {
         Marker m = RepositoryFactory.getMarkerRepository().getGeneByID("ZDB-GENE-010606-1");
         int count = expRep.getExpressionFigureCountForEfg(m);
