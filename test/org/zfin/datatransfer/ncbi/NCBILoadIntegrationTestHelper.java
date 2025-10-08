@@ -1,7 +1,6 @@
 package org.zfin.datatransfer.ncbi;
 
 import org.hibernate.Session;
-import org.zfin.construct.name.Cassettes;
 import org.zfin.framework.HibernateUtil;
 
 import java.io.*;
