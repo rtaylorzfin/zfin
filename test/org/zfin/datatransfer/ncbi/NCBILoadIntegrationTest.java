@@ -116,6 +116,36 @@ public class NCBILoadIntegrationTest extends AbstractDangerousDatabaseTest {
         assertDBLinkExists("ZDB-GENE-040724-74", "107980443", FDCONT_NCBI_GENE_ID, PUB_MAPPED_BASED_ON_VEGA);
     }
 
+    /**
+     * Test the case where a gene has an existing Ensembl link and a Vega link, and NCBI has an entry
+     * This means our logic should confirm a match based on the Ensembl link, but also based on the Vega link
+     * In this case, we retain the attribution for the ensembl match, but not the attribution for the Vega match
+     * In the future, we may want to keep both attributions
+     *
+     * @throws IOException
+     */
+    @Test
+    public void testEnsemblMatchWithSupportingVegaMatch() throws IOException {
+        // Create database state before the load
+        helper.beforeStateBuilder()
+                .withGene("ZDB-GENE-120703-25", "si:dkey-71l4.3")
+                .withDBLink("ZDB-GENE-120703-25", "ENSDARG00000099112", FDCONT_ENSDARG, "ZDB-PUB-030703-1")
+                .withVega("ZDB-GENE-120703-25", "OTTDARG00000039000", "si:dkey-71l4.3-201")
+                .withGene2VegaFile("108183518", "OTTDARG00000039000")
+                .withZfGeneInfoFile("108183518", "si:dkey-71l4.3",
+                        List.of("ZFIN:ZDB-GENE-120703-25", "Ensembl:ENSDARG00000099112")
+                )
+                .build();
+
+        helper.runNCBILoad();
+
+        NCBILoadIntegrationTestHelper.AfterState afterState = helper.getAfterState();
+        assertEquals(2, afterState.getFile("before_load.csv").getDataLines().size());
+        assertEquals(3, afterState.getFile("after_load.csv").getDataLines().size());
+
+        assertDBLinkExists("ZDB-GENE-120703-25", "108183518", FDCONT_NCBI_GENE_ID, PUB_MAPPED_BASED_ON_NCBI_SUPPLEMENT);
+    }
+
     @Test
     public void testHandlingOf1toNwarning() throws IOException {
         //debug10:ZDB-GENE-030131-3603	101885800:AI794605 324880:AI883911
