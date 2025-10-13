@@ -370,7 +370,7 @@ public class NCBIDirectPort extends AbstractScriptWrapper {
         printTimingInformation(23);
 
 //    #------------------------ get N:1 list and N:N from ZFIN to NCBI -----------------------------
-        getNtoOneAndNtoNfromZFINtoNCBI();
+//        getNtoOneAndNtoNfromZFINtoNCBI(); //this is called within getOneToNNCBItoZFINgeneIds
         printTimingInformation(24);
 
 //    #--------------------- report 1:N ---------------------------------------------
@@ -381,6 +381,8 @@ public class NCBIDirectPort extends AbstractScriptWrapper {
         manyToOneWarningActions = reportNtoOne();
         printTimingInformation(26);
 
+        cleanupReportNtoAllFile();
+        printTimingInformation(261);
 
 //    ##-----------------------------------------------------------------------------------
 //    ## Step 6: map ZFIN gene records to NCBI gene Ids based on common Vega Gene Id
@@ -483,6 +485,23 @@ public class NCBIDirectPort extends AbstractScriptWrapper {
             if (TO_PRESERVE != null) TO_PRESERVE.close();
         } catch (IOException e) {
             e.printStackTrace();
+        }
+    }
+
+    /**
+     * Clean up the reportNtoAll file by removing duplicate lines and sorting the entries.
+     */
+    private void cleanupReportNtoAllFile() {
+        File reportFile = new File(workingDir, "reportNtoAll.unl");
+        if (!reportFile.exists()) {
+            return;
+        }
+        try {
+            List<String> lines = Files.readAllLines(reportFile.toPath());
+            Set<String> sortedUniqueLines = new TreeSet<>(lines);
+            Files.writeString(reportFile.toPath(), String.join("\n", sortedUniqueLines) + "\n");
+        } catch (IOException e) {
+            System.out.println("Could not read/write reportNtoAll.unl file for cleanup: " + e.getMessage());
         }
     }
 
@@ -2289,8 +2308,11 @@ public class NCBIDirectPort extends AbstractScriptWrapper {
 
         File ntonFile = new File(workingDir, "reportNtoN");
         File ntonFile2 = new File(workingDir, "reportNtoN.2");
+        File ntoAllFile = new File(workingDir, "reportNtoAll.unl");
         try (BufferedWriter ntonWriter = new BufferedWriter(new FileWriter(ntonFile));
-             BufferedWriter ntonWriter2 = new BufferedWriter(new FileWriter(ntonFile2))) {
+             BufferedWriter ntonWriter2 = new BufferedWriter(new FileWriter(ntonFile2));
+             BufferedWriter ntoAllWriter = new BufferedWriter(new FileWriter(ntoAllFile));
+             ) {
             ntonWriter.write(getArtifactComparisonURLs());
 
             long ctOneToNCount = 0;
@@ -2355,6 +2377,7 @@ public class NCBIDirectPort extends AbstractScriptWrapper {
 
                             problem.addAssociatedDataByNcbiGeneID(ncbiId, ncbiSymbol, refArrayAccsNCBI);
                             ntonWriter.write(String.format("\t%s (%s) [%s]\n", ncbiId, ncbiSymbol, String.join(" ", refArrayAccsNCBI)));
+                            writeNtoAll(ntoAllWriter, zdbIdNtoN, ncbiId);
 
 //                            warningAction.addDetails(String.format("\t%s (%s) [%s]\n", ncbiId, ncbiSymbol, String.join(" ", refArrayAccsNCBI)));
                             warningAction.addNcbiGeneIdLink(ncbiId);
@@ -2387,6 +2410,7 @@ public class NCBIDirectPort extends AbstractScriptWrapper {
                             String zfinSymbol = geneZDBidsSymbols.getOrDefault(zdbId, "<no symbol>");
                             problem.addAssociatedDataByZdbID(zdbId, zfinSymbol, refArrayAccsZFIN);
                             ntonWriter.write(String.format("\t%s (%s) [%s]\n", zdbId, zfinSymbol, String.join(" ", refArrayAccsZFIN)));
+                            writeNtoAll(ntoAllWriter, zdbId, ncbiGene);
 //                            warningAction.addDetails(String.format("\t%s (%s) [%s]\n", zdbId, zfinSymbol, String.join(" ", refArrayAccsZFIN)));
                             warningAction.addZdbIdLink(zdbId, zfinSymbol);
                         }
@@ -2415,6 +2439,14 @@ public class NCBIDirectPort extends AbstractScriptWrapper {
             reportErrAndExit("Cannot open or write to reportNtoN: " + e.getMessage());
         }
         return loadReportActions;
+    }
+
+    private void writeNtoAll(BufferedWriter ntoAllWriter, String zdbGeneID, String ncbiGeneID) {
+        try {
+            ntoAllWriter.write(String.join("|", List.of(zdbGeneID, ncbiGeneID)) + "\n");
+        } catch (IOException e) {
+            throw new RuntimeException("Error writing to reportNtoAll.unl in writeNtoAll for ZDB ID " + zdbGeneID, e);
+        }
     }
 
     private void getNtoOneAndNtoNfromZFINtoNCBI() {
@@ -2609,8 +2641,10 @@ public class NCBIDirectPort extends AbstractScriptWrapper {
 
     private List<LoadReportAction> reportOneToN() {
         File reportFile = new File(workingDir, "reportOneToN");
+        File reportFileAll = new File(workingDir, "reportNtoAll.unl");
         List<LoadReportAction> warningActions = new ArrayList<>();
-        try (BufferedWriter writer = new BufferedWriter(new FileWriter(reportFile))) {
+        try (BufferedWriter writer = new BufferedWriter(new FileWriter(reportFile));
+            BufferedWriter writerAll = new BufferedWriter(new FileWriter(reportFileAll, true))) {
             writer.write(getArtifactComparisonURLs());
             long ct = 0;
 
@@ -2645,6 +2679,7 @@ public class NCBIDirectPort extends AbstractScriptWrapper {
                     Set<String> ncbiAccessions = supportedGeneNCBI.getOrDefault(ncbiId, Collections.emptySet());
                     String ncbiSymbol = NCBIidsGeneSymbols.getOrDefault(ncbiId, "<no gene symbol>"); // Perl used <no gene symbol>
                     writer.write(String.format("   %s (%s) [%s]\n\n", ncbiId, ncbiSymbol, String.join(" ", ncbiAccessions)));
+                    writeNtoAll(writerAll, zdbId, ncbiId);
 //                    warningAction.addDetails(String.format("   %s (%s) [%s]\n\n", ncbiId, ncbiSymbol, String.join(" ", ncbiAccessions)));
                     problem.addAssociatedDataByNcbiGeneID(ncbiId, ncbiSymbol, ncbiAccessions);
                     warningAction.addNcbiGeneIdLink(ncbiId);
@@ -2669,8 +2704,10 @@ public class NCBIDirectPort extends AbstractScriptWrapper {
 
     private List<LoadReportAction> reportNtoOne() {
         File reportFile = new File(workingDir, "reportNtoOne");
+        File reportFileAll = new File(workingDir, "reportNtoAll.unl");
         List<LoadReportAction> warningActions = new ArrayList<>();
-        try (BufferedWriter writer = new BufferedWriter(new FileWriter(reportFile))) {
+        try (BufferedWriter writer = new BufferedWriter(new FileWriter(reportFile));
+            BufferedWriter writerAll = new BufferedWriter(new FileWriter(reportFileAll, true))) {
             writer.write(getArtifactComparisonURLs());
             long ct = 0;
 
@@ -2702,6 +2739,7 @@ public class NCBIDirectPort extends AbstractScriptWrapper {
                     List<String> zfinAccessions = supportedGeneZFIN.getOrDefault(zdbId, Collections.emptyList());
                     String zfinSymbol = geneZDBidsSymbols.getOrDefault(zdbId, "<unknown ZFIN symbol>");
                     writer.write(String.format("   %s (%s) [%s]\n\n", zdbId, zfinSymbol, String.join(" ", zfinAccessions)));
+                    writeNtoAll(writerAll, zdbId, ncbiId);
 //                    warningAction.addDetails(String.format("   %s (%s) [%s]\n\n", zdbId, zfinSymbol, String.join(" ", zfinAccessions)));
                     problem.addAssociatedDataByZdbID(zdbId, zfinSymbol, zfinAccessions);
                     warningAction.addZdbIdLink(zdbId);
@@ -3236,7 +3274,8 @@ public class NCBIDirectPort extends AbstractScriptWrapper {
                         } else {
                             // In Perl, this existing dblink_zdb_id is retrieved from geneAccFdbcont
                             String dbLinkToPreserve = geneAccFdbcont.get(hashKey);
-                            TO_PRESERVE.write(dbLinkToPreserve + "\n");
+                            TO_PRESERVE.write(String.format("%s|%s|%s|%s|%s|%s\n",
+                                    dbLinkToPreserve, zdbGeneId, genBankDNA, lengthStr, fdcontGenBankDNA, attributionPub));
                             print(LOG, "_DUPE<" + dbLinkToPreserve + ">");
                         }
                     }
@@ -3736,7 +3775,7 @@ public class NCBIDirectPort extends AbstractScriptWrapper {
                     ma_a_pk_id = 1          -- GRCz12tu
                   AND mas_vt_pk_id = 13   -- not in current
                   ;
-                \\copy (select * from tmprep2) to 'not_current_with_z12.csv' with csv header;                
+                \\copy (select * from tmprep2) to 'not_current_with_z12.csv' with csv header;
         """;
         File tmpFile2 = new File(workingDir, "not_current_with_z12.sql");
         Files.writeString(tmpFile2.toPath(), sql);

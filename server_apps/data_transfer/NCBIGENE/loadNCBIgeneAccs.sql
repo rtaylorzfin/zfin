@@ -19,11 +19,15 @@ create index t_id_index on ncbi_gene_delete (delete_dblink_zdb_id);
 \copy ncbi_gene_delete from 'toDelete.unl';
 
 -- Loaded from toPreserve.unl
-create temporary table ncbi_dblink_to_preserve (
-  prsv_dblink_zdb_id    text not null
+create temp table ncbi_dblink_to_preserve_preload (
+  prsv_dblink_zdb_id    text not null,
+    -- columns included in toPreserve.unl for debugging, but we ignore them for the load:
+    col1 text, col2 text, col3 text, col4 text, col5 text
 );
+\copy ncbi_dblink_to_preserve_preload from 'toPreserve.unl' (delimiter '|');
+
+create temp table ncbi_dblink_to_preserve as select distinct prsv_dblink_zdb_id from ncbi_dblink_to_preserve_preload;
 create index prsv_id_index on ncbi_dblink_to_preserve (prsv_dblink_zdb_id);
-\copy ncbi_dblink_to_preserve from 'toPreserve.unl';
 
 -- Loaded from toLoad.unl
 create temporary table ncbi_gene_load (
@@ -70,12 +74,87 @@ select count(dblink_zdb_id) as noLengthBefore
    and dblink_fdbcont_zdb_id in ('ZDB-FDBCONT-040412-38','ZDB-FDBCONT-040412-39','ZDB-FDBCONT-040527-1','ZDB-FDBCONT-040412-37','ZDB-FDBCONT-040412-42','ZDB-FDBCONT-040412-36')
    and (dblink_linked_recid like 'ZDB-GENE%' or dblink_linked_recid like '%RNAG%');
 
---!echo 'Delete from zdb_active_data table and cause delete cascades on db_link records'
+-- ██████╗ ██████╗ ███████╗███████╗███████╗██████╗ ██╗   ██╗███████╗    ██████╗ ███████╗██╗     ███████╗████████╗██╗ ██████╗ ███╗   ██╗███████╗
+-- ██╔══██╗██╔══██╗██╔════╝██╔════╝██╔════╝██╔══██╗██║   ██║██╔════╝    ██╔══██╗██╔════╝██║     ██╔════╝╚══██╔══╝██║██╔═══██╗████╗  ██║██╔════╝
+-- ██████╔╝██████╔╝█████╗  ███████╗█████╗  ██████╔╝██║   ██║█████╗      ██║  ██║█████╗  ██║     █████╗     ██║   ██║██║   ██║██╔██╗ ██║███████╗
+-- ██╔═══╝ ██╔══██╗██╔══╝  ╚════██║██╔══╝  ██╔══██╗╚██╗ ██╔╝██╔══╝      ██║  ██║██╔══╝  ██║     ██╔══╝     ██║   ██║██║   ██║██║╚██╗██║╚════██║
+-- ██║     ██║  ██║███████╗███████║███████╗██║  ██║ ╚████╔╝ ███████╗    ██████╔╝███████╗███████╗███████╗   ██║   ██║╚██████╔╝██║ ╚████║███████║
+-- ╚═╝     ╚═╝  ╚═╝╚══════╝╚══════╝╚══════╝╚═╝  ╚═╝  ╚═══╝  ╚══════╝    ╚═════╝ ╚══════╝╚══════╝╚══════╝   ╚═╝   ╚═╝ ╚═════╝ ╚═╝  ╚═══╝╚══════╝
+
+-- In general, we are deleting everything in toDelete.unl (ncbi_gene_delete table) and loading everything in toLoad.unl (ncbi_gene_load table).
+-- However, we do want to preserve some of the accessions in toDelete.unl.
+--
+-- For example, if a gene has an ncbi gene id that is "not in current..." AND the ncbi gene id is in toDelete.unl,
+-- then we may want to keep that gene id -- with the following conditions: if it is getting deleted, but also getting
+-- replaced by something in toLoad.unl, then we should just delete it.
+--
+-- And if there are any ncbi gene ids that are getting deleted due to an N-to-N matching issue, those should just be
+-- deleted too (even if they are in the "not in current..." list).
+
+
+-- Load from notInCurrentReleaseGeneIDs.unl - contains NCBI Gene IDs that are not in current annotation release
+\echo 'Loading NCBI Gene IDs that are not in current annotation release';
+CREATE TEMP TABLE not_in_current_release (
+     ncbi_gene_id    varchar(50) NOT NULL
+);
+\copy not_in_current_release from 'notInCurrentReleaseGeneIDs.unl';
+
+\echo 'Load N-to-All conflicts from file (N-to-One, One-to-N and N-to-N)';
+CREATE TEMP TABLE n_to_all_conflicts (
+     gene_id    text NOT NULL,
+     ncbi_id    varchar(50) NOT NULL
+);
+\copy n_to_all_conflicts from 'reportNtoAll.unl' (delimiter '|');
+
+
+-- Preserve NCBI gene IDs that are:
+-- 1. Marked for deletion
+-- 2. Not in current release
+-- 3. NOT being replaced by a new load
+-- 4. NOT involved in N-to-N matching conflicts
+
+CREATE TEMP TABLE ncbi_gene_delete_to_preserve AS
+SELECT
+    dblink_linked_recid as gene_zdb_id,
+    dblink_acc_num as ncbi_gene_id,
+    dblink_zdb_id
+FROM db_link
+         JOIN not_in_current_release
+              ON dblink_acc_num = ncbi_gene_id
+                  AND dblink_fdbcont_zdb_id = 'ZDB-FDBCONT-040412-1'
+WHERE dblink_zdb_id IN (
+    SELECT delete_dblink_zdb_id
+    FROM ncbi_gene_delete
+)
+-- Exclude genes being replaced
+  AND (dblink_linked_recid, 'ZDB-FDBCONT-040412-1') NOT IN (
+    SELECT mapped_zdb_gene_id, fdbcont_zdb_id
+    FROM ncbi_gene_load
+)
+-- Exclude genes with N-to-N conflicts
+  AND dblink_linked_recid NOT IN (
+    SELECT gene_id
+    FROM n_to_all_conflicts
+);
+
+DELETE FROM ncbi_gene_delete
+ WHERE delete_dblink_zdb_id IN (
+    SELECT dblink_zdb_id
+    FROM ncbi_gene_delete_to_preserve
+);
+
+-- ███████╗███╗   ██╗██████╗     ██████╗ ██████╗ ███████╗███████╗███████╗██████╗ ██╗   ██╗███████╗
+-- ██╔════╝████╗  ██║██╔══██╗    ██╔══██╗██╔══██╗██╔════╝██╔════╝██╔════╝██╔══██╗██║   ██║██╔════╝
+-- █████╗  ██╔██╗ ██║██║  ██║    ██████╔╝██████╔╝█████╗  ███████╗█████╗  ██████╔╝██║   ██║█████╗
+-- ██╔══╝  ██║╚██╗██║██║  ██║    ██╔═══╝ ██╔══██╗██╔══╝  ╚════██║██╔══╝  ██╔══██╗╚██╗ ██╔╝██╔══╝
+-- ███████╗██║ ╚████║██████╔╝    ██║     ██║  ██║███████╗███████║███████╗██║  ██║ ╚████╔╝ ███████╗
+-- ╚══════╝╚═╝  ╚═══╝╚═════╝     ╚═╝     ╚═╝  ╚═╝╚══════╝╚══════╝╚══════╝╚═╝  ╚═╝  ╚═══╝  ╚══════╝
 
 
 \echo 'Deleting from reference_protein';
 \copy (select * from reference_protein where rp_dblink_zdb_id in (select * from ncbi_gene_delete)) to 'referenceProteinDeletes.unl' (delimiter '|');
 delete from reference_protein where rp_dblink_zdb_id in (select * from ncbi_gene_delete);
+--!echo 'Delete from zdb_active_data table and cause delete cascades on db_link records'
 delete from zdb_active_data where zactvd_zdb_id in (select * from ncbi_gene_delete);
 
 --!echo 'Delete from record_attribution table for those manually curated records but attributed to load publication'
@@ -261,18 +340,23 @@ GROUP BY marker.mrkr_abbrev, nid.zdb_id, nid.ncbi_id, nid.group_id, nid.reason, 
 
 \copy (select * from ncbi_many_full order by group_id, dblink_zdb_id) to 'existing_many_to_many_report.csv' with header csv;
 
--- Many to Many report should be empty, but if not, dump it out for review. Also, delete those records from db_link and zdb_active_data
+INSERT INTO many_to_many_conflicts (
+    SELECT
+        string_agg(DISTINCT zdb_id, ' ') AS gene_id,
+        string_agg(DISTINCT ncbi_id, ' ') AS ncbi_id,
+        string_agg(DISTINCT dblink_zdb_id, ' ') AS dblink_zdb_id,
+        string_agg(DISTINCT source_pubs, ' ') AS source_pubs,
+        FALSE AS existing
+    FROM
+        ncbi_many_full
+    GROUP BY
+        group_id
+    ORDER BY
+        group_id);
+
 delete from zdb_active_data where zactvd_zdb_id in (select dblink_zdb_id from ncbi_many_full);
 
-insert into many_to_many_conflicts
-    (SELECT zdb_id as gene_id,
-            ncbi_id as ncbi_id,
-            dblink_zdb_id as dblink_zdb_id,
-            source_pubs as load_pub,
-            false as existing
-     from ncbi_many_full);
-
-
+-- Many to Many report should be empty, but if not, dump it out for review. Also, delete those records from db_link and zdb_active_data
 \copy (SELECT DISTINCT * FROM many_to_many_conflicts ORDER BY gene_id, ncbi_id) TO 'post_run_n_to_1_zdb_to_ncbi.csv' WITH HEADER CSV;
 
 --
@@ -284,6 +368,16 @@ insert into many_to_many_conflicts
 -- ╚══════╝╚═╝  ╚═══╝╚═════╝     ╚═╝     ╚═╝╚═╝  ╚═╝╚═╝  ╚═══╝   ╚═╝        ╚═╝    ╚═════╝       ╚═╝     ╚═╝╚═╝  ╚═╝╚═╝  ╚═══╝   ╚═╝
 --
 
+
+
+
+-- ██████╗ ███████╗ ██████╗ ██╗███╗   ██╗     █████╗ ███╗   ██╗███╗   ██╗ ██████╗ ████████╗ █████╗ ████████╗██╗ ██████╗ ███╗   ██╗    ███████╗████████╗ █████╗ ████████╗██╗   ██╗███████╗
+-- ██╔══██╗██╔════╝██╔════╝ ██║████╗  ██║    ██╔══██╗████╗  ██║████╗  ██║██╔═══██╗╚══██╔══╝██╔══██╗╚══██╔══╝██║██╔═══██╗████╗  ██║    ██╔════╝╚══██╔══╝██╔══██╗╚══██╔══╝██║   ██║██╔════╝
+-- ██████╔╝█████╗  ██║  ███╗██║██╔██╗ ██║    ███████║██╔██╗ ██║██╔██╗ ██║██║   ██║   ██║   ███████║   ██║   ██║██║   ██║██╔██╗ ██║    ███████╗   ██║   ███████║   ██║   ██║   ██║███████╗
+-- ██╔══██╗██╔══╝  ██║   ██║██║██║╚██╗██║    ██╔══██║██║╚██╗██║██║╚██╗██║██║   ██║   ██║   ██╔══██║   ██║   ██║██║   ██║██║╚██╗██║    ╚════██║   ██║   ██╔══██║   ██║   ██║   ██║╚════██║
+-- ██████╔╝███████╗╚██████╔╝██║██║ ╚████║    ██║  ██║██║ ╚████║██║ ╚████║╚██████╔╝   ██║   ██║  ██║   ██║   ██║╚██████╔╝██║ ╚████║    ███████║   ██║   ██║  ██║   ██║   ╚██████╔╝███████║
+-- ╚═════╝ ╚══════╝ ╚═════╝ ╚═╝╚═╝  ╚═══╝    ╚═╝  ╚═╝╚═╝  ╚═══╝╚═╝  ╚═══╝ ╚═════╝    ╚═╝   ╚═╝  ╚═╝   ╚═╝   ╚═╝ ╚═════╝ ╚═╝  ╚═══╝    ╚══════╝   ╚═╝   ╚═╝  ╚═╝   ╚═╝    ╚═════╝ ╚══════╝
+--
 -- Logic to handle marker_annotation_status
 -- It is safe to say any gene that has an NCBI Gene ID matched by the rna matching method should be considered "Current"
 -- with the exception of those genes that are explicitly marked as "Not in current annotation release set"
@@ -307,24 +401,6 @@ insert into many_to_many_conflicts
 --     - No: Classify as "Unknown"
 --
 -- End
-
-
--- ██████╗ ███████╗ ██████╗ ██╗███╗   ██╗     █████╗ ███╗   ██╗███╗   ██╗ ██████╗ ████████╗ █████╗ ████████╗██╗ ██████╗ ███╗   ██╗    ███████╗████████╗ █████╗ ████████╗██╗   ██╗███████╗
--- ██╔══██╗██╔════╝██╔════╝ ██║████╗  ██║    ██╔══██╗████╗  ██║████╗  ██║██╔═══██╗╚══██╔══╝██╔══██╗╚══██╔══╝██║██╔═══██╗████╗  ██║    ██╔════╝╚══██╔══╝██╔══██╗╚══██╔══╝██║   ██║██╔════╝
--- ██████╔╝█████╗  ██║  ███╗██║██╔██╗ ██║    ███████║██╔██╗ ██║██╔██╗ ██║██║   ██║   ██║   ███████║   ██║   ██║██║   ██║██╔██╗ ██║    ███████╗   ██║   ███████║   ██║   ██║   ██║███████╗
--- ██╔══██╗██╔══╝  ██║   ██║██║██║╚██╗██║    ██╔══██║██║╚██╗██║██║╚██╗██║██║   ██║   ██║   ██╔══██║   ██║   ██║██║   ██║██║╚██╗██║    ╚════██║   ██║   ██╔══██║   ██║   ██║   ██║╚════██║
--- ██████╔╝███████╗╚██████╔╝██║██║ ╚████║    ██║  ██║██║ ╚████║██║ ╚████║╚██████╔╝   ██║   ██║  ██║   ██║   ██║╚██████╔╝██║ ╚████║    ███████║   ██║   ██║  ██║   ██║   ╚██████╔╝███████║
--- ╚═════╝ ╚══════╝ ╚═════╝ ╚═╝╚═╝  ╚═══╝    ╚═╝  ╚═╝╚═╝  ╚═══╝╚═╝  ╚═══╝ ╚═════╝    ╚═╝   ╚═╝  ╚═╝   ╚═╝   ╚═╝ ╚═════╝ ╚═╝  ╚═══╝    ╚══════╝   ╚═╝   ╚═╝  ╚═╝   ╚═╝    ╚═════╝ ╚══════╝
---
-
-\echo 'Loading NCBI Gene IDs that are not in current annotation release';
-
--- Loaded from notInCurrentReleaseGeneIDs.unl - contains NCBI Gene IDs that are not in current annotation release
-CREATE TEMP TABLE not_in_current_release (
-  ncbi_gene_id    varchar(50) NOT NULL
-);
-
-\copy not_in_current_release from 'notInCurrentReleaseGeneIDs.unl';
 
 \echo 'Clearing existing marker annotation status entries';
 
