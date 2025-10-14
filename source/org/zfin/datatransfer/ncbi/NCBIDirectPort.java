@@ -4068,12 +4068,16 @@ public class NCBIDirectPort extends AbstractScriptWrapper {
                     DBLink ID       : %s -> %s
                     Length          : %s -> %s
                     Pub ZDB ID      : %s -> %s
+                    Assemblies      : %s -> %s
+                    Annotation Stat : %s -> %s
                     """.formatted(
                     record1.get("dblink_linked_recid"),
                     record1.get("dblink_acc_num"),
                     record1.get("dblink_zdb_id"), record2.get("dblink_zdb_id"),
                     record1.get("dblink_length"), record2.get("dblink_length"),
-                    record1.get("recattrib_source_zdb_id"), record2.get("recattrib_source_zdb_id"));
+                    record1.get("recattrib_source_zdb_id"), record2.get("recattrib_source_zdb_id"),
+                    record1.get("marker_assemblies"), record2.get("marker_assemblies"),
+                    record1.get("marker_annotation_status"), record2.get("marker_annotation_status"));
             action.setDetails(details);
             actions.add(action);
         }
