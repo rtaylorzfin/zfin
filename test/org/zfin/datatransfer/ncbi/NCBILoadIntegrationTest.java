@@ -71,7 +71,7 @@ public class NCBILoadIntegrationTest extends AbstractDangerousDatabaseTest {
         // Create database state before the load
         helper.beforeStateBuilder()
                 .withGene("ZDB-GENE-030131-1238", "gmpr2")
-                .withDBLink("ZDB-GENE-030131-1238", "GFIL01011600", FDCONT_GENBANK_RNA, PUB_MAPPED_BASED_ON_RNA)
+                .withDBLink("ZDB-GENE-030131-1238", "GFIL01011600", FDCONT_GENBANK_RNA, "ZDB-PUB-020723-5")
                 .withGene2AccessionFile("678545", "-", "GFIL01011600.1")
                 .withGene2AccessionFile("678545", "VALIDATED", "NM_001040304.2")
                 .withZfGeneInfoFile("678545", "gmpr2", List.of("ZFIN:ZDB-GENE-030131-1238"))
@@ -79,14 +79,17 @@ public class NCBILoadIntegrationTest extends AbstractDangerousDatabaseTest {
                 .build();
 
         helper.runNCBILoad();
+        assertEquals("Should create exactly 1 NCBI link", 1, helper.getNCBILinkCount("ZDB-GENE-030131-1238"));
 
-        assertEquals("Should create exactly 3 NCBI link", 3, helper.getNCBILinkCount("ZDB-GENE-030131-1238"));
         assertDBLinkExists("ZDB-GENE-030131-1238", "678545", FDCONT_NCBI_GENE_ID, PUB_MAPPED_BASED_ON_RNA);
         assertDBLinkExists("ZDB-GENE-030131-1238", "NM_001040304", FDCONT_REFSEQ_RNA, PUB_MAPPED_BASED_ON_RNA);
-        assertDBLinkExists("ZDB-GENE-030131-1238", "GFIL01011600", FDCONT_GENBANK_RNA, PUB_MAPPED_BASED_ON_RNA);
+        assertDBLinkExists("ZDB-GENE-030131-1238", "GFIL01011600", FDCONT_GENBANK_RNA, "ZDB-PUB-020723-5");
 
         List<String> newlinkAsList = helper.getDBLinksWithAttributions("ZDB-GENE-030131-1238", "NM_001040304", FDCONT_REFSEQ_RNA, PUB_MAPPED_BASED_ON_RNA);
         assertEquals(1, newlinkAsList.size());
+
+        Integer linkLength = helper.getDBLinkLengthIfExists("ZDB-GENE-030131-1238", "NM_001040304", FDCONT_REFSEQ_RNA);
+        assertEquals(Integer.valueOf(2135), linkLength);
     }
 
     /**

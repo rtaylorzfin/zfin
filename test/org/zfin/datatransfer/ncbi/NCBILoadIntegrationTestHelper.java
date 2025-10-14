@@ -2,7 +2,6 @@ package org.zfin.datatransfer.ncbi;
 
 import org.hibernate.Session;
 import org.zfin.framework.HibernateUtil;
-import org.zfin.infrastructure.PatriciaTrieMultiMap;
 
 import java.io.*;
 import java.nio.file.Files;
@@ -329,6 +328,25 @@ public class NCBILoadIntegrationTestHelper {
                 .setParameter(4, accessionNumber)
                 .list();
     }
+
+
+    public Integer getDBLinkLengthIfExists(String geneZdbID, String accessionNumber, String fdcontID) {
+        String sql = """
+            SELECT dblink_length FROM db_link dl
+            WHERE dl.dblink_linked_recid = ?
+            AND dl.dblink_fdbcont_zdb_id = ?
+            AND dl.dblink_acc_num = ?
+            ORDER BY dl.dblink_acc_num
+            """;
+
+        return (Integer)HibernateUtil.currentSession()
+                .createNativeQuery(sql)
+                .setParameter(1, geneZdbID)
+                .setParameter(2, fdcontID)
+                .setParameter(3, accessionNumber)
+                .uniqueResult();
+    }
+
 
     public int getAttributionCount(String geneId) {
         String sql = """
