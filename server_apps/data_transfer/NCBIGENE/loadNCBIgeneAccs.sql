@@ -411,38 +411,31 @@ DELETE FROM marker_annotation_status;
 
 -- Insert marker_annotation_status entries based on the logic:
 -- 1. If gene has NCBI Gene ID in notInCurrentReleaseGeneIDs.unl -> "Not in current annotation release" (13)
--- 2. Else if gene has NCBI Gene ID attributed with RNA matching method (ZDB-PUB-020723-3) -> "Current" (12)
+-- 2. Else if gene has NCBI Gene ID attributed with one of the three load pubs -> "Current" (12)
 -- 3. Else (other matching methods or no NCBI Gene ID) -> "Unknown" (no entry)
 INSERT INTO marker_annotation_status (mas_mrkr_zdb_id, mas_vt_pk_id)
-SELECT DISTINCT
-    dl.dblink_linked_recid,
-    CASE
-        -- Step 2: If NCBI Gene ID is in notInCurrentReleaseGeneIDs.unl, mark as "Not in current annotation release"
-        WHEN EXISTS (
-            SELECT 1 FROM not_in_current_release nic
-            WHERE nic.ncbi_gene_id = dl.dblink_acc_num
-        ) THEN 13  -- "Not in current annotation release"
-        -- Step 3: If has NCBI Gene ID attributed with RNA matching method (ZDB-PUB-020723-3), mark as "Current"
-        WHEN EXISTS (
-            SELECT 1 FROM record_attribution ra
-            WHERE ra.recattrib_data_zdb_id = dl.dblink_zdb_id
-              AND ra.recattrib_source_zdb_id = 'ZDB-PUB-020723-3'  -- RNA matching method
-        ) THEN 12  -- "Current"
-    END AS annotation_status
-FROM db_link dl
-WHERE dl.dblink_fdbcont_zdb_id = 'ZDB-FDBCONT-040412-1'  -- NCBI Gene ID
-  AND (
-      -- Only insert if it's "Not in current annotation release" or "Current"
-      EXISTS (
-          SELECT 1 FROM not_in_current_release nic
-          WHERE nic.ncbi_gene_id = dl.dblink_acc_num
-      )
-      OR EXISTS (
-          SELECT 1 FROM record_attribution ra
-          WHERE ra.recattrib_data_zdb_id = dl.dblink_zdb_id
-            AND ra.recattrib_source_zdb_id = 'ZDB-PUB-020723-3'
-      )
-  );
+WITH eligible_records AS (
+    SELECT DISTINCT
+        dl.dblink_linked_recid,
+        CASE
+            -- Step 2: If NCBI Gene ID is in notInCurrentReleaseGeneIDs.unl, mark as "Not in current annotation release"
+            WHEN EXISTS (
+                SELECT 1 FROM not_in_current_release nic
+                WHERE nic.ncbi_gene_id = dl.dblink_acc_num
+            ) THEN 13  -- "Not in current annotation release"
+        -- Step 3: If has NCBI Gene ID attributed with load pub, mark as "Current"
+            WHEN EXISTS (
+                SELECT 1 FROM record_attribution ra
+                WHERE ra.recattrib_data_zdb_id = dl.dblink_zdb_id
+                  AND ra.recattrib_source_zdb_id IN ('ZDB-PUB-020723-3', 'ZDB-PUB-230516-87', 'ZDB-PUB-130725-2')
+            ) THEN 12  -- "Current"
+            END AS annotation_status
+    FROM db_link dl
+    WHERE dl.dblink_fdbcont_zdb_id = 'ZDB-FDBCONT-040412-1'  -- NCBI Gene ID
+)
+SELECT dblink_linked_recid, annotation_status
+FROM eligible_records
+WHERE annotation_status IS NOT NULL;
 
 \echo 'Marker annotation status update complete';
 -- ███████╗███╗   ██╗██████╗      █████╗ ███╗   ██╗███╗   ██╗ ██████╗ ████████╗ █████╗ ████████╗██╗ ██████╗ ███╗   ██╗    ███████╗████████╗ █████╗ ████████╗██╗   ██╗███████╗
