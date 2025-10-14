@@ -499,7 +499,7 @@ public class NCBIDirectPort extends AbstractScriptWrapper {
         try {
             List<String> lines = Files.readAllLines(reportFile.toPath());
             Set<String> sortedUniqueLines = new TreeSet<>(lines);
-            Files.writeString(reportFile.toPath(), String.join("\n", sortedUniqueLines) + "\n");
+            Files.writeString(reportFile.toPath(), String.join("\n", sortedUniqueLines));
         } catch (IOException e) {
             System.out.println("Could not read/write reportNtoAll.unl file for cleanup: " + e.getMessage());
         }
