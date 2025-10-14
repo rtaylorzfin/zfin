@@ -704,11 +704,13 @@ public class NCBIDirectPort extends AbstractScriptWrapper {
                 String dblinkZdbId = parts[2];
                 String loadPub = parts[3];
                 String existing = parts[4];
+                String source = parts[5];
 
                 String message = String.format("N:1 Warning - ZFIN Gene %s mapped to NCBI Gene %s\n" +
                                 "via DBLink %s\n" +
-                                "(Load Pub: %s)",
-                        zdbGeneId, ncbiId, dblinkZdbId, loadPub);
+                                "(Load Pub: %s)\n" +
+                                "Source: %s\n" +
+                        zdbGeneId, ncbiId, dblinkZdbId, loadPub, source);
                 print(LOG, message);
                 records.add(Map.of(
                         "zdbGeneId", zdbGeneId,
@@ -716,7 +718,8 @@ public class NCBIDirectPort extends AbstractScriptWrapper {
                         "dblinkZdbId", dblinkZdbId,
                         "loadPub", loadPub,
                         "existing", existing,
-                        "message", message
+                        "message", message,
+                        "source", source
                 ));
             }
 
@@ -730,7 +733,7 @@ public class NCBIDirectPort extends AbstractScriptWrapper {
                     String combinedMessage = "N:1 Warning - NCBI Gene " + ncbiId + " mapped to multiple ZFIN Genes: " +
                             recs.stream()
                                     .map(r -> r.get("zdbGeneId") + " via DBLink " + r.get("dblinkZdbId") +
-                                            " (Load Pub: " + r.get("loadPub") + ", Existing: " + r.get("existing") + ")")
+                                            " (Load Pub: " + r.get("loadPub") + ", Existing: " + r.get("existing") + ", Source: " + r.get("source") + ")")
                                     .collect(Collectors.joining("; "));
                     print(LOG, combinedMessage);
                     LoadReportAction action = new LoadReportAction();

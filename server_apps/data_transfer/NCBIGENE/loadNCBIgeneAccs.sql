@@ -173,9 +173,9 @@ delete from record_attribution
 -- 2. Conflict with existing NCBI Gene IDs in the DB
 --    a. same gene, different ncbi id
 --    b. different gene, same ncbi id
--- 3. These conflicts must be under a manually curated pub (not a load pub)
--- To resolve these conflicts, we will delete the records from ncbi_gene_load table (the load list) and delete the
--- db_link records from zdb_active_data table (which will cascade delete from db_link table). They eventually get
+-- 3. These conflicts must be such that the existing db_link is under a manually curated pub (not a load pub)
+
+-- To resolve these conflicts, we will delete the records from ncbi_gene_load table (the load list) . They eventually get
 -- dumped out for review in the many_to_many_conflicts table (logged to 'post_run_n_to_1_zdb_to_ncbi.csv')
 -- They will also end up in the ncbi_report.html report for review.
 
@@ -209,9 +209,9 @@ WHERE
 -- In other words, it adds the conflicting records from the ncbi_gene_load table and the db_link table as separate rows
 -- The columns will be: gene_id,ncbi_id,dblink_zdb_id,load_pub,existing
 CREATE temp TABLE many_to_many_conflicts AS
-SELECT mapped_zdb_gene_id as gene_id, ncbi_accession as ncbi_id, zdb_id as dblink_zdb_id, load_pub_zdb_id as load_pub, FALSE as existing FROM tmp_conflicts
+SELECT mapped_zdb_gene_id as gene_id, ncbi_accession as ncbi_id, zdb_id as dblink_zdb_id, load_pub_zdb_id as load_pub, FALSE as existing, 'to load' as source FROM tmp_conflicts
 UNION
-SELECT dblink_linked_recid, dblink_acc_num, dblink_zdb_id, '' as pub, TRUE as existing FROM tmp_conflicts;
+SELECT dblink_linked_recid, dblink_acc_num, dblink_zdb_id, '' as pub, TRUE as existing, 'manual curation' as source FROM tmp_conflicts;
 
 -- Now delete the records from the load list and zdb_active_data table if they conflict
 DELETE FROM ncbi_gene_load WHERE fdbcont_zdb_id = 'ZDB-FDBCONT-040412-1'
@@ -220,8 +220,9 @@ DELETE FROM ncbi_gene_load WHERE fdbcont_zdb_id = 'ZDB-FDBCONT-040412-1'
         (ncbi_accession IN (SELECT ncbi_id FROM many_to_many_conflicts))
     );
 
-DELETE FROM zdb_active_data WHERE
-    zactvd_zdb_id IN (SELECT dblink_zdb_id FROM many_to_many_conflicts);
+-- We don't want to delete the manually curated records from db_link table, just the load records (I think?)
+-- DELETE FROM zdb_active_data WHERE
+--     zactvd_zdb_id IN (SELECT dblink_zdb_id FROM many_to_many_conflicts);
 
 -- END CONFLICT RESOLUTION FOR NCBI GENE IDS
 --
@@ -331,7 +332,8 @@ INSERT INTO many_to_many_conflicts (
         string_agg(DISTINCT ncbi_id, ' ') AS ncbi_id,
         string_agg(DISTINCT dblink_zdb_id, ' ') AS dblink_zdb_id,
         string_agg(DISTINCT source_pubs, ' ') AS source_pubs,
-        FALSE AS existing
+        FALSE AS existing,
+        'post load cleanup' AS source
     FROM
         ncbi_many_full
     GROUP BY
