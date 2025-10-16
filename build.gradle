@@ -44,10 +44,25 @@ configurations {
 
 sourceSets {
     main {
+        java {
+            srcDirs = ['source']
+        }
+        resources {
+            srcDirs = ['source']
+            exclude '**/*.java'
+        }
+
         compileClasspath += configurations.providedCompile
         runtimeClasspath += configurations.providedRuntime
     }
     test {
+        java {
+            srcDirs = []  // No test sources configured yet
+        }
+        resources {
+            srcDirs = []
+        }
+
         compileClasspath += configurations.providedCompile
         runtimeClasspath += configurations.providedRuntime
     }
@@ -175,6 +190,7 @@ dependencies {
     providedCompile 'jakarta.servlet.jsp.jstl:jakarta.servlet.jsp.jstl-api:3.0.0'
     providedCompile 'jakarta.validation:jakarta.validation-api:3.0.2'
     providedCompile 'jakarta.xml.bind:jakarta.xml.bind-api:4.0.1'
+    implementation 'jakarta.ws.rs:jakarta.ws.rs-api:3.1.0'
 
     // ============================================================================
     // SOLR (HIGH Priority)
@@ -218,7 +234,12 @@ dependencies {
     implementation files(
         'home/WEB-INF/lib/cvu.jar',
         'home/WEB-INF/lib/jdbc-listener.jar',
-        'home/WEB-INF/lib/jdbc-tools.jar'
+        'home/WEB-INF/lib/jdbc-tools.jar',
+        'home/WEB-INF/lib/text-table-formatter-1.0.jar',
+        'home/WEB-INF/lib/rescu-2.1.0-eclipse-transformed.jar',
+        'home/WEB-INF/lib/restygwt-2.2.7-eclipse-transformed.jar',
+        'home/WEB-INF/lib/altcha-1.1.2.jar',
+        'home/WEB-INF/lib/AnalyticsReportingApp-1.0.2.jar'
     )
 
     // ============================================================================
@@ -349,6 +370,13 @@ dependencies {
     implementation 'org.apache.poi:poi-ooxml-schemas:4.1.2'
 
     // ============================================================================
+    // LOMBOK (Code Generation)
+    // ============================================================================
+
+    compileOnly 'org.projectlombok:lombok:1.18.20'
+    annotationProcessor 'org.projectlombok:lombok:1.18.20'
+
+    // ============================================================================
     // GUAVA & UTILITIES
     // ============================================================================
 
@@ -444,6 +472,11 @@ dependencies {
     // MISC UTILITIES
     // ============================================================================
 
+    implementation 'org.imgscalr:imgscalr-lib:4.2'
+    implementation 'org.jdom:jdom:1.1'
+    implementation 'org.eclipse.microprofile.openapi:microprofile-openapi-api:3.1.1'
+    implementation files('home/WEB-INF/lib/patricia-trie-0.2.jar')  // Not in Maven Central
+    implementation 'org.jooq:jool:0.9.15'
     implementation 'com.mchange:mchange-commons-java:0.2.15'
     implementation 'net.sf.json-lib:json-lib:2.4:jdk15'
     implementation 'org.json:json:20240303'
@@ -526,8 +559,9 @@ war {
     }
 
     // Compiled classes go into WEB-INF/classes
-    // Note: This will be empty since we don't have source in src/main/java
-    // We're including pre-compiled classes from home/WEB-INF/classes via the from() above
+    // Note: We use pre-compiled classes from home/WEB-INF/classes
+    // Source is in 'source/' directory (2,438 Java files + 1,654 resources)
+    // To compile from source: gradle compileJava (outputs to home/WEB-INF/classes)
     classpath = configurations.runtimeClasspath
 
     // Dependencies go into WEB-INF/lib
