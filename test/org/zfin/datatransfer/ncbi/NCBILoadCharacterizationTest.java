@@ -30,7 +30,7 @@ import static org.zfin.util.FileUtil.gunzipFile;
  */
 public class NCBILoadCharacterizationTest extends AbstractDangerousDatabaseTest {
 
-    public static final Boolean DELETE_ON_EXIT = true;
+    public static final Boolean DELETE_ON_EXIT = false;
 
     private Path tempDir;
     private NCBILoadIntegrationTestHelper helper;
