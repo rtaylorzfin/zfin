@@ -1,0 +1,248 @@
+Location,Filename,Version,GroupId:ArtifactId:Version (Maven Central),Purpose/Notes,Status,Priority
+home/WEB-INF/lib,agr_curation_api.jar,unknown,,,Custom - file dependency (AGR tool - not publicly available),HIGH
+home/WEB-INF/lib,altcha-1.1.2.jar,1.1.2,,,Needs research,MEDIUM
+home/WEB-INF/lib,AnalyticsReportingApp-1.0.2.jar,1.0.2,,,Custom - needs investigation,MEDIUM
+home/WEB-INF/lib,ant-1.8.1.jar,1.8.1,org.apache.ant:ant:1.8.1,Build tool,Available in Maven Central,LOW
+home/WEB-INF/lib,ant-antlr-1.6.5.jar,1.6.5,org.apache.ant:ant-antlr:1.6.5,Build tool ANTLR,Available in Maven Central,LOW
+home/WEB-INF/lib,antlr4-runtime-4.13.0.jar,4.13.0,org.antlr:antlr4-runtime:4.13.0,Parser runtime,Available in Maven Central,HIGH
+home/WEB-INF/lib,asm-5.0.3.jar,5.0.3,org.ow2.asm:asm:5.0.3,Bytecode manipulation,Available in Maven Central,MEDIUM
+home/WEB-INF/lib,asm-analysis-5.0.3.jar,5.0.3,org.ow2.asm:asm-analysis:5.0.3,Bytecode analysis,Available in Maven Central,MEDIUM
+home/WEB-INF/lib,asm-commons-5.0.3.jar,5.0.3,org.ow2.asm:asm-commons:5.0.3,Bytecode commons,Available in Maven Central,MEDIUM
+home/WEB-INF/lib,asm-tree-5.0.3.jar,5.0.3,org.ow2.asm:asm-tree:5.0.3,Bytecode tree,Available in Maven Central,MEDIUM
+home/WEB-INF/lib,asm-util-5.0.3.jar,5.0.3,org.ow2.asm:asm-util:5.0.3,Bytecode util,Available in Maven Central,MEDIUM
+home/WEB-INF/lib,asm-xml-5.0.3.jar,5.0.3,org.ow2.asm:asm-xml:5.0.3,Bytecode XML,Available in Maven Central,MEDIUM
+home/WEB-INF/lib,axiom-api-1.2.7.jar,1.2.7,org.apache.ws.commons.axiom:axiom-api:1.2.7,Web services,Available in Maven Central,LOW
+home/WEB-INF/lib,axiom-impl-1.2.7.jar,1.2.7,org.apache.ws.commons.axiom:axiom-impl:1.2.7,Web services impl,Available in Maven Central,LOW
+home/WEB-INF/lib,backport-util-concurrent-3.1.jar,3.1,backport-util-concurrent:backport-util-concurrent:3.1,Concurrency utils,Available in Maven Central,LOW
+home/WEB-INF/lib,bbop.jar,unknown,,,Custom - file dependency (bioinformatics tool - not publicly available),MEDIUM
+home/WEB-INF/lib,biojava.1.7.1.jar,1.7.1,org.biojava:biojava:1.7.1,Bioinformatics,Available in Maven Central,HIGH
+home/WEB-INF/lib,blast-serialization-1.0-eclipse-transformed.jar,1.0,,,Custom - eclipse transformed,HIGH
+home/WEB-INF/lib,byte-buddy-1.12.7.jar,1.12.7,net.bytebuddy:byte-buddy:1.12.7,Bytecode generation,Available in Maven Central,MEDIUM
+home/WEB-INF/lib,bytecode.jar,unknown,,,Custom - needs investigation,MEDIUM
+home/WEB-INF/lib,c3p0-0.9.5.5.jar,0.9.5.5,com.mchange:c3p0:0.9.5.5,Connection pooling,Available in Maven Central,HIGH
+home/WEB-INF/lib,castor-1.3-core.jar,1.3,org.codehaus.castor:castor-core:1.3,XML binding core,Available in Maven Central,MEDIUM
+home/WEB-INF/lib,castor-1.3-xml.jar,1.3,org.codehaus.castor:castor-xml:1.3,XML binding,Available in Maven Central,MEDIUM
+home/WEB-INF/lib,classmate-1.5.1.jar,1.5.1,com.fasterxml:classmate:1.5.1,Type introspection,Available in Maven Central,MEDIUM
+home/WEB-INF/lib,commons-beanutils-1.9.1.jar,1.9.1,commons-beanutils:commons-beanutils:1.9.1,Bean utilities,Available in Maven Central,HIGH
+home/WEB-INF/lib,commons-cli-1.4.jar,1.4,commons-cli:commons-cli:1.4,CLI parsing,Available in Maven Central,LOW
+home/WEB-INF/lib,commons-codec-1.6.jar,1.6,commons-codec:commons-codec:1.6,Encoding/decoding,Available in Maven Central,HIGH
+home/WEB-INF/lib,commons-collections-3.2.1.jar,3.2.1,commons-collections:commons-collections:3.2.1,Collections,Available in Maven Central,HIGH
+home/WEB-INF/lib,commons-collections4-4.4.jar,4.4,org.apache.commons:commons-collections4:4.4,Collections v4,Available in Maven Central,HIGH
+home/WEB-INF/lib,commons-configuration-1.6.jar,1.6,commons-configuration:commons-configuration:1.6,Configuration,Available in Maven Central,MEDIUM
+home/WEB-INF/lib,commons-configuration-ant-task-0.9.6.jar,0.9.6,,,Ant task - needs research,LOW
+home/WEB-INF/lib,commons-csv-1.11.0.jar,1.11.0,org.apache.commons:commons-csv:1.11.0,CSV parsing,Available in Maven Central,HIGH
+home/WEB-INF/lib,commons-digester-1.6.jar,1.6,commons-digester:commons-digester:1.6,XML rules,Available in Maven Central,LOW
+home/WEB-INF/lib,commons-discovery-0.2.jar,0.2,commons-discovery:commons-discovery:0.2,Service discovery,Available in Maven Central,LOW
+home/WEB-INF/lib,commons-exec-1.0.jar,1.0,org.apache.commons:commons-exec:1.0,Execute external,Available in Maven Central,MEDIUM
+home/WEB-INF/lib,commons-io-2.16.1.jar,2.16.1,commons-io:commons-io:2.16.1,IO utilities,Available in Maven Central,HIGH
+home/WEB-INF/lib,commons-lang-2.6.jar,2.6,commons-lang:commons-lang:2.6,Language utils,Available in Maven Central,HIGH
+home/WEB-INF/lib,commons-lang3-3.1.jar,3.1,org.apache.commons:commons-lang3:3.1,Language utils v3,Available in Maven Central,HIGH
+home/WEB-INF/lib,commons-net-1.4.1.jar,1.4.1,commons-net:commons-net:1.4.1,Network utils,Available in Maven Central,MEDIUM
+home/WEB-INF/lib,commons-text-1.11.0.jar,1.11.0,org.apache.commons:commons-text:1.11.0,Text utils,Available in Maven Central,HIGH
+home/WEB-INF/lib,commons-validator-1.1.4.jar,1.1.4,commons-validator:commons-validator:1.1.4,Validation,Available in Maven Central,MEDIUM
+home/WEB-INF/lib,cvu.jar,unknown,,,Custom - needs investigation,MEDIUM
+home/WEB-INF/lib,dom4j-2.1.3.jar,2.1.3,org.dom4j:dom4j:2.1.3,XML parsing,Available in Maven Central,HIGH
+home/WEB-INF/lib,FastInfoset-1.2.15.jar,1.2.15,com.sun.xml.fastinfoset:FastInfoset:1.2.15,Binary XML,Available in Maven Central,LOW
+home/WEB-INF/lib,freemarker-2.3.20.jar,2.3.20,org.freemarker:freemarker:2.3.20,Template engine,Available in Maven Central,MEDIUM
+home/WEB-INF/lib,geronimo-validation_1.0_spec-1.0-CR5.jar,1.0-CR5,org.apache.geronimo.specs:geronimo-validation_1.0_spec:1.0-CR5,Validation spec,Available in Maven Central,MEDIUM
+home/WEB-INF/lib,gmbal-api-only-3.2.0-b003.jar,3.2.0-b003,org.glassfish.gmbal:gmbal-api-only:3.2.0-b003,Management,Available in Maven Central,LOW
+home/WEB-INF/lib,groovycsv-1.0.jar,1.0,com.xlson.groovycsv:groovycsv:1.0,Groovy CSV,Available in Maven Central,MEDIUM
+home/WEB-INF/lib,gson-2.2.4.jar,2.2.4,com.google.code.gson:gson:2.2.4,JSON,Available in Maven Central,HIGH
+home/WEB-INF/lib,guava-27.1-jre.jar,27.1-jre,com.google.guava:guava:27.1-jre,Google utilities,Available in Maven Central,HIGH
+home/WEB-INF/lib,gwt-servlet-jakarta-2.11.0.jar,2.11.0,org.gwtproject:gwt-servlet:2.11.0,GWT servlet,Available in Maven Central,MEDIUM
+home/WEB-INF/lib,hibernate-c3p0-6.4.4.Final.jar,6.4.4.Final,org.hibernate:hibernate-c3p0:6.4.4.Final,Hibernate C3P0,Available in Maven Central,HIGH
+home/WEB-INF/lib,hibernate-commons-annotations-6.0.6.Final.jar,6.0.6.Final,org.hibernate.common:hibernate-commons-annotations:6.0.6.Final,Hibernate annotations,Available in Maven Central,HIGH
+home/WEB-INF/lib,hibernate-core-6.4.4.Final.jar,6.4.4.Final,org.hibernate.orm:hibernate-core:6.4.4.Final,Hibernate ORM,Available in Maven Central,HIGH
+home/WEB-INF/lib,hibernate-search-engine-6.1.1.Final.jar,6.1.1.Final,org.hibernate.search:hibernate-search-engine:6.1.1.Final,Hibernate search,Available in Maven Central,HIGH
+home/WEB-INF/lib,hibernate-search-mapper-pojo-base-6.1.1.Final.jar,6.1.1.Final,org.hibernate.search:hibernate-search-mapper-pojo-base:6.1.1.Final,Hibernate search mapper,Available in Maven Central,HIGH
+home/WEB-INF/lib,hibernate-validator-8.0.1.Final.jar,8.0.1.Final,org.hibernate.validator:hibernate-validator:8.0.1.Final,Bean validation,Available in Maven Central,HIGH
+home/WEB-INF/lib,highlighter.jar,unknown,,,Custom - needs investigation,LOW
+home/WEB-INF/lib,httpclient-4.5.10.jar,4.5.10,org.apache.httpcomponents:httpclient:4.5.10,HTTP client,Available in Maven Central,HIGH
+home/WEB-INF/lib,httpcore-4.4.13.jar,4.4.13,org.apache.httpcomponents:httpcore:4.4.13,HTTP core,Available in Maven Central,HIGH
+home/WEB-INF/lib,httpmime-4.4.1.jar,4.4.1,org.apache.httpcomponents:httpmime:4.4.1,HTTP MIME,Available in Maven Central,MEDIUM
+home/WEB-INF/lib,imgscalr-lib-4.2.jar,4.2,org.imgscalr:imgscalr-lib:4.2,Image scaling,Available in Maven Central,MEDIUM
+home/WEB-INF/lib,istack-commons-runtime-3.0.7.jar,3.0.7,com.sun.istack:istack-commons-runtime:3.0.7,iStack runtime,Available in Maven Central,MEDIUM
+home/WEB-INF/lib,jackson-annotations-2.15.2.jar,2.15.2,com.fasterxml.jackson.core:jackson-annotations:2.15.2,Jackson annotations,Available in Maven Central,HIGH
+home/WEB-INF/lib,jackson-core-2.15.2.jar,2.15.2,com.fasterxml.jackson.core:jackson-core:2.15.2,Jackson core,Available in Maven Central,HIGH
+home/WEB-INF/lib,jackson-databind-2.15.2.jar,2.15.2,com.fasterxml.jackson.core:jackson-databind:2.15.2,Jackson databind,Available in Maven Central,HIGH
+home/WEB-INF/lib,jackson-datatype-jsr310-2.15.2.jar,2.15.2,com.fasterxml.jackson.datatype:jackson-datatype-jsr310:2.15.2,Jackson JSR310,Available in Maven Central,HIGH
+home/WEB-INF/lib,jakarta.activation-2.0.1.jar,2.0.1,com.sun.activation:jakarta.activation:2.0.1,Jakarta activation,Available in Maven Central,HIGH
+home/WEB-INF/lib,jakarta.annotation-api-2.0.0.jar,2.0.0,jakarta.annotation:jakarta.annotation-api:2.0.0,Jakarta annotations,Available in Maven Central,HIGH
+home/WEB-INF/lib,jakarta.mail-2.0.1.jar,2.0.1,com.sun.mail:jakarta.mail:2.0.1,Jakarta mail,Available in Maven Central,MEDIUM
+home/WEB-INF/lib,jakarta.persistence-api-3.1.0.jar,3.1.0,jakarta.persistence:jakarta.persistence-api:3.1.0,JPA API,Available in Maven Central,HIGH
+home/WEB-INF/lib,jakarta.servlet.jsp.jstl-api-1.2.7-eclipse-transformed.jar,1.2.7,,,JSTL - eclipse transformed,HIGH
+home/WEB-INF/lib,jakarta.transaction-api-2.0.0.jar,2.0.0,jakarta.transaction:jakarta.transaction-api:2.0.0,JTA API,Available in Maven Central,HIGH
+home/WEB-INF/lib,jakarta.validation-api-3.0.2.jar,3.0.2,jakarta.validation:jakarta.validation-api:3.0.2,Validation API,Available in Maven Central,HIGH
+home/WEB-INF/lib,jakarta.ws.rs-api-3.1.0.jar,3.1.0,jakarta.ws.rs:jakarta.ws.rs-api:3.1.0,JAX-RS API,Available in Maven Central,HIGH
+home/WEB-INF/lib,jakarta.xml.bind-api-3.0.1.jar,3.0.1,jakarta.xml.bind:jakarta.xml.bind-api:3.0.1,JAXB API,Available in Maven Central,HIGH
+home/WEB-INF/lib,jandex-2.4.2.Final.jar,2.4.2.Final,org.jboss:jandex:2.4.2.Final,Indexing,Available in Maven Central,MEDIUM
+home/WEB-INF/lib,javassist-3.24.1-GA.jar,3.24.1-GA,org.javassist:javassist:3.24.1-GA,Bytecode editing,Available in Maven Central,HIGH
+home/WEB-INF/lib,javax.xml.soap-api-1.4.0.jar,1.4.0,javax.xml.soap:javax.xml.soap-api:1.4.0,SOAP API (javax),Available in Maven Central,MEDIUM
+home/WEB-INF/lib,jaxb-core-4.0.3.jar,4.0.3,org.glassfish.jaxb:jaxb-core:4.0.3,JAXB core,Available in Maven Central,HIGH
+home/WEB-INF/lib,jaxb-libs.jar,unknown,,,Custom - needs investigation,MEDIUM
+home/WEB-INF/lib,jaxb-runtime-4.0.3.jar,4.0.3,org.glassfish.jaxb:jaxb-runtime:4.0.3,JAXB runtime,Available in Maven Central,HIGH
+home/WEB-INF/lib,jaxen-1.1.1.jar,1.1.1,jaxen:jaxen:1.1.1,XPath engine,Available in Maven Central,MEDIUM
+home/WEB-INF/lib,jaxws-api-2.2.jar,2.2,javax.xml.ws:jaxws-api:2.2,JAX-WS API,Available in Maven Central,MEDIUM
+home/WEB-INF/lib,jboss-logging-3.4.3.Final.jar,3.4.3.Final,org.jboss.logging:jboss-logging:3.4.3.Final,JBoss logging,Available in Maven Central,HIGH
+home/WEB-INF/lib,jboss-logging-annotations-1.2.0.Beta1.jar,1.2.0.Beta1,org.jboss.logging:jboss-logging-annotations:1.2.0.Beta1,JBoss logging annotations,Available in Maven Central,MEDIUM
+home/WEB-INF/lib,jboss-transaction-api_1.2_spec-1.1.1.Final.jar,1.1.1.Final,org.jboss.spec.javax.transaction:jboss-transaction-api_1.2_spec:1.1.1.Final,JTA spec,Available in Maven Central,HIGH
+home/WEB-INF/lib,jcl-over-slf4j-1.7.26.jar,1.7.26,org.slf4j:jcl-over-slf4j:1.7.26,JCL to SLF4J,Available in Maven Central,HIGH
+home/WEB-INF/lib,jdbc-listener.jar,unknown,,,Custom - needs investigation,MEDIUM
+home/WEB-INF/lib,jdbc-tools.jar,unknown,,,Custom - needs investigation,MEDIUM
+home/WEB-INF/lib,jdom-1.1.jar,1.1,org.jdom:jdom:1.1,XML DOM,Available in Maven Central,MEDIUM
+home/WEB-INF/lib,json-20210307.jar,20210307,org.json:json:20210307,JSON,Available in Maven Central,HIGH
+home/WEB-INF/lib,json-smart-1.1.1.jar,1.1.1,net.minidev:json-smart:1.1.1,JSON smart,Available in Maven Central,MEDIUM
+home/WEB-INF/lib,jsonevent-layout-1.0.jar,1.0,,,Custom - needs investigation,LOW
+home/WEB-INF/lib,jsr181-api-1.0-MR1.jar,1.0-MR1,javax.jws:jsr181-api:1.0-MR1,Web Services,Available in Maven Central,LOW
+home/WEB-INF/lib,jta-1.1.jar,1.1,javax.transaction:jta:1.1,JTA,Available in Maven Central,MEDIUM
+home/WEB-INF/lib,junit-4.11.jar,4.11,junit:junit:4.11,Testing,Available in Maven Central,HIGH
+home/WEB-INF/lib,log4j-1.2.15.jar,1.2.15,log4j:log4j:1.2.15,Logging (old),Available in Maven Central,HIGH
+home/WEB-INF/lib,log4j-api-2.17.1.jar,2.17.1,org.apache.logging.log4j:log4j-api:2.17.1,Log4j API,Available in Maven Central,HIGH
+home/WEB-INF/lib,log4j-core-2.17.1.jar,2.17.1,org.apache.logging.log4j:log4j-core:2.17.1,Log4j core,Available in Maven Central,HIGH
+home/WEB-INF/lib,log4j-jakarta-web-2.17.1.jar,2.17.1,org.apache.logging.log4j:log4j-jakarta-web:2.17.1,Log4j Jakarta web,Available in Maven Central,HIGH
+home/WEB-INF/lib,log4j-slf4j-impl-2.13.3.jar,2.13.3,org.apache.logging.log4j:log4j-slf4j-impl:2.13.3,Log4j SLF4J,Available in Maven Central,HIGH
+home/WEB-INF/lib,lombok-1.18.20.jar,1.18.20,org.projectlombok:lombok:1.18.20,Code generation,Available in Maven Central,HIGH
+home/WEB-INF/lib,lucene-core-2.3.1.jar,2.3.1,org.apache.lucene:lucene-core:2.3.1,Search,Available in Maven Central,MEDIUM
+home/WEB-INF/lib,mchange-commons-java-0.2.15.jar,0.2.15,com.mchange:mchange-commons-java:0.2.15,C3P0 commons,Available in Maven Central,MEDIUM
+home/WEB-INF/lib,micrometer-commons-1.12.1.jar,1.12.1,io.micrometer:micrometer-commons:1.12.1,Metrics commons,Available in Maven Central,MEDIUM
+home/WEB-INF/lib,micrometer-observation-1.12.1.jar,1.12.1,io.micrometer:micrometer-observation:1.12.1,Metrics observation,Available in Maven Central,MEDIUM
+home/WEB-INF/lib,microprofile-openapi-api-3.1.1.jar,3.1.1,org.eclipse.microprofile.openapi:microprofile-openapi-api:3.1.1,OpenAPI,Available in Maven Central,LOW
+home/WEB-INF/lib,neethi-2.0.4.jar,2.0.4,org.apache.neethi:neethi:2.0.4,WS Policy,Available in Maven Central,LOW
+home/WEB-INF/lib,noggit-0.7.jar,0.7,org.noggit:noggit:0.7,JSON streaming,Available in Maven Central,MEDIUM
+home/WEB-INF/lib,obo.jar,unknown,,,Custom - file dependency (ontology tool - not publicly available),HIGH
+home/WEB-INF/lib,oro-2.0.8.jar,2.0.8,oro:oro:2.0.8,Regex,Available in Maven Central,LOW
+home/WEB-INF/lib,owasp-java-html-sanitizer-20200713.1.jar,20200713.1,com.googlecode.owasp-java-html-sanitizer:owasp-java-html-sanitizer:20200713.1,XSS protection,Available in Maven Central,HIGH
+home/WEB-INF/lib,patricia-trie-0.2.jar,0.2,org.ardverk:patricia-trie:0.2,Trie data structure,Available in Maven Central,LOW
+home/WEB-INF/lib,policy-2.3.1.jar,2.3.1,com.sun.xml.ws:policy:2.3.1,WS Policy,Available in Maven Central,LOW
+home/WEB-INF/lib,reactive-streams-1.0.4.jar,1.0.4,org.reactivestreams:reactive-streams:1.0.4,Reactive streams,Available in Maven Central,MEDIUM
+home/WEB-INF/lib,reactor-core-3.6.1.jar,3.6.1,io.projectreactor:reactor-core:3.6.1,Reactive core,Available in Maven Central,MEDIUM
+home/WEB-INF/lib,relaxngDatatype.jar,unknown,,,Needs research,LOW
+home/WEB-INF/lib,rescu-2.1.0-eclipse-transformed.jar,2.1.0,,,Custom - eclipse transformed,MEDIUM
+home/WEB-INF/lib,restygwt-2.2.7-eclipse-transformed.jar,2.2.7,,,Custom - eclipse transformed,MEDIUM
+home/WEB-INF/lib,serializer-2.7.1.jar,2.7.1,xalan:serializer:2.7.1,XML serializer,Available in Maven Central,LOW
+home/WEB-INF/lib,signpost-core-1.2.1.2.jar,1.2.1.2,oauth.signpost:signpost-core:1.2.1.2,OAuth,Available in Maven Central,MEDIUM
+home/WEB-INF/lib,site-search-serialization-1.0.jar,1.0,,,Custom - needs investigation,MEDIUM
+home/WEB-INF/lib,slf4j-api-1.7.26.jar,1.7.26,org.slf4j:slf4j-api:1.7.26,Logging facade,Available in Maven Central,HIGH
+home/WEB-INF/lib,solr-solrj-8.11.3.jar,8.11.3,org.apache.solr:solr-solrj:8.11.3,Solr client,Available in Maven Central,HIGH
+home/WEB-INF/lib,spring-aop-6.1.1.jar,6.1.1,org.springframework:spring-aop:6.1.1,Spring AOP,Available in Maven Central,HIGH
+home/WEB-INF/lib,spring-aspects-6.1.1.jar,6.1.1,org.springframework:spring-aspects:6.1.1,Spring aspects,Available in Maven Central,HIGH
+home/WEB-INF/lib,spring-beans-6.1.1.jar,6.1.1,org.springframework:spring-beans:6.1.1,Spring beans,Available in Maven Central,HIGH
+home/WEB-INF/lib,spring-context-6.1.1.jar,6.1.1,org.springframework:spring-context:6.1.1,Spring context,Available in Maven Central,HIGH
+home/WEB-INF/lib,spring-context-support-6.1.1.jar,6.1.1,org.springframework:spring-context-support:6.1.1,Spring context support,Available in Maven Central,HIGH
+home/WEB-INF/lib,spring-core-6.1.1.jar,6.1.1,org.springframework:spring-core:6.1.1,Spring core,Available in Maven Central,HIGH
+home/WEB-INF/lib,spring-expression-6.1.1.jar,6.1.1,org.springframework:spring-expression:6.1.1,Spring expression,Available in Maven Central,HIGH
+home/WEB-INF/lib,spring-integration-core-6.2.1.jar,6.2.1,org.springframework.integration:spring-integration-core:6.2.1,Spring integration,Available in Maven Central,HIGH
+home/WEB-INF/lib,spring-jcl-6.1.1.jar,6.1.1,org.springframework:spring-jcl:6.1.1,Spring JCL,Available in Maven Central,HIGH
+home/WEB-INF/lib,spring-messaging-6.1.1.jar,6.1.1,org.springframework:spring-messaging:6.1.1,Spring messaging,Available in Maven Central,HIGH
+home/WEB-INF/lib,spring-orm-6.1.1.jar,6.1.1,org.springframework:spring-orm:6.1.1,Spring ORM,Available in Maven Central,HIGH
+home/WEB-INF/lib,spring-oxm-6.1.1.jar,6.1.1,org.springframework:spring-oxm:6.1.1,Spring OXM,Available in Maven Central,MEDIUM
+home/WEB-INF/lib,spring-retry-2.0.5.jar,2.0.5,org.springframework.retry:spring-retry:2.0.5,Spring retry,Available in Maven Central,MEDIUM
+home/WEB-INF/lib,spring-security-config-6.1.1.jar,6.1.1,org.springframework.security:spring-security-config:6.1.1,Spring security config,Available in Maven Central,HIGH
+home/WEB-INF/lib,spring-security-core-6.1.1.jar,6.1.1,org.springframework.security:spring-security-core:6.1.1,Spring security core,Available in Maven Central,HIGH
+home/WEB-INF/lib,spring-security-crypto-6.1.1.jar,6.1.1,org.springframework.security:spring-security-crypto:6.1.1,Spring security crypto,Available in Maven Central,HIGH
+home/WEB-INF/lib,spring-security-ldap-6.1.1.jar,6.1.1,org.springframework.security:spring-security-ldap:6.1.1,Spring security LDAP,Available in Maven Central,MEDIUM
+home/WEB-INF/lib,spring-security-taglibs-6.1.8.jar,6.1.8,org.springframework.security:spring-security-taglibs:6.1.8,Spring security taglibs,Available in Maven Central,HIGH
+home/WEB-INF/lib,spring-security-web-6.1.1.jar,6.1.1,org.springframework.security:spring-security-web:6.1.1,Spring security web,Available in Maven Central,HIGH
+home/WEB-INF/lib,spring-tx-6.1.1.jar,6.1.1,org.springframework:spring-tx:6.1.1,Spring transactions,Available in Maven Central,HIGH
+home/WEB-INF/lib,spring-web-6.1.1.jar,6.1.1,org.springframework:spring-web:6.1.1,Spring web,Available in Maven Central,HIGH
+home/WEB-INF/lib,spring-webmvc-6.1.1.jar,6.1.1,org.springframework:spring-webmvc:6.1.1,Spring MVC,Available in Maven Central,HIGH
+home/WEB-INF/lib,spring-ws-core-4.0.10.jar,4.0.10,org.springframework.ws:spring-ws-core:4.0.10,Spring web services,Available in Maven Central,MEDIUM
+home/WEB-INF/lib,spring-xml-2.0.0-RC2.jar,2.0.0-RC2,org.springframework.ws:spring-xml:2.0.0-RC2,Spring XML,Available in Maven Central,MEDIUM
+home/WEB-INF/lib,stax-ex-1.8.jar,1.8,org.jvnet.staxex:stax-ex:1.8,StAX extensions,Available in Maven Central,MEDIUM
+home/WEB-INF/lib,stax2-api-3.1.4.jar,3.1.4,org.codehaus.woodstox:stax2-api:3.1.4,StAX 2 API,Available in Maven Central,MEDIUM
+home/WEB-INF/lib,streambuffer-1.5.6.jar,1.5.6,com.sun.xml.stream.buffer:streambuffer:1.5.6,Stream buffer,Available in Maven Central,LOW
+home/WEB-INF/lib,taglibs-standard-impl-1.2.5-eclipse-transformed.jar,1.2.5,,,JSTL impl - eclipse transformed,HIGH
+home/WEB-INF/lib,text-table-formatter-1.0.jar,1.0,,,Custom - needs investigation,LOW
+home/WEB-INF/lib,txw2-2.3.1.jar,2.3.1,com.sun.xml.txw2:txw2:2.3.1,Tree writer,Available in Maven Central,LOW
+home/WEB-INF/lib,txw2-4.0.3.jar,4.0.3,org.glassfish.jaxb:txw2:4.0.3,Tree writer v4,Available in Maven Central,LOW
+home/WEB-INF/lib,validation-api-1.0.0.GA.jar,1.0.0.GA,javax.validation:validation-api:1.0.0.GA,Bean validation,Available in Maven Central,MEDIUM
+home/WEB-INF/lib,woodstox-core-asl-4.4.1.jar,4.4.1,org.codehaus.woodstox:woodstox-core-asl:4.4.1,XML parser,Available in Maven Central,MEDIUM
+home/WEB-INF/lib,wsdl4j-1.6.2.jar,1.6.2,wsdl4j:wsdl4j:1.6.2,WSDL,Available in Maven Central,LOW
+home/WEB-INF/lib,wstx-asl-3.2.7.jar,3.2.7,org.codehaus.woodstox:wstx-asl:3.2.7,Woodstox,Available in Maven Central,MEDIUM
+home/WEB-INF/lib,xmlbeans-2.4.0.jar,2.4.0,org.apache.xmlbeans:xmlbeans:2.4.0,XML beans,Available in Maven Central,MEDIUM
+home/WEB-INF/lib,XmlSchema-1.4.2.jar,1.4.2,org.apache.ws.commons.schema:XmlSchema:1.4.2,XML schema,Available in Maven Central,LOW
+home/WEB-INF/lib,xsdlib.jar,unknown,,,Needs research,LOW
+home/WEB-INF/lib,zookeeper-3.4.6.jar,3.4.6,org.apache.zookeeper:zookeeper:3.4.6,Distributed coordination,Available in Maven Central,MEDIUM
+lib/Java,Acme.jar,unknown,,,Custom - needs investigation,LOW
+lib/Java,ant-contrib-0.3.jar,0.3,ant-contrib:ant-contrib:0.3,Ant contrib,Available in Maven Central,LOW
+lib/Java,ant-junit.jar,unknown,org.apache.ant:ant-junit:(version),Ant JUnit,Needs version,LOW
+lib/Java,ant-junit4.jar,unknown,,,Needs research,LOW
+lib/Java,ant-optional-1.5.3-1.jar,1.5.3-1,,,Ant optional - old,LOW
+lib/Java,cobertura.jar,unknown,,,Code coverage - needs version,LOW
+lib/Java,commons-lang3-3.12.0.jar,3.12.0,org.apache.commons:commons-lang3:3.12.0,Language utils v3,Available in Maven Central,HIGH
+lib/Java,commons-math-1.2.jar,1.2,commons-math:commons-math:1.2,Math utilities,Available in Maven Central,LOW
+lib/Java,geb-core-6.0.jar,6.0,org.gebish:geb-core:6.0,Browser automation,Available in Maven Central,MEDIUM
+lib/Java,geb-exceptions-6.0.jar,6.0,org.gebish:geb-exceptions:6.0,Geb exceptions,Available in Maven Central,MEDIUM
+lib/Java,geb-spock-6.0.jar,6.0,org.gebish:geb-spock:6.0,Geb Spock,Available in Maven Central,MEDIUM
+lib/Java,geb-waiting-6.0.jar,6.0,org.gebish:geb-waiting:6.0,Geb waiting,Available in Maven Central,MEDIUM
+lib/Java,grand-1.8.jar,1.8,net.ggtools.grand:grand:1.8,Dependency graphing,Available in Maven Central,LOW
+lib/Java,groovycsv-1.0.jar,1.0,com.xlson.groovycsv:groovycsv:1.0,Groovy CSV (duplicate),Available in Maven Central,LOW
+lib/Java/gwt,gwt-api-checker-eclipse-transformed.jar,unknown,,,GWT - eclipse transformed,MEDIUM
+lib/Java/gwt,gwt-dev-eclipse-transformed.jar,unknown,,,GWT dev - eclipse transformed,MEDIUM
+lib/Java/gwt,gwt-jackson-0.15.0-eclipse-transformed.jar,0.15.0,,,GWT Jackson - eclipse transformed,MEDIUM
+lib/Java/gwt,gwt-user-2.11.0.jar,2.11.0,com.google.gwt:gwt-user:2.11.0,GWT user,Available in Maven Central,MEDIUM
+lib/Java/gwt,jackson-annotations-2.8.2-sources-eclipse-transformed.jar,2.8.2,,,Jackson sources - eclipse transformed,LOW
+lib/Java/gwt,jsinterop-annotations-2.0.0-eclipse-transformed.jar,2.0.0,,,jsinterop - eclipse transformed,MEDIUM
+lib/Java/gwt,validation-api-1.0.0.GA-sources.jar,1.0.0.GA,,,Validation sources,LOW
+lib/Java/gwt,validation-api-1.0.0.GA.jar,1.0.0.GA,javax.validation:validation-api:1.0.0.GA,Bean validation (duplicate),Available in Maven Central,LOW
+lib/Java,hamcrest-all-1.3.jar,1.3,org.hamcrest:hamcrest-all:1.3,Testing matchers,Available in Maven Central,MEDIUM
+lib/Java,hibernate-search-engine-6.1.0.Final.jar,6.1.0.Final,org.hibernate.search:hibernate-search-engine:6.1.0.Final,Hibernate search (older),Available in Maven Central,MEDIUM
+lib/Java,hibernate-search-mapper-pojo-base-6.1.0.Final.jar,6.1.0.Final,org.hibernate.search:hibernate-search-mapper-pojo-base:6.1.0.Final,Hibernate search mapper (older),Available in Maven Central,MEDIUM
+lib/Java,htsjdk-4.3.0.jar,4.3.0,com.github.samtools:htsjdk:4.3.0,Genomics - HTS,Available in Maven Central,HIGH
+lib/Java,jakarta-oro-2.0.8.jar,2.0.8,oro:oro:2.0.8,Regex (duplicate),Available in Maven Central,LOW
+lib/Java,jakarta.servlet.jsp-api-3.1.1.jar,3.1.1,jakarta.servlet.jsp:jakarta.servlet.jsp-api:3.1.1,JSP API,Available in Maven Central,HIGH
+lib/Java,jakarta.servlet.jsp.jstl-api-3.0.0.jar,3.0.0,jakarta.servlet.jsp.jstl:jakarta.servlet.jsp.jstl-api:3.0.0,JSTL API,Available in Maven Central,HIGH
+lib/Java,jaxb-xjc.jar,unknown,,,JAXB compiler - needs version,MEDIUM
+lib/Java,jhall.jar,unknown,,,Java Help - needs research,LOW
+lib/Java,jool-0.9.15.jar,0.9.15,org.jooq:jool:0.9.15,Functional utils,Available in Maven Central,LOW
+lib/Java,jung-1.7.4.jar,1.7.4,net.sf.jung:jung:1.7.4,Graph visualization,Available in Maven Central,LOW
+lib/Java,junit-orderOfExecution.jar,unknown,,,Custom JUnit - needs investigation,MEDIUM
+lib/Java/jwebunit,commons-codec-1.7.jar,1.7,commons-codec:commons-codec:1.7,Encoding (test),Available in Maven Central,LOW
+lib/Java/jwebunit,commons-collections-3.2.1.jar,3.2.1,commons-collections:commons-collections:3.2.1,Collections (test - duplicate),Available in Maven Central,LOW
+lib/Java/jwebunit,commons-io-2.4.jar,2.4,commons-io:commons-io:2.4,IO (test),Available in Maven Central,LOW
+lib/Java/jwebunit,commons-lang3-3.1.jar,3.1,org.apache.commons:commons-lang3:3.1,Lang (test - duplicate),Available in Maven Central,LOW
+lib/Java/jwebunit,cssparser-0.9.9.jar,0.9.9,net.sourceforge.cssparser:cssparser:0.9.9,CSS parser,Available in Maven Central,LOW
+lib/Java/jwebunit,dec-0.1.2.jar,0.1.2,,,Needs research,LOW
+lib/Java/jwebunit,htmlunit-2.62.0.jar,2.62.0,net.sourceforge.htmlunit:htmlunit:2.62.0,HTML unit testing,Available in Maven Central,MEDIUM
+lib/Java/jwebunit,htmlunit-core-js-2.62.0.jar,2.62.0,net.sourceforge.htmlunit:htmlunit-core-js:2.62.0,HTML unit JS,Available in Maven Central,MEDIUM
+lib/Java/jwebunit,htmlunit-cssparser-1.12.0.jar,1.12.0,net.sourceforge.htmlunit:htmlunit-cssparser:1.12.0,HTML unit CSS,Available in Maven Central,MEDIUM
+lib/Java/jwebunit,httpclient-4.5.4.jar,4.5.4,org.apache.httpcomponents:httpclient:4.5.4,HTTP client (test),Available in Maven Central,LOW
+lib/Java/jwebunit,httpcore-4.4.13.jar,4.4.13,org.apache.httpcomponents:httpcore:4.4.13,HTTP core (test - duplicate),Available in Maven Central,LOW
+lib/Java/jwebunit,httpmime-4.2.3.jar,4.2.3,org.apache.httpcomponents:httpmime:4.2.3,HTTP MIME (test),Available in Maven Central,LOW
+lib/Java/jwebunit,jetty-http-8.1.9.v20130131.jar,8.1.9.v20130131,org.eclipse.jetty:jetty-http:8.1.9.v20130131,Jetty HTTP,Available in Maven Central,LOW
+lib/Java/jwebunit,jetty-io-8.1.9.v20130131.jar,8.1.9.v20130131,org.eclipse.jetty:jetty-io:8.1.9.v20130131,Jetty IO,Available in Maven Central,LOW
+lib/Java/jwebunit,jetty-util-8.1.9.v20130131.jar,8.1.9.v20130131,org.eclipse.jetty:jetty-util:8.1.9.v20130131,Jetty util,Available in Maven Central,LOW
+lib/Java/jwebunit,jetty-websocket-8.1.9.v20130131.jar,8.1.9.v20130131,org.eclipse.jetty:jetty-websocket:8.1.9.v20130131,Jetty WebSocket,Available in Maven Central,LOW
+lib/Java/jwebunit,jwebunit-core-2.4.jar,2.4,net.sourceforge.jwebunit:jwebunit-core:2.4,Web unit core,Available in Maven Central,MEDIUM
+lib/Java/jwebunit,jwebunit-htmlunit-plugin-2.4.jar,2.4,net.sourceforge.jwebunit:jwebunit-htmlunit-plugin:2.4,Web unit plugin,Available in Maven Central,MEDIUM
+lib/Java/jwebunit,neko-htmlunit-2.62.0.jar,2.62.0,net.sourceforge.htmlunit:neko-htmlunit:2.62.0,Neko HTML,Available in Maven Central,MEDIUM
+lib/Java/jwebunit,nekohtml-1.9.22.jar,1.9.22,net.sourceforge.nekohtml:nekohtml:1.9.22,Neko HTML,Available in Maven Central,LOW
+lib/Java/jwebunit,sac-1.3.jar,1.3,org.w3c.css:sac:1.3,CSS SAC,Available in Maven Central,LOW
+lib/Java/jwebunit,serializer-2.7.1.jar,2.7.1,xalan:serializer:2.7.1,XML serializer (duplicate),Available in Maven Central,LOW
+lib/Java/jwebunit,xalan-2.7.1.jar,2.7.1,xalan:xalan:2.7.1,XSLT processor,Available in Maven Central,LOW
+lib/Java/jwebunit,xercesImpl-2.10.0.jar,2.10.0,xerces:xercesImpl:2.10.0,Xerces parser,Available in Maven Central,LOW
+lib/Java/jwebunit,xercesImpl-2.9.1.jar,2.9.1,xerces:xercesImpl:2.9.1,Xerces parser (older),Available in Maven Central,LOW
+lib/Java/jwebunit,xml-apis-1.4.01.jar,1.4.01,xml-apis:xml-apis:1.4.01,XML APIs,Available in Maven Central,LOW
+lib/Java,liquibase.jar,unknown,,,DB migration - needs version,HIGH
+lib/Java/ontologies,robot.jar,unknown,,,Custom - file dependency (ROBOT ontology tool - not publicly available),HIGH
+lib/Java,opencsv-2.1.jar,2.1,net.sf.opencsv:opencsv:2.1,CSV,Available in Maven Central,MEDIUM
+lib/Java,poi-5.2.5.jar,5.2.5,org.apache.poi:poi:5.2.5,Excel POI,Available in Maven Central,MEDIUM
+lib/Java,poi-ooxml-5.2.5.jar,5.2.5,org.apache.poi:poi-ooxml:5.2.5,Excel OOXML,Available in Maven Central,MEDIUM
+lib/Java,poi-ooxml-lite-5.2.5.jar,5.2.5,org.apache.poi:poi-ooxml-lite:5.2.5,Excel OOXML lite,Available in Maven Central,MEDIUM
+lib/Java,postgresql-42.2.18.jar,42.2.18,org.postgresql:postgresql:42.2.18,PostgreSQL JDBC,Available in Maven Central,HIGH
+lib/Java,schemaSpy_5.0.0.jar,5.0.0,net.sourceforge.schemaspy:schemaspy:5.0.0,DB schema doc,Available in Maven Central,LOW
+lib/Java,selenium-api-2.35.0.jar,2.35.0,org.seleniumhq.selenium:selenium-api:2.35.0,Selenium API,Available in Maven Central,MEDIUM
+lib/Java,selenium-htmlunit-driver-2.35.0.jar,2.35.0,org.seleniumhq.selenium:selenium-htmlunit-driver:2.35.0,Selenium HTMLUnit,Available in Maven Central,MEDIUM
+lib/Java,selenium-remote-driver-2.35.0.jar,2.35.0,org.seleniumhq.selenium:selenium-remote-driver:2.35.0,Selenium remote,Available in Maven Central,MEDIUM
+lib/Java,selenium-support-2.35.0.jar,2.35.0,org.seleniumhq.selenium:selenium-support:2.35.0,Selenium support,Available in Maven Central,MEDIUM
+lib/Java,serialver.jar,unknown,,,Needs research,LOW
+lib/Java,snakeyaml-1.12.jar,1.12,org.yaml:snakeyaml:1.12,YAML parser,Available in Maven Central,MEDIUM
+lib/Java,spock-core-2.3-groovy-3.0.jar,2.3-groovy-3.0,org.spockframework:spock-core:2.3-groovy-3.0,Spock testing,Available in Maven Central,HIGH
+lib/Java,spock-junit4-2.3-groovy-3.0.jar,2.3-groovy-3.0,org.spockframework:spock-junit4:2.3-groovy-3.0,Spock JUnit4,Available in Maven Central,HIGH
+lib/Java,spock-spring-2.3-groovy-3.0.jar,2.3-groovy-3.0,org.spockframework:spock-spring:2.3-groovy-3.0,Spock Spring,Available in Maven Central,HIGH
+lib/Java,spring-test-6.1.1.jar,6.1.1,org.springframework:spring-test:6.1.1,Spring test,Available in Maven Central,HIGH
+lib/Java,testInProgress-client-1.1.jar,1.1,,,Custom - needs investigation,LOW
+lib/Java,tomcat-jdbc.jar,unknown,,,Tomcat JDBC - needs version,HIGH
+lib/Java,tomcat-juli.jar,unknown,,,Tomcat logging - needs version,MEDIUM
+lib/Java/tomcat/bin,tomcat-juli-extra.jar,unknown,,,Tomcat logging extra - needs version,LOW
+lib/Java/tomcat/lib,tomcat-juli-adapters.jar,unknown,,,Tomcat logging adapters - needs version,LOW
