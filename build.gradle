@@ -27,7 +27,7 @@ ext {
     springSecurityVersion = '6.1.8'
     hibernateVersion = '6.4.4.Final'
     hibernateSearchVersion = '6.1.1.Final'
-    jacksonVersion = '2.17.2'
+    jacksonVersion = '2.18.2'  // Upgraded for Hibernate 6.4.4 compatibility
     slf4jVersion = '2.0.12'
     log4jVersion = '2.17.1'
 }
@@ -228,7 +228,7 @@ dependencies {
         'home/WEB-INF/lib/obo.jar'
     )
 
-    implementation files('lib/Java/ontologies/robot.jar')
+    implementation files('lib/Java/ontologies/robot-cleaned.jar')  // Cleaned to remove bundled Jackson
 
     // Eclipse-transformed (test if originals work, otherwise use these)
     implementation files(
@@ -543,6 +543,16 @@ configurations.all {
         force "org.apache.logging.log4j:log4j-core:${log4jVersion}"
         force "org.apache.logging.log4j:log4j-slf4j-impl:${log4jVersion}"
         force "org.apache.logging.log4j:log4j-web:${log4jVersion}"
+
+        // Jackson alignment - force all Jackson modules to same version
+        // CRITICAL: robot.jar bundles old Jackson 2.x classes - force our version to override them
+        force "com.fasterxml.jackson.core:jackson-core:${jacksonVersion}"
+        force "com.fasterxml.jackson.core:jackson-databind:${jacksonVersion}"
+        force "com.fasterxml.jackson.core:jackson-annotations:${jacksonVersion}"
+        force "com.fasterxml.jackson.datatype:jackson-datatype-jsr310:${jacksonVersion}"
+        force "com.fasterxml.jackson.dataformat:jackson-dataformat-xml:${jacksonVersion}"
+        force "com.fasterxml.jackson.dataformat:jackson-dataformat-yaml:${jacksonVersion}"
+        force "com.fasterxml.jackson.dataformat:jackson-dataformat-csv:${jacksonVersion}"
     }
 }
 
