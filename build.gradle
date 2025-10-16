@@ -27,7 +27,7 @@ ext {
     springSecurityVersion = '6.1.8'
     hibernateVersion = '6.4.4.Final'
     hibernateSearchVersion = '6.1.1.Final'
-    jacksonVersion = '2.15.2'
+    jacksonVersion = '2.17.2'
     slf4jVersion = '2.0.12'
     log4jVersion = '2.17.1'
 }
@@ -57,10 +57,15 @@ sourceSets {
     }
     test {
         java {
-            srcDirs = []  // No test sources configured yet
+            srcDirs = ['test']
+            // Exclude test suite files that use unavailable test runners
+            exclude '**/SolrUnitTests.java'
+            exclude '**/SmokeTestsReadWrite.java'
+            exclude '**/UnitTests.java'
         }
         resources {
-            srcDirs = []
+            srcDirs = ['test']
+            exclude '**/*.java'
         }
 
         compileClasspath += configurations.providedCompile
@@ -251,6 +256,14 @@ dependencies {
     testImplementation 'org.hamcrest:hamcrest:2.2'
     testImplementation 'org.mockito:mockito-core:5.0.0'
 
+    // Lombok for tests
+    testCompileOnly 'org.projectlombok:lombok:1.18.20'
+    testAnnotationProcessor 'org.projectlombok:lombok:1.18.20'
+
+    // JWebUnit for web testing
+    testImplementation 'net.sourceforge.jwebunit:jwebunit-core:3.3'
+    testImplementation 'net.sourceforge.jwebunit:jwebunit-htmlunit-plugin:3.3'
+
     // ============================================================================
     // ADDITIONAL SPRING FRAMEWORK MODULES
     // ============================================================================
@@ -430,10 +443,10 @@ dependencies {
     // HTMLUNIT (Headless Browser)
     // ============================================================================
 
-    testImplementation 'net.sourceforge.htmlunit:htmlunit:3.9.0'
-    testImplementation 'net.sourceforge.htmlunit:htmlunit-core-js:3.9.0'
-    testImplementation 'net.sourceforge.htmlunit:htmlunit-cssparser:3.9.0'
-    testImplementation 'net.sourceforge.htmlunit:neko-htmlunit:3.9.0'
+    testImplementation 'net.sourceforge.htmlunit:htmlunit:2.70.0'
+    testImplementation 'net.sourceforge.htmlunit:htmlunit-core-js:2.70.0'
+    testImplementation 'net.sourceforge.htmlunit:htmlunit-cssparser:1.14.0'
+    testImplementation 'net.sourceforge.htmlunit:neko-htmlunit:2.70.0'
 
     // ============================================================================
     // JETTY (Embedded Server - Test)
@@ -524,6 +537,12 @@ configurations.all {
         // Hibernate Search alignment
         force "org.hibernate.search:hibernate-search-engine:${hibernateSearchVersion}"
         force "org.hibernate.search:hibernate-search-mapper-pojo-base:${hibernateSearchVersion}"
+
+        // Log4j alignment - force all Log4j modules to same version
+        force "org.apache.logging.log4j:log4j-api:${log4jVersion}"
+        force "org.apache.logging.log4j:log4j-core:${log4jVersion}"
+        force "org.apache.logging.log4j:log4j-slf4j-impl:${log4jVersion}"
+        force "org.apache.logging.log4j:log4j-web:${log4jVersion}"
     }
 }
 
