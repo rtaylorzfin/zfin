@@ -239,7 +239,8 @@ dependencies {
         'home/WEB-INF/lib/rescu-2.1.0-eclipse-transformed.jar',
         'home/WEB-INF/lib/restygwt-2.2.7-eclipse-transformed.jar',
         'home/WEB-INF/lib/altcha-1.1.2.jar',
-        'home/WEB-INF/lib/AnalyticsReportingApp-1.0.2.jar'
+        'home/WEB-INF/lib/AnalyticsReportingApp-1.0.2.jar',
+        'home/WEB-INF/lib/commons-configuration-ant-task-0.9.6.jar'
     )
 
     // ============================================================================
