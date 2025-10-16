@@ -1,0 +1,366 @@
+/*
+ * Proof of Concept build.gradle for WAR Generation
+ *
+ * This is a POC configuration to test Gradle WAR generation with a subset of dependencies.
+ * Once validated, this will be merged into the main build.gradle file.
+ *
+ * Test with: gradle -b build.gradle.poc war
+ */
+
+plugins {
+    id 'war'
+    id 'java'
+    id 'groovy'
+}
+
+group = 'org.zfin'
+version = '1.0-SNAPSHOT'
+
+sourceCompatibility = 17
+targetCompatibility = 17
+
+// Define version variables for consistency
+ext {
+    springVersion = '6.1.1'
+    springSecurityVersion = '6.1.8'
+    hibernateVersion = '6.4.4.Final'
+    hibernateSearchVersion = '6.1.1.Final'
+    jacksonVersion = '2.15.2'
+    slf4jVersion = '2.0.12'
+    log4jVersion = '2.17.1'
+}
+
+repositories {
+    mavenCentral()
+}
+
+configurations {
+    // Provided scope for container-provided dependencies
+    providedCompile
+    providedRuntime
+}
+
+sourceSets {
+    main {
+        compileClasspath += configurations.providedCompile
+        runtimeClasspath += configurations.providedRuntime
+    }
+    test {
+        compileClasspath += configurations.providedCompile
+        runtimeClasspath += configurations.providedRuntime
+    }
+}
+
+dependencies {
+    // ============================================================================
+    // CORE FRAMEWORKS (HIGH Priority)
+    // ============================================================================
+
+    // Spring Framework 6.1.1
+    implementation "org.springframework:spring-core:${springVersion}"
+    implementation "org.springframework:spring-beans:${springVersion}"
+    implementation "org.springframework:spring-context:${springVersion}"
+    implementation "org.springframework:spring-context-support:${springVersion}"
+    implementation "org.springframework:spring-web:${springVersion}"
+    implementation "org.springframework:spring-webmvc:${springVersion}"
+    implementation "org.springframework:spring-orm:${springVersion}"
+    implementation "org.springframework:spring-tx:${springVersion}"
+    implementation "org.springframework:spring-aop:${springVersion}"
+    implementation "org.springframework:spring-aspects:${springVersion}"
+    implementation "org.springframework:spring-expression:${springVersion}"
+    implementation "org.springframework:spring-jcl:${springVersion}"
+    implementation "org.springframework:spring-messaging:${springVersion}"
+    implementation "org.springframework:spring-oxm:${springVersion}"
+
+    // Spring Security 6.1.8 (aligned version)
+    implementation "org.springframework.security:spring-security-core:${springSecurityVersion}"
+    implementation "org.springframework.security:spring-security-web:${springSecurityVersion}"
+    implementation "org.springframework.security:spring-security-config:${springSecurityVersion}"
+    implementation "org.springframework.security:spring-security-taglibs:${springSecurityVersion}"
+    implementation "org.springframework.security:spring-security-ldap:${springSecurityVersion}"
+    implementation "org.springframework.security:spring-security-crypto:${springSecurityVersion}"
+
+    // Spring Integration & WS
+    implementation 'org.springframework.integration:spring-integration-core:6.2.1'
+    implementation 'org.springframework.ws:spring-ws-core:4.0.10'
+    // spring-xml is actually part of spring-ws, not a separate artifact
+    implementation 'org.springframework.retry:spring-retry:2.0.5'
+
+    // Hibernate ORM 6.4.4.Final
+    implementation "org.hibernate.orm:hibernate-core:${hibernateVersion}"
+    implementation "org.hibernate.orm:hibernate-c3p0:${hibernateVersion}"
+    implementation 'org.hibernate.common:hibernate-commons-annotations:6.0.6.Final'
+    implementation 'org.hibernate.validator:hibernate-validator:8.0.1.Final'
+
+    // Hibernate Search 6.1.1.Final
+    implementation "org.hibernate.search:hibernate-search-engine:${hibernateSearchVersion}"
+    implementation "org.hibernate.search:hibernate-search-mapper-pojo-base:${hibernateSearchVersion}"
+
+    // ============================================================================
+    // DATABASE & PERSISTENCE (HIGH Priority)
+    // ============================================================================
+
+    // PostgreSQL Driver
+    implementation 'org.postgresql:postgresql:42.2.20'
+
+    // Connection Pooling
+    implementation 'com.mchange:c3p0:0.9.5.5'
+
+    // Liquibase (from existing build.gradle)
+    implementation 'org.liquibase:liquibase-core:3.4.1'
+
+    // ============================================================================
+    // JACKSON JSON (HIGH Priority)
+    // ============================================================================
+
+    implementation "com.fasterxml.jackson.core:jackson-core:${jacksonVersion}"
+    implementation "com.fasterxml.jackson.core:jackson-databind:${jacksonVersion}"
+    implementation "com.fasterxml.jackson.core:jackson-annotations:${jacksonVersion}"
+    implementation "com.fasterxml.jackson.datatype:jackson-datatype-jsr310:${jacksonVersion}"
+    implementation "com.fasterxml.jackson.dataformat:jackson-dataformat-xml:${jacksonVersion}"
+
+    // ============================================================================
+    // LOGGING (HIGH Priority)
+    // ============================================================================
+
+    implementation "org.slf4j:slf4j-api:${slf4jVersion}"
+    implementation "org.apache.logging.log4j:log4j-core:${log4jVersion}"
+    implementation "org.apache.logging.log4j:log4j-api:${log4jVersion}"
+    implementation "org.apache.logging.log4j:log4j-slf4j-impl:${log4jVersion}"
+    implementation 'org.apache.logging.log4j:log4j-web:2.17.1'
+
+    // ============================================================================
+    // APACHE COMMONS (HIGH Priority - with conflict resolution)
+    // ============================================================================
+
+    // Force latest versions to resolve conflicts
+    implementation 'org.apache.commons:commons-lang3:3.12.0'  // Forced version
+    implementation 'commons-io:commons-io:2.16.1'
+    implementation 'org.apache.commons:commons-text:1.11.0'
+    implementation 'org.apache.commons:commons-csv:1.11.0'
+    implementation 'commons-codec:commons-codec:1.15'  // Upgraded
+    implementation 'commons-beanutils:commons-beanutils:1.9.1'
+
+    // Both collections libraries (v3 legacy + v4 modern)
+    implementation 'commons-collections:commons-collections:3.2.1'
+    implementation 'org.apache.commons:commons-collections4:4.4'
+    implementation 'org.apache.commons:commons-exec:1.0'
+
+    // ============================================================================
+    // HTTP COMPONENTS (HIGH Priority - aligned versions)
+    // ============================================================================
+
+    implementation 'org.apache.httpcomponents:httpclient:4.5.10'
+    implementation 'org.apache.httpcomponents:httpcore:4.4.13'
+    implementation 'org.apache.httpcomponents:httpmime:4.5.10'  // Aligned with httpclient
+
+    // ============================================================================
+    // XML PROCESSING (HIGH Priority)
+    // ============================================================================
+
+    implementation 'org.dom4j:dom4j:2.1.3'
+    implementation 'xerces:xercesImpl:2.12.2'
+    implementation 'xalan:xalan:2.7.0'
+    implementation 'xml-apis:xml-apis:1.4.01'
+
+    // ============================================================================
+    // JAKARTA EE / SERVLET API (Provided by Tomcat)
+    // ============================================================================
+
+    // Jakarta EE 9+ (namespace change from javax.* to jakarta.*)
+    providedCompile 'jakarta.servlet:jakarta.servlet-api:6.0.0'
+    providedCompile 'jakarta.servlet.jsp:jakarta.servlet.jsp-api:3.1.1'
+    providedCompile 'jakarta.servlet.jsp.jstl:jakarta.servlet.jsp.jstl-api:3.0.0'
+    providedCompile 'jakarta.validation:jakarta.validation-api:3.0.2'
+    providedCompile 'jakarta.xml.bind:jakarta.xml.bind-api:4.0.1'
+
+    // ============================================================================
+    // SOLR (HIGH Priority)
+    // ============================================================================
+
+    implementation 'org.apache.solr:solr-solrj:9.4.0'
+
+    // ============================================================================
+    // GSON (Alternative JSON library)
+    // ============================================================================
+
+    implementation 'com.google.code.gson:gson:2.2.4'
+
+    // ============================================================================
+    // BIOINFORMATICS (HIGH Priority)
+    // ============================================================================
+
+    // biojava 1.7.1 is very old (2008) and not in Maven Central
+    // Using file dependency for POC
+    implementation files('home/WEB-INF/lib/biojava.1.7.1.jar')
+
+    // ============================================================================
+    // CUSTOM FILE DEPENDENCIES (Not in Maven Central)
+    // ============================================================================
+
+    // AGR and Ontology Tools
+    implementation files(
+        'home/WEB-INF/lib/agr_curation_api.jar',
+        'home/WEB-INF/lib/bbop.jar',
+        'home/WEB-INF/lib/obo.jar'
+    )
+
+    implementation files('lib/Java/ontologies/robot.jar')
+
+    // Eclipse-transformed (test if originals work, otherwise use these)
+    implementation files(
+        'home/WEB-INF/lib/blast-serialization-1.0-eclipse-transformed.jar'
+    )
+
+    // Additional custom JARs (to be investigated in Phase 2.4)
+    implementation files(
+        'home/WEB-INF/lib/cvu.jar',
+        'home/WEB-INF/lib/jdbc-listener.jar',
+        'home/WEB-INF/lib/jdbc-tools.jar'
+    )
+
+    // ============================================================================
+    // TEST DEPENDENCIES
+    // ============================================================================
+
+    testImplementation 'junit:junit:4.13.2'
+    testImplementation 'org.hamcrest:hamcrest:2.2'
+    testImplementation 'org.mockito:mockito-core:5.0.0'
+}
+
+// ============================================================================
+// DEPENDENCY RESOLUTION STRATEGY (Conflict Resolution)
+// ============================================================================
+
+configurations.all {
+    resolutionStrategy {
+        // Force specific versions to resolve conflicts
+        force 'org.apache.commons:commons-lang3:3.12.0'
+        force 'org.apache.httpcomponents:httpclient:4.5.10'
+        force 'org.apache.httpcomponents:httpmime:4.5.10'
+        force 'org.apache.httpcomponents:httpcore:4.4.13'
+        force 'commons-codec:commons-codec:1.15'
+        force 'commons-io:commons-io:2.16.1'
+
+        // Align Spring Security versions
+        force "org.springframework.security:spring-security-core:${springSecurityVersion}"
+        force "org.springframework.security:spring-security-web:${springSecurityVersion}"
+        force "org.springframework.security:spring-security-config:${springSecurityVersion}"
+        force "org.springframework.security:spring-security-taglibs:${springSecurityVersion}"
+        force "org.springframework.security:spring-security-ldap:${springSecurityVersion}"
+        force "org.springframework.security:spring-security-crypto:${springSecurityVersion}"
+
+        // Hibernate Search alignment
+        force "org.hibernate.search:hibernate-search-engine:${hibernateSearchVersion}"
+        force "org.hibernate.search:hibernate-search-mapper-pojo-base:${hibernateSearchVersion}"
+    }
+}
+
+// ============================================================================
+// WAR PLUGIN CONFIGURATION
+// ============================================================================
+
+war {
+    archiveFileName = 'zfin.war'
+
+    // Handle duplicates by excluding them (prefer Gradle dependencies)
+    duplicatesStrategy = DuplicatesStrategy.EXCLUDE
+
+    // Set the web application directory (contains WEB-INF, JSPs, static files)
+    webAppDirectory = file('home')
+
+    // Include web resources from home directory
+    from('home') {
+        include '**/*.jsp'
+        include '**/*.html'
+        include '**/*.css'
+        include '**/*.js'
+        include '**/*.gif'
+        include '**/*.jpg'
+        include '**/*.png'
+        include 'WEB-INF/web.xml'
+        include 'WEB-INF/*.xml'
+        include 'WEB-INF/classes/**'  // Include pre-compiled classes
+
+        // IMPORTANT: Exclude lib directory - dependencies will be managed by Gradle
+        exclude 'WEB-INF/lib/**'
+
+        into '/'
+    }
+
+    // Compiled classes go into WEB-INF/classes
+    // Note: This will be empty since we don't have source in src/main/java
+    // We're including pre-compiled classes from home/WEB-INF/classes via the from() above
+    classpath = configurations.runtimeClasspath
+
+    // Dependencies go into WEB-INF/lib
+    // Gradle will automatically package all runtime dependencies
+}
+
+// ============================================================================
+// HELPFUL TASKS
+// ============================================================================
+
+// Show dependency tree
+task showDependencies {
+    doLast {
+        configurations.runtimeClasspath.each { println it.name }
+    }
+}
+
+// Check for conflicts
+task checkConflicts {
+    doLast {
+        println "Checking for dependency conflicts..."
+        configurations.runtimeClasspath.resolvedConfiguration.resolvedArtifacts.each {
+            println "${it.moduleVersion.id}"
+        }
+    }
+}
+
+// List all JARs that will be packaged in WAR
+task listWarJars {
+    doLast {
+        println "JARs that will be included in WAR file:"
+        configurations.runtimeClasspath.each {
+            println "  - ${it.name}"
+        }
+
+        println "\nFile dependencies:"
+        configurations.runtimeClasspath.files.findAll { it.path.contains('home/') || it.path.contains('lib/') }.each {
+            println "  - ${it.path}"
+        }
+    }
+}
+
+// Clean task
+clean {
+    delete 'build'
+}
+
+// Default task
+defaultTasks 'war'
+
+// ============================================================================
+// NOTES
+// ============================================================================
+/*
+ * This is a POC configuration. To test:
+ *
+ * 1. Generate WAR: gradle -b build.gradle.poc war
+ * 2. Check dependencies: gradle -b build.gradle.poc dependencies
+ * 3. List WAR contents: gradle -b build.gradle.poc listWarJars
+ * 4. Check conflicts: gradle -b build.gradle.poc dependencyInsight --dependency commons-lang3
+ *
+ * Expected output: build/libs/zfin.war
+ *
+ * Next steps (Phase 1.7):
+ * - Validate WAR structure
+ * - Compare with current deployment
+ * - Test in Tomcat
+ *
+ * TODO for Phase 2.1:
+ * - Add remaining ~180 dependencies from gradle_migration_jar_inventory.csv
+ * - Configure source sets properly
+ * - Add deployment tasks
+ */

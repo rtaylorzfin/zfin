@@ -15,7 +15,7 @@ home/WEB-INF/lib,axiom-api-1.2.7.jar,1.2.7,org.apache.ws.commons.axiom:axiom-api
 home/WEB-INF/lib,axiom-impl-1.2.7.jar,1.2.7,org.apache.ws.commons.axiom:axiom-impl:1.2.7,Web services impl,Available in Maven Central,LOW
 home/WEB-INF/lib,backport-util-concurrent-3.1.jar,3.1,backport-util-concurrent:backport-util-concurrent:3.1,Concurrency utils,Available in Maven Central,LOW
 home/WEB-INF/lib,bbop.jar,unknown,,,Custom - file dependency (bioinformatics tool - not publicly available),MEDIUM
-home/WEB-INF/lib,biojava.1.7.1.jar,1.7.1,org.biojava:biojava:1.7.1,Bioinformatics,Available in Maven Central,HIGH
+home/WEB-INF/lib,biojava.1.7.1.jar,1.7.1,,,Biojava 1.7.1 not in Maven Central - use file dependency (consider upgrade),HIGH
 home/WEB-INF/lib,blast-serialization-1.0-eclipse-transformed.jar,1.0,,,Custom - eclipse transformed,HIGH
 home/WEB-INF/lib,byte-buddy-1.12.7.jar,1.12.7,net.bytebuddy:byte-buddy:1.12.7,Bytecode generation,Available in Maven Central,MEDIUM
 home/WEB-INF/lib,bytecode.jar,unknown,,,Custom - needs investigation,MEDIUM

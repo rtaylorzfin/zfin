@@ -1,0 +1,139 @@
+# Product Requirements Document (PRD)
+## ZFIN Report Serialization Java Classes
+
+### Overview
+Create Java classes that can serialize to JSON format matching the ZFIN reports schema defined in `zfin-report-schema.json`. This will enable programmatic generation of standardized ZFIN load reports with proper validation.
+
+### Requirements
+
+#### 1. Core Java Classes
+Create Java classes that represent the following schema entities:
+
+**1.1 ZfinReport (Root Class)**
+- Root object containing meta, summary, supplementalData, and actions
+- All four properties are required
+- Must serialize to JSON matching the schema exactly
+
+**1.2 LoadReportMeta**
+- Contains title (required), releaseID (optional), and creationDate (required)
+- creationDate should be Unix timestamp in milliseconds (long type)
+- No additional properties allowed
+
+**1.3 LoadReportSummary**
+- Contains description (required) and tables array (required)
+- Description is a string describing the load process
+- Tables is an array of SummaryTable objects
+
+**1.4 LoadReportSummaryTable**
+- Contains optional description, optional headers array, and required rows array
+- Headers define column structure with key/title pairs
+- Rows contain flexible object data corresponding to headers
+
+**1.5 LoadReportTableHeader**
+- Contains key (required) and title (required) properties
+- Key references column data in rows, title is display name
+- No additional properties allowed
+
+**1.6 LoadReportAction**
+- Contains all required fields: id, type, subType, accession, geneZdbID, details, length, supplementalDataKeys
+- Contains optional fields: uniprotAccessions, relatedEntityID, dbName, md5, relatedEntityFields, relatedActionsKeys, links, tags
+- ID can be string or integer type
+- Links array contains ActionLink objects
+- Tags array contains ActionTag objects
+
+**1.7 LoadReportActionLink**
+- Contains title (required) and href (required)
+- href should be valid URI format
+- No additional properties allowed
+
+**1.8 LoadReportActionTag**
+- Contains name (required) and value (required)
+- Both are string types
+- No additional properties allowed
+
+#### 2. Serialization Requirements
+
+**2.1 JSON Serialization**
+- Classes must serialize to JSON using Jackson or similar library
+- Output must exactly match the schema structure
+- Handle optional fields properly (omit null values where appropriate)
+- Ensure proper data types (timestamps as long, arrays as arrays, objects as objects)
+
+**2.2 Validation Support**
+- Support JSON schema validation against `zfin-report-schema.json`
+- Provide methods to validate generated JSON
+- Include appropriate error handling for validation failures
+
+#### 3. Testing Requirements
+
+**3.1 Unit Tests**
+- Test each class serialization individually
+- Test with various data combinations (required only, all fields populated)
+- Test edge cases (empty arrays, null optional fields)
+
+**3.2 Integration Test**
+- Generate complete ZFIN report JSON file
+- Validate generated JSON against the schema
+- Test with realistic data scenarios
+- Verify round-trip serialization/deserialization
+
+**3.3 Schema Validation Test**
+- Load and parse `zfin-report-schema.json`
+- Validate generated JSON against schema programmatically
+- Test both valid and invalid JSON scenarios
+- Ensure validation errors are properly reported
+
+#### 4. Technical Specifications
+
+**4.1 Dependencies**
+- Jackson for JSON serialization/deserialization
+- JSON Schema validation library (e.g., everit-org/json-schema)
+- JUnit for testing
+- Use existing project dependency management
+
+**4.2 Package Structure**
+- Place classes in appropriate ZFIN package (likely org.zfin.datatransfer or org.zfin.infrastructure)
+- Follow existing ZFIN code conventions and patterns
+- Use appropriate annotations for JSON mapping
+
+**4.3 Error Handling**
+- Proper exception handling for serialization failures
+- Clear error messages for validation failures
+- Fail-fast approach for invalid data
+
+#### 5. Usage Examples
+
+**5.1 Basic Usage**
+```java
+ZfinReport report = new ZfinReport();
+report.setMeta(new ReportMeta("Sample Report", "2024.1", System.currentTimeMillis()));
+// ... populate other fields
+String json = objectMapper.writeValueAsString(report);
+```
+
+**5.2 Validation**
+```java
+// Validate against schema
+ValidationResult result = validator.validate(json);
+if (!result.isValid()) {
+    throw new ValidationException(result.getErrors());
+}
+```
+
+#### 6. Deliverables
+
+1. Java classes implementing the schema structure
+2. Unit tests for individual classes
+3. Integration test generating and validating complete JSON
+4. Documentation/examples of usage
+5. Schema validation utility methods
+
+#### 7. Acceptance Criteria
+
+- [ ] All Java classes serialize to JSON matching the schema exactly
+- [ ] Generated JSON passes validation against `zfin-report-schema.json`
+- [ ] Comprehensive test coverage (>90%)
+- [ ] Integration test successfully generates valid report JSON
+- [ ] Code follows existing ZFIN patterns and conventions
+- [ ] All required and optional fields handled correctly
+- [ ] Proper error handling and validation
