@@ -13,7 +13,12 @@ plugins {
     id 'war'
     id 'java'
     id 'groovy'
+    id 'org.liquibase.gradle' version '2.1.1'
 }
+
+// Include external Gradle scripts
+apply from: 'agr.gradle'
+apply from: 'console.gradle'
 
 group = 'org.zfin'
 version = '1.0-SNAPSHOT'
@@ -128,8 +133,13 @@ dependencies {
     // Connection Pooling
     implementation 'com.mchange:c3p0:0.9.5.5'
 
-    // Liquibase (from existing build.gradle)
-    implementation 'org.liquibase:liquibase-core:3.4.1'
+    // Liquibase (upgraded to 4.7.1 for compatibility)
+    implementation 'org.liquibase:liquibase-core:4.7.1'
+
+    // Liquibase runtime dependencies for the Liquibase Gradle plugin
+    liquibaseRuntime 'org.liquibase:liquibase-core:4.7.1'
+    liquibaseRuntime 'info.picocli:picocli:4.6.3'
+    liquibaseRuntime 'org.postgresql:postgresql:42.2.18'
 
     // ============================================================================
     // JACKSON JSON (HIGH Priority)
@@ -651,7 +661,304 @@ clean {
 }
 
 // Default task
-defaultTasks 'war'
+defaultTasks 'make'
+
+// ============================================================================
+// CUSTOM ZFIN TASKS
+// ============================================================================
+
+// Get environment variables
+def env = System.getenv()
+
+// Set project properties from environment variables
+project.ext.set("dbname", env.getOrDefault('DBNAME', 'zfindb'))
+project.ext.set("sourceroot", env.getOrDefault('SOURCEROOT', '.'))
+project.ext.set("pghost", env.getOrDefault('PGHOST', 'localhost'))
+project.ext.set("pgdata", env.getOrDefault('PGDATA', ''))
+project.ext.set("pgbindir", env.getOrDefault('PGBINDIR', ''))
+project.ext.set("targetroot", env.getOrDefault('TARGETROOT', './target'))
+project.ext.set("dbunloadspath", env.getOrDefault('DB_UNLOADS_PATH', '/research/zunloads/databases/zfindb'))
+project.ext.set("downloaddirectory", env.getOrDefault('DOWNLOAD_DIRECTORY', './downloads'))
+
+// Variables used for template translation in SimpleDirectoryCopyTask
+def translateVariableSet = [
+        'CATALINA_HOME', 'CGI_BIN_DIR_NAME', 'DB_NAME', 'PGHOST', 'DEFAULT_EMAIL',
+        'ENVIRONMENT', 'FTP_ROOT', 'GBROWSE_PATH_FROM_ROOT', 'GENBANK_DAILY_EMAIL',
+        'GO_EMAIL_ERR', 'GO_EMAIL_CURATOR', 'GROOVY_CLASSPATH', 'INSTANCE', 'JAVA_HOME',
+        'JBROWSE_PATH_FROM_ROOT', 'LOADUP_FULL_PATH', 'MOVE_BLAST_FILES_TO_DEVELOPMENT',
+        'MUTANT_NAME', 'PARTNER_DBNAME', 'PARTNER_INTERNAL_INSTANCE', 'ROOT_PATH',
+        'SHARED_DOMAIN_NAME', 'SOURCEROOT', 'SQLHOSTS_FILE', 'SWISSPROT_EMAIL_REPORT',
+        'SWISSPROT_EMAIL_CURATOR', 'SWISSPROT_EMAIL_ERR', 'TARGETROOT', 'USER',
+        'VALIDATION_EMAIL_DBA', 'WEBHOST_BLASTDB_TO_COPY', 'WEBHOST_FASTA_FILE_PATH',
+]
+
+// Load template translation map from zfin.properties
+project.ext.ttNameMap = new Properties()
+def propsFile = file("home/WEB-INF/zfin.properties")
+if (propsFile.exists()) {
+    propsFile.withInputStream {
+        ttNameMap.load(it)
+    }
+    Map filteredMap = new HashMap()
+    ttNameMap.each { name, value ->
+        if (translateVariableSet.contains(name)) {
+            filteredMap.put(name, value)
+        }
+    }
+    project.ext.ttNameMap = filteredMap
+} else {
+    // If properties file doesn't exist, use empty map
+    project.ext.ttNameMap = [:]
+}
+
+// Database loading and management tasks
+task loadDatabase() {
+    doLast {
+        File unloads = file(dbunloadspath)
+        String unloadPath
+        if (unloads.exists()) {
+            def files = unloads.listFiles()
+            Arrays.sort(files, new Comparator<File>() {
+                int compare(File f1, File f2) {
+                    return Long.valueOf(f2.lastModified()).compareTo(f1.lastModified())
+                }
+            })
+            File latest = files[0]
+            File latestBakDump = latest.listFiles().last()
+            unloadPath = latestBakDump.getPath()
+        }
+
+        //use -DB=... path if specified
+        if (System.getProperty("B")) {
+            unloadPath = System.getProperty("B")
+        }
+
+        //might as well support -Dunload also
+        if (System.getProperty("unload")) {
+            unloadPath = System.getProperty("unload")
+        }
+
+        println "Loading $unloadPath into $dbname"
+        exec {
+            ignoreExitValue = true
+            commandLine "bash", "-c", "echo 'select pg_terminate_backend(pg_stat_activity.pid) from pg_stat_activity where pid <> pg_backend_pid();' | psql -v ON_ERROR_STOP=1 $dbname"
+        }
+        exec {
+            ignoreExitValue = true
+            commandLine 'dropdb', dbname
+        }
+        exec {
+            ignoreExitValue = true
+            commandLine 'createdb', dbname
+        }
+        exec {
+            ignoreExitValue = true
+            commandLine "bash", "-c", "pg_restore -j 8 -d $dbname $unloadPath"
+        }
+        exec {
+            ignoreExitValue = true
+            commandLine "bash", "-c", "echo 'vacuum (analyze)' | psql -v ON_ERROR_STOP=1 $dbname"
+        }
+    }
+}
+
+task loadDb(type: GradleBuild) {
+    tasks = ['loadDatabase']
+}
+
+task downloadDB(type: GradleBuild) {
+    tasks = ['getLatestDatabaseUnload']
+}
+
+task getdb(dependsOn: downloadDB) //alias for downloadDB
+task loaddb(dependsOn: loadDb) //alias for loadDb
+
+task buildDatabase(type: GradleBuild) {
+    tasks = ['liquibasePreBuild']
+}
+
+task buildPostGmakeDatabase(type: GradleBuild) {
+    tasks = ['liquibasePostBuild']
+}
+
+task reload(type: GradleBuild) {
+    tasks = ['loadDatabase', 'liquibasePreBuild', 'liquibasePostBuild']
+}
+
+// Liquibase tasks
+String preChangeLog = "source/org/zfin/db/load/db.changelog.master.xml"
+
+task liquibasePreBuild() {
+    doLast {
+        liquibase {
+            activities {
+                main {
+                    println preChangeLog
+                    changeLogFile preChangeLog
+                    url 'jdbc:postgresql://' + pghost + ':5432/' + dbname
+                }
+            }
+        }
+    }
+}
+
+liquibasePreBuild.finalizedBy(update)
+
+String postChangeLog = "source/org/zfin/db/postGmakePostloaddb/db.changelog.master.xml"
+task liquibasePostBuild() {
+    doLast {
+        liquibase {
+            activities {
+                main {
+                    changeLogFile preChangeLog
+                    Properties properties = new Properties()
+                    properties.setProperty("SOURCEROOT", ".")
+                    changeLogFile postChangeLog
+                    url 'jdbc:postgresql://' + pghost + ':5432/' + dbname
+                }
+            }
+        }
+    }
+}
+
+liquibasePostBuild.finalizedBy(update)
+
+// Deployment tasks
+task deployPostgres(dependsOn: ['deployPostgresFunctions', 'deployPostgresTriggers']) {
+    description "Deploy all postgres code"
+}
+
+task createEmptyDirsIfNotExists() {
+    doLast {
+        exec {
+            commandLine "mkdir", "-p", targetroot + "/home/data_transfer/Downloads/"
+        }
+        exec {
+            commandLine "mkdir", "-p", targetroot + "/server_apps/data_transfer/Downloads/GFF3/knockdown_reagents/"
+        }
+        exec {
+            commandLine "mkdir", "-p", downloaddirectory + "/current/"
+        }
+    }
+}
+
+task deployGitInfoFile() {
+    description 'Deploy git-info.txt file into TARGETROOT'
+    group 'ZFIN Deployment'
+    def packageFiles = 'git-info.txt'
+    doLast {
+        exec {
+            commandLine 'bash', './generate-git-info.sh'
+        }
+        copy {
+            from(packageFiles)
+            into(targetroot + "/home/WEB-INF/classes")
+        }
+    }
+}
+
+// Directory copy tasks
+task "home;zf_info;deployFiles" (type: SimpleDirectoryCopyTask) {
+    sourcePath = 'home/zf_info'
+    excludes = ['Makefile']
+}
+
+task "home;ZFIN;deployFiles" (type: SimpleDirectoryCopyTask) {
+    sourcePath = 'home/ZFIN'
+    excludes = ['Makefile']
+}
+
+task "server_apps;sysexecs;deployFiles" (type: SimpleDirectoryCopyTask) {
+    sourcePath = 'server_apps/sysexecs'
+    excludes = ['Makefile', 'build.gradle']
+}
+
+task "server_apps;apache;deployFiles" (type: SimpleDirectoryCopyTask) {
+    sourcePath = 'server_apps/apache'
+    excludes = ['Makefile', 'build.gradle']
+}
+
+task "server_apps;Reports;deployFiles" (type: SimpleDirectoryCopyTask) {
+    sourcePath = 'server_apps/Reports'
+    excludes = ['Makefile', 'build.gradle']
+}
+
+task "server_apps;tokens;deployFiles" (type: SimpleDirectoryCopyTask) {
+    sourcePath = 'server_apps/tokens'
+}
+
+task "server_apps;data_transfer;BLAST;deployFiles" (type: SimpleDirectoryCopyTask) {
+    sourcePath = 'server_apps/data_transfer/BLAST'
+    excludes = ['Danio_rerio.GRCz10.pep.all.fa.gz', 'Danio_rerio.GRCz11.pep.all.fa.gz', 'Danio_rerio.Zv9.pep.all.fa.gz',
+        'zfin_genomic_dna_all.fa', 'GenomicDNA.xnt', 'GenomicDNA.xni', 'zfin_genomic_genbank_acc.unl', 'GenomicDNA.xnd',
+        'GenomicDNA.xns']
+}
+
+task "server_apps;DB_maintenance;deployFiles" (type: SimpleDirectoryCopyTask) {
+    sourcePath = 'server_apps/DB_maintenance'
+    excludes = ['Makefile', 'build.gradle']
+    excludeDirs = ['postgres/liquibase']
+}
+
+task "cgi-bin;deployFiles" (type: SimpleDirectoryCopyTask) {
+    sourcePath = 'cgi-bin'
+    excludes = ['Makefile', 'build.gradle']
+}
+
+task "server_apps;perl_lib;deployFiles" (type: SimpleDirectoryCopyTask) {
+    sourcePath = 'server_apps/perl_lib'
+}
+
+task "server_apps;data_transfer;deployFiles" (type: SimpleDirectoryCopyTask) {
+    sourcePath = 'server_apps/data_transfer'
+    excludes = ['Makefile', 'build.gradle', '.gitignore', '.DS_Store']
+    excludeDirs = ['SangerMutants', 'Ensembl', 'BLAST']
+}
+
+task "server_apps;data_transfer;Ensembl;deployFiles" (type: SimpleDirectoryCopyTask) {
+    sourcePath = 'server_apps/data_transfer/Ensembl'
+    includes = ['sh', 'sql', 'groovy']
+}
+
+// Main make task - replicates old Makefile behavior
+task make(type: GradleBuild) {
+    tasks = ['deployPostgresFunctions',
+             'deployPostgresTriggers',
+             'createEmptyDirsIfNotExists',
+             'home:deployFiles',
+             'home;zf_info;deployFiles',
+             'home;ZFIN;deployFiles',
+             'server_apps;apache;deployFiles',
+             'server_apps;sysexecs;deployFiles',
+             'server_apps;DB_maintenance;deployFiles',
+             'server_apps;data_transfer;deployFiles',
+             ':server_apps:data_transfer:Downloads:createSymlink',
+             'server_apps;data_transfer;Ensembl;deployFiles',
+             'server_apps;Reports;deployFiles',
+             'server_apps;tokens;deployFiles',
+             'server_apps;data_transfer;BLAST;deployFiles',
+             'deployGitInfoFile',
+             'cgi-bin;deployFiles',
+             'server_apps;perl_lib;deployFiles',
+    ]
+}
+
+// Database unload download task
+task getLatestDatabaseUnload() {
+    doLast {
+        if (dbunloadspath != '/research/zunloads/databases/zfindb') {
+            def command = "ssh " + env['SSH_USER'] + "@" + env['SSH_HOST'] + " " + 'ls -d /research/zunloads/databases/zfindb/20??.??.??.? | sort -n |tail -n 1'
+            def filepath = command.execute().text.trim()
+            println "Getting " + filepath
+            exec {
+                ignoreExitValue = true
+                commandLine "scp", "-r", env['SSH_USER'] + "@" + env['SSH_HOST'] + ":"  + filepath, dbunloadspath
+            }
+        } else {
+            println 'DB_UNLOADS_PATH is set to ' + dbunloadspath + '. Please change before attempting to copy.'
+        }
+    }
+}
 
 // ============================================================================
 // NOTES
