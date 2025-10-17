@@ -285,6 +285,9 @@ dependencies {
     implementation 'org.springframework.security:spring-security-oauth2-client:6.1.8'
     implementation 'org.springframework.security:spring-security-oauth2-jose:6.1.8'
 
+    // OAuth Signpost for si.mazi.rescu REST client
+    implementation 'oauth.signpost:signpost-core:2.1.1'
+
     // ============================================================================
     // ADDITIONAL HIBERNATE & JPA MODULES
     // ============================================================================
