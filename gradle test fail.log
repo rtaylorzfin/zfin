@@ -1,0 +1,411 @@
+org.zfin.AbstractSecureSmokeTest > junit.framework.TestSuite$1.warning FAILED
+    junit.framework.AssertionFailedError at TestSuite.java:96
+
+org.zfin.AbstractSmokeTest > junit.framework.TestSuite$1.warning FAILED
+    junit.framework.AssertionFailedError at TestSuite.java:96
+
+org.zfin.AbstractUnitSmokeTest > junit.framework.TestSuite$1.warning FAILED
+    junit.framework.AssertionFailedError at TestSuite.java:96
+
+org.zfin.DbControllerTests > org.zfin.framework.api.SequenceControllerTest.getSequencesAlcama FAILED
+    java.lang.IllegalStateException at DefaultCacheAwareContextLoaderDelegate.java:180
+        Caused by: org.springframework.beans.factory.BeanCreationException at AbstractAutowireCapableBeanFactory.java:1317
+            Caused by: org.springframework.beans.BeanInstantiationException at BeanUtils.java:223
+                Caused by: java.lang.NoClassDefFoundError at RestInvocationHandler.java:84
+                    Caused by: java.lang.ClassNotFoundException at BuiltinClassLoader.java:641
+
+org.zfin.DbUnitTests > org.zfin.feature.service.FeatureAttributionServiceTest.alleleAttributionTriggersGeneAttributionTest FAILED
+    java.lang.IllegalStateException at DefaultCacheAwareContextLoaderDelegate.java:180
+        Caused by: org.springframework.beans.factory.BeanCreationException at AbstractAutowireCapableBeanFactory.java:1317
+            Caused by: org.springframework.beans.BeanInstantiationException at BeanUtils.java:223
+                Caused by: java.lang.NoClassDefFoundError at RestInvocationHandler.java:84
+                    Caused by: java.lang.ClassNotFoundException at BuiltinClassLoader.java:641
+
+org.zfin.DbUnitTests > org.zfin.feature.repository.FeatureRepositoryTest.getPossibleValues FAILED
+    java.lang.NoClassDefFoundError at FeatureRepositoryTest.java:410
+        Caused by: java.lang.ClassNotFoundException at FeatureRepositoryTest.java:410
+
+org.zfin.DbUnitTests > org.zfin.datatransfer.go.GafParserUnitTest.gpadParserTestThrowsExceptionForInvalidInference FAILED
+    java.lang.IllegalStateException at DefaultCacheAwareContextLoaderDelegate.java:145
+
+org.zfin.DbUnitTests > org.zfin.datatransfer.go.GafParserUnitTest.testInferencePipe FAILED
+    java.lang.IllegalStateException at DefaultCacheAwareContextLoaderDelegate.java:145
+
+org.zfin.DbUnitTests > org.zfin.datatransfer.go.GafParserUnitTest.gpadParserTestWithInvalidInference FAILED
+    java.lang.IllegalStateException at DefaultCacheAwareContextLoaderDelegate.java:145
+
+org.zfin.DbUnitTests > org.zfin.datatransfer.go.GafParserUnitTest.gpadParser FAILED
+    java.lang.IllegalStateException at DefaultCacheAwareContextLoaderDelegate.java:145
+
+org.zfin.DbUnitTests > org.zfin.datatransfer.go.GafParserUnitTest.fpInferEMBL FAILED
+    java.lang.IllegalStateException at DefaultCacheAwareContextLoaderDelegate.java:145
+
+org.zfin.DbUnitTests > org.zfin.datatransfer.go.GafParserUnitTest.gpadParserTestWithMultipleInference FAILED
+    java.lang.IllegalStateException at DefaultCacheAwareContextLoaderDelegate.java:145
+
+org.zfin.DbUnitTests > org.zfin.datatransfer.go.GafParserUnitTest.fpInferProteinID FAILED
+    java.lang.IllegalStateException at DefaultCacheAwareContextLoaderDelegate.java:145
+
+org.zfin.DbUnitTests > org.zfin.datatransfer.go.GafParserUnitTest.fpInferenceLine FAILED
+    java.lang.IllegalStateException at DefaultCacheAwareContextLoaderDelegate.java:145
+
+org.zfin.DbUnitTests > org.zfin.datatransfer.go.GafParserUnitTest.gpadParserClassThrowsExceptionForInvalidInference FAILED
+    java.lang.IllegalStateException at DefaultCacheAwareContextLoaderDelegate.java:145
+
+org.zfin.DbUnitTests > org.zfin.datatransfer.go.GafParserUnitTest.parseGafExcludeAllButOne FAILED
+    java.lang.IllegalStateException at DefaultCacheAwareContextLoaderDelegate.java:145
+
+org.zfin.DbUnitTests > org.zfin.datatransfer.go.GafParserUnitTest.gpadParserTestWithSingleInference FAILED
+    java.lang.IllegalStateException at DefaultCacheAwareContextLoaderDelegate.java:145
+
+org.zfin.DbUnitTests > org.zfin.datatransfer.go.GafParserUnitTest.testIntersection FAILED
+    java.lang.IllegalStateException at DefaultCacheAwareContextLoaderDelegate.java:145
+
+org.zfin.DbUnitTests > org.zfin.datatransfer.go.GafParserUnitTest.gpadParserAnnotationExtension FAILED
+    java.lang.IllegalStateException at DefaultCacheAwareContextLoaderDelegate.java:145
+
+org.zfin.DbUnitTests > org.zfin.datatransfer.go.GafParserUnitTest.parseGafLine FAILED
+    java.lang.IllegalStateException at DefaultCacheAwareContextLoaderDelegate.java:145
+
+org.zfin.DbUnitTests > org.zfin.mapping.repository.LinkageRepositoryTest.getCloneLocation FAILED
+    org.hibernate.exception.SQLGrammarException at LinkageRepositoryTest.java:316
+        Caused by: org.postgresql.util.PSQLException at LinkageRepositoryTest.java:316
+
+org.zfin.DbUnitTests > org.zfin.mapping.repository.LinkageRepositoryTest.testGetLG FAILED
+    org.hibernate.exception.SQLGrammarException at LinkageRepositoryTest.java:102
+        Caused by: org.postgresql.util.PSQLException at LinkageRepositoryTest.java:102
+
+org.zfin.DbUnitTests > org.zfin.mapping.repository.LinkageRepositoryTest.getGenomeLocation FAILED
+    org.hibernate.exception.SQLGrammarException at LinkageRepositoryTest.java:185
+        Caused by: org.postgresql.util.PSQLException at LinkageRepositoryTest.java:185
+
+org.zfin.DbUnitTests > org.zfin.mapping.repository.LinkageRepositoryTest.hasGenomeLocationInfo FAILED
+    org.hibernate.exception.SQLGrammarException at LinkageRepositoryTest.java:346
+        Caused by: org.postgresql.util.PSQLException at LinkageRepositoryTest.java:346
+
+org.zfin.DbUnitTests > org.zfin.mapping.repository.LinkageRepositoryTest.findLinkageForUnMappedRNAClones FAILED
+    org.hibernate.exception.SQLGrammarException at LinkageRepositoryTest.java:52
+        Caused by: org.postgresql.util.PSQLException at LinkageRepositoryTest.java:52
+
+org.zfin.DbUnitTests > org.zfin.mapping.repository.LinkageRepositoryTest.findLinkageForMappedClones FAILED
+    org.hibernate.exception.SQLGrammarException at LinkageRepositoryTest.java:73
+        Caused by: org.postgresql.util.PSQLException at LinkageRepositoryTest.java:73
+
+org.zfin.DbUnitTests > org.zfin.mapping.repository.LinkageRepositoryTest.getGenomeLocationForMarker FAILED
+    org.hibernate.exception.SQLGrammarException at LinkageRepositoryTest.java:210
+        Caused by: org.postgresql.util.PSQLException at LinkageRepositoryTest.java:210
+
+org.zfin.DbUnitTests > org.zfin.mapping.repository.LinkageRepositoryTest.displayScaffoldingLocation FAILED
+    org.hibernate.exception.SQLGrammarException at LinkageRepositoryTest.java:83
+        Caused by: org.postgresql.util.PSQLException at LinkageRepositoryTest.java:83
+
+org.zfin.DbUnitTests > org.zfin.mapping.repository.LinkageRepositoryTest.findLinkageForGene FAILED
+    org.hibernate.exception.SQLGrammarException at LinkageRepositoryTest.java:64
+        Caused by: org.postgresql.util.PSQLException at LinkageRepositoryTest.java:64
+
+org.zfin.DbUnitTests > org.zfin.mapping.repository.LinkageRepositoryTest.getGenomeLocationForFeature FAILED
+    org.hibernate.exception.SQLGrammarException at LinkageRepositoryTest.java:199
+        Caused by: org.postgresql.util.PSQLException at LinkageRepositoryTest.java:199
+
+org.zfin.DbUnitTests > org.zfin.mapping.MappingServiceTest.getGenomeLocation FAILED
+    org.hibernate.exception.SQLGrammarException at MappingServiceTest.java:51
+        Caused by: org.postgresql.util.PSQLException at MappingServiceTest.java:51
+
+org.zfin.DbUnitTests > org.zfin.marker.MarkerChromosomalLocationTest.multipleCitationTest FAILED
+    java.lang.IllegalStateException at DefaultCacheAwareContextLoaderDelegate.java:145
+
+org.zfin.DbUnitTests > org.zfin.marker.MarkerChromosomalLocationTest.synchronizeCitationsTest FAILED
+    java.lang.IllegalStateException at DefaultCacheAwareContextLoaderDelegate.java:145
+
+org.zfin.DbUnitTests > org.zfin.marker.MarkerChromosomalLocationTest.citationTest FAILED
+    java.lang.IllegalStateException at DefaultCacheAwareContextLoaderDelegate.java:145
+
+org.zfin.DbUnitTests > org.zfin.mutant.repository.MarkerGoTermEvidenceRepositoryTest.getMarkerGoTermEvidencesForPubZdbID FAILED
+    java.lang.OutOfMemoryError at MarkerGoTermEvidenceRepositoryTest.java:69
+
+org.zfin.DbUnitTests > org.zfin.marker.repository.MarkerRepositoryTest.retrieveLinkageGroupFromGene FAILED
+    org.hibernate.exception.SQLGrammarException at MarkerRepositoryTest.java:453
+        Caused by: org.postgresql.util.PSQLException at MarkerRepositoryTest.java:453
+
+org.zfin.DbUnitTests > org.zfin.marker.repository.MarkerRepositoryTest.retrieveLinkageGroupFromClone FAILED
+    org.hibernate.exception.SQLGrammarException at MarkerRepositoryTest.java:443
+        Caused by: org.postgresql.util.PSQLException at MarkerRepositoryTest.java:443
+
+org.zfin.DbUnitTests > org.zfin.marker.repository.MarkerRepositoryTest.retrieveLinkageGroupFromGeneFgf14 FAILED
+    org.hibernate.exception.SQLGrammarException at MarkerRepositoryTest.java:461
+        Caused by: org.postgresql.util.PSQLException at MarkerRepositoryTest.java:461
+
+org.zfin.DbUnitTests > org.zfin.marker.MarkerServiceTest.getRelatedMarkerDisplayTest FAILED
+    java.lang.IllegalStateException at DefaultCacheAwareContextLoaderDelegate.java:145
+
+org.zfin.DbUnitTests > org.zfin.marker.MarkerServiceTest.getPhenotypeOnGene FAILED
+    java.lang.IllegalStateException at DefaultCacheAwareContextLoaderDelegate.java:145
+
+org.zfin.DbUnitTests > org.zfin.marker.MarkerServiceTest.getOrthologyPresentationBeanNoOrthologs FAILED
+    java.lang.IllegalStateException at DefaultCacheAwareContextLoaderDelegate.java:145
+
+org.zfin.DbUnitTests > org.zfin.marker.MarkerServiceTest.addingMarkerAliasCreatesDirectAttribution FAILED
+    java.lang.IllegalStateException at DefaultCacheAwareContextLoaderDelegate.java:145
+
+org.zfin.DbUnitTests > org.zfin.marker.MarkerServiceTest.markerHasAlias FAILED
+    java.lang.IllegalStateException at DefaultCacheAwareContextLoaderDelegate.java:145
+
+org.zfin.DbUnitTests > org.zfin.marker.MarkerServiceTest.getSnpMappedMarkers FAILED
+    java.lang.IllegalStateException at DefaultCacheAwareContextLoaderDelegate.java:145
+
+org.zfin.DbUnitTests > org.zfin.marker.MarkerServiceTest.getOrthologyForGene FAILED
+    java.lang.IllegalStateException at DefaultCacheAwareContextLoaderDelegate.java:145
+
+org.zfin.DbUnitTests > org.zfin.marker.MarkerServiceTest.geneViewController FAILED
+    java.lang.IllegalStateException at DefaultCacheAwareContextLoaderDelegate.java:145
+
+org.zfin.DbUnitTests > org.zfin.marker.MarkerServiceTest.getEnsemblAccessionId FAILED
+    java.lang.IllegalStateException at DefaultCacheAwareContextLoaderDelegate.java:145
+
+org.zfin.DbUnitTests > org.zfin.marker.MarkerServiceTest.pullClonesOntoGeneFromTranscript FAILED
+    java.lang.IllegalStateException at DefaultCacheAwareContextLoaderDelegate.java:145
+
+org.zfin.DbUnitTests > org.zfin.marker.MarkerServiceTest.getGeneExpression FAILED
+    java.lang.IllegalStateException at DefaultCacheAwareContextLoaderDelegate.java:145
+
+org.zfin.DbUnitTests > org.zfin.marker.MarkerServiceTest.relatedMarkerDisplayFastMultipleSuppliers FAILED
+    java.lang.IllegalStateException at DefaultCacheAwareContextLoaderDelegate.java:145
+
+org.zfin.DbUnitTests > org.zfin.marker.MarkerServiceTest.pullGeneOntoCloneFromTranscript FAILED
+    java.lang.IllegalStateException at DefaultCacheAwareContextLoaderDelegate.java:145
+
+org.zfin.DbUnitTests > org.zfin.marker.MarkerServiceTest.getSequenceInfoFullNotDupe FAILED
+    java.lang.IllegalStateException at DefaultCacheAwareContextLoaderDelegate.java:145
+
+org.zfin.DbUnitTests > org.zfin.marker.MarkerServiceTest.mergeMarkerTest FAILED
+    java.lang.IllegalStateException at DefaultCacheAwareContextLoaderDelegate.java:145
+
+org.zfin.DbUnitTests > org.zfin.marker.MarkerServiceTest.getSequenceInfoFull FAILED
+    java.lang.IllegalStateException at DefaultCacheAwareContextLoaderDelegate.java:145
+
+org.zfin.DbUnitTests > org.zfin.marker.MarkerServiceTest.getSTRModificationNote FAILED
+    java.lang.IllegalStateException at DefaultCacheAwareContextLoaderDelegate.java:145
+
+org.zfin.DbUnitTests > org.zfin.marker.MarkerServiceTest.getSequenceInfoSummary FAILED
+    java.lang.IllegalStateException at DefaultCacheAwareContextLoaderDelegate.java:145
+
+org.zfin.DbUnitTests > org.zfin.marker.MarkerServiceTest.getOrthologyForGeneAndPublication FAILED
+    java.lang.IllegalStateException at DefaultCacheAwareContextLoaderDelegate.java:145
+
+org.zfin.DbUnitTests > org.zfin.marker.MarkerServiceTest.pullGeneOntoCloneFromTranscript2 FAILED
+    java.lang.IllegalStateException at DefaultCacheAwareContextLoaderDelegate.java:145
+
+org.zfin.DbUnitTests > org.zfin.marker.MarkerServiceTest.relatedMarkerDisplayFast FAILED
+    java.lang.IllegalStateException at DefaultCacheAwareContextLoaderDelegate.java:145
+
+org.zfin.DbUnitTests > org.zfin.marker.MarkerServiceTest.markerHasSupplier FAILED
+    java.lang.IllegalStateException at DefaultCacheAwareContextLoaderDelegate.java:145
+
+org.zfin.DbUnitTests > org.zfin.marker.MarkerServiceTest.relatedMarkerDisplayFastMultipleAttributions FAILED
+    java.lang.IllegalStateException at DefaultCacheAwareContextLoaderDelegate.java:145
+
+org.zfin.DbUnitTests > org.zfin.marker.MarkerServiceTest.getConstructsForGene FAILED
+    java.lang.IllegalStateException at DefaultCacheAwareContextLoaderDelegate.java:145
+
+org.zfin.DbUnitTests > org.zfin.marker.MarkerAttributionServiceTest.morpholinoAttributionTriggersGeneTargetAttributionTest FAILED
+    java.lang.IllegalStateException at DefaultCacheAwareContextLoaderDelegate.java:145
+
+org.zfin.DbUnitTests > org.zfin.marker.MarkerAttributionServiceTest.onlyMakeStrAttributionsOnJournalTypePublicationsTest FAILED
+    java.lang.IllegalStateException at DefaultCacheAwareContextLoaderDelegate.java:145
+
+org.zfin.DbUnitTests > org.zfin.marker.MarkerAttributionServiceTest.nonStrAttributionDoesNotTriggerGeneTargetAttributionTest FAILED
+    java.lang.IllegalStateException at DefaultCacheAwareContextLoaderDelegate.java:145
+
+org.zfin.DbUnitTests > org.zfin.sequence.reno.RenoRepositoryTest.populateLinkageGroups FAILED
+    org.hibernate.exception.SQLGrammarException at RenoRepositoryTest.java:547
+        Caused by: org.postgresql.util.PSQLException at RenoRepositoryTest.java:547
+
+org.zfin.DbUnitTests > org.zfin.sequence.SequenceRepositoryTest.testExistingDBLinksPassValidationRules FAILED
+    java.lang.OutOfMemoryError
+
+org.zfin.DbUnitTests > org.zfin.sequence.SequenceServiceTest.testSequenceServiceJsonResults FAILED
+    java.lang.IllegalStateException at DefaultCacheAwareContextLoaderDelegate.java:145
+
+org.zfin.DbUnitTests > org.zfin.sequence.SequenceServiceTest.testSequenceServiceJsonAggregation FAILED
+    java.lang.IllegalStateException at DefaultCacheAwareContextLoaderDelegate.java:145
+
+org.zfin.NetworkUnitTests > org.zfin.datatransfer.ncbi.NCBIReleaseFetcherTest.downloadCatalogIsFilteredToDanioTest FAILED
+    java.lang.NumberFormatException at NCBIReleaseFetcherTest.java:126
+
+org.zfin.NetworkUnitTests > org.zfin.datatransfer.ncbi.NCBIReleaseFetcherTest.readGene2accessionFileTest FAILED
+    java.io.FileNotFoundException at NCBIReleaseFetcherTest.java:150
+
+org.zfin.NetworkUnitTests > org.zfin.datatransfer.ncbi.NCBIReleaseFetcherTest.downloadEachReleaseFileTest FAILED
+    org.apache.commons.exec.ExecuteException at NCBIReleaseFetcherTest.java:106
+
+org.zfin.NetworkUnitTests > org.zfin.datatransfer.ncbi.NCBIReleaseFetcherTest.readAllFilesTest FAILED
+    java.io.IOException at NCBIReleaseFetcherTest.java:165
+
+org.zfin.NetworkUnitTests > org.zfin.datatransfer.ncbi.NCBIReleaseFetcherTest.downloadFullSetReleaseFilesTest FAILED
+    org.apache.commons.exec.ExecuteException at NCBIReleaseFetcherTest.java:114
+
+org.zfin.NetworkUnitTests > org.zfin.datatransfer.ncbi.NCBIReleaseFetcherTest.readAllFilesAsSetTest FAILED
+    java.io.IOException at NCBIReleaseFetcherTest.java:182
+
+org.zfin.NetworkUnitTests > org.zfin.datatransfer.ncbi.NCBIReleaseFetcherTest.getCurrentReleaseTest FAILED
+    java.lang.NumberFormatException at NCBIReleaseFetcherTest.java:49
+
+org.zfin.NetworkUnitTests > org.zfin.datatransfer.ncbi.NCBIReleaseFetcherTest.getLatestReleaseFileSetTest FAILED
+    java.lang.NumberFormatException at NCBIReleaseFetcherTest.java:198
+
+org.zfin.NetworkUnitTests > org.zfin.datatransfer.ncbi.NCBIReleaseFetcherTest.downloadGene2accessionIsFilteredToDanioTest FAILED
+    java.lang.NumberFormatException at NCBIReleaseFetcherTest.java:137
+
+org.zfin.PerformanceTests > org.zfin.marker.GenePerformanceTest.testOrthoAPG FAILED
+    com.gargoylesoftware.htmlunit.ScriptException at GenePerformanceTest.java:191
+        Caused by: net.sourceforge.htmlunit.corejs.javascript.WrappedException at GenePerformanceTest.java:191
+            Caused by: com.gargoylesoftware.htmlunit.ScriptException at GenePerformanceTest.java:191
+                Caused by: java.lang.RuntimeException at GenePerformanceTest.java:191
+                    Caused by: com.gargoylesoftware.htmlunit.ScriptException at GenePerformanceTest.java:191
+                        Caused by: net.sourceforge.htmlunit.corejs.javascript.WrappedException at GenePerformanceTest.java:191
+                            Caused by: com.gargoylesoftware.htmlunit.ScriptException at GenePerformanceTest.java:191
+                                Caused by: net.sourceforge.htmlunit.corejs.javascript.JavaScriptException at GenePerformanceTest.java:191
+
+org.zfin.PerformanceTests > org.zfin.marker.GenePerformanceTest.testPhenoFigurJava FAILED
+    com.gargoylesoftware.htmlunit.ScriptException at GenePerformanceTest.java:205
+        Caused by: net.sourceforge.htmlunit.corejs.javascript.WrappedException at GenePerformanceTest.java:205
+            Caused by: com.gargoylesoftware.htmlunit.ScriptException at GenePerformanceTest.java:205
+                Caused by: java.lang.RuntimeException at GenePerformanceTest.java:205
+                    Caused by: com.gargoylesoftware.htmlunit.ScriptException at GenePerformanceTest.java:205
+                        Caused by: net.sourceforge.htmlunit.corejs.javascript.WrappedException at GenePerformanceTest.java:205
+                            Caused by: com.gargoylesoftware.htmlunit.ScriptException at GenePerformanceTest.java:205
+                                Caused by: net.sourceforge.htmlunit.corejs.javascript.JavaScriptException at GenePerformanceTest.java:205
+
+org.zfin.PerformanceTests > org.zfin.marker.GenePerformanceTest.testDaliasJava FAILED
+    com.gargoylesoftware.htmlunit.ScriptException at GenePerformanceTest.java:205
+        Caused by: net.sourceforge.htmlunit.corejs.javascript.WrappedException at GenePerformanceTest.java:205
+            Caused by: com.gargoylesoftware.htmlunit.ScriptException at GenePerformanceTest.java:205
+                Caused by: java.lang.RuntimeException at GenePerformanceTest.java:205
+                    Caused by: com.gargoylesoftware.htmlunit.ScriptException at GenePerformanceTest.java:205
+                        Caused by: net.sourceforge.htmlunit.corejs.javascript.WrappedException at GenePerformanceTest.java:205
+                            Caused by: com.gargoylesoftware.htmlunit.ScriptException at GenePerformanceTest.java:205
+                                Caused by: net.sourceforge.htmlunit.corejs.javascript.JavaScriptException at GenePerformanceTest.java:205
+
+org.zfin.PerformanceTests > org.zfin.marker.GenePerformanceTest.testMrel1APG FAILED
+    com.gargoylesoftware.htmlunit.ScriptException at GenePerformanceTest.java:191
+        Caused by: net.sourceforge.htmlunit.corejs.javascript.WrappedException at GenePerformanceTest.java:191
+            Caused by: com.gargoylesoftware.htmlunit.ScriptException at GenePerformanceTest.java:191
+                Caused by: java.lang.RuntimeException at GenePerformanceTest.java:191
+                    Caused by: com.gargoylesoftware.htmlunit.ScriptException at GenePerformanceTest.java:191
+                        Caused by: net.sourceforge.htmlunit.corejs.javascript.WrappedException at GenePerformanceTest.java:191
+                            Caused by: com.gargoylesoftware.htmlunit.ScriptException at GenePerformanceTest.java:191
+                                Caused by: net.sourceforge.htmlunit.corejs.javascript.JavaScriptException at GenePerformanceTest.java:191
+
+org.zfin.PerformanceTests > org.zfin.marker.GenePerformanceTest.testMrel2APG FAILED
+    com.gargoylesoftware.htmlunit.ScriptException at GenePerformanceTest.java:191
+        Caused by: net.sourceforge.htmlunit.corejs.javascript.WrappedException at GenePerformanceTest.java:191
+            Caused by: com.gargoylesoftware.htmlunit.ScriptException at GenePerformanceTest.java:191
+                Caused by: java.lang.RuntimeException at GenePerformanceTest.java:191
+                    Caused by: com.gargoylesoftware.htmlunit.ScriptException at GenePerformanceTest.java:191
+                        Caused by: net.sourceforge.htmlunit.corejs.javascript.WrappedException at GenePerformanceTest.java:191
+                            Caused by: com.gargoylesoftware.htmlunit.ScriptException at GenePerformanceTest.java:191
+                                Caused by: net.sourceforge.htmlunit.corejs.javascript.JavaScriptException at GenePerformanceTest.java:191
+
+org.zfin.PerformanceTests > org.zfin.marker.GenePerformanceTest.testXpatJava FAILED
+    com.gargoylesoftware.htmlunit.ScriptException at GenePerformanceTest.java:205
+        Caused by: net.sourceforge.htmlunit.corejs.javascript.WrappedException at GenePerformanceTest.java:205
+            Caused by: com.gargoylesoftware.htmlunit.ScriptException at GenePerformanceTest.java:205
+                Caused by: java.lang.RuntimeException at GenePerformanceTest.java:205
+                    Caused by: com.gargoylesoftware.htmlunit.ScriptException at GenePerformanceTest.java:205
+                        Caused by: net.sourceforge.htmlunit.corejs.javascript.WrappedException at GenePerformanceTest.java:205
+                            Caused by: com.gargoylesoftware.htmlunit.ScriptException at GenePerformanceTest.java:205
+                                Caused by: net.sourceforge.htmlunit.corejs.javascript.JavaScriptException at GenePerformanceTest.java:205
+
+org.zfin.PerformanceTests > org.zfin.marker.GenePerformanceTest.testPhenoAnatsAPG FAILED
+    com.gargoylesoftware.htmlunit.ScriptException at GenePerformanceTest.java:191
+        Caused by: net.sourceforge.htmlunit.corejs.javascript.WrappedException at GenePerformanceTest.java:191
+            Caused by: com.gargoylesoftware.htmlunit.ScriptException at GenePerformanceTest.java:191
+                Caused by: java.lang.RuntimeException at GenePerformanceTest.java:191
+                    Caused by: com.gargoylesoftware.htmlunit.ScriptException at GenePerformanceTest.java:191
+                        Caused by: net.sourceforge.htmlunit.corejs.javascript.WrappedException at GenePerformanceTest.java:191
+                            Caused by: com.gargoylesoftware.htmlunit.ScriptException at GenePerformanceTest.java:191
+                                Caused by: net.sourceforge.htmlunit.corejs.javascript.JavaScriptException at GenePerformanceTest.java:191
+
+org.zfin.PerformanceTests > org.zfin.marker.GenePerformanceTest.testAverageGenesJava FAILED
+    java.lang.OutOfMemoryError
+
+org.zfin.PerformanceTests > org.zfin.marker.GenePerformanceTest.testFmrelJava FAILED
+    java.lang.OutOfMemoryError
+
+org.zfin.PerformanceTests > org.zfin.marker.GenePerformanceTest.testGOAPG FAILED
+    java.lang.OutOfMemoryError
+
+org.zfin.PerformanceTests > org.zfin.marker.GenePerformanceTest.testPhenoFigurAPG FAILED
+    java.lang.OutOfMemoryError
+
+org.zfin.PerformanceTests > org.zfin.marker.GenePerformanceTest.testInit FAILED
+    java.lang.OutOfMemoryError
+
+org.zfin.PerformanceTests > org.zfin.marker.GenePerformanceTest.testFmrelAPG FAILED
+    java.lang.OutOfMemoryError
+
+org.zfin.PerformanceTests > org.zfin.marker.GenePerformanceTest.testDblinkAPG FAILED
+    java.lang.OutOfMemoryError
+
+org.zfin.PerformanceTests > org.zfin.marker.GenePerformanceTest.testRecattribAPG FAILED
+    java.lang.OutOfMemoryError
+
+org.zfin.PerformanceTests > org.zfin.marker.GenePerformanceTest.testWorstOldJava FAILED
+    java.lang.OutOfMemoryError
+
+org.zfin.PerformanceTests > org.zfin.marker.GenePerformanceTest.testWorstGeneNewJava FAILED
+    java.lang.OutOfMemoryError
+
+org.zfin.PerformanceTests > org.zfin.marker.GenePerformanceTest.testWorstGeneNewAPG FAILED
+    java.lang.OutOfMemoryError
+
+org.zfin.PerformanceTests > org.zfin.marker.GenePerformanceTest.testMrel1Java FAILED
+    java.lang.OutOfMemoryError
+
+org.zfin.PerformanceTests > org.zfin.marker.GenePerformanceTest.testMrel2Java FAILED
+    java.lang.OutOfMemoryError
+
+org.zfin.PerformanceTests > org.zfin.marker.GenePerformanceTest.testWorstOldAPG FAILED
+    java.lang.OutOfMemoryError
+
+org.zfin.PerformanceTests > org.zfin.marker.GenePerformanceTest.testAverageGenesAPG FAILED
+    java.lang.OutOfMemoryError
+
+org.zfin.PerformanceTests > org.zfin.marker.GenePerformanceTest.testDblinkJava FAILED
+    java.lang.OutOfMemoryError
+
+org.zfin.PerformanceTests > org.zfin.marker.GenePerformanceTest.testGOJava FAILED
+    java.lang.OutOfMemoryError
+
+org.zfin.PerformanceTests > org.zfin.marker.GenePerformanceTest.testRecattribJava FAILED
+    java.lang.OutOfMemoryError
+
+org.zfin.PerformanceTests > org.zfin.marker.GenePerformanceTest.testOrthoJava FAILED
+    java.lang.OutOfMemoryError
+
+org.zfin.PerformanceTests > org.zfin.marker.GenePerformanceTest.testDaliasAPG FAILED
+    java.lang.OutOfMemoryError
+
+org.zfin.PerformanceTests > org.zfin.marker.GenePerformanceTest.testXpatAPG FAILED
+    java.lang.OutOfMemoryError
+
+org.zfin.PerformanceTests > org.zfin.marker.GenePerformanceTest.testPhenoAnatsJava FAILED
+    java.lang.OutOfMemoryError
+
+org.zfin.ProductionSmokeTests > org.zfin.anatomy.AnatomySmokeTest.testAnatomyDetailPageByOboId[0] FAILED
+    java.lang.OutOfMemoryError
+
+org.zfin.ProductionSmokeTests > org.zfin.anatomy.AnatomySmokeTest.testAnatomyDetailPageByAnatId[0] FAILED
+    java.lang.OutOfMemoryError
+
+org.zfin.ProductionSmokeTests > org.zfin.anatomy.AnatomySmokeTest.testAllAnatomyTerms[0] FAILED
+    java.lang.OutOfMemoryError
+
+org.zfin.ProductionSmokeTests > org.zfin.anatomy.AnatomySmokeTest.testAnatomySearchMultipleResults[0] FAILED
+    java.lang.OutOfMemoryError
+
+org.zfin.ProductionSmokeTests > org.zfin.anatomy.AnatomySmokeTest.testAnatomyDetailPageByTermId[0] FAILED
+    java.lang.OutOfMemoryError
+<===========--> 88% EXECUTING [1h 16m 2s]
+> :test > 1010 tests completed, 112 failed, 38 skipped
+> :test > Executing test org.zfin.ProductionSmokeTests

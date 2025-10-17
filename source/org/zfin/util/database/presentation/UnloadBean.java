@@ -6,7 +6,6 @@ import org.zfin.gwt.root.util.StringUtils;
 import org.zfin.profile.service.ProfileService;
 import org.zfin.util.FileInfo;
 import org.zfin.util.database.UnloadIndexingService;
-import org.zfin.util.database.UnloadService;
 import org.zfin.util.downloads.DownloadFileService;
 import org.zfin.util.downloads.jaxb.DownloadFileEntry;
 import org.zfin.util.downloads.presentation.DownloadFileInfo;
@@ -23,7 +22,6 @@ public class UnloadBean {
 
     private TreeMap<String, Map<String, Integer>> dataTableMap;
 
-    private UnloadService unloadService;
     private UnloadIndexingService unloadIndexingService;
     private String tableName;
     private String date;
@@ -48,20 +46,8 @@ public class UnloadBean {
         this.request = request;
     }
 
-    public void setUnloadService(UnloadService unloadService) {
-        this.unloadService = unloadService;
-    }
-
-    public UnloadService getUnloadService() {
-        return unloadService;
-    }
-
     public TreeMap<String, Map<String, Integer>> getDataTableMap() {
         return dataTableMap;
-    }
-
-    public List<UnloadService.TableHistogram> getTableHistogram() {
-        return unloadService.getTableHistogram(tableName);
     }
 
     public void setDataTableMap(TreeMap<String, Map<String, Integer>> dataTableMap) {
@@ -76,21 +62,6 @@ public class UnloadBean {
         this.tableName = tableName;
     }
 
-    public Map<String, List<UnloadService.EntityMatch>> getDeletedEntityMap() {
-        return unloadService.getDeletedEntityMap(tableName);
-    }
-
-    public Map<String, List<UnloadService.EntityMatch>> getAddedEntityMap() {
-        return unloadService.getAddedEntityMap(tableName);
-    }
-
-    public Map<String, List<UnloadService.EntityMatch>> getModifiedEntityMap() {
-        return unloadService.getModifiedEntityMap(tableName);
-    }
-
-    public List<UnloadService.EntityTrace> getEntityHistory() {
-        return unloadService.getEntityHistory(entityID, tableName);
-    }
 
     public String getFileType() {
         return fileType;
@@ -116,16 +87,6 @@ public class UnloadBean {
         this.downloadFileName = downloadFileName;
     }
 
-    public Map<String, String> getDateList() {
-        LinkedHashMap<String, String> dateList = new LinkedHashMap<String, String>();
-        List<String> dates = unloadService.getAllUnloadedDates();
-        Collections.sort(dates);
-        Collections.reverse(dates);
-        for (String date : dates) {
-            dateList.put(date, date);
-        }
-        return dateList;
-    }
 
     /**
      * Retrieve the list of dates that are older than the database data,
@@ -142,16 +103,6 @@ public class UnloadBean {
             dates = downloadFileService.getDataMatchingUnloadedDateStrings();
         Collections.sort(dates);
         Collections.reverse(dates);
-        for (String date : dates) {
-            dateList.put(date, date);
-        }
-        return dateList;
-    }
-
-    public Map<String, String> getUnIndexedTables() {
-        LinkedHashMap<String, String> dateList = new LinkedHashMap<String, String>();
-        List<String> dates = unloadService.getUnIndexedTables();
-        Collections.sort(dates);
         for (String date : dates) {
             dateList.put(date, date);
         }
