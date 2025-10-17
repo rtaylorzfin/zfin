@@ -26,7 +26,7 @@ ext {
     springVersion = '6.1.1'
     springSecurityVersion = '6.1.8'
     hibernateVersion = '6.4.4.Final'
-    hibernateSearchVersion = '6.1.1.Final'
+    hibernateSearchVersion = '7.0.1.Final'  // Upgraded for Hibernate ORM 6.4.4 compatibility
     jacksonVersion = '2.18.2'  // Upgraded for Hibernate 6.4.4 compatibility
     slf4jVersion = '2.0.12'
     log4jVersion = '2.17.1'
@@ -139,6 +139,7 @@ dependencies {
     implementation "com.fasterxml.jackson.core:jackson-databind:${jacksonVersion}"
     implementation "com.fasterxml.jackson.core:jackson-annotations:${jacksonVersion}"
     implementation "com.fasterxml.jackson.datatype:jackson-datatype-jsr310:${jacksonVersion}"
+    implementation "com.fasterxml.jackson.datatype:jackson-datatype-guava:${jacksonVersion}"  // Required by robot.jar
     implementation "com.fasterxml.jackson.dataformat:jackson-dataformat-xml:${jacksonVersion}"
 
     // ============================================================================
@@ -288,10 +289,10 @@ dependencies {
     // ADDITIONAL HIBERNATE & JPA MODULES
     // ============================================================================
 
-    implementation 'org.hibernate.search:hibernate-search-backend-elasticsearch:6.1.1.Final'
-    implementation 'org.hibernate.search:hibernate-search-backend-lucene:6.1.1.Final'
-    implementation 'org.hibernate.search:hibernate-search-mapper-orm:6.1.1.Final'
-    implementation 'org.hibernate.search:hibernate-search-util-common:6.1.1.Final'
+    implementation "org.hibernate.search:hibernate-search-backend-elasticsearch:${hibernateSearchVersion}"
+    implementation "org.hibernate.search:hibernate-search-backend-lucene:${hibernateSearchVersion}"
+    implementation "org.hibernate.search:hibernate-search-mapper-orm:${hibernateSearchVersion}"
+    implementation "org.hibernate.search:hibernate-search-util-common:${hibernateSearchVersion}"
 
     // ============================================================================
     // JACKSON ADDITIONAL MODULES
@@ -534,9 +535,16 @@ configurations.all {
         force "org.springframework.security:spring-security-ldap:${springSecurityVersion}"
         force "org.springframework.security:spring-security-crypto:${springSecurityVersion}"
 
+        // Hibernate alignment - force Hibernate 6.4.4
+        force "org.hibernate.orm:hibernate-core:${hibernateVersion}"
+
         // Hibernate Search alignment
         force "org.hibernate.search:hibernate-search-engine:${hibernateSearchVersion}"
         force "org.hibernate.search:hibernate-search-mapper-pojo-base:${hibernateSearchVersion}"
+        force "org.hibernate.search:hibernate-search-backend-elasticsearch:${hibernateSearchVersion}"
+        force "org.hibernate.search:hibernate-search-backend-lucene:${hibernateSearchVersion}"
+        force "org.hibernate.search:hibernate-search-mapper-orm:${hibernateSearchVersion}"
+        force "org.hibernate.search:hibernate-search-util-common:${hibernateSearchVersion}"
 
         // Log4j alignment - force all Log4j modules to same version
         force "org.apache.logging.log4j:log4j-api:${log4jVersion}"
