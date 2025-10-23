@@ -620,6 +620,31 @@ war {
 }
 
 // ============================================================================
+// TEST CONFIGURATION
+// ============================================================================
+
+// Configure test execution with increased memory for large test suites
+test {
+    maxHeapSize = "8g"
+
+    // Required for Java 17+ to open internal packages for reflection (Hibernate, etc.)
+    jvmArgs = [
+        '--add-opens', 'java.base/jdk.internal.loader=ALL-UNNAMED',
+        '--add-opens', 'java.base/java.util=ALL-UNNAMED',
+        '--add-opens', 'java.base/java.lang=ALL-UNNAMED',
+        '--add-opens', 'java.base/java.lang.invoke=ALL-UNNAMED',
+        '--add-opens', 'java.base/java.io=ALL-UNNAMED'
+    ]
+
+    // Show test output
+    testLogging {
+        events "passed", "skipped", "failed"
+        exceptionFormat "full"
+        showStandardStreams = false
+    }
+}
+
+// ============================================================================
 // HELPFUL TASKS
 // ============================================================================
 
@@ -967,11 +992,11 @@ task getLatestDatabaseUnload() {
  * Complete ZFIN Gradle build configuration with all 247 dependencies.
  *
  * To use:
- * 1. Generate WAR: ./gradlew war
- * 2. Check dependencies: ./gradlew dependencies
- * 3. List WAR contents: ./gradlew listWarJars
- * 4. Check conflicts: ./gradlew dependencyInsight --dependency <library>
- * 5. Clean build: ./gradlew clean war
+ * 1. Generate WAR: gradle war
+ * 2. Check dependencies: gradle dependencies
+ * 3. List WAR contents: gradle listWarJars
+ * 4. Check conflicts: gradle dependencyInsight --dependency <library>
+ * 5. Clean build: gradle clean war
  *
  * Expected output: build/libs/zfin.war
  *
