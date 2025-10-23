@@ -47,6 +47,9 @@
     <!-- war file name-->
     <property name="zfin.war" value="${basedir}/zfin.war"/>
 
+    <!-- Load Gradle-managed classpath if available -->
+    <property file="${basedir}/build/ant-classpath.properties"/>
+
     <!-- Classpath definitions -->
     <path id="classpath">
         <pathelement location="${classbin.dir}"/>
@@ -55,6 +58,8 @@
             <include name="*.jar"/>
         </fileset>
         <pathelement location="${buildfiles.dir}"/>
+        <!-- Include Gradle-managed dependencies -->
+        <pathelement path="${gradle.classpath}"/>
     </path>
 
     <!-- javadoc diectory -->
