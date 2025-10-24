@@ -582,7 +582,7 @@ configurations.all {
 // ============================================================================
 
 war {
-    archiveFileName = 'zfin.war'
+    archiveFileName = 'ROOT.war'
 
     // Handle duplicates by excluding them (prefer Gradle dependencies)
     duplicatesStrategy = DuplicatesStrategy.EXCLUDE
@@ -997,6 +997,44 @@ task getLatestDatabaseUnload() {
             println 'DB_UNLOADS_PATH is set to ' + dbunloadspath + '. Please change before attempting to copy.'
         }
     }
+}
+
+// ============================================================================
+// ANT COMPILE BRIDGE
+// ============================================================================
+
+// Custom compile task that mimics Ant's compile target
+// This allows 'ant compile' to delegate to Gradle for compilation
+task antCompile {
+    description = 'Compile Java sources and copy resources (called by ant compile)'
+
+    dependsOn compileJava
+
+    doLast {
+        // Copy XML files from source to classes directory (mimics Ant behavior)
+        copy {
+            from 'source'
+            into 'home/WEB-INF/classes'
+            include '**/*.xml'
+            exclude '**/.svn'
+        }
+        println ':JAVA COMPILE SUCCESSFUL:'
+    }
+}
+
+// Configure compileJava task to output to Ant-compatible location
+compileJava {
+    destinationDirectory.set(file('home/WEB-INF/classes'))
+
+    // Ensure annotation processing (Lombok) works correctly
+    options.annotationProcessorPath = configurations.compileClasspath
+
+    // Java compiler options matching Ant configuration
+    options.encoding = 'UTF-8'
+    options.debug = true
+    options.compilerArgs << '-parameters'
+    options.fork = true
+    options.forkOptions.memoryMaximumSize = '556m'
 }
 
 // ============================================================================
