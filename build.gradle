@@ -897,6 +897,26 @@ task deployGitInfoFile() {
 }
 
 // Directory copy tasks
+project(':home') {
+    task deployFiles {
+        doLast {
+            def sourceFiles = [file('robots.txt'), file('favicon.ico')]
+            def targetDir = file("${targetroot}/home")
+
+            if (!targetDir.exists()) {
+                targetDir.mkdirs()
+            }
+
+            sourceFiles.each { sourceFile ->
+                def targetFile = new File(targetDir, sourceFile.name)
+                targetFile.bytes = sourceFile.bytes
+            }
+
+            println "Copied ${sourceFiles.size()} files to ${targetDir}"
+        }
+    }
+}
+
 task "home;zf_info;deployFiles" (type: SimpleDirectoryCopyTask) {
     sourcePath = 'home/zf_info'
     excludes = ['Makefile']
