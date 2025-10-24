@@ -592,19 +592,32 @@ war {
 
     // Include web resources from home directory
     from('home') {
-        include '**/*.jsp'
-        include '**/*.html'
-        include '**/*.css'
-        include '**/*.js'
-        include '**/*.gif'
-        include '**/*.jpg'
-        include '**/*.png'
-        include 'WEB-INF/web.xml'
-        include 'WEB-INF/*.xml'
-        include 'WEB-INF/classes/**'  // Include pre-compiled classes
+//        include '**/*.jsp'
+//        include '**/*.html'
+//        include '**/*.css'
+//        include '**/*.js'
+//        include '**/*.gif'
+//        include '**/*.jpg'
+//        include '**/*.png'
+
+
+        include 'gwt/**'
+        include 'images/**'
+        include 'robots.txt'
+        include 'templates/**'
+        include 'ZFIN/**'
+        include 'zf_info/**'
+        include 'WEB-INF/**'
+        include 'favicon.ico'
+
+
+
+
+//        include 'WEB-INF/*.xml'
+//        include 'WEB-INF/classes/**'  // Include pre-compiled classes
 
         // IMPORTANT: Exclude lib directory - dependencies will be managed by Gradle
-        exclude 'WEB-INF/lib/**'
+//        exclude 'WEB-INF/lib/**'
 
         into '/'
     }
