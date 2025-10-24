@@ -1,22 +1,11 @@
-/*
- * ZFIN Gradle Build Configuration - WAR Generation
- *
- * Complete build configuration with all 247 dependencies for ZFIN application.
- * This configuration replaces manual JAR management with Gradle-based dependency resolution.
- *
- * Build: ./gradlew war
- * Clean: ./gradlew clean
- * Dependencies: ./gradlew dependencies
- */
 
 plugins {
     id 'war'
-    id 'java'
-    id 'groovy'
     id 'org.liquibase.gradle' version '2.1.1'
 }
 
-// Include external Gradle scripts
+apply plugin: 'java'
+apply plugin: 'groovy'
 apply from: 'agr.gradle'
 apply from: 'console.gradle'
 
@@ -996,6 +985,24 @@ task "server_apps;data_transfer;Ensembl;deployFiles" (type: SimpleDirectoryCopyT
     includes = ['sh', 'sql', 'groovy']
 }
 
+project(':server_apps:data_transfer:Downloads') {
+    task "createSymlink"() {
+        doLast {
+            if (!file(downloaddirectory).exists()) {
+                exec {
+                    commandLine "mkdir", "-p", downloaddirectory
+                }
+            }
+            String datatransferpath = targetroot + "/home/data-transfer"
+            if (!file(datatransferpath).exists()) {
+                exec {
+                    commandLine "ln", "-s", downloaddirectory, datatransferpath
+                }
+            }
+        }
+    }
+}
+
 // Main make task - replicates old Makefile behavior
 task make(type: GradleBuild) {
     tasks = ['deployPostgresFunctions',
@@ -1093,11 +1100,6 @@ task downloadSolrIndex(type: GradleBuild) {
 task loadSolrIndex(type: GradleBuild) {
     tasks = ['getLatestSolrIndex']
 }
-
-task getdb(dependsOn: downloadDB) //alias for downloadDB (aka getLatestDatabaseUnload)
-task loaddb(dependsOn: loadDb) //just an alias, since we're used to loaddb.pl
-task loadsolr(dependsOn: getLatestSolrIndex)
-task getsolr(dependsOn: getLatestSolrUnload)
 
 task getBlastAllDatabases() {
     doLast {
@@ -1267,3 +1269,8 @@ task showDirs {
         logger.quiet(rootDir.toPath().relativize(project.testResultsDir.toPath()).toString())
     }
 }
+
+task getdb(dependsOn: downloadDB) //alias for downloadDB (aka getLatestDatabaseUnload)
+task loaddb(dependsOn: loadDb) //just an alias, since we're used to loaddb.pl
+task loadsolr(dependsOn: getLatestSolrIndex)
+task getsolr(dependsOn: getLatestSolrUnload)
