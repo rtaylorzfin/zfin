@@ -801,16 +801,9 @@ task loadDatabase() {
     }
 }
 
-task loadDb(type: GradleBuild) {
-    tasks = ['loadDatabase']
-}
-
 task downloadDB(type: GradleBuild) {
     tasks = ['getLatestDatabaseUnload']
 }
-
-task getdb(dependsOn: downloadDB) //alias for downloadDB
-task loaddb(dependsOn: loadDb) //alias for loadDb
 
 task buildDatabase(type: GradleBuild) {
     tasks = ['liquibasePreBuild']
@@ -892,6 +885,30 @@ task deployGitInfoFile() {
         copy {
             from(packageFiles)
             into(targetroot + "/home/WEB-INF/classes")
+        }
+    }
+}
+
+// load properties into gradle
+task setup {
+    project.ext.ttNameMap = new Properties()
+    file("home/WEB-INF/zfin.properties").withInputStream {
+        ttNameMap.load(it)
+    }
+    Map filteredMap = new HashMap()
+    project.ext.ttNameMap.each { name, value ->
+        if (translateVariableSet.contains(name)) {
+            filteredMap.put(name, value)
+        }
+    }
+    project.ext.ttNameMap = filteredMap
+}
+
+task printProp() {
+    doLast {
+        println 'All Properties'
+        ttNameMap.each { name, value ->
+            println name + ' = ' + value
         }
     }
 }
@@ -1002,6 +1019,145 @@ task make(type: GradleBuild) {
     ]
 }
 
+
+task getLatestSolrIndexFilesTrunk() {
+    doLast {
+        exec {
+            ignoreExitValue = true
+            commandLine "bash", "-c", "scp -r " + env['SSH_USER'] + "@" + env['SSH_HOST'] + ":/research/zunloads/solr/trunkdb/current current.solr.dump"
+        }
+    }
+}
+
+task getLatestSolrIndex() {
+    doLast {
+        println 'Upgrade Solr index to the latest production one...'
+        println "latest index: " + "find ./* -type d -prune -exec ls -d ".execute().text
+
+        def folder = solrunloadspath
+        def baseDir = new File(folder)
+        def files = baseDir.listFiles()
+        Arrays.sort(files, new Comparator<File>() {
+            int compare(File f1, File f2) {
+                return Long.valueOf(f2.lastModified()).compareTo(f1.lastModified())
+            }
+        })
+        def latestIndex = files[0]
+        println latestIndex
+        def sout = new StringBuilder(), serr = new StringBuilder()
+        def procString = "ant restore-solr-core -DRESTORE_FROM=" + latestIndex.getAbsolutePath()
+        def proc = procString.execute()
+        def b = new StringBuffer()
+        proc.consumeProcessErrorStream(b)
+
+        println proc.text
+        println b.toString()
+
+    }
+}
+
+task createSchemaSpy() {
+    doLast {
+        println 'Creating ER diagram for ' + ttNameMap.get('DB_NAME') + ' ...'
+        javaexec {
+            main = "-jar"
+            args = [
+                    "lib/Java/schemaSpy_5.0.0.jar",
+                    "-t",
+                    "pgsql",
+                    "-db",
+                    ttNameMap.get('DB_NAME'),
+                    "-u",
+                    ttNameMap.get('USER'),
+                    "-host",
+                    pghost,
+                    "-dp",
+                    "lib/Java/postgresql-42.2.18.jar",
+                    "-s",
+                    "public",
+                    "-o",
+                    ttNameMap.get('TARGETROOT') + "/home/schemaSpy",
+            ]
+        }
+    }
+}
+
+task loadDb(type: GradleBuild) {
+    tasks = ['loadDatabase']
+}
+
+task downloadSolrIndex(type: GradleBuild) {
+    tasks = ['getLatestSolrUnload']
+}
+
+task loadSolrIndex(type: GradleBuild) {
+    tasks = ['getLatestSolrIndex']
+}
+
+task getdb(dependsOn: downloadDB) //alias for downloadDB (aka getLatestDatabaseUnload)
+task loaddb(dependsOn: loadDb) //just an alias, since we're used to loaddb.pl
+task loadsolr(dependsOn: getLatestSolrIndex)
+task getsolr(dependsOn: getLatestSolrUnload)
+
+task getBlastAllDatabases() {
+    doLast {
+        exec {
+            ignoreExitValue = true
+            commandLine "rsync", "-av", env['SSH_USER'] + "@" + env['SSH_HOST'] + ":/research/zfin.org/blastdb/Current", "/opt/zfin/blastdb/"
+        }
+    }
+}
+
+task getBlastSmallDatabases() {
+    doLast {
+        exec {
+            ignoreExitValue = true
+            commandLine "rsync", "-av", "--max-size=100m", env['SSH_USER'] + "@" + env['SSH_HOST'] + ":/research/zfin.org/blastdb/Current", "/opt/zfin/blastdb/"
+        }
+    }
+}
+
+task getBlastBinaries() {
+    doLast {
+        exec {
+            ignoreExitValue = true
+            commandLine "rsync", "-av", env['SSH_USER'] + "@" + env['SSH_HOST'] + ":/opt/ab-blast", "/opt/zfin/blastdb/"
+        }
+    }
+}
+
+task getBlast(type: GradleBuild) {
+    tasks = ['getBlastSmallDatabases',
+             'getBlastBinaries'
+    ]
+}
+
+
+task getLatestPostgresFilesTrunk() {
+    doLast {
+        exec {
+            ignoreExitValue = true
+            commandLine "bash", "-c", "scp " + env['SSH_USER'] + "@" + env['SSH_HOST'] + ":/research/zunloads/databases/trunkdb/current current.postgres.dump"
+        }
+    }
+}
+
+task getLatestSolrUnload() {
+    doLast {
+        if (solrunloadspath != '/research/zunloads/solr/zfindb') {
+            def command = "ssh " + env['SSH_USER'] + "@" + env['SSH_HOST'] + " " + 'ls -d /research/zunloads/solr/zfindb/20??.??.??-??:?? | sort -n |tail -n 1'
+            def filepath = command.execute().text.trim()
+            println "Getting " + filepath
+            exec {
+                ignoreExitValue = true
+                commandLine "scp", "-r", env['SSH_USER'] + "@" + env['SSH_HOST'] + ":" + filepath, solrunloadspath
+            }
+        } else {
+            println 'SOLR_UNLOADS_PATH is set to ' + solrunloadspath + '. Please change before attempting to copy.'
+        }
+    }
+}
+
 // Database unload download task
 task getLatestDatabaseUnload() {
     doLast {
@@ -1084,3 +1240,30 @@ compileJava {
  * - Test complete WAR generation (Phase 2.8)
  * - Validate all dependencies (Phase 2.9)
  */
+
+tasks.withType(Test) {
+    testLogging {
+        // set options for log level LIFECYCLE
+        showExceptions true
+        showCauses true
+        showStackTraces true
+
+        info.events = debug.events
+
+        afterSuite { desc, result ->
+            if (!desc.parent) { // will match the outermost suite
+                def output = "Results: ${result.resultType} (${result.testCount} tests, ${result.successfulTestCount} successes, ${result.failedTestCount} failures, ${result.skippedTestCount} skipped)"
+                def startItem = '|  ', endItem = '  |'
+                def repeatLength = startItem.length() + output.length() + endItem.length()
+                println('\n' + ('-' * repeatLength) + '\n' + startItem + output + endItem + '\n' + ('-' * repeatLength))
+            }
+        }
+    }
+}
+
+task showDirs {
+    doLast {
+        logger.quiet(rootDir.toPath().relativize(project.reportsDir.toPath()).toString())
+        logger.quiet(rootDir.toPath().relativize(project.testResultsDir.toPath()).toString())
+    }
+}
