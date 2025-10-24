@@ -605,6 +605,7 @@ war {
         include 'images/**'
         include 'robots.txt'
         include 'templates/**'
+        include 'server_apps/**'
         include 'ZFIN/**'
         include 'zf_info/**'
         include 'WEB-INF/**'
