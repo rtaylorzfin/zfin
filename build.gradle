@@ -603,12 +603,17 @@ dependencies {
     //runtimeOnly group: 'com.google.gwt', name: 'gwt-servlet', version: '2.9.0'
 //    implementation('org.gwtproject:gwt-user:2.11.0')
     implementation files("lib/Java/gwt/gwt-user-2.11.0.jar")
+    implementation files("lib/Java/gwt/jsinterop-annotations-2.0.0.jar")
 
     implementation group: 'com.fasterxml.jackson.datatype', name: 'jackson-datatype-jsr310', version: jacksonVersion
     implementation group: 'com.fasterxml.jackson.core', name: 'jackson-annotations', version: jacksonVersion
     implementation files("home/WEB-INF/lib/rescu-2.1.0-eclipse-transformed.jar")
     implementation 'jakarta.transaction:jakarta.transaction-api:2.0.0'
 
+    // GWT compiler and dependencies for gwt task
+    compileOnly 'org.gwtproject:gwt-dev:2.11.0'
+    compileOnly 'com.google.jsinterop:jsinterop-annotations:2.0.0'
+    compileOnly 'com.github.nmorel.gwtjackson:gwt-jackson:0.15.4'
 
 
 
@@ -636,7 +641,7 @@ dependencies {
     implementation group: 'jakarta.annotation', name: 'jakarta.annotation-api', version: '2.0.0'
     implementation group: 'com.google.code.gson', name: 'gson', version: '2.2.4'
 //    implementation group: 'org.fusesource.restygwt', name: 'restygwt', version: '2.2.7'
-    implementation files('home/WEB-INF/lib/restygwt-2.2.7-eclipse-transformed.jar')
+    implementation files('lib/Java/gwt/restygwt-2.2.7-eclipse-transformed.jar')
     implementation group: 'jakarta.ws.rs', name: 'jakarta.ws.rs-api', version: '3.1.0'
     implementation group: 'org.apache.solr', name: 'solr-solrj', version: '9.4.0'
     implementation group: 'commons-beanutils', name: 'commons-beanutils', version: '1.9.1'
@@ -1002,9 +1007,11 @@ test {
         includeNonSmokeTests = true
     }
 
-    println "Include smoke tests: " + includeSmokeTests
-    println "Include non-smoke tests: " + includeNonSmokeTests
-    println "Include NCBI load tests: " + includeNcbiLoadTests
+    doFirst {
+        println "Include smoke tests: " + includeSmokeTests
+        println "Include non-smoke tests: " + includeNonSmokeTests
+        println "Include NCBI load tests: " + includeNcbiLoadTests
+    }
 
     filter {
         if (testSuite != null) {
@@ -1288,6 +1295,73 @@ compileJava {
     options.compilerArgs << '-parameters'
     options.fork = true
     options.forkOptions.memoryMaximumSize = '556m'
+}
+
+// ============================================================================
+// GWT COMPILATION TASKS
+// ============================================================================
+
+// Task to compile a single GWT module
+task compileGwtModule(type: JavaExec) {
+    description = 'Compile a GWT module (specify with -Pmodule=...)'
+    group = 'build'
+
+    def gwtModule = project.hasProperty('module') ? project.property('module') : 'org.zfin.gwt.lookup.Lookup'
+    def gwtTarget = project.hasProperty('gwtTarget') ? project.property('gwtTarget') : targetroot + '/home/gwt'
+
+    mainClass = 'com.google.gwt.dev.Compiler'
+    classpath = configurations.compileClasspath + files('source')
+    args = [
+        '-war', gwtTarget,
+        '-style', 'DETAILED',
+        gwtModule
+    ]
+    jvmArgs = ['-Xms256m', '-Xmx512m']
+
+    doFirst {
+        delete "${gwtTarget}/${gwtModule}"
+        println "Compiling GWT module ${gwtModule} to ${gwtTarget}"
+    }
+}
+
+// Task to compile all GWT modules
+task gwtCompile {
+    description = 'Compile all GWT modules'
+    group = 'build'
+
+    dependsOn 'compileJava'
+
+    doLast {
+        def modules = [
+            'org.zfin.gwt.lookup.Lookup',
+            'org.zfin.gwt.marker.Marker',
+            'org.zfin.gwt.curation.Curation'
+        ]
+
+        def gwtTarget = targetroot + '/pre-home/gwt'
+
+        // Compile modules sequentially
+        modules.each { module ->
+            delete "${gwtTarget}/${module}"
+            println "Compiling GWT module ${module} to ${gwtTarget}"
+            javaexec {
+                mainClass = 'com.google.gwt.dev.Compiler'
+
+                // Match the working command line classpath: home/WEB-INF/classes:lib/Java/gwt/*:source
+                classpath = files('home/WEB-INF/classes') +
+                            fileTree(dir: 'lib/Java/gwt', include: '*.jar') +
+                            files('source')
+
+                args = [
+                    '-war', gwtTarget,
+                    '-strict',
+                    '-style', 'DETAILED',
+                    module
+                ]
+                jvmArgs = ['-Xms256m', '-Xmx512m']
+            }
+        }
+    }
 }
 
 // ============================================================================
