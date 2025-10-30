@@ -64,6 +64,7 @@ project.ext.set("hibernateSearchVersion", '7.0.1.Final')
 project.ext.set("jacksonVersion", '2.18.2')
 project.ext.set("slf4jVersion", '2.0.12')
 project.ext.set("log4jVersion", '2.17.1')
+project.ext.set("poiVersion", '5.2.5')
 
 // Force consistent Jackson version across all dependencies to avoid NoSuchMethodError
 configurations.all {
@@ -573,8 +574,8 @@ dependencies {
     liquibaseRuntime("org.postgresql:postgresql:42.2.20")
 
     //for generating xlsx in NCBI load
-    implementation 'org.apache.poi:poi:5.2.5'
-    implementation 'org.apache.poi:poi-ooxml:5.2.5'
+    implementation "org.apache.poi:poi:${poiVersion}"
+    implementation "org.apache.poi:poi-ooxml:${poiVersion}"
 
     implementation group: 'commons-collections', name: 'commons-collections', version: '3.2.1'
     implementation group: 'org.apache.logging.log4j', name: 'log4j-core', version: '2.17.1'
@@ -812,7 +813,6 @@ dependencies {
     implementation "org.apache.lucene:lucene-analyzers-common:8.11.2"
     implementation "org.apache.lucene:lucene-queries:9.4.2"
     implementation "org.apache.lucene:lucene-queryparser:9.4.2"
-    implementation "org.apache.poi:poi-ooxml-schemas:4.1.2"
     implementation "org.aspectj:aspectjrt:1.9.21"
     implementation "org.aspectj:aspectjweaver:1.9.21"
     implementation "org.codehaus.castor:castor-core:1.4.1"
@@ -1022,7 +1022,8 @@ test {
             includeTestsMatching "org.zfin.datatransfer.ncbi.NCBILoadIntegrationTest"
 
 //   UNCOMMENT BELOW TO RUN CHARACTERIZATION TEST (DANGEROUS)
-            includeTestsMatching "org.zfin.datatransfer.ncbi.NCBILoadCharacterizationTest"
+//            includeTestsMatching "org.zfin.datatransfer.ncbi.NCBILoadCharacterizationTest"
+
             //don't run other tests
             includeNonSmokeTests = false
             includeSmokeTests = false
