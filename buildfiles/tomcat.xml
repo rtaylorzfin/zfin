@@ -288,7 +288,7 @@
         <gradle task="war"/>
 
         <!--        copy war file to webapps directory-->
-        <copy file="build/libs/zfin.war" tofile="${CATALINA_BASE}/webapps/zfin.war" overwrite="true"/>
+        <copy file="build/libs/zfin.war" tofile="${CATALINA_BASE}/webapps/ROOT.war" overwrite="true"/>
     </target>
 
 

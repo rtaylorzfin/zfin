@@ -52,9 +52,6 @@ project.ext.set("sourceroot", sourceroot)
 project.ext.set("pgdata", pgdata)
 project.ext.set("pgbindir", pgbindir)
 project.ext.set("targetroot", targetroot)
-//project.ext.set("pghost", pghost)
-//project.ext.set("dbunloadspath", dbunloadspath)
-//project.ext.set("downloaddirectory", downloaddirectory)
 
 // Define version variables for consistency
 project.ext.set("springVersion", '6.1.1')
@@ -1145,6 +1142,7 @@ task showDirs {
 // ============================================================================
 
 war {
+    //TODO: change name to ROOT.war for deployment as root app
     archiveFileName = 'zfin.war'
 
     // Handle duplicates by excluding them (prefer Gradle dependencies)
