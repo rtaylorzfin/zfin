@@ -1204,6 +1204,12 @@ war {
         into 'WEB-INF/classes'
     }
 
+    //git-info.txt
+    from(targetroot + '/home/WEB-INF/classes') {
+        include 'git-info.txt'
+        into 'WEB-INF/classes'
+    }
+
     // Compiled classes go into WEB-INF/classes
     // Note: We use pre-compiled classes from home/WEB-INF/classes
     // Source is in 'source/' directory (2,438 Java files + 1,654 resources)
