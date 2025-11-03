@@ -238,11 +238,15 @@ def parseLabelCaptionImage(groupMatchString, zdbId, pmcId, imageFilePath, pubYea
 
     if (imageNameMatch.size() > 0) {
         imageNameMatch.each {
-            image = it[2] + ".jpg"
+            image = it[2]
+            // Only append .jpg if the filename doesn't already have an extension
+            if (!FilenameUtils.getExtension(image)) {
+                image = image + ".jpg"
+            }
             println (image)
-            makeThumbnailAndMediumImage(image, image.replace(".jpg", ""), zdbId, pubYear)
+            String fileNameNoExtension = FilenameUtils.removeExtension(image)
+            makeThumbnailAndMediumImage(image, fileNameNoExtension, zdbId, pubYear)
             String extension = FilenameUtils.getExtension(image)
-            String fileNameNoExtension = image.replace(".jpg", "")
             String thumbnailFilename = fileNameNoExtension + "_thumb" + FilenameUtils.EXTENSION_SEPARATOR + extension
             String mediumFileName = fileNameNoExtension + "_medium" + FilenameUtils.EXTENSION_SEPARATOR + extension
             FIGS_TO_LOAD.append([zdbId, pmcId, image, label, caption, pubYear + "/" + zdbId + "/" + image,
@@ -263,8 +267,17 @@ def makeThumbnailAndMediumImage(fileName, fileNameNoExtension, pubZdbId, pubYear
     File fullFile = new File(ZfinPropertiesEnum.LOADUP_FULL_PATH.toString()+"/"+pubYear+"/"+pubZdbId+"/", fileName)
 
     // make thumbnail and medium images in the same directory as their parent images.
-    "/bin/convert -thumbnail 1000x64 ${fullFile} ${thumbnailFile}".execute()
-    "/bin/convert -thumbnail 500x550 ${fullFile} ${mediumFile}".execute()
+    int thumbnailResult = "/bin/convert -thumbnail 1000x64 ${fullFile} ${thumbnailFile}".execute().exitValue()
+    int mediumResult = "/bin/convert -thumbnail 500x550 ${fullFile} ${mediumFile}".execute().exitValue()
+
+    if (thumbnailResult != 0) {
+        println("Error creating thumbnail for " + fullFile.getAbsolutePath())
+        throw new RuntimeException("Error creating thumbnail for " + fullFile.getAbsolutePath())
+    }
+    if (mediumResult != 0) {
+        println("Error creating medium image for " + fullFile.getAbsolutePath())
+        throw new RuntimeException("Error creating medium image for " + fullFile.getAbsolutePath())
+    }
 
 }
 
