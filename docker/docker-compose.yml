@@ -41,6 +41,7 @@ services:
 #      - "127.0.0.1:12345-12354:12345"
     volumes:
       - www_data:/opt/zfin/www_homes/zfin.org
+      - www_sub_data:/opt/zfin/www_homes/zfin.org/home/WEB-INF
       - downloads_data:/opt/zfin/download-files
       - httpd_log:/opt/zfin/log/httpd
       - tls_certs:/opt/zfin/tls
@@ -127,6 +128,7 @@ services:
       UMASK: "002"
     volumes:
       - www_data:/opt/zfin/www_homes/zfin.org
+      - www_sub_data:/opt/zfin/www_homes/zfin.org/home/WEB-INF
       - catalina_base:/opt/zfin/catalina_bases/zfin.org
       - keystore:/opt/apache/apache-tomcat/conf
       - ${DOCKER_BLASTSERVER_BLAST_DATABASE_PATH}:/opt/zfin/blastdb
@@ -150,6 +152,7 @@ services:
       - "127.0.0.1:5000:5000"
     volumes:
       - www_data:/opt/zfin/www_homes/zfin.org
+      - www_sub_data:/opt/zfin/www_homes/zfin.org/home/WEB-INF
       - catalina_base:/opt/zfin/catalina_bases/zfin.org
       - keystore:/opt/apache/apache-tomcat/conf
       - ${DOCKER_BLASTSERVER_BLAST_DATABASE_PATH}:/opt/zfin/blastdb
@@ -184,6 +187,7 @@ services:
       #- jenkins_data:/var/jenkins_home
       - ${DOCKER_SOURCE_ROOTS_PATH}:/opt/zfin/source_roots/zfin.org
       - www_data:/opt/zfin/www_homes/zfin.org
+      - www_sub_data:/opt/zfin/www_homes/zfin.org/home/WEB-INF
       - catalina_base:/opt/zfin/catalina_bases/zfin.org
       - downloads_data:/opt/zfin/download-files
       - solr_data:/var/solr
@@ -284,6 +288,7 @@ volumes:
   gradle_cache:
   maven_cache:
   www_data:
+  www_sub_data:
   httpd_log:
   tls_certs:
   keystore:
