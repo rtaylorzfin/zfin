@@ -1325,6 +1325,7 @@ dependencies {
     pushLibs "com.sun.mail:jakarta.mail:2.0.1"
     pushLibs "jakarta.persistence:jakarta.persistence-api:3.1.0"
 //    pushLibs "jakarta.servlet.jsp.jstl:jakarta.servlet.jsp.jstl-api:1.2.7"
+    pushLibs 'jakarta.servlet.jsp.jstl:jakarta.servlet.jsp.jstl-api:3.0.0'
     pushLibs "jakarta.transaction:jakarta.transaction-api:2.0.0"
     pushLibs "jakarta.validation:jakarta.validation-api:3.0.2"
     pushLibs "jakarta.ws.rs:jakarta.ws.rs-api:3.1.0"
@@ -1454,7 +1455,7 @@ task pushLibraries {
             'home/WEB-INF/lib/gwt-servlet-jakarta-2.11.0.jar',
             'home/WEB-INF/lib/highlighter.jar',
             'home/WEB-INF/lib/jaxb-libs.jar',
-            'jakarta.servlet.jsp.jstl-api-1.2.7-eclipse-transformed.jar',
+//            'home/WEB-INF/lib/jakarta.servlet.jsp.jstl-api-1.2.7-eclipse-transformed.jar', //repaced with jakarta.servlet.jsp.jstl:jakarta.servlet.jsp.jstl-api:3.0.0
             'home/WEB-INF/lib/jdbc-listener.jar',
             'home/WEB-INF/lib/jdbc-tools.jar',
             'home/WEB-INF/lib/jdbc-tools.jar',
@@ -1480,6 +1481,17 @@ task pushLibraries {
                 }
             } else {
                 println "  WARNING: ${jarPath} not found, skipping"
+            }
+        }
+
+        // Push the asset-manifest.json file into WEB-INF/classes
+        def assetManifestSource = file("${targetroot}/home/asset-manifest.json")
+        def assetManifestTargetDir = file("${baseDir}/WEB-INF/classes")
+        if (assetManifestSource.exists()) {
+            println "Copying asset-manifest.json to ${assetManifestTargetDir}"
+            copy {
+                from assetManifestSource
+                into assetManifestTargetDir
             }
         }
 

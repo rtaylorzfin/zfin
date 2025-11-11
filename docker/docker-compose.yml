@@ -127,7 +127,7 @@ services:
       JVM_OPTS: -Xms2048m -Xmx8192m -Xss2m
       UMASK: "002"
     volumes:
-      - www_data:/opt/zfin/www_homes/zfin.org
+#      - www_data:/opt/zfin/www_homes/zfin.org
       - www_sub_data:/opt/zfin/www_homes/zfin.org/home/WEB-INF
       - catalina_base:/opt/zfin/catalina_bases/zfin.org
       - keystore:/opt/apache/apache-tomcat/conf
@@ -151,7 +151,7 @@ services:
     ports:
       - "127.0.0.1:5000:5000"
     volumes:
-      - www_data:/opt/zfin/www_homes/zfin.org
+#      - www_data:/opt/zfin/www_homes/zfin.org
       - www_sub_data:/opt/zfin/www_homes/zfin.org/home/WEB-INF
       - catalina_base:/opt/zfin/catalina_bases/zfin.org
       - keystore:/opt/apache/apache-tomcat/conf
@@ -187,7 +187,7 @@ services:
       #- jenkins_data:/var/jenkins_home
       - ${DOCKER_SOURCE_ROOTS_PATH}:/opt/zfin/source_roots/zfin.org
       - www_data:/opt/zfin/www_homes/zfin.org
-      - www_sub_data:/opt/zfin/www_homes/zfin.org/home/WEB-INF
+#      - www_sub_data:/opt/zfin/www_homes/zfin.org/home/WEB-INF
       - catalina_base:/opt/zfin/catalina_bases/zfin.org
       - downloads_data:/opt/zfin/download-files
       - solr_data:/var/solr
