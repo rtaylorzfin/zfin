@@ -603,7 +603,7 @@
     <target name="deploy-without-tests-and-tomcat-restart"
             depends="cleanClasses,pre-deploy,build-properties,advance-build,unittests-quiet,deploy-solr"/>
 
-    <target name="pre-deploy" depends="do,prepareDeploy,gwt,copy-to-pre-release,npmInstall,npmBuild,deployGitInfoFile"
+    <target name="pre-deploy" depends="do,prepareDeploy,gwt,copy-to-pre-release,npmInstall,npmBuild,deployGitInfoFile,gradle-war-and-deploy"
             description="Target to compile all classes (excluding jsp files) and then deploy the necessary files to user's web environment.">
         <!--        <jsp-compile/> -->
     </target>
@@ -676,11 +676,11 @@
             </copy>
 
             <!-- Run Gradle pushLibraries task to copy dependencies -->
-            <echo message="Running gradle pushLibraries to @{to}"/>
-            <exec executable="gradle" failonerror="true">
-                <arg value="pushLibraries"/>
-                <arg value="-Pdestination=@{to}"/>
-            </exec>
+<!--            <echo message="Running gradle pushLibraries to @{to}"/>-->
+<!--            <exec executable="gradle" failonerror="true">-->
+<!--                <arg value="pushLibraries"/>-->
+<!--                <arg value="-Pdestination=@{to}"/>-->
+<!--            </exec>-->
         </sequential>
     </macrodef>
 
