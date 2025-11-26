@@ -1029,69 +1029,6 @@ task showDirs {
 // HELPFUL TASKS
 // ============================================================================
 
-/**
- *
- * This task copies specific jar files from the Maven cache and local source
- * to the TARGETROOT/home/WEB-INF/lib directory (or to a specified destination).
- * The jars from the Maven cache are determined by the runtimeClasspath configuration (ie. those that are explicitly
- * declared with implementation "..." in dependencies). It does not include transitive dependencies.
- * Local jar files specified in the localFileDependencies list are also copied.
- *
-**/
-task pushLibraries {
-    description = 'Copy specific jar files from Maven cache and local source to TARGETROOT/home/WEB-INF/lib (or -Pdestination=path/to/dir)'
-    group = 'deployment'
-
-    doLast {
-        // Use destination property if provided, otherwise default to ${targetroot}/home
-        def baseDir = project.hasProperty('destination') ? project.property('destination') : "${targetroot}/home"
-        def targetLibDir = file("${baseDir}/WEB-INF/lib")
-
-        // Create target directory if it doesn't exist
-        targetLibDir.mkdirs()
-
-        println "Pushing libraries to: ${targetLibDir}"
-
-        // Copy jars from Maven cache
-        println "Copying jars from Maven cache..."
-
-        def runtimeConfiguration = configurations.runtimeClasspath.resolvedConfiguration
-
-        // Get all resolved artifacts including transitives
-        def allDependencies = runtimeConfiguration.resolvedArtifacts
-        def directDependencies = runtimeConfiguration.firstLevelModuleDependencies
-
-        allDependencies.each { resolvedArtifact ->
-            def isTransitive = !directDependencies.any { it.moduleGroup == resolvedArtifact.moduleVersion.id.group && it.moduleName == resolvedArtifact.moduleVersion.id.name }
-
-            println "  Copying: ${resolvedArtifact.moduleVersion.id} (${resolvedArtifact.file.name})" + (isTransitive ? " [transitive]" : " [direct]")
-
-            copy {
-                from resolvedArtifact.file
-                into targetLibDir
-            }
-        }
-
-        // Copy local jar files
-        println "Copying local jar files..."
-        localFileDependencies.each { jarPath ->
-            def jarFile = file(jarPath)
-            if (jarFile.exists()) {
-                println "  Copying ${jarFile.name} to ${targetLibDir}"
-                copy {
-                    from jarFile
-                    into targetLibDir
-                }
-            } else {
-                println "  WARNING: ${jarPath} not found, skipping"
-            }
-        }
-
-        println "Library push complete. Copied ${allDependencies.size()} Maven jars and ${localFileDependencies.size()} local jars."
-
-    }
-}
-
 // Task to install command-line utilities to TARGETROOT
 task installUtilities(type: Copy) {
     dependsOn installDist
@@ -1137,15 +1074,6 @@ war {
 
     // Include web resources from home directory
     from('home') {
-//        include '**/*.jsp'
-//        include '**/*.html'
-//        include '**/*.css'
-//        include '**/*.js'
-//        include '**/*.gif'
-//        include '**/*.jpg'
-//        include '**/*.png'
-
-
         include 'gwt/**'
         include 'images/**'
         include 'robots.txt'
@@ -1155,15 +1083,6 @@ war {
         include 'zf_info/**'
         include 'WEB-INF/**'
         include 'favicon.ico'
-
-
-
-
-//        include 'WEB-INF/*.xml'
-//        include 'WEB-INF/classes/**'  // Include pre-compiled classes
-
-        // IMPORTANT: Exclude lib directory - dependencies will be managed by Gradle
-//        exclude 'WEB-INF/lib/**'
 
         into '/'
     }
@@ -1197,7 +1116,6 @@ war {
     // Dependencies go into WEB-INF/lib
     // Gradle will automatically package all runtime dependencies
 }
-
 
 // Show dependency tree
 task showDependencies {
