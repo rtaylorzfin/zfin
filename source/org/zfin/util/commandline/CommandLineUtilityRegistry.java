@@ -25,11 +25,6 @@ public class CommandLineUtilityRegistry {
                 "token-storage <operation> [options] \n eg. token-storage read NCBI_API_TOKEN\n     token-storage write NCBI_API_TOKEN 'your_token_value'");
 
         // Add more utilities as they are discovered/created
-        // Example:
-        // register("data-loader",
-        //         "org.zfin.datatransfer.DataLoader",
-        //         "Load data from various sources",
-        //         "data-loader <source> <destination>");
     }
 
     /**
