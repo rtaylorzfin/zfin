@@ -1106,26 +1106,10 @@ task installUtilities(type: Copy) {
         def binDir = file("${targetroot}/bin")
         binDir.mkdirs()
 
-        def symlinkTarget = "${targetroot}/utilities/bin/zfin-util"
-        def symlinkPath = "${targetroot}/bin/zfin-util"
-
-        // Remove existing symlink if present
-        exec {
-            commandLine 'rm', '-f', symlinkPath
-            ignoreExitValue = true
-        }
-
-        // Create new symlink
-        exec {
-            commandLine 'ln', '-sf', symlinkTarget, symlinkPath
-            ignoreExitValue = true
-        }
-
         println "\n========================================"
         println "Utilities installed successfully!"
         println "========================================"
-        println "Location: ${targetroot}/utilities"
-        println "Symlink:  ${targetroot}/bin/zfin-util"
+        println "Location: ${targetroot}/utilities/bin/zfin-util"
         println ""
         println "Usage:"
         println "  zfin-util list              - List available utilities"
