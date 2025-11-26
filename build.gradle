@@ -1030,24 +1030,22 @@ task pushLibraries {
         // Copy jars from Maven cache
         println "Copying jars from Maven cache..."
 
-        // Only gets first-level (non-transitive) dependencies
-        def mavenCentralDependenciesNonTransitive = configurations
-                .runtimeClasspath
-                .resolvedConfiguration
-                .firstLevelModuleDependencies
+        def runtimeConfiguration = configurations.runtimeClasspath.resolvedConfiguration
 
-        // Copy first-level dependencies
-        mavenCentralDependenciesNonTransitive
-                .each { resolvedDep ->
-                    resolvedDep.moduleArtifacts.each { artifact ->
-                        def jarFile = artifact.file
-                        println "  Copying ${jarFile.name} to ${targetLibDir}"
-                        copy {
-                            from jarFile
-                            into targetLibDir
-                        }
-                    }
-                }
+        // Get all resolved artifacts including transitives
+        def allDependencies = runtimeConfiguration.resolvedArtifacts
+        def directDependencies = runtimeConfiguration.firstLevelModuleDependencies
+
+        allDependencies.each { resolvedArtifact ->
+            def isTransitive = !directDependencies.any { it.moduleGroup == resolvedArtifact.moduleVersion.id.group && it.moduleName == resolvedArtifact.moduleVersion.id.name }
+
+            println "  Copying: ${resolvedArtifact.moduleVersion.id} (${resolvedArtifact.file.name})" + (isTransitive ? " [transitive]" : " [direct]")
+
+            copy {
+                from resolvedArtifact.file
+                into targetLibDir
+            }
+        }
 
         // Copy local jar files
         println "Copying local jar files..."
@@ -1064,7 +1062,7 @@ task pushLibraries {
             }
         }
 
-        println "Library push complete. Copied ${mavenCentralDependenciesNonTransitive.size()} Maven jars and ${localFileDependencies.size()} local jars."
+        println "Library push complete. Copied ${allDependencies.size()} Maven jars and ${localFileDependencies.size()} local jars."
 
     }
 }
