@@ -28,19 +28,6 @@ application {
     applicationDefaultJvmArgs = ['-Xmx512m']
 }
 
-// Configure what gets included in the distribution
-distributions {
-    main {
-        contents {
-            // Exclude servlet APIs and Tomcat-specific JARs from utility distribution
-            exclude '**/servlet-api*.jar'
-            exclude '**/jakarta.servlet*.jar'
-            exclude '**/tomcat*.jar'
-            exclude '**/jsp*.jar'
-        }
-    }
-}
-
 def env = System.getenv()
 def dbname = env['DBNAME']
 def sourceroot = env['SOURCEROOT']
