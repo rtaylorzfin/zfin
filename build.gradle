@@ -870,6 +870,7 @@ test {
     def includeNcbiLoadTests = project.hasProperty('ncbiLoadTests')
     def includeSmokeTests = project.hasProperty('smokeTests')
     def includeNonSmokeTests = project.hasProperty('nonSmokeTests')
+    def includeNcbiCharacterizationTest = project.hasProperty('includeNcbiCharacterizationTest')
 
     // If a specific suite is requested, ignore other flags
     if (testSuite != null) {
@@ -882,8 +883,6 @@ test {
         includeSmokeTests = true
         includeNonSmokeTests = true
     }
-    def includeNcbiLoadTests = project.hasProperty('ncbiLoadTests')
-    def includeNcbiCharacterizationTest = project.hasProperty('includeNcbiCharacterizationTest')
     if (includeNcbiLoadTests || includeNcbiCharacterizationTest) {
         includeNonSmokeTests = false
         includeSmokeTests = false
