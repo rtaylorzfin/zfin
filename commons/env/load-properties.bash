@@ -7,8 +7,13 @@ INCLUDE_LIST_FILE="/opt/zfin/source_roots/zfin.org/commons/env/env-exports.prope
 # Check if file exists
 if [ ! -f "$PROPERTIES_FILE" ]; then
     echo "Error: Properties file '$PROPERTIES_FILE' not found."
-    echo "Please generate file."
-    exit
+    echo "Attempting to generate file."
+    cd /opt/zfin/source_roots/zfin.org && ant rebuildProperties
+fi
+
+if [ ! -f "$PROPERTIES_FILE" ]; then
+    echo "Failed to generate properties file"
+    exit 1
 fi
 
 echo "Loading properties from $PROPERTIES_FILE..."
