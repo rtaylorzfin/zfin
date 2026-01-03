@@ -14,7 +14,8 @@ RUN /etc/init.d/postgresql start && \
     su - postgres -c "createdb zfindb"
 
 RUN perl -i -pe 's/peer/trust/' /etc/postgresql/15/main/pg_hba.conf && \
-    perl -i -pe 's/scram-sha-256/trust/' /etc/postgresql/15/main/pg_hba.conf
+    perl -i -pe 's/scram-sha-256/trust/' /etc/postgresql/15/main/pg_hba.conf && \
+    echo "host    all    all    172.18.0.0/16    trust" >> /etc/postgresql/15/main/pg_hba.conf
 
 ADD zfindbdump.bak /tmp/zfindbdump.bak
 RUN /etc/init.d/postgresql start && \
