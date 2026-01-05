@@ -234,6 +234,30 @@
         />
     </target>
 
+
+<!--    Uncomment if needing to generate flat.properties files for testing -->
+    <!--
+    <target name="dumpFlattenedProperties" depends="createEnum,exportAntTokenFilters"
+            description="Dumps flattened properties.">
+        <taskdef name="exportAllInstances"
+                 classname="org.zfin.properties.ExportAllInstancesTask"
+                 classpathref="classpath"/>
+        <exportAllInstances instancesFile="${commons.dir}/instances.properties"
+                            target="dumpFlattenedPropertiesForInstance"/>
+    </target>
+
+    <target name="dumpFlattenedPropertiesForInstance">
+        <exportProperties
+                file="${commons.dir}/${INSTANCE}.properties"
+                target="commons/test/${INSTANCE}-flat.properties"
+                header="#Properties for INSTANCE=${INSTANCE}"
+                keySuffix="="
+        />
+    </target>
+    -->
+
+
+
     <!--is referenced in ExportAllInstancesTask, so if renamed, please change there-->
     <target name="createPropertiesFilesForInstance" depends="compile"
             description="Exports properties to tt files.">
