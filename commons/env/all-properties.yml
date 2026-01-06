@@ -1,9 +1,94 @@
+# =============================================================================
+# ZFIN Unified Configuration File
+# =============================================================================
+#
+# PURPOSE:
+#   Single source of truth for all ZFIN application properties across environments
+#   and instances. This file is processed to generate flat .properties files
+#   consumable by Java/Spring, Bash, Perl, and other technologies.
+#
+# -----------------------------------------------------------------------------
+# RESOLUTION ORDER (later sections override earlier ones):
+# -----------------------------------------------------------------------------
+#   1. common_properties       - Base properties shared by all instances
+#   2. deprecated_properties   - Deprecated properties (to be phased out)
+#   3. unique_properties       - Properties that vary per instance (with defaults)
+#   4. emails                  - Email addresses for notifications/reports
+#   5. email_overrides         - Replaces ALL email properties for specific instances
+#   6. instance_environment    - Maps instance name → environment (development/testing/production)
+#   7. defaults_by_environment - Applies dev_defaults or prod_defaults based on step 6
+#   8. instance_overrides      - Instance-specific overrides (franklin, test, trunk, etc.)
+#
+# NOTE: instance_environment is resolved BEFORE defaults_by_environment, ensuring
+# the correct environment defaults are applied before instance-specific overrides.
+#
+# -----------------------------------------------------------------------------
+# KEY CONSTRAINTS:
+# -----------------------------------------------------------------------------
+#   - Keys must be UNIQUE across: common_properties, unique_properties,
+#     deprecated_properties, and emails. The processor should fail if duplicates
+#     are detected.
+#   - deprecated_properties are included for backwards compatibility but should
+#     be removed from consuming code over time.
+#
+# -----------------------------------------------------------------------------
+# VARIABLE INTERPOLATION:
+# -----------------------------------------------------------------------------
+#   - ${variable_name}  - References a key from the 'variables' section below
+#   - ${env.VAR_NAME}   - References a system environment variable at processing time
+#
+#   Variables are resolved BEFORE the resolution order is applied.
+#   Circular references will cause the processor to fail.
+#
+# -----------------------------------------------------------------------------
+# SECRETS HANDLING:
+# -----------------------------------------------------------------------------
+#   TODO: Passwords and sensitive values should NOT be stored in this file.
+#
+#   Current violations that need remediation:
+#     - INDEXER_WIKI_PASSWORD (line ~161)
+#     - WIKI_PASS (line ~165)
+#
+# -----------------------------------------------------------------------------
+# OUTPUT FORMAT:
+# -----------------------------------------------------------------------------
+#   The processor generates a flat key=value properties file:
+#
+#     DBNAME="zfindb"
+#     SMTP_HOST="smtp.uoregon.edu"
+#     BUILD_EMAIL="technical@zfin.org"
+#
+#   This format is compatible with:
+#     - Bash:   source zfin.properties (with set -a for export)
+#     - Perl:   Parse with regex or Config::Properties
+#     - Java:   java.util.Properties.load()
+#     - Spring: @PropertySource annotation
+#
+# =============================================================================
+
+# -----------------------------------------------------------------------------
+# VARIABLES
+# -----------------------------------------------------------------------------
+# Define reusable values here to avoid repetition and ensure consistency.
+# Reference these in property values using ${variable_name} syntax.
+#
+# NOTE: Variables can reference other variables, but avoid circular references.
+# -----------------------------------------------------------------------------
 variables:
   db_name: "zfindb"
   base_path: "/opt/zfin"
-  catalina_bash: "${base_path}/catalina_bases/zfin.org"
+  catalina_base: "${base_path}/catalina_bases/zfin.org"  # Fixed typo: was catalina_bash
   war_web_inf_dir: "${catalina_base}/webapps/ROOT/WEB-INF"
-common_properties: # used by all instances
+
+# -----------------------------------------------------------------------------
+# COMMON PROPERTIES
+# -----------------------------------------------------------------------------
+# Base properties used by ALL instances. These form the foundation and can be
+# overridden by later sections (defaults_by_environment, instance_overrides).
+#
+# Organization suggestion: Group related properties together with sub-comments.
+# -----------------------------------------------------------------------------
+common_properties:
   ADAM_AMSTERDAM: "/AdamAmsterdamFiles"
   ANT_HOME: "/usr/share/ant"
   ANT_OPTS: "-Xms256m -Xmx4096m -Dgwt.persistentunitcache=false"
@@ -43,7 +128,7 @@ common_properties: # used by all instances
   DOMAIN_NAME: "zfin.org"
   DOWNLOAD_DIRECTORY: "${base_path}/download-files"
   EMAIL_SENDER_CLASS: "org.zfin.framework.mail.IntegratedJavaMailSender"
-  ENVIRONMENT: "development"
+  ENVIRONMENT: "development"  # Default; overridden by instance_environment lookup
   GA4_ANALYTICS_ID_PRODUCTION: "G-R5XJW0QW0Y"
   GA4_ANALYTICS_ID_ZFINLABS: "G-5J7RMKMBWC"
   GBROWSE_DB: "ensembl_current"
@@ -153,25 +238,52 @@ common_properties: # used by all instances
   WEBHOST_XDGET: "xdget"
   WEBROOT_DIRECTORY: "${base_path}/www_homes/zfin.org/home"
   ZFIN_PROPERTIES_PATH: "${war_web_inf_dir}/zfin.properties"
+# -----------------------------------------------------------------------------
+# DEPRECATED PROPERTIES
+# -----------------------------------------------------------------------------
+# Properties scheduled for removal. Included for backwards compatibility only.
+#
+# ACTION REQUIRED: Remove references from consuming code, then delete from here.
+# SECURITY: Passwords below should be moved to environment variables immediately.
+# -----------------------------------------------------------------------------
 deprecated_properties:
   FTPROOT_PATH: "/ftp/zfin"
-  FTP_PATH: "${base_path}/ftp/test/${env.INSTANCE}"  # <<< Using $INSTANCE here -> should pull from environment variable
+  FTP_PATH: "${base_path}/ftp/test/${env.INSTANCE}"
   GOOGLE_ANALYTICS_ID: "0"
   INDEXER_WIKI_HOSTNAME: "devwiki.zfin.org"
-  INDEXER_WIKI_PASSWORD: "dan1orer1o"
+  INDEXER_WIKI_PASSWORD: "dan1orer1o"   # SECURITY: Move to ${env.INDEXER_WIKI_PASSWORD}
   INDEXER_WIKI_USERNAME: "webservice"
-  TARGETFTPROOT: "${base_path}/ftp/test/${env.INSTANCE}"  # <<< Using $INSTANCE here -> should pull from environment variable
+  TARGETFTPROOT: "${base_path}/ftp/test/${env.INSTANCE}"
   WIKI_HOST: "wiki.zfin.org"
-  WIKI_PASS: "dan1orer1o"
+  WIKI_PASS: "dan1orer1o"               # SECURITY: Move to ${env.WIKI_PASS}
   WIKI_PUSH_TO_WIKI: "false"
   WIKI_USER: "webservice"
+
+# -----------------------------------------------------------------------------
+# UNIQUE PROPERTIES
+# -----------------------------------------------------------------------------
+# Properties that vary per instance. Values here are defaults; instance_overrides
+# can override these for specific instances.
+#
+# These typically include: instance identity, UI theming, scheduled job config.
+# -----------------------------------------------------------------------------
 unique_properties:
   INSTANCE: "${env.INSTANCE}"  # <<< Using $INSTANCE here -> should pull from environment variable
   LOG4J_FILE: "coral.log4j.xml"
   PRIMARY_COLOR: "#512da8"
   SCHEDULE_TRIGGER_FILES: "production" # <<< other potential values: trunk, test, blank
-  SMTP_HOST: "mailhog" #other values: smtp.uoregon.edu for test, trunk and production
-  SOLR_CREATE_BACKUPS: "false" #true for prod, test, and trunk
+  SMTP_HOST: "mailhog"           # Override: smtp.uoregon.edu for test, trunk, production
+  SOLR_CREATE_BACKUPS: "false"  # Override: true for prod, test, trunk
+
+# -----------------------------------------------------------------------------
+# EMAILS
+# -----------------------------------------------------------------------------
+# Email addresses for notifications, reports, and alerts.
+# These are the production defaults; for dev instances, email_overrides below
+# redirects ALL emails to a single developer address to prevent spam.
+#
+# NOTE: Space-separated lists indicate multiple recipients.
+# -----------------------------------------------------------------------------
 emails:
   ALL_FAILURE_REPORTS_EMAIL: "cmpich@zfin.org ryanm@zfin.org"
   AO_EMAIL_CURATOR: "ybradford@zfin.org cvanslyk@uoregon.edu"
@@ -221,11 +333,28 @@ emails:
   WEB_ADMIN_EMAIL: "rtaylor@zfin.org ryanm@zfin.org"
   ZEBRASHARE_CURATORS: "leyla@zfin.org asinger@uoregon.edu"
   ZFIN_ADMIN: "zfinadmn@zfin.org"
-email_overrides: # for specific instances, this will override all emails with the specified email
+
+# -----------------------------------------------------------------------------
+# EMAIL OVERRIDES
+# -----------------------------------------------------------------------------
+# For development/test instances, ALL email properties are replaced with the
+# single address specified here. This prevents dev instances from accidentally
+# emailing production users.
+#
+# If an instance is NOT listed here, it uses the real email addresses above.
+# -----------------------------------------------------------------------------
+email_overrides:
   cell: "rtaylor@zfin.org"
   schlapp: "cmpich@zfin.org"
   trunk: "informix@zfin.org"
   test: "informix@zfin.org"
+
+# -----------------------------------------------------------------------------
+# ENVIRONMENT DEFAULTS: DEVELOPMENT
+# -----------------------------------------------------------------------------
+# Applied when ENVIRONMENT = "development" (via defaults_by_environment mapping).
+# These are safe defaults for local development.
+# -----------------------------------------------------------------------------
 dev_defaults:
   ALLIANCE_CURATION_URL: "https://alpha-curation.alliancegenome.org"
   BLAST_CACHE_AT_STARTUP: "false"
@@ -234,6 +363,13 @@ dev_defaults:
   NODE_ENV: "development"
   SEND_AUTHOR_NOTIF_EMAIL: "false"
   SOLR_MEMORY: "8g"
+
+# -----------------------------------------------------------------------------
+# ENVIRONMENT DEFAULTS: PRODUCTION
+# -----------------------------------------------------------------------------
+# Applied when ENVIRONMENT = "production" (via defaults_by_environment mapping).
+# These enable production features like analytics, email notifications, etc.
+# -----------------------------------------------------------------------------
 prod_defaults:
   ALLIANCE_CURATION_URL: "https://beta-curation.alliancegenome.org"
   BLAST_CACHE_AT_STARTUP: "true"
@@ -242,24 +378,62 @@ prod_defaults:
   NODE_ENV: "production"
   SEND_AUTHOR_NOTIF_EMAIL: "true"
   SOLR_MEMORY: "10g"
+
+# -----------------------------------------------------------------------------
+# INSTANCE ENVIRONMENT MAPPING
+# -----------------------------------------------------------------------------
+# Maps each instance name to its environment type. This is resolved BEFORE
+# defaults_by_environment, so the correct environment defaults are applied.
+#
+# If an instance is not listed here, it defaults to "development".
+#
+# Valid values: development, testing, production
+# -----------------------------------------------------------------------------
+instance_environment:
+  franklin: "production"
+  test: "testing"
+  trunk: "testing"
+  schlapp: "development"
+  # Unlisted instances default to "development"
+
+# -----------------------------------------------------------------------------
+# DEFAULTS BY ENVIRONMENT MAPPING
+# -----------------------------------------------------------------------------
+# Maps environment values to the appropriate defaults section.
+# The processor looks up the environment from instance_environment (step 6),
+# then applies the corresponding defaults from this mapping.
+#
+# Example: If instance_environment[trunk] = "testing", apply dev_defaults.
+# -----------------------------------------------------------------------------
 defaults_by_environment:
   development: "dev_defaults"
   production: "prod_defaults"
   testing: "dev_defaults"
+
+# -----------------------------------------------------------------------------
+# INSTANCE OVERRIDES
+# -----------------------------------------------------------------------------
+# Per-instance configuration overrides. These are applied LAST and take
+# highest precedence.
+#
+# Add new instances here as needed. Common overrides include:
+#   - PRIMARY_COLOR: UI theming to visually distinguish instances
+#   - SMTP_HOST: Mail server (mailhog for dev, smtp.uoregon.edu for others)
+#   - SOLR_CREATE_BACKUPS: Enable for persistent instances
+#
+# NOTE: ENVIRONMENT is set via instance_environment above, not here.
+# This ensures defaults_by_environment is applied correctly before these overrides.
+# -----------------------------------------------------------------------------
 instance_overrides:
   franklin:
     SOLR_CREATE_BACKUPS: "true"
     SMTP_HOST: "smtp.uoregon.edu"
     PRIMARY_COLOR: "#c2185b"
-    ENVIRONMENT: "production"
   test:
     SMTP_HOST: "smtp.uoregon.edu"
     PRIMARY_COLOR: "#00796b"
-    ENVIRONMENT: "testing"
   trunk:
     PRIMARY_COLOR: "#303f9f"
     SMTP_HOST: "smtp.uoregon.edu"
-    ENVIRONMENT: "testing"
   schlapp:
     PRIMARY_COLOR: "#004225"
-    ENVIRONMENT: "development"
