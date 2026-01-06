@@ -6,18 +6,19 @@
  * for a specific instance.
  *
  * Usage:
- *   groovy PropertiesProcessor.groovy [options]
+ *   INSTANCE=trunk groovy PropertiesProcessor.groovy [options]
+ *
+ * Environment Variables:
+ *   INSTANCE                  Instance name (required)
  *
  * Options:
- *   -i, --instance <name>    Instance name (required, or set INSTANCE env var)
  *   -o, --output <file>      Output file path (default: stdout)
  *   -c, --config <file>      Config file path (default: all-properties.yml in same directory)
- *   -v, --validate           Validate only, don't generate output
  *   -d, --debug              Enable debug output
  *   -h, --help               Show this help message
  *
  * Output Format:
- *   Shell-compatible key="value" pairs that can be sourced directly:
+ *   Shell-compatible key=value pairs that can be sourced directly:
  *     source zfin.properties
  *
  * Resolution Order:
@@ -388,13 +389,11 @@ class PropertiesProcessor {
     // =========================================================================
 
     static void main(String[] args) {
-        def cli = new CliBuilder(usage: 'groovy PropertiesProcessor.groovy [options]')
+        def cli = new CliBuilder(usage: 'INSTANCE=<name> groovy PropertiesProcessor.groovy [options]')
         cli.with {
             h(longOpt: 'help', 'Show usage information')
-            i(longOpt: 'instance', args: 1, argName: 'name', 'Instance name (or set INSTANCE env var)')
             o(longOpt: 'output', args: 1, argName: 'file', 'Output file path (default: stdout)')
             c(longOpt: 'config', args: 1, argName: 'file', 'Config file path (default: all-properties.yml)')
-            v(longOpt: 'validate', 'Validate only, do not generate output')
             d(longOpt: 'debug', 'Enable debug output')
         }
 
@@ -408,11 +407,11 @@ class PropertiesProcessor {
             System.exit(0)
         }
 
-        // Determine instance name
-        def instanceName = options.i ?: System.getenv('INSTANCE')
+        // Instance name must come from environment variable
+        def instanceName = System.getenv('INSTANCE')
         if (!instanceName) {
-            System.err.println("ERROR: Instance name required. Use -i option or set INSTANCE environment variable.")
-            cli.usage()
+            System.err.println("ERROR: INSTANCE environment variable is required.")
+            System.err.println("Usage: INSTANCE=trunk groovy PropertiesProcessor.groovy [options]")
             System.exit(1)
         }
 
@@ -425,18 +424,12 @@ class PropertiesProcessor {
         try {
             def processor = new PropertiesProcessor(configPath, instanceName, debug)
 
-            // Always validate first
+            // Validate first - exit on errors
             def errors = processor.validate()
             if (errors) {
-                System.err.println("Validation errors found:")
+                System.err.println("Validation errors:")
                 errors.each { System.err.println("  - ${it}") }
-                if (options.v) {
-                    System.exit(1)
-                }
-                System.err.println("\nProceeding despite validation errors...")
-            } else if (options.v) {
-                println("Validation passed. No errors found.")
-                System.exit(0)
+                System.exit(1)
             }
 
             // Process and generate output
@@ -445,7 +438,7 @@ class PropertiesProcessor {
 
             if (options.o) {
                 new File(options.o as String).text = output
-                println("Properties written to: ${options.o}")
+                System.err.println("Properties written to: ${options.o}")
             } else {
                 print(output)
             }
