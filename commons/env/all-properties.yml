@@ -248,7 +248,7 @@ common_properties:
 # -----------------------------------------------------------------------------
 deprecated_properties:
   FTPROOT_PATH: "/ftp/zfin"
-  FTP_PATH: "${base_path}/ftp/test/${env.INSTANCE}"
+  FTP_ROOT: "${base_path}/ftp/test/${env.INSTANCE}"
   GOOGLE_ANALYTICS_ID: "0"
   INDEXER_WIKI_HOSTNAME: "devwiki.zfin.org"
   INDEXER_WIKI_PASSWORD: "dan1orer1o"   # SECURITY: Move to ${env.INDEXER_WIKI_PASSWORD}
@@ -392,7 +392,7 @@ prod_defaults:
 instance_environment:
   franklin: "production"
   test: "testing"
-  trunk: "testing"
+  trunk: "development"
   schlapp: "development"
   # Unlisted instances default to "development"
 
@@ -433,7 +433,18 @@ instance_overrides:
     SMTP_HOST: "smtp.uoregon.edu"
     PRIMARY_COLOR: "#00796b"
   trunk:
-    PRIMARY_COLOR: "#303f9f"
+    PRIMARY_COLOR: "#f57c00"
     SMTP_HOST: "smtp.uoregon.edu"
+    BUILD_EMAIL: "technical@zfin.org"
+    GO_EMAIL_CURATOR: "dhowe@zfin.org"
+    GO_EMAIL_ERR: "dhowe@zfin.org informix@zfin.org"
+    INDEXER_REPORT_EMAIL: "informix@zfin.org cmpich@zfin.org"
+    LOG4J_FILE: "test-sites.log4j.xml"
+    NODE_ENV: "production"
+    ONTOLOGY_LOADER_EMAIL: "informix@zfin.org cmpich@zfin.org"
+    SCHEDULE_TRIGGER_FILES: "${env.INSTANCE}"
+    SOLR_CREATE_BACKUPS: "true"
+    WIKI_HOST: "devwiki.zfin.org"
+    WIKI_PUSH_TO_WIKI: "true"
   schlapp:
     PRIMARY_COLOR: "#004225"
