@@ -55,7 +55,7 @@ common_properties: # used by all instances
   GBROWSE_ZV9_IMG_PATH_FROM_ROOT: "gb2/gbrowse_img/zfin_ensembl_Zv9/"
   GBROWSE_ZV9_PATH_FROM_ROOT: "action/gbrowse/Zv9/"
   GC_LOGGING_OPTS: "-verbose:gc -verbose:sizes -XX:+PrintGCDetails -XX:+PrintGCDateStamps -XX:+PrintTenuringDistribution -Xloggc:${catalina_base}/logs/gc.log"
-  GRADLE_USER_HOME: "$HOME/.gradle" # <<< using environment variable here ($HOME)
+  GRADLE_USER_HOME: "${env.HOME}/.gradle" # <<< using environment variable here ($HOME)
   GROOVY_CLASSPATH: "${catalina_base}/webapps/ROOT/WEB-INF/lib/*:${base_path}/source_roots/zfin.org/lib/Java/*:${catalina_base}/webapps/ROOT/WEB-INF/classes:/opt/misc/groovy/lib/*:/usr/local/tomcat/endorsed/*"
   GROOVY_HOME: "/opt/misc/groovy"
   HAS_PARTNER: "false"
@@ -155,18 +155,18 @@ common_properties: # used by all instances
   ZFIN_PROPERTIES_PATH: "${war_web_inf_dir}/zfin.properties"
 deprecated_properties:
   FTPROOT_PATH: "/ftp/zfin"
-  FTP_PATH: "${base_path}/ftp/test/$INSTANCE"  # <<< Using $INSTANCE here -> should pull from environment variable
+  FTP_PATH: "${base_path}/ftp/test/${env.INSTANCE}"  # <<< Using $INSTANCE here -> should pull from environment variable
   GOOGLE_ANALYTICS_ID: "0"
   INDEXER_WIKI_HOSTNAME: "devwiki.zfin.org"
   INDEXER_WIKI_PASSWORD: "dan1orer1o"
   INDEXER_WIKI_USERNAME: "webservice"
-  TARGETFTPROOT: "${base_path}/ftp/test/$INSTANCE"  # <<< Using $INSTANCE here -> should pull from environment variable
+  TARGETFTPROOT: "${base_path}/ftp/test/${env.INSTANCE}"  # <<< Using $INSTANCE here -> should pull from environment variable
   WIKI_HOST: "wiki.zfin.org"
   WIKI_PASS: "dan1orer1o"
   WIKI_PUSH_TO_WIKI: "false"
   WIKI_USER: "webservice"
 unique_properties:
-  INSTANCE: "$INSTANCE"  # <<< Using $INSTANCE here -> should pull from environment variable
+  INSTANCE: "${env.INSTANCE}"  # <<< Using $INSTANCE here -> should pull from environment variable
   LOG4J_FILE: "coral.log4j.xml"
   PRIMARY_COLOR: "#512da8"
   SCHEDULE_TRIGGER_FILES: "production" # <<< other potential values: trunk, test, blank
