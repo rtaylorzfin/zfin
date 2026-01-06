@@ -401,6 +401,8 @@ prod_defaults:
   NODE_ENV: "production"
   PRIMARY_COLOR: "#008080"
   SEND_AUTHOR_NOTIF_EMAIL: "true"
+  SMTP_HOST: "smtp.uoregon.edu"
+  SOLR_CREATE_BACKUPS: "true"
   SOLR_MEMORY: "10g"
 
 # -----------------------------------------------------------------------------
@@ -447,10 +449,7 @@ instance_environment:
 # This ensures defaults_by_environment is applied correctly before these overrides.
 # -----------------------------------------------------------------------------
 instance_overrides:
-  franklin:
-    SOLR_CREATE_BACKUPS: "true"
-    SMTP_HOST: "smtp.uoregon.edu"
-    PRIMARY_COLOR: "#008080"
+  franklin: {}  # All values now in prod_defaults
   test:
     PRIMARY_COLOR: "#ffa000"
   trunk:
