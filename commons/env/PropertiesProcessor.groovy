@@ -41,6 +41,7 @@ class PropertiesProcessor {
     private String instanceName
     private boolean debug = false
     private Set<String> resolving = [] as Set  // For circular reference detection
+    private List<Map> overwriteLog = []  // Track all overwrites for debug summary
 
     // Sections that must have unique keys (no overlap allowed)
     private static final List<String> UNIQUE_KEY_SECTIONS = [
@@ -180,6 +181,22 @@ class PropertiesProcessor {
         debugLog("Resolving variable references...")
         resolved = resolveAllVariables(resolved)
 
+        // Print overwrite summary in debug mode
+        if (debug && overwriteLog) {
+            debugLog("")
+            debugLog("=" * 60)
+            debugLog("OVERWRITE SUMMARY")
+            debugLog("=" * 60)
+            overwriteLog.each { entry ->
+                debugLog("  ${entry.key}:")
+                debugLog("    was: ${entry.oldValue}")
+                debugLog("    now: ${entry.newValue}")
+                debugLog("    by:  ${entry.source}")
+            }
+            debugLog("=" * 60)
+            debugLog("Total overwrites: ${overwriteLog.size()}")
+        }
+
         return resolved
     }
 
@@ -188,7 +205,12 @@ class PropertiesProcessor {
         if (section) {
             section.each { key, value ->
                 if (value != null) {
-                    target[key as String] = value as String
+                    def keyStr = key as String
+                    def valueStr = value as String
+                    if (target.containsKey(keyStr) && target[keyStr] != valueStr) {
+                        overwriteLog << [key: keyStr, oldValue: target[keyStr], newValue: valueStr, source: sectionName]
+                    }
+                    target[keyStr] = valueStr
                     debugLog("  ${key} = ${value}")
                 }
             }
@@ -244,7 +266,12 @@ class PropertiesProcessor {
 
         debugLog("  Applying '${defaultsKey}':")
         defaults.each { key, value ->
-            target[key as String] = value as String
+            def keyStr = key as String
+            def valueStr = value as String
+            if (target.containsKey(keyStr) && target[keyStr] != valueStr) {
+                overwriteLog << [key: keyStr, oldValue: target[keyStr], newValue: valueStr, source: defaultsKey]
+            }
+            target[keyStr] = valueStr
             debugLog("    ${key} = ${value}")
         }
     }
@@ -263,7 +290,12 @@ class PropertiesProcessor {
         }
 
         overrides.each { key, value ->
-            target[key as String] = value as String
+            def keyStr = key as String
+            def valueStr = value as String
+            if (target.containsKey(keyStr) && target[keyStr] != valueStr) {
+                overwriteLog << [key: keyStr, oldValue: target[keyStr], newValue: valueStr, source: "instance_overrides.${instanceName}"]
+            }
+            target[keyStr] = valueStr
             debugLog("    ${key} = ${value}")
         }
     }

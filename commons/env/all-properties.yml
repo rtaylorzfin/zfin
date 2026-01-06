@@ -367,6 +367,26 @@ dev_defaults:
   WIKI_HOST: "devwiki.zfin.org"
 
 # -----------------------------------------------------------------------------
+# ENVIRONMENT DEFAULTS: STAGING
+# -----------------------------------------------------------------------------
+# Applied when ENVIRONMENT = "staging" (via defaults_by_environment mapping).
+# These are for shared test/trunk instances that mirror production behavior
+# but with restricted email recipients.
+# -----------------------------------------------------------------------------
+staging_defaults:
+  ALLIANCE_CURATION_URL: "https://beta-curation.alliancegenome.org"
+  BUILD_EMAIL: "technical@zfin.org"
+  GO_EMAIL_CURATOR: "dhowe@zfin.org"
+  GO_EMAIL_ERR: "dhowe@zfin.org informix@zfin.org"
+  INDEXER_REPORT_EMAIL: "informix@zfin.org cmpich@zfin.org"
+  LOG4J_FILE: "test-sites.log4j.xml"
+  NODE_ENV: "production"
+  ONTOLOGY_LOADER_EMAIL: "informix@zfin.org cmpich@zfin.org"
+  SMTP_HOST: "smtp.uoregon.edu"
+  SOLR_CREATE_BACKUPS: "true"
+  SOLR_MEMORY: "8g"
+
+# -----------------------------------------------------------------------------
 # ENVIRONMENT DEFAULTS: PRODUCTION
 # -----------------------------------------------------------------------------
 # Applied when ENVIRONMENT = "production" (via defaults_by_environment mapping).
@@ -389,13 +409,11 @@ prod_defaults:
 # Maps environment values to the appropriate defaults section.
 # The processor looks up the environment from instance_environment (step 6),
 # then applies the corresponding defaults from this mapping.
-#
-# Example: If instance_environment[trunk] = "testing", apply dev_defaults.
 # -----------------------------------------------------------------------------
 defaults_by_environment:
   development: "dev_defaults"
+  staging: "staging_defaults"
   production: "prod_defaults"
-  testing: "dev_defaults"
 
 # -----------------------------------------------------------------------------
 # INSTANCE ENVIRONMENT MAPPING
@@ -405,12 +423,12 @@ defaults_by_environment:
 #
 # If an instance is not listed here, it defaults to "development".
 #
-# Valid values: development, testing, production
+# Valid values: development, staging, production
 # -----------------------------------------------------------------------------
 instance_environment:
   franklin: "production"
-  test: "development"
-  trunk: "development"
+  test: "staging"
+  trunk: "staging"
   schlapp: "development"
   # Unlisted instances default to "development"
 
@@ -434,29 +452,10 @@ instance_overrides:
     SMTP_HOST: "smtp.uoregon.edu"
     PRIMARY_COLOR: "#008080"
   test:
-    ALLIANCE_CURATION_URL: "https://beta-curation.alliancegenome.org"
-    BUILD_EMAIL: "technical@zfin.org"
-    GO_EMAIL_CURATOR: "dhowe@zfin.org"
-    GO_EMAIL_ERR: "dhowe@zfin.org informix@zfin.org"
-    INDEXER_REPORT_EMAIL: "informix@zfin.org cmpich@zfin.org"
-    LOG4J_FILE: "test-sites.log4j.xml"
-    NODE_ENV: "production"
-    ONTOLOGY_LOADER_EMAIL: "informix@zfin.org cmpich@zfin.org"
     PRIMARY_COLOR: "#ffa000"
-    SMTP_HOST: "smtp.uoregon.edu"
-    SOLR_CREATE_BACKUPS: "true"
   trunk:
-    BUILD_EMAIL: "technical@zfin.org"
-    GO_EMAIL_CURATOR: "dhowe@zfin.org"
-    GO_EMAIL_ERR: "dhowe@zfin.org informix@zfin.org"
-    INDEXER_REPORT_EMAIL: "informix@zfin.org cmpich@zfin.org"
-    LOG4J_FILE: "test-sites.log4j.xml"
-    NODE_ENV: "production"
-    ONTOLOGY_LOADER_EMAIL: "informix@zfin.org cmpich@zfin.org"
     PRIMARY_COLOR: "#f57c00"
     SCHEDULE_TRIGGER_FILES: "${env.INSTANCE}"
-    SMTP_HOST: "smtp.uoregon.edu"
-    SOLR_CREATE_BACKUPS: "true"
     WIKI_PUSH_TO_WIKI: "true"
   schlapp:
     LOG4J_FILE: "default.log4j.xml"
