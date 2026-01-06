@@ -14,24 +14,25 @@ prod_defaults:
   NODE_ENV: "production"
   SEND_AUTHOR_NOTIF_EMAIL: "true"
   SOLR_MEMORY: "10g"
+defaults_by_environment:
+  development: "dev_defaults"
+  production: "prod_defaults"
+  testing: "dev_defaults"
 deprecated_properties:
-  FTP_PATH: "/opt/zfin/ftp/test/cell"
-#  Can this be derived? ^^^^^^^^^^^^^^^^^^^^^^^^^^^
+  FTPROOT_PATH: "/ftp/zfin"
+  FTP_PATH: "/opt/zfin/ftp/test/$INSTANCE"  # <<< Using $INSTANCE here -> should pull from environment variable
   GOOGLE_ANALYTICS_ID: "0"
-  TARGETFTPROOT: "/opt/zfin//ftp/test/cell"
+  TARGETFTPROOT: "/opt/zfin/ftp/test/$INSTANCE"  # <<< Using $INSTANCE here -> should pull from environment variable
   WIKI_HOST: "wiki.zfin.org"
+  WIKI_PASS: "dan1orer1o"
   WIKI_PUSH_TO_WIKI: "false"
+  WIKI_USER: "webservice"
 unique_properties:
-  GRADLE_USER_HOME: "/home/gradle/.gradle"
-  # Can we use environment variable here? ^^^^^^^^^^^^^^^^^^^^^^^^^^^ ($HOME)
-  INSTANCE: "cell"
-  # Can we derive this from $INSTANCE? ^^^^^^^^^^^^^^^^^^^^^^^^^^^
+  INSTANCE: "$INSTANCE"  # <<< Using $INSTANCE here -> should pull from environment variable
   LOG4J_FILE: "coral.log4j.xml"
   PRIMARY_COLOR: "#512da8"
-  SCHEDULE_TRIGGER_FILES: "production"
-  #other values: trunk, test, blank ^^^^
-  SMTP_HOST: "mailhog"
-  #other values: smtp.uoregon.edu for test, trunk and production ^^^^
+  SCHEDULE_TRIGGER_FILES: "production" # <<< other potential values: trunk, test, blank
+  SMTP_HOST: "mailhog" #other values: smtp.uoregon.edu for test, trunk and production
   SOLR_CREATE_BACKUPS: "false" #true for prod, test, and trunk
 emails:
   ALL_FAILURE_REPORTS_EMAIL: "cmpich@zfin.org ryanm@zfin.org"
@@ -82,12 +83,12 @@ emails:
   WEB_ADMIN_EMAIL: "rtaylor@zfin.org ryanm@zfin.org"
   ZEBRASHARE_CURATORS: "leyla@zfin.org asinger@uoregon.edu"
   ZFIN_ADMIN: "zfinadmn@zfin.org"
-email_overrides:
+email_overrides: # for specific instances, this will override all emails with the specified email
   cell: "rtaylor@zfin.org"
   schlapp: "cmpich@zfin.org"
   trunk: "informix@zfin.org"
   test: "informix@zfin.org"
-common_properties:
+common_properties: # used by all instances
   ADAM_AMSTERDAM: "/AdamAmsterdamFiles"
   ANT_HOME: "/usr/share/ant"
   ANT_OPTS: "-Xms256m -Xmx4096m -Dgwt.persistentunitcache=false"
@@ -128,7 +129,6 @@ common_properties:
   DOWNLOAD_DIRECTORY: "/opt/zfin/download-files"
   EMAIL_SENDER_CLASS: "org.zfin.framework.mail.IntegratedJavaMailSender"
   ENVIRONMENT: "development"
-  FTPROOT_PATH: "/ftp/zfin"
   GA4_ANALYTICS_ID_PRODUCTION: "G-R5XJW0QW0Y"
   GA4_ANALYTICS_ID_ZFINLABS: "G-5J7RMKMBWC"
   GBROWSE_DB: "ensembl_current"
@@ -140,6 +140,7 @@ common_properties:
   GBROWSE_ZV9_IMG_PATH_FROM_ROOT: "gb2/gbrowse_img/zfin_ensembl_Zv9/"
   GBROWSE_ZV9_PATH_FROM_ROOT: "action/gbrowse/Zv9/"
   GC_LOGGING_OPTS: "-verbose:gc -verbose:sizes -XX:+PrintGCDetails -XX:+PrintGCDateStamps -XX:+PrintTenuringDistribution -Xloggc:/opt/zfin/catalina_bases/zfin.org/logs/gc.log"
+  GRADLE_USER_HOME: "$HOME/.gradle" # <<< using environment variable here ($HOME)
   GROOVY_CLASSPATH: "/opt/zfin/catalina_bases/zfin.org/webapps/ROOT/WEB-INF/lib/*:/opt/zfin/source_roots/zfin.org/lib/Java/*:/opt/zfin/catalina_bases/zfin.org/webapps/ROOT/WEB-INF/classes:/opt/misc/groovy/lib/*:/usr/local/tomcat/endorsed/*"
   GROOVY_HOME: "/opt/misc/groovy"
   HAS_PARTNER: "false"
@@ -239,6 +240,22 @@ common_properties:
   WEBHOST_XDFORMAT: "xdformat"
   WEBHOST_XDGET: "xdget"
   WEBROOT_DIRECTORY: "/opt/zfin/www_homes/zfin.org/home"
-  WIKI_PASS: "dan1orer1o"
-  WIKI_USER: "webservice"
   ZFIN_PROPERTIES_PATH: "/opt/zfin/catalina_bases/zfin.org/webapps/ROOT/WEB-INF/zfin.properties"
+instance_overrides:
+  franklin:
+    SOLR_CREATE_BACKUPS: "true"
+    SMTP_HOST: "smtp.uoregon.edu"
+    PRIMARY_COLOR: "#c2185b"
+    ENVIRONMENT: "production"
+  test:
+    SMTP_HOST: "smtp.uoregon.edu"
+    PRIMARY_COLOR: "#00796b"
+    ENVIRONMENT: "testing"
+  trunk:
+    PRIMARY_COLOR: "#303f9f"
+    SMTP_HOST: "smtp.uoregon.edu"
+    ENVIRONMENT: "testing"
+  schlapp:
+    PRIMARY_COLOR: "#004225"
+    ENVIRONMENT: "development"
+
