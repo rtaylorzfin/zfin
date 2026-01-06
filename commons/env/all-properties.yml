@@ -361,8 +361,10 @@ dev_defaults:
   GA4_ANALYTICS_ID: "G-5J7RMKMBWC"
   NCBI_LINKOUT_UPLOAD: "false"
   NODE_ENV: "development"
+  SCHEDULE_TRIGGER_FILES: ""
   SEND_AUTHOR_NOTIF_EMAIL: "false"
   SOLR_MEMORY: "8g"
+  WIKI_HOST: "devwiki.zfin.org"
 
 # -----------------------------------------------------------------------------
 # ENVIRONMENT DEFAULTS: PRODUCTION
@@ -374,27 +376,12 @@ prod_defaults:
   ALLIANCE_CURATION_URL: "https://beta-curation.alliancegenome.org"
   BLAST_CACHE_AT_STARTUP: "true"
   GA4_ANALYTICS_ID: "G-R5XJW0QW0Y"
+  LOG4J_FILE: "production-site.log4j.xml"
   NCBI_LINKOUT_UPLOAD: "true"
   NODE_ENV: "production"
+  PRIMARY_COLOR: "#008080"
   SEND_AUTHOR_NOTIF_EMAIL: "true"
   SOLR_MEMORY: "10g"
-
-# -----------------------------------------------------------------------------
-# INSTANCE ENVIRONMENT MAPPING
-# -----------------------------------------------------------------------------
-# Maps each instance name to its environment type. This is resolved BEFORE
-# defaults_by_environment, so the correct environment defaults are applied.
-#
-# If an instance is not listed here, it defaults to "development".
-#
-# Valid values: development, testing, production
-# -----------------------------------------------------------------------------
-instance_environment:
-  franklin: "production"
-  test: "testing"
-  trunk: "development"
-  schlapp: "development"
-  # Unlisted instances default to "development"
 
 # -----------------------------------------------------------------------------
 # DEFAULTS BY ENVIRONMENT MAPPING
@@ -409,6 +396,23 @@ defaults_by_environment:
   development: "dev_defaults"
   production: "prod_defaults"
   testing: "dev_defaults"
+
+# -----------------------------------------------------------------------------
+# INSTANCE ENVIRONMENT MAPPING
+# -----------------------------------------------------------------------------
+# Maps each instance name to its environment type. This is resolved BEFORE
+# defaults_by_environment, so the correct environment defaults are applied.
+#
+# If an instance is not listed here, it defaults to "development".
+#
+# Valid values: development, testing, production
+# -----------------------------------------------------------------------------
+instance_environment:
+  franklin: "production"
+  test: "development"
+  trunk: "development"
+  schlapp: "development"
+  # Unlisted instances default to "development"
 
 # -----------------------------------------------------------------------------
 # INSTANCE OVERRIDES
@@ -428,13 +432,9 @@ instance_overrides:
   franklin:
     SOLR_CREATE_BACKUPS: "true"
     SMTP_HOST: "smtp.uoregon.edu"
-    PRIMARY_COLOR: "#c2185b"
+    PRIMARY_COLOR: "#008080"
   test:
-    SMTP_HOST: "smtp.uoregon.edu"
-    PRIMARY_COLOR: "#00796b"
-  trunk:
-    PRIMARY_COLOR: "#f57c00"
-    SMTP_HOST: "smtp.uoregon.edu"
+    ALLIANCE_CURATION_URL: "https://beta-curation.alliancegenome.org"
     BUILD_EMAIL: "technical@zfin.org"
     GO_EMAIL_CURATOR: "dhowe@zfin.org"
     GO_EMAIL_ERR: "dhowe@zfin.org informix@zfin.org"
@@ -442,9 +442,22 @@ instance_overrides:
     LOG4J_FILE: "test-sites.log4j.xml"
     NODE_ENV: "production"
     ONTOLOGY_LOADER_EMAIL: "informix@zfin.org cmpich@zfin.org"
-    SCHEDULE_TRIGGER_FILES: "${env.INSTANCE}"
+    PRIMARY_COLOR: "#ffa000"
+    SMTP_HOST: "smtp.uoregon.edu"
     SOLR_CREATE_BACKUPS: "true"
-    WIKI_HOST: "devwiki.zfin.org"
+  trunk:
+    BUILD_EMAIL: "technical@zfin.org"
+    GO_EMAIL_CURATOR: "dhowe@zfin.org"
+    GO_EMAIL_ERR: "dhowe@zfin.org informix@zfin.org"
+    INDEXER_REPORT_EMAIL: "informix@zfin.org cmpich@zfin.org"
+    LOG4J_FILE: "test-sites.log4j.xml"
+    NODE_ENV: "production"
+    ONTOLOGY_LOADER_EMAIL: "informix@zfin.org cmpich@zfin.org"
+    PRIMARY_COLOR: "#f57c00"
+    SCHEDULE_TRIGGER_FILES: "${env.INSTANCE}"
+    SMTP_HOST: "smtp.uoregon.edu"
+    SOLR_CREATE_BACKUPS: "true"
     WIKI_PUSH_TO_WIKI: "true"
   schlapp:
-    PRIMARY_COLOR: "#004225"
+    LOG4J_FILE: "default.log4j.xml"
+    PRIMARY_COLOR: "#1976d2"
