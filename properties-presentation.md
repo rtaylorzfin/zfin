@@ -509,7 +509,7 @@ TARGETROOT=/opt/zfin/www_homes/zfin.org  # Fixed
 - **Perl scripts**: Parse `zfin.properties`
 - **Ant tasks**: Read from properties file
 
-One file. One format. Every consumer.
+
 
 ---
 
