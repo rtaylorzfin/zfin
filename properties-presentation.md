@@ -492,12 +492,12 @@ TARGETROOT=/opt/zfin/www_homes/zfin.org  # Fixed
 │   zfin.properties   │  ← Generated at build/deploy time
 └──────────┬──────────┘
            │
-     ┌─────┴─────┐
-     ▼           ▼
-┌─────────┐ ┌─────────────────────┐
-│  Java   │ │ load-properties.bash │
-│ Spring  │ │   (sources props)    │
-└─────────┘ └─────────────────────┘
+     ┌─────┴─────┐──────────────────────────────┐
+     ▼           ▼                              ▼
+┌─────────┐ ┌──────────────────────┐ ┌──────────────────────┐
+│  Java   │ │ load-properties.bash │ │ jenkins, perl, etc.  │
+│ Spring  │ │   (sources props)    │ │   (sources props)    │
+└─────────┘ └──────────────────────┘ └──────────────────────┘
 ```
 
 ---
