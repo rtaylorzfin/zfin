@@ -80,7 +80,8 @@ public enum Category {
             ANY_COLOR,
             EMISSION_COLOR,
             EXCITATION_COLOR,
-            IS_ZEBRASHARE
+            IS_ZEBRASHARE,
+            CHROMOSOME
 
 //            SCREEN   <!--screen used to be here, removed as a result of case 11323-->
     ),
@@ -146,6 +147,7 @@ public enum Category {
     ),
     PHENOTYPE("Phenotype",
             FieldName.GENE,
+            PHENOTYPE_TAG,
             SEQUENCE_ALTERATION,
             IS_MONOGENIC,
             STAGE,

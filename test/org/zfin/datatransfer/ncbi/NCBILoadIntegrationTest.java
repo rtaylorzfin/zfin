@@ -3,6 +3,7 @@ package org.zfin.datatransfer.ncbi;
 
 import org.junit.After;
 import org.junit.Before;
+import org.junit.Ignore;
 import org.junit.Test;
 import org.zfin.AbstractDangerousDatabaseTest;
 import org.zfin.framework.HibernateUtil;
@@ -10,10 +11,12 @@ import org.zfin.framework.HibernateUtil;
 import java.io.*;
 import java.nio.file.Files;
 import java.nio.file.Path;
+import java.text.SimpleDateFormat;
 import java.util.*;
 
 import static org.junit.Assert.*;
 import static org.zfin.datatransfer.ncbi.NCBIDirectPort.*;
+import static org.zfin.util.DateUtil.nowToString;
 
 /**
  * Run tests against a database that only has test data in it.
@@ -122,6 +125,56 @@ public class NCBILoadIntegrationTest extends AbstractDangerousDatabaseTest {
         assertDBLinkExists("ZDB-GENE-120709-33", "GDQQ01002583", FDCONT_GENBANK_RNA, PUB_MAPPED_BASED_ON_NCBI_SUPPLEMENT);
     }
 
+    /**
+     * Same as above but with back to back runs.
+     */
+    @Test
+    public void testGeneWithReplacedNCBIGeneMatchingByEnsembl2() throws IOException {
+        // Create database state before the load
+        helper.beforeStateBuilder()
+                .withGene("ZDB-GENE-120709-33", "si:ch211-209j12.2")
+                .withDBLink("ZDB-GENE-120709-33", "103910949", FDCONT_NCBI_GENE_ID, PUB_MAPPED_BASED_ON_NCBI_SUPPLEMENT)
+                .withDBLink("ZDB-GENE-120709-33", "ENSDARG00000099337", FDCONT_ENSDARG, "ZDB-PUB-200123-1")
+                .withGene2AccessionFile("108183900","-", "GDQQ01002583.1")
+                .withZfGeneInfoFile("108183900", "si:ch211-209j12.2",
+                        List.of("ZFIN:ZDB-GENE-120709-33", "Ensembl:ENSDARG00000099337", "AllianceGenome:ZFIN:ZDB-GENE-120709-33")
+                )
+                .build();
+
+        helper.runNCBILoad();
+
+        //First time we get ensembl match
+        assertDBLinkExists("ZDB-GENE-120709-33", "GDQQ01002583", FDCONT_GENBANK_RNA, PUB_MAPPED_BASED_ON_NCBI_SUPPLEMENT);
+
+        //run it again:
+        helper.runNCBILoad();
+
+        //Should get the same match via ensembl again
+        assertDBLinkExists("ZDB-GENE-120709-33", "GDQQ01002583", FDCONT_GENBANK_RNA, PUB_MAPPED_BASED_ON_NCBI_SUPPLEMENT);
+
+        //run it again:
+        helper.runNCBILoad();
+
+        //third time? Should still get the same match via ensembl again
+        assertDBLinkExists("ZDB-GENE-120709-33", "GDQQ01002583", FDCONT_GENBANK_RNA, PUB_MAPPED_BASED_ON_NCBI_SUPPLEMENT);
+
+
+        NCBILoadIntegrationTestHelper.AfterState afterState = helper.getAfterState();
+        assertEquals(3, afterState.getFile("before_load.csv").getDataLines().size());
+
+
+        assertEquals(3, afterState.getFile("after_load.csv").getDataLines().size()); //currently getting 1 back, but should be 3?
+
+        //Check that the old NCBI Gene ID was replaced with the new one
+        assertNcbiDBLinkDoesNotExist("ZDB-GENE-120709-33", "103910949");
+        assertNcbiDBLinkExists("ZDB-GENE-120709-33", "108183900");
+        assertDBLinkExists("ZDB-GENE-120709-33", "GDQQ01002583", FDCONT_GENBANK_RNA, PUB_MAPPED_BASED_ON_NCBI_SUPPLEMENT);
+
+    }
+
+    // Test the case where a gene has no NCBI link, but has a Vega link that can be mapped to an NCBI Gene ID
+    // No longer relevant since Vega is retired
+    @Ignore
     @Test
     public void testGeneWithVegaLink() throws IOException {
         // Create database state before the load
@@ -280,7 +333,6 @@ public class NCBILoadIntegrationTest extends AbstractDangerousDatabaseTest {
     }
 
     public void assertDBLinkExists(String geneZdbID, String accessionNumber, String fdcontID, String publicationID) {
-        helper.getDBLinksWithAttributions(geneZdbID, accessionNumber, fdcontID, publicationID);
         assertEquals(1, helper.getDBLinksWithAttributions(geneZdbID, accessionNumber, fdcontID, publicationID).size());
     }
 
@@ -304,7 +356,9 @@ public class NCBILoadIntegrationTest extends AbstractDangerousDatabaseTest {
             throw new RuntimeException("NCBI_LOAD_CONTAINER environment variable is not set. Preventing run to avoid data corruption.");
         }
 
-        tempDir = Files.createTempDirectory("ncbi_test_");
+        // Set up temporary working directory with prefix of eg. 2025-06-10_15-30-00
+        String timestampForWorkingDir = nowToString("yyyy-MM-dd_HH-mm-ss");
+        tempDir = Files.createTempDirectory("ncbi_test_" + timestampForWorkingDir + "_");
         helper = new NCBILoadIntegrationTestHelper(tempDir);
         if (DELETE_ON_EXIT) {
             tempDir.toFile().deleteOnExit();

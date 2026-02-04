@@ -1,4 +1,4 @@
-FROM base:latest
+FROM ghcr.io/zfin/zfin-base:main
 
 # Dockerfile for NCBI gene load test environment
 # It hosts its own PostgreSQL database so it doesn't interfere with the db container
@@ -16,6 +16,7 @@ RUN /etc/init.d/postgresql start && \
 RUN perl -i -pe 's/peer/trust/' /etc/postgresql/15/main/pg_hba.conf && \
     perl -i -pe 's/scram-sha-256/trust/' /etc/postgresql/15/main/pg_hba.conf
 
+# If needed, create a new zfindbdump.bak file with: pg_dump -Fc zfindb -f zfindbdump.bak
 ADD zfindbdump.bak /tmp/zfindbdump.bak
 RUN /etc/init.d/postgresql start && \
     su - postgres -c "pg_restore -d zfindb -j 8 /tmp/zfindbdump.bak"

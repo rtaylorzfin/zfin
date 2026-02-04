@@ -123,7 +123,9 @@ public class FacetBuilderService {
 
     private List<FacetGroup> buildAnatomyFacetGroup() {
         List<FacetGroup> facetGroups = new ArrayList<>();
-        facetGroups.add(buildSingleFacetGroup("Ontologies", FieldName.ONTOLOGY.getName(), true));
+        FacetGroup ontologiesGroup = buildSingleFacetGroup("Ontologies", FieldName.ONTOLOGY.getName(), true);
+        ontologiesGroup.getFacets().get(0).setAlwaysShowAllFacets(true);
+        facetGroups.add(ontologiesGroup);
         FacetGroup statusGroup = buildSingleFacetGroup("Term Status", FieldName.TERM_STATUS.getName(), true);
         statusGroup.setRootOnly(true);
         facetGroups.add(statusGroup);
@@ -235,6 +237,7 @@ public class FacetBuilderService {
         facetGroups.add(buildPhenotypeBlock());
         //todo: need this in the index still?
         facetGroups.add(buildSingleFacetGroup("Consequence", "rna_consequence", false));
+        facetGroups.add(buildSingleFacetGroup("Chromosome", CHROMOSOME.getName(), false));
         facetGroups.add(buildSingleFacetGroup("Mutagen", "mutagen", false));
         facetGroups.add(buildSingleFacetGroup("Source", SOURCE.getName(), false));
         facetGroups.add(buildSingleFacetGroup("Lab of Origin", "lab_of_origin", false));

@@ -13,12 +13,18 @@ DOCKER_SOURCE_ROOTS_PATH="../"
 DOCKER_VIRTUAL_HOST=zfin.org
 COMPOSE_PROJECT_NAME=zfin_org
 DOCKER_INSTANCE=dazed
+ZFIN_RELEASE=main
 TZ=PST8PDT
 ELK_VERSION=8.2.3
 ELASTIC_PASSWORD=ChangeMe!
 LOGSTASH_INTERNAL_PASSWORD=ChangeMe!
 KIBANA_SYSTEM_PASSWORD=ChangeMe!
+#Use 'docker compose run --rm kibana kibana-encryption-keys generate' and copy/paste
+XPACK_ENCRYPTEDSAVEDOBJECTS_ENCRYPTIONKEY=ChangeMe!
 #This won't work on laptops currently but you will need it in .env to stop errors/warnings
 OPENIDC_CRYPTOPASSPHRASE=passphrase-changeme
 OPENIDC_CLIENTID=dazed.zfin.org
 OPENIDC_CLIENTSECRET=secret-from-keycloak
+DOCKER_GFF3_PATH=~/development/gff3
+DOCKER_HTTPD_HTTP_PORT=8080-8089
+DOCKER_HTTPD_HTTPS_PORT=8443-8452

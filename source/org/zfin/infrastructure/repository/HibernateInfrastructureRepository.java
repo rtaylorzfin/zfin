@@ -536,6 +536,10 @@ public class HibernateInfrastructureRepository implements InfrastructureReposito
         updates.setSubmitter(submitter);
         updates.setSubmitterName(submitterName);
         updates.setFieldName(fieldName);
+        if (fieldName.equals("password")) {
+            oldValue = "redacted";
+            newValue = "redacted";
+        }
         updates.setOldValue(oldValue);
         updates.setNewValue(newValue);
         updates.setComments(comments);
@@ -1873,6 +1877,7 @@ public class HibernateInfrastructureRepository implements InfrastructureReposito
         Query<LoadFileLog> query = currentSession().createQuery(hql, LoadFileLog.class);
         query.setParameter("loadName", loadName);
         query.setParameter("releaseNumber", releaseNumber);
+        query.setMaxResults(1);
         return query.uniqueResult();
     }
 

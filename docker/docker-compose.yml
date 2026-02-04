@@ -1,9 +1,13 @@
 services:
   base:
     build: ./base/
-    image: base:latest
+    image: ghcr.io/zfin/zfin-base:${ZFIN_RELEASE}
   compile:
-    build: ./compile/
+    build:
+      context: ./compile/
+      args:
+        ZFIN_RELEASE: ${ZFIN_RELEASE}
+    image: ghcr.io/zfin/zfin-compile:${ZFIN_RELEASE}
     profiles:
       - compile
     environment:
@@ -18,6 +22,7 @@ services:
       ELASTIC_PASSWORD: ${ELASTIC_PASSWORD}
       KIBANA_SYSTEM_PASSWORD: ${KIBANA_SYSTEM_PASSWORD}
       INSTANCE: ${DOCKER_INSTANCE}
+      ZFIN_RELEASE: ${ZFIN_RELEASE}
       DOCKER_SSH_AUTH_SOCK: ${DOCKER_SSH_AUTH_SOCK}
       DOCKER_SSH_USER: ${DOCKER_SSH_USER}
       DOCKER_SSH_HOST: ${DOCKER_SSH_HOST}
@@ -57,6 +62,7 @@ services:
       - ${DOCKER_RESEARCH_PATH}:/mnt/research
       - ${DOCKER_LOADUP_PATH}:/opt/zfin/loadUp
       - ${DOCKER_DOWNLOADS_PATH}:/opt/zfin/download-files
+      - ${DOCKER_GFF3_PATH}:/opt/zfin/gff3
       - solr_data:/var/solr
       - ${DOCKER_SSH_AUTH_SOCK}:/run/host-services/ssh-auth.sock
       - ~/.ssh/known_hosts:/home/gradle/.ssh/known_hosts
@@ -65,6 +71,7 @@ services:
       - gradle_cache:/home/gradle/.gradle
   db:
     build: ./postgresql/
+    image: ghcr.io/zfin/zfin-db:${ZFIN_RELEASE}
     command: -c 'max_connections=7500' -c 'shared_buffers=16GB' -c 'huge_pages=try' -c 'temp_buffers=2GB' -c 'work_mem=8GB' -c 'maintenance_work_mem=12GB' -c 'timezone=PST8PDT' -c 'shared_preload_libraries="pg_stat_statements"'
     environment:
       POSTGRES_USER: postgres
@@ -81,6 +88,7 @@ services:
       - www_data:/opt/zfin/www_homes/zfin.org
   solr:
     build: ./solr/
+    image: ghcr.io/zfin/zfin-solr:${ZFIN_RELEASE}
     environment:
       SOLR_HEAP: 10g
     ports:
@@ -90,6 +98,7 @@ services:
   httpd:
     hostname: zfin.org
     build: ./httpd/
+    image: ghcr.io/zfin/zfin-httpd:${ZFIN_RELEASE}
     environment:
       LETSENCRYPT_HOST: ${DOCKER_VIRTUAL_HOST}
       VIRTUAL_HOST: ${DOCKER_VIRTUAL_HOST}
@@ -99,8 +108,8 @@ services:
       OPENIDC_CLIENTID: ${OPENIDC_CLIENTID}
       OPENIDC_CLIENTSECRET: ${OPENIDC_CLIENTSECRET}
     ports:
-      - "8080-8089:80"
-      - "8443-8452:443"
+      - "${DOCKER_HTTPD_HTTP_PORT}:80"
+      - "${DOCKER_HTTPD_HTTPS_PORT}:443"
     volumes:
       - www_data:/opt/zfin/www_homes/zfin.org
       - httpd_log:/var/log/httpd
@@ -120,6 +129,7 @@ services:
       - www_data:/opt/zfin/www_homes/zfin.org
   tomcat:
     build: ./tomcat/
+    image: ghcr.io/zfin/zfin-tomcat:${ZFIN_RELEASE}
     environment:
       CATALINA_BASE: /opt/zfin/catalina_bases/zfin.org
       INSTANCE: docker
@@ -173,6 +183,7 @@ services:
       - "8025:8025"
   jenkins:
     build: ./jenkins/
+    image: ghcr.io/zfin/zfin-jenkins:${ZFIN_RELEASE}
     ports:
       - "9499-9509:9499"
     environment:
@@ -195,6 +206,7 @@ services:
       - ${DOCKER_BLASTSERVER_BLAST_DATABASE_PATH}:/opt/zfin/blastdb
       - ${DOCKER_DOWNLOADS_PATH}:/opt/zfin/download-files
       - ${DOCKER_LOADUP_PATH}:/opt/zfin/loadUp
+      - ${DOCKER_GFF3_PATH}:/opt/zfin/gff3
       - maven_cache:/home/gradle/.m2
       - gradle_cache:/home/gradle/.gradle
   ncbiload:
@@ -212,6 +224,7 @@ services:
       - gradle_cache:/home/gradle/.gradle
   fail2ban:
     build: ./fail2ban/
+    image: ghcr.io/zfin/zfin-fail2ban:${ZFIN_RELEASE}
     cap_add:
       - NET_ADMIN
       - NET_RAW
@@ -259,6 +272,7 @@ services:
       - logging
     environment:
       KIBANA_SYSTEM_PASSWORD: ${KIBANA_SYSTEM_PASSWORD}
+      XPACK_ENCRYPTEDSAVEDOBJECTS_ENCRYPTIONKEY: ${XPACK_ENCRYPTEDSAVEDOBJECTS_ENCRYPTIONKEY}
     ports:
       - "127.0.0.1:5601-5610:5601"
     volumes:
