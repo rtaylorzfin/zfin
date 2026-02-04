@@ -34,6 +34,7 @@
 
 @Grab('org.yaml:snakeyaml:2.2')
 import org.yaml.snakeyaml.Yaml
+import groovy.cli.commons.CliBuilder
 
 class PropertiesProcessor {
 
