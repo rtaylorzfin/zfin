@@ -8,7 +8,7 @@ INCLUDE_LIST_FILE="/opt/zfin/source_roots/zfin.org/commons/env/env-exports.prope
 if [ ! -f "$PROPERTIES_FILE" ]; then
     echo "Error: Properties file '$PROPERTIES_FILE' not found."
     echo "Attempting to generate file."
-    cd /opt/zfin/source_roots/zfin.org && ant rebuildProperties
+    /opt/misc/groovy/bin/groovy /opt/zfin/source_roots/zfin.org/commons/env/PropertiesProcessor.groovy -o $PROPERTIES_FILE
 fi
 
 if [ ! -f "$PROPERTIES_FILE" ]; then
@@ -35,5 +35,3 @@ while IFS='=' read -r key value; do
     export "$key=$value"
     LOADED_PROPERTIES+="$key "
 done < "$PROPERTIES_FILE"
-
-echo "Loaded properties: $LOADED_PROPERTIES"
