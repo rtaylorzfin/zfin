@@ -74,7 +74,6 @@
 <filter token="GRADLE_USER_HOME" value="${GRADLE_USER_HOME}"/>
 <filter token="GROOVY_HOME" value="${GROOVY_HOME}"/>
 <filter token="HIBERNATE_CONFIGURATION_DIRECTORY" value="${HIBERNATE_CONFIGURATION_DIRECTORY}"/>
-<filter token="HOSTNAME" value="${HOSTNAME}"/>
 <filter token="IMAGE_LOAD" value="${IMAGE_LOAD}"/>
 <filter token="INDEXER_REPORT_EMAIL" value="${INDEXER_REPORT_EMAIL}"/>
 <filter token="INDEXER_UNLOAD_DIRECTORY" value="${INDEXER_UNLOAD_DIRECTORY}"/>
@@ -109,7 +108,6 @@
 <filter token="LOG_FILE_PATTERN" value="${LOG_FILE_PATTERN}"/>
 <filter token="LOG_FILE_SESSION" value="${LOG_FILE_SESSION}"/>
 <filter token="LOG_FILE_SIZE" value="${LOG_FILE_SIZE}"/>
-<filter token="MACHINE_NAME" value="${MACHINE_NAME}"/>
 <filter token="MICROARRAY_EMAIL" value="${MICROARRAY_EMAIL}"/>
 <filter token="MOVE_BLAST_FILES_TO_DEVELOPMENT" value="${MOVE_BLAST_FILES_TO_DEVELOPMENT}"/>
 <filter token="MUTANT_NAME" value="${MUTANT_NAME}"/>
@@ -183,6 +181,7 @@
 <filter token="VIDEO_LOAD" value="${VIDEO_LOAD}"/>
 <filter token="WAREHOUSE_DUMP_DIR" value="${WAREHOUSE_DUMP_DIR}"/>
 <filter token="WAREHOUSE_REGN_EMAIL" value="${WAREHOUSE_REGN_EMAIL}"/>
+<filter token="WAR_WEB_INF_DIR" value="${WAR_WEB_INF_DIR}"/>
 <filter token="WEBHOST_BINARY_PATH" value="${WEBHOST_BINARY_PATH}"/>
 <filter token="WEBHOST_BLASTALL" value="${WEBHOST_BLASTALL}"/>
 <filter token="WEBHOST_BLASTDB_CURL_PATH" value="${WEBHOST_BLASTDB_CURL_PATH}"/>
@@ -191,7 +190,6 @@
 <filter token="WEBHOST_DBNAME" value="${WEBHOST_DBNAME}"/>
 <filter token="WEBHOST_FASTA_FILE_PATH" value="${WEBHOST_FASTA_FILE_PATH}"/>
 <filter token="WEBHOST_GENBANK_DAILY_FILES" value="${WEBHOST_GENBANK_DAILY_FILES}"/>
-<filter token="WEBHOST_HOSTNAME" value="${WEBHOST_HOSTNAME}"/>
 <filter token="WEBHOST_KEY_PATH" value="${WEBHOST_KEY_PATH}"/>
 <filter token="WEBHOST_MUTANT" value="${WEBHOST_MUTANT}"/>
 <filter token="WEBHOST_SOURCE" value="${WEBHOST_SOURCE}"/>
@@ -206,5 +204,6 @@
 <filter token="WIKI_USER" value="${WIKI_USER}"/>
 <filter token="ZEBRASHARE_CURATORS" value="${ZEBRASHARE_CURATORS}"/>
 <filter token="ZFIN_ADMIN" value="${ZFIN_ADMIN}"/>
+<filter token="ZFIN_PROPERTIES_PATH" value="${ZFIN_PROPERTIES_PATH}"/>
 </filterset>
 </project>
