@@ -269,7 +269,7 @@ deprecated_properties:
 # -----------------------------------------------------------------------------
 unique_properties:
   INSTANCE: "${env.INSTANCE}"  # <<< Using $INSTANCE here -> should pull from environment variable
-  LOG4J_FILE: "coral.log4j.xml"
+  LOG4J_FILE: "default.log4j.xml"
   PRIMARY_COLOR: "#512da8"
   SCHEDULE_TRIGGER_FILES: "production" # <<< other potential values: trunk, test, blank
   SMTP_HOST: "mailhog"           # Override: smtp.uoregon.edu for test, trunk, production
@@ -333,21 +333,6 @@ emails:
   WEB_ADMIN_EMAIL: "rtaylor@zfin.org ryanm@zfin.org"
   ZEBRASHARE_CURATORS: "leyla@zfin.org asinger@uoregon.edu"
   ZFIN_ADMIN: "zfinadmn@zfin.org"
-
-# -----------------------------------------------------------------------------
-# EMAIL OVERRIDES
-# -----------------------------------------------------------------------------
-# For development/test instances, ALL email properties are replaced with the
-# single address specified here. This prevents dev instances from accidentally
-# emailing production users.
-#
-# If an instance is NOT listed here, it uses the real email addresses above.
-# -----------------------------------------------------------------------------
-email_overrides:
-  cell: "rtaylor@zfin.org"
-  schlapp: "cmpich@zfin.org"
-  trunk: "informix@zfin.org"
-  test: "informix@zfin.org"
 
 # -----------------------------------------------------------------------------
 # ENVIRONMENT DEFAULTS: DEVELOPMENT
@@ -428,11 +413,48 @@ defaults_by_environment:
 # Valid values: development, staging, production
 # -----------------------------------------------------------------------------
 instance_environment:
+  aws: "production"
+  crick: "production"
+  darwin: "production"
   franklin: "production"
   test: "staging"
   trunk: "staging"
   schlapp: "development"
+  watson: "production"
   # Unlisted instances default to "development"
+
+# -----------------------------------------------------------------------------
+# EMAIL OVERRIDES
+# -----------------------------------------------------------------------------
+# For development/test instances, ALL email properties are replaced with the
+# single address specified here. This prevents dev instances from accidentally
+# emailing production users.
+#
+# If an instance is NOT listed here, it uses the real email addresses above.
+# -----------------------------------------------------------------------------
+email_overrides:
+  cell: "rtaylor@zfin.org"
+  confused: "ryanm@zfin.org"
+  coral: "rtaylor@zfin.org"
+  darwin: "informix@zfin.org"
+  dazed: "ryanm@zfin.org"
+  dicer: "rtaylor@zfin.org"
+  dizzy: "ryanm@zfin.org"
+  docker: "informix@zfin.org"
+  eselsohr: "cmpich@zfin.org"
+  frost: "cmpich@zfin.org"
+  iguana: "rtaylor@zfin.org"
+  moonshine: "ryanm@zfin.org"
+  ogon: "cmpich@zfin.org"
+  sandbox: "informix@zfin.org"
+  schlapp: "cmpich@zfin.org"
+  sleepy: "ryanm@zfin.org"
+  tango: "rtaylor@zfin.org"
+  test: "informix@zfin.org"
+  trunk: "informix@zfin.org"
+  watson_test: "informix@zfin.org"
+  xray: "rtaylor@zfin.org"
+
 
 # -----------------------------------------------------------------------------
 # INSTANCE OVERRIDES
@@ -449,13 +471,76 @@ instance_environment:
 # This ensures defaults_by_environment is applied correctly before these overrides.
 # -----------------------------------------------------------------------------
 instance_overrides:
-  franklin: {}  # All values now in prod_defaults
+  franklin: { }  # All values now in prod_defaults
   test:
     PRIMARY_COLOR: "#ffa000"
+    SWISSPROT_EMAIL_CURATOR: "informix@zfin.org rtaylor@zfin.org"
+    SWISSPROT_EMAIL_ERR: "informix@zfin.org rtaylor@zfin.org"
+    SWISSPROT_EMAIL_REPORT: "informix@zfin.org rtaylor@zfin.org"
+    BLAST_CACHE_AT_STARTUP: "false"
+    ENVIRONMENT: "development"
+    GA4_ANALYTICS_ID: "G-5J7RMKMBWC"
+    GO_EMAIL_CURATOR: "dhowe@zfin.org rtaylor@zfin.org"
+    GOOGLE_ANALYTICS_ID: "UA-2417927-5"
+    NCBI_LINKOUT_UPLOAD: "false"
+    PATO_EMAIL_CURATOR: "informix@zfin.org rtaylor@zfin.org"
+    SCHEDULE_TRIGGER_FILES: ""
+    SEND_AUTHOR_NOTIF_EMAIL: "false"
+  confused:
+    PRIMARY_COLOR: "#303f9f"
+  coral:
+    PRIMARY_COLOR: "#1976d2"
+  dazed:
+    PRIMARY_COLOR: "#0288d1"
+  dicer:
+    PRIMARY_COLOR: "#388e3c"
+  dizzy:
+    PRIMARY_COLOR: "#cd5c5c"
+  eselsohr:
+    PRIMARY_COLOR: "#f57c00"
+  frost:
+    PRIMARY_COLOR: "#d32f2f"
+  iguana:
+    PRIMARY_COLOR: "#303f9f"
+  moonshine:
+    PRIMARY_COLOR: "#de3e80"
+  ogon:
+    PRIMARY_COLOR: "#e64a19"
+  sandbox:
+    PRIMARY_COLOR: "#303f9f"
+    ALLIANCE_CURATION_URL: "https://beta-curation.alliancegenome.org"
+    BUILD_EMAIL: "technical@zfin.org"
+    GOOGLE_ANALYTICS_ID: "UA-2417927-5"
+    GO_EMAIL_CURATOR: "rtaylor@zfin.org"
+    INDEXER_REPORT_EMAIL: "informix@zfin.org cmpich@zfin.org"
+    LOG4J_FILE: "test-sites.log4j.xml"
+    NODE_ENV: "production"
+    ONTOLOGY_LOADER_EMAIL: "informix@zfin.org cmpich@zfin.org"
+  sleepy:
+    PRIMARY_COLOR: "#0288d1"
+  tango:
+    PRIMARY_COLOR: "#afb42b"
+    INSPECTLET_ID: "74301150"
+  watson:
+    PRIMARY_COLOR: "#008080"
+
+  watson_test:
+    PRIMARY_COLOR: "#008080"
+  xray:
+    PRIMARY_COLOR: "#512da8"
   trunk:
     PRIMARY_COLOR: "#f57c00"
     SCHEDULE_TRIGGER_FILES: "${env.INSTANCE}"
     WIKI_PUSH_TO_WIKI: "true"
+    ALLIANCE_CURATION_URL: "https://alpha-curation.alliancegenome.org"
+    BLAST_CACHE_AT_STARTUP: "false"
+    GA4_ANALYTICS_ID: "G-5J7RMKMBWC"
+    GOOGLE_ANALYTICS_ID: "UA-2417927-5"
+    NCBI_LINKOUT_UPLOAD: "false"
+    PGDATABASE: ""
+    SEND_AUTHOR_NOTIF_EMAIL: "false"
+    TARGETROOT_PREFIX: "/opt/zfin/"
+    WIKI_HOST: "devwiki.zfin.org"
   schlapp:
     LOG4J_FILE: "default.log4j.xml"
     PRIMARY_COLOR: "#1976d2"
