@@ -28,6 +28,7 @@ ADD https://repo1.maven.org/maven2/org/jolokia/jolokia-jvm/1.7.2/jolokia-jvm-1.7
 RUN chmod 444 /opt/elastic-apm-agent.jar /opt/jolokia-jvm.jar
 
 RUN echo 'CATALINA_OPTS="${CATALINA_OPTS} \
+-Duser.timezone=${TZ:-America/Los_Angeles} \
 -Dcom.sun.management.jmxremote \
 -Dcom.sun.management.jmxremote.local.only=false \
 -Dcom.sun.management.jmxremote.authenticate=false \
