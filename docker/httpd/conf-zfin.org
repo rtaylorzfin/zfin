@@ -192,12 +192,17 @@
       ProxyPassReverse  http://solr:8983/solr
     </Location>
     <Location /logs>
-        SSLRequireSSL
-        AuthType openid-connect
-        <RequireAll>
-          Require env ZfinRestrictedHosts
-          Require valid-user
-        </RequireAll>
+        <If "osenv('ZFIN_ADMIN_OPEN_ACCESS') == 'true'">
+            Require all granted
+        </If>
+        <Else>
+            SSLRequireSSL
+            AuthType openid-connect
+            <RequireAll>
+              Require env ZfinRestrictedHosts
+              Require valid-user
+            </RequireAll>
+        </Else>
         ProxyPass          http://kibana:5601/logs
         ProxyPassReverse   http://kibana:5601/logs
     </Location>

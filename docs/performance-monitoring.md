@@ -170,6 +170,44 @@ DOCKER_KIBANA_PORT=127.0.0.2:5601
 DOCKER_APM_SERVER_PORT=127.0.0.2:8200
 ```
 
+## Troubleshooting
+
+### Elasticsearch cluster stays "red" / APM Server won't start
+
+On dev machines with limited disk space, Elasticsearch may trigger its **disk flood watermark** (defaults to 95% full). When this happens, ES marks all indices as read-only, the cluster health stays `red`, and the APM Server entrypoint script hangs waiting for a green/yellow cluster.
+
+To check:
+
+```bash
+curl -s -u elastic:${ELASTIC_PASSWORD} http://localhost:9200/_cluster/health | jq .status
+```
+
+If it returns `"red"` and your disk is nearly full, disable the disk watermark:
+
+```bash
+curl -X PUT "localhost:9200/_cluster/settings" \
+  -H 'Content-Type: application/json' \
+  -u elastic:${ELASTIC_PASSWORD} \
+  -d '{"persistent": {"cluster.routing.allocation.disk.threshold_enabled": false}}'
+```
+
+This setting is stored in the Elasticsearch data volume and persists across container restarts, but will be lost if you recreate the `elasticsearch_data` volume.
+
+### Kibana fails to start with "encryption key" error
+
+The `XPACK_ENCRYPTEDSAVEDOBJECTS_ENCRYPTIONKEY` in your `.env` must be at least 32 characters. The placeholder `ChangeMe!` in `environment_linux` will not work — generate a real key or use the one already in `.env`.
+
+### Kibana fails with "kibana_system" auth error
+
+The `kibana_system` user password must be set in Elasticsearch before Kibana can connect. Set it with:
+
+```bash
+curl -X POST "localhost:9200/_security/user/kibana_system/_password" \
+  -H 'Content-Type: application/json' \
+  -u elastic:${ELASTIC_PASSWORD} \
+  -d "{\"password\": \"${KIBANA_SYSTEM_PASSWORD}\"}"
+```
+
 ## Files Added/Modified
 
 ### New Files
