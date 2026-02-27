@@ -13,7 +13,9 @@ import org.zfin.framework.featureflag.FeatureFlags;
 import javax.crypto.Mac;
 import javax.crypto.spec.SecretKeySpec;
 import java.io.IOException;
+import java.net.InetAddress;
 import java.net.URLEncoder;
+import java.net.UnknownHostException;
 import java.nio.charset.StandardCharsets;
 import java.security.MessageDigest;
 import java.util.Base64;
@@ -91,6 +93,9 @@ public class CaptchaService {
         if (!FeatureFlags.isFlagEnabled(FeatureFlagEnum.ENABLE_CAPTCHA)) {
             return Optional.empty();
         }
+        if (isLocalRequest(request)) {
+            return Optional.empty();
+        }
         if (isSuccessfulCaptchaToken(request)) {
             return Optional.empty();
         }
@@ -102,6 +107,33 @@ public class CaptchaService {
 
         // Add the current URL as a query parameter to the CAPTCHA challenge redirect
         return Optional.of("/action/captcha/challenge?redirect=" + URLEncoder.encode(currentUrl, StandardCharsets.UTF_8));
+    }
+
+    /**
+     * Check if the request originates from a local or private network address.
+     * Uses X-Forwarded-For (first entry) if present to get the real client IP
+     * when behind Apache reverse proxy, otherwise falls back to getRemoteAddr().
+     * Covers loopback (127.x, ::1), link-local, and private ranges
+     * (10.x, 172.16-31.x, 192.168.x) which includes peer docker containers.
+     */
+    static boolean isLocalRequest(HttpServletRequest request) {
+        String clientIp = request.getHeader("X-Forwarded-For");
+        if (StringUtils.isNotEmpty(clientIp)) {
+            // X-Forwarded-For can be a comma-separated list; the first entry is the original client
+            clientIp = clientIp.split(",")[0].trim();
+        } else {
+            clientIp = request.getRemoteAddr();
+        }
+        if (StringUtils.isEmpty(clientIp)) {
+            return false;
+        }
+        try {
+            InetAddress address = InetAddress.getByName(clientIp);
+            return address.isLoopbackAddress() || address.isSiteLocalAddress() || address.isLinkLocalAddress();
+        } catch (UnknownHostException e) {
+            log.warn("Could not resolve remote address for captcha bypass check: {}", clientIp);
+            return false;
+        }
     }
 
     /**
