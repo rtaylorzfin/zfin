@@ -551,6 +551,7 @@ PublicationViewController {
     public String showAllFigures(@PathVariable String pubID,
                                  @RequestParam(value = "probeZdbID", required = false) String probeZdbID,
                                  @RequestParam(value = "showDataOnly", required = false) boolean showDataOnly,
+                                 HttpServletRequest request,
                                  Model model) {
         //TODO: This would read better if it was an annotation on the method (eg. `@RequiresCaptcha`)
         Optional<String> captchaRedirectUrl = CaptchaService.getRedirectUrlIfNeeded(request);
