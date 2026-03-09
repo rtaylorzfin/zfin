@@ -22,6 +22,10 @@ RUN usermod  -aG zfishweb zfishweb
 RUN groupadd -g 1477 zfloadup
 RUN usermod  -aG zfloadup zfishweb
 
+# Download Jolokia JVM agent (exposes JMX metrics over HTTP for Metricbeat)
+ADD https://repo1.maven.org/maven2/org/jolokia/jolokia-jvm/1.7.2/jolokia-jvm-1.7.2.jar /opt/jolokia-jvm.jar
+RUN chmod 444 /opt/jolokia-jvm.jar
+
 RUN echo 'CATALINA_OPTS="${CATALINA_OPTS} \
 -Duser.timezone=${TZ:-America/Los_Angeles} \
 -Dcom.sun.management.jmxremote \
@@ -31,6 +35,12 @@ RUN echo 'CATALINA_OPTS="${CATALINA_OPTS} \
 -Djava.rmi.server.hostname=$(hostname -i) \
 -Dcom.sun.management.jmxremote.rmi.port=9012 \
 -Dcom.sun.management.jmxremote.ssl=false"' > bin/setenv.sh
+
+# Jolokia agent (only when ENABLE_APM=true)
+RUN echo 'if [ "$ENABLE_APM" = "true" ]; then' >> bin/setenv.sh && \
+    echo 'CATALINA_OPTS="${CATALINA_OPTS} \
+-javaagent:/opt/jolokia-jvm.jar=port=8778,host=0.0.0.0"' >> bin/setenv.sh && \
+    echo 'fi' >> bin/setenv.sh
 
 USER zfishweb
 
