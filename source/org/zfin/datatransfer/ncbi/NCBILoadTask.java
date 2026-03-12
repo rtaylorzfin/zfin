@@ -3,6 +3,14 @@ package org.zfin.datatransfer.ncbi;
 import lombok.extern.log4j.Log4j2;
 import org.hibernate.Session;
 import org.hibernate.Transaction;
+import org.zfin.datatransfer.ncbi.load.AccessionWriter;
+import org.zfin.datatransfer.ncbi.load.MarkerAssemblyUpdater;
+import org.zfin.datatransfer.ncbi.load.NcbiDbLinkLoader;
+import org.zfin.datatransfer.ncbi.load.NcbiDeletePreparer;
+import org.zfin.datatransfer.ncbi.matching.EnsemblSupplementMatcher;
+import org.zfin.datatransfer.ncbi.matching.MatchResult;
+import org.zfin.datatransfer.ncbi.matching.RnaAccessionMatcher;
+import org.zfin.datatransfer.ncbi.matching.VegaLegacyHandler;
 import org.zfin.datatransfer.ncbi.service.NcbiGene2AccessionService;
 import org.zfin.datatransfer.ncbi.service.NcbiRefSeqCatalogService;
 import org.zfin.ontology.datatransfer.AbstractScriptWrapper;
@@ -11,6 +19,7 @@ import org.zfin.uniprot.task.NcbiGeneInfoService;
 
 import java.io.File;
 import java.io.IOException;
+import java.util.Map;
 
 import static org.zfin.framework.HibernateUtil.currentSession;
 import static org.zfin.util.DateUtil.nowToString;
@@ -76,7 +85,58 @@ public class NCBILoadTask extends AbstractScriptWrapper {
             throw new RuntimeException("Failed to load external resource tables", e);
         }
 
-        //... more to come (matching, delete/load, reporting)
+        // C: Prepare deletes (identify db_links to remove)
+        session = currentSession();
+        tx = session.beginTransaction();
+        Map<String, String> toDelete;
+        try {
+            NcbiDeletePreparer deletePreparer = new NcbiDeletePreparer(session);
+            toDelete = deletePreparer.prepare();
+            tx.commit();
+        } catch (Exception e) {
+            tx.rollback();
+            throw new RuntimeException("Failed during delete preparation", e);
+        }
+
+        // D: Match genes
+        session = currentSession();
+        tx = session.beginTransaction();
+        try {
+            RnaAccessionMatcher rnaMatcher = new RnaAccessionMatcher(session, toDelete);
+            MatchResult matches = rnaMatcher.match();
+
+            EnsemblSupplementMatcher supplementMatcher = new EnsemblSupplementMatcher(session, toDelete);
+            matches = supplementMatcher.augment(matches);
+
+            VegaLegacyHandler vegaHandler = new VegaLegacyHandler(session);
+            matches = vegaHandler.reintroduce(matches);
+
+            log.info("Match summary: {} RNA, {} Ensembl supplement, {} Vega legacy",
+                    matches.getConfirmed().size(),
+                    matches.getSupplement().size(),
+                    matches.getLegacyVega().size());
+
+            // E: Build load records
+            AccessionWriter accWriter = new AccessionWriter(session, matches, toDelete);
+            NCBIOutputFileToLoad recordsToLoad = accWriter.buildLoadRecords();
+
+            // F: Execute delete + load
+            NcbiDbLinkLoader loader = new NcbiDbLinkLoader(session);
+            loader.deleteAndLoad(toDelete, recordsToLoad);
+
+            // G: Assembly updates
+            MarkerAssemblyUpdater assemblyUpdater = new MarkerAssemblyUpdater(session);
+            assemblyUpdater.update();
+
+            tx.commit();
+        } catch (Exception e) {
+            tx.rollback();
+            throw new RuntimeException("Failed during matching/loading", e);
+        }
+
+        // H: Report
+        // TODO Phase 3: NcbiLoadStatistics + NCBIReportBuilder
+
         log.info("Finished NCBI Load Task");
     }
 

@@ -2,10 +2,7 @@ package org.zfin.datatransfer.ncbi;
 
 import lombok.extern.log4j.Log4j2;
 
-import java.util.ArrayList;
-import java.util.HashMap;
-import java.util.List;
-import java.util.Map;
+import java.util.*;
 import java.util.stream.Collectors;
 
 import static org.zfin.datatransfer.ncbi.NCBIDirectPort.FDCONT_NCBI_GENE_ID;
@@ -116,6 +113,29 @@ public class NCBIOutputFileToLoad {
 
     private boolean hasGeneID(String geneID, String fdb) {
         return getByGeneID(geneID, fdb).size() > 0;
+    }
+
+    /**
+     * Remove NCBI Gene ID load records for genes/accessions involved in manual curation conflicts.
+     * Removes the NCBI Gene ID row AND all downstream accession rows for those genes.
+     */
+    public void removeNcbiGeneIdRecords(Set<String> conflictGenes, Set<String> conflictNcbiIds) {
+        // Remove all rows for genes that have conflicting NCBI Gene IDs
+        for (String gene : conflictGenes) {
+            List<LoadFileRow> rows = toLoadNcbiGenes.get(gene);
+            if (rows == null) continue;
+
+            boolean hasConflict = rows.stream()
+                    .anyMatch(r -> r.fdb.equals(FDCONT_NCBI_GENE_ID) &&
+                            (conflictGenes.contains(r.geneID) || conflictNcbiIds.contains(r.accession)));
+            if (hasConflict) {
+                // Remove only the NCBI Gene ID row, keep downstream accessions
+                rows.removeIf(r -> r.fdb.equals(FDCONT_NCBI_GENE_ID));
+                if (rows.isEmpty()) {
+                    toLoadNcbiGenes.remove(gene);
+                }
+            }
+        }
     }
 
 }
