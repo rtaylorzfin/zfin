@@ -249,8 +249,22 @@ public class ExpressionSearchService {
         criteria.setNumFound(queryResponse.getGroupResponse().getValues().get(0).getNGroups());
         criteria.setPubCount(queryResponse.getGroupResponse().getValues().get(1).getNGroups());
 
-        return queryResponse.getGroupResponse().getValues().get(0).getValues().stream()
-                .map(this::buildFigureResult)
+        List<Group> figureGroups = queryResponse.getGroupResponse().getValues().get(0).getValues();
+
+        // Batch-load all expression results in one query instead of N+1
+        Set<Long> allExpressionResultIds = figureGroups.stream()
+                .flatMap(group -> group.getResult().stream())
+                .flatMap(doc -> ((ArrayList<String>) doc.get(FieldName.XPATRES_ID.getName())).stream())
+                .distinct()
+                .map(Long::parseLong)
+                .collect(Collectors.toSet());
+
+        Map<Long, ExpressionResult2> expressionResultMap = expressionRepository
+                .getExpressionResult2sByIds(allExpressionResultIds).stream()
+                .collect(Collectors.toMap(ExpressionResult2::getID, Function.identity()));
+
+        return figureGroups.stream()
+                .map(group -> buildFigureResult(group, expressionResultMap))
                 .collect(Collectors.toList());
     }
 
@@ -284,7 +298,7 @@ public class ExpressionSearchService {
                 .collect(Collectors.toList());
     }
 
-    private FigureResult buildFigureResult(Group group) {
+    private FigureResult buildFigureResult(Group group, Map<Long, ExpressionResult2> expressionResultMap) {
         FigureResult figureResult = new FigureResult();
 
         Figure figure = figureRepository.getFigure(group.getGroupValue());
@@ -294,7 +308,8 @@ public class ExpressionSearchService {
         List<ExpressionResult2> results = group.getResult().stream()
                 .flatMap(doc -> ((ArrayList<String>) doc.get(FieldName.XPATRES_ID.getName())).stream())
                 .distinct()
-                .map(id -> expressionRepository.getExpressionResult2(Integer.parseInt(id)))
+                .map(Long::parseLong)
+                .map(expressionResultMap::get)
                 .filter(Objects::nonNull)
                 .filter(ExpressionResult2::isExpressionFound)
                 .collect(Collectors.toList());

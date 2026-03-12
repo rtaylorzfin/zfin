@@ -432,6 +432,8 @@ public interface ExpressionRepository {
 
     ExpressionResult2 getExpressionResult2(long id);
 
+    List<ExpressionResult2> getExpressionResult2sByIds(Collection<Long> ids);
+
     List<ExpressionExperiment2> getExpressionExperiment2ByPub(String pubID, String geneID);
 
     List<ExpressionFigureStage> getExperimentFigureStagesByIds(List<Integer> expressionIDs);

@@ -2072,6 +2072,30 @@ public class HibernateExpressionRepository implements ExpressionRepository {
         return expressionResult2;
     }
 
+    @Override
+    public List<ExpressionResult2> getExpressionResult2sByIds(Collection<Long> ids) {
+        if (ids == null || ids.isEmpty()) {
+            return Collections.emptyList();
+        }
+        Session session = currentSession();
+        return session.createQuery("""
+                select distinct er from ExpressionResult2 er
+                    left join fetch er.expressionFigureStage efs
+                    left join fetch efs.startStage
+                    left join fetch efs.endStage
+                    left join fetch efs.expressionExperiment ee
+                    left join fetch ee.fishExperiment fe
+                    left join fetch fe.fish f
+                    left join fetch f.genotype
+                    left join fetch fe.experiment
+                    left join fetch er.superTerm
+                    left join fetch er.subTerm
+                where er.id in (:ids)
+                """, ExpressionResult2.class)
+                .setParameterList("ids", ids)
+                .list();
+    }
+
     public List<ExpressionFigureStage> getExperimentFigureStagesByIds(List<Integer> expressionIDs) {
         Session session = HibernateUtil.currentSession();
 
