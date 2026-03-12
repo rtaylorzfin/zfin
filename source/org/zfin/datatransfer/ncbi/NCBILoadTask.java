@@ -1,17 +1,18 @@
 package org.zfin.datatransfer.ncbi;
 
 import lombok.extern.log4j.Log4j2;
-import org.zfin.datatransfer.ncbi.dto.Gene2AccessionDTO;
-import org.zfin.datatransfer.ncbi.dto.Gene2VegaDTO;
-import org.zfin.datatransfer.ncbi.dto.GeneInfoDTO;
-import org.zfin.datatransfer.ncbi.dto.RefSeqCatalogDTO;
+import org.hibernate.Session;
+import org.hibernate.Transaction;
+import org.zfin.datatransfer.ncbi.service.NcbiGene2AccessionService;
+import org.zfin.datatransfer.ncbi.service.NcbiRefSeqCatalogService;
 import org.zfin.ontology.datatransfer.AbstractScriptWrapper;
 import org.zfin.properties.ZfinPropertiesEnum;
+import org.zfin.uniprot.task.NcbiGeneInfoService;
 
 import java.io.File;
 import java.io.IOException;
-import java.util.List;
 
+import static org.zfin.framework.HibernateUtil.currentSession;
 import static org.zfin.util.DateUtil.nowToString;
 
 
@@ -48,14 +49,34 @@ public class NCBILoadTask extends AbstractScriptWrapper {
 
     public void run() throws IOException {
         log.info("Starting NCBI Load Task");
-        NCBIReleaseFetcher fetcher = new NCBIReleaseFetcher();
-        NCBIReleaseFileReader reader = fetcher.downloadLatestReleaseFileSetReader(getDownloadDirectory());
-        List<Gene2AccessionDTO> gene2AccessionDTOs = reader.readGene2AccessionFile();
-        List<Gene2VegaDTO> gene2VegaDTOs = reader.readGene2VegaFile();
-        List<GeneInfoDTO> geneInfoDTOs = reader.readGeneInfoFile();
-        List<RefSeqCatalogDTO> catalogDTOs = reader.readRefSeqCatalogFile();
 
-        //... more to come
+        // A: Download files
+        NCBIReleaseFetcher fetcher = new NCBIReleaseFetcher();
+        NCBIReleaseFileSet fileSet = fetcher.downloadLatestReleaseFileSet(getDownloadDirectory());
+
+        // B: Load external resource tables
+        Session session = currentSession();
+        Transaction tx = session.beginTransaction();
+        try {
+            log.info("Loading gene2accession into external_resource table...");
+            NcbiGene2AccessionService.loadIntoPersistentTable(session, fileSet);
+
+            log.info("Loading RefSeq catalog into external_resource table...");
+            NcbiRefSeqCatalogService.loadIntoPersistentTable(session, fileSet);
+
+            log.info("Loading gene_info into external_resource table...");
+            File geneInfoFile = NcbiGeneInfoService.downloadAndExtract(
+                    NcbiGeneInfoService.resolveInputFileUrl(null));
+            NcbiGeneInfoService.loadNcbiFileIntoPersistentTable(session, geneInfoFile);
+            geneInfoFile.delete();
+
+            tx.commit();
+        } catch (Exception e) {
+            tx.rollback();
+            throw new RuntimeException("Failed to load external resource tables", e);
+        }
+
+        //... more to come (matching, delete/load, reporting)
         log.info("Finished NCBI Load Task");
     }
 

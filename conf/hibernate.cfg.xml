@@ -306,6 +306,8 @@
         <mapping class="org.zfin.mutant.FishExperiment"/>
         <mapping class="org.zfin.mutant.GeneGenotypeExperiment"/>
         <mapping class="org.zfin.datatransfer.ncbi.NcbiGeneInfo"/>
+        <mapping class="org.zfin.datatransfer.ncbi.entity.NcbiGene2Accession"/>
+        <mapping class="org.zfin.datatransfer.ncbi.entity.NcbiRefSeqCatalog"/>
 
  <!--<listener class="org.hibernate.envers.event.AuditEventListener" type="post-insert"/>
 
