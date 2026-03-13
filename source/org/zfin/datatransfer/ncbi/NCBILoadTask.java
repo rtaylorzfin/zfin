@@ -7,6 +7,7 @@ import org.zfin.datatransfer.ncbi.load.AccessionWriter;
 import org.zfin.datatransfer.ncbi.load.MarkerAssemblyUpdater;
 import org.zfin.datatransfer.ncbi.load.NcbiDbLinkLoader;
 import org.zfin.datatransfer.ncbi.load.NcbiDeletePreparer;
+import org.zfin.datatransfer.webservice.NCBIEfetch;
 import org.zfin.datatransfer.ncbi.matching.EnsemblSupplementMatcher;
 import org.zfin.datatransfer.ncbi.matching.MatchResult;
 import org.zfin.datatransfer.ncbi.matching.RnaAccessionMatcher;
@@ -21,6 +22,9 @@ import org.zfin.uniprot.task.NcbiGeneInfoService;
 
 import java.io.File;
 import java.io.IOException;
+import java.nio.file.Files;
+import java.util.Collections;
+import java.util.List;
 import java.util.Map;
 
 import static org.zfin.framework.HibernateUtil.currentSession;
@@ -85,7 +89,9 @@ public class NCBILoadTask extends AbstractScriptWrapper {
             log.info("Loading gene_info into external_resource table...");
             File geneInfoFile;
             if (fileSet.getZfGeneInfo() != null && fileSet.getZfGeneInfo().exists()) {
-                geneInfoFile = fileSet.getZfGeneInfo();
+                // downloadAndExtract handles both downloading and decompressing .gz files
+                geneInfoFile = NcbiGeneInfoService.downloadAndExtract(
+                        fileSet.getZfGeneInfo().toURI().toString());
             } else {
                 geneInfoFile = NcbiGeneInfoService.downloadAndExtract(
                         NcbiGeneInfoService.resolveInputFileUrl(null));
@@ -115,6 +121,9 @@ public class NCBILoadTask extends AbstractScriptWrapper {
             throw new RuntimeException("Failed during delete preparation", e);
         }
 
+        // Fetch "not in current release" gene IDs (from local file or NCBI API)
+        List<String> notInCurrentRelease = fetchNotInCurrentReleaseGeneIds(downloadDir);
+
         // D: Match genes, E: Build records, F: Delete + load, G: Assembly updates
         session = currentSession();
         tx = session.beginTransaction();
@@ -140,7 +149,7 @@ public class NCBILoadTask extends AbstractScriptWrapper {
 
             // F: Execute delete + load
             NcbiDbLinkLoader loader = new NcbiDbLinkLoader(session);
-            loader.deleteAndLoad(toDelete, recordsToLoad);
+            loader.deleteAndLoad(toDelete, recordsToLoad, notInCurrentRelease);
 
             // G: Assembly updates
             MarkerAssemblyUpdater assemblyUpdater = new MarkerAssemblyUpdater(session);
@@ -191,6 +200,42 @@ public class NCBILoadTask extends AbstractScriptWrapper {
             fileSet.setGene2vega(gene2vega);
         }
         return fileSet;
+    }
+
+    /**
+     * Fetch "not in current release" gene IDs. Uses the local file if present
+     * (tests and pre-fetched runs), otherwise calls the NCBI E-utilities API.
+     */
+    private List<String> fetchNotInCurrentReleaseGeneIds(File downloadDir) {
+        File localFile = new File(downloadDir, "notInCurrentReleaseGeneIDs.unl");
+        if (localFile.exists()) {
+            try {
+                List<String> ids = Files.readAllLines(localFile.toPath()).stream()
+                        .map(String::trim)
+                        .filter(s -> !s.isEmpty())
+                        .toList();
+                log.info("Read {} 'not in current release' gene IDs from {}", ids.size(), localFile);
+                return ids;
+            } catch (IOException e) {
+                log.warn("Failed to read {}, falling back to API", localFile, e);
+            }
+        }
+
+        try {
+            log.info("Fetching gene IDs not in current annotation release set...");
+            List<String> ids = NCBIEfetch.fetchGeneIDsNotInCurrentAnnotationReleaseSet();
+            log.info("Fetched {} gene IDs not in current annotation release", ids.size());
+            // Write to file for reproducibility
+            try {
+                Files.writeString(localFile.toPath(), String.join("\n", ids));
+            } catch (IOException e) {
+                log.warn("Failed to write not-in-current-release file", e);
+            }
+            return ids;
+        } catch (Exception e) {
+            log.warn("Failed to fetch 'not in current release' gene IDs, proceeding without", e);
+            return Collections.emptyList();
+        }
     }
 
     private File getDownloadDirectory() {

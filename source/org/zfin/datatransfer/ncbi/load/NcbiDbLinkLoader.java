@@ -4,7 +4,6 @@ import lombok.extern.log4j.Log4j2;
 import org.hibernate.Session;
 import org.zfin.datatransfer.ncbi.NCBIOutputFileToLoad;
 import org.zfin.datatransfer.ncbi.NCBIOutputFileToLoad.LoadFileRow;
-import org.zfin.datatransfer.webservice.NCBIEfetch;
 
 import java.util.*;
 
@@ -36,10 +35,13 @@ public class NcbiDbLinkLoader {
 
     /**
      * Execute the full delete + load cycle.
+     *
+     * @param toDelete Map of dblink_zdb_id → accession for records to delete
+     * @param recordsToLoad Records to insert
+     * @param notInCurrentRelease NCBI gene IDs not in current annotation release
      */
-    public void deleteAndLoad(Map<String, String> toDelete, NCBIOutputFileToLoad recordsToLoad) {
-        // Fetch "not in current release" gene IDs from NCBI
-        List<String> notInCurrentRelease = fetchNotInCurrentReleaseGeneIds();
+    public void deleteAndLoad(Map<String, String> toDelete, NCBIOutputFileToLoad recordsToLoad,
+                              List<String> notInCurrentRelease) {
 
         // Step 1: Preserve certain delete candidates
         Set<String> preserved = preserveNotInCurrentRelease(toDelete, recordsToLoad, notInCurrentRelease);
@@ -67,20 +69,6 @@ public class NcbiDbLinkLoader {
 
         // Step 9: Update marker_annotation_status
         updateMarkerAnnotationStatus(notInCurrentRelease);
-    }
-
-    /**
-     * Fetch gene IDs not in current annotation release from NCBI E-utilities.
-     */
-    private List<String> fetchNotInCurrentReleaseGeneIds() {
-        try {
-            List<String> ids = NCBIEfetch.fetchGeneIDsNotInCurrentAnnotationReleaseSet();
-            log.info("Fetched {} gene IDs not in current annotation release", ids.size());
-            return ids;
-        } catch (Exception e) {
-            log.warn("Failed to fetch 'not in current release' gene IDs, proceeding without", e);
-            return Collections.emptyList();
-        }
     }
 
     /**
