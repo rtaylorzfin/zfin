@@ -11,6 +11,8 @@ import org.zfin.datatransfer.ncbi.matching.EnsemblSupplementMatcher;
 import org.zfin.datatransfer.ncbi.matching.MatchResult;
 import org.zfin.datatransfer.ncbi.matching.RnaAccessionMatcher;
 import org.zfin.datatransfer.ncbi.matching.VegaLegacyHandler;
+import org.zfin.datatransfer.ncbi.report.NcbiLoadReportGenerator;
+import org.zfin.datatransfer.ncbi.report.NcbiLoadStatistics;
 import org.zfin.datatransfer.ncbi.service.NcbiGene2AccessionService;
 import org.zfin.datatransfer.ncbi.service.NcbiRefSeqCatalogService;
 import org.zfin.ontology.datatransfer.AbstractScriptWrapper;
@@ -85,11 +87,14 @@ public class NCBILoadTask extends AbstractScriptWrapper {
             throw new RuntimeException("Failed to load external resource tables", e);
         }
 
-        // C: Prepare deletes (identify db_links to remove)
+        // C: Capture before state + prepare deletes
         session = currentSession();
         tx = session.beginTransaction();
+        NcbiLoadStatistics beforeStats;
         Map<String, String> toDelete;
         try {
+            beforeStats = NcbiLoadStatistics.capture(session, "before");
+
             NcbiDeletePreparer deletePreparer = new NcbiDeletePreparer(session);
             toDelete = deletePreparer.prepare();
             tx.commit();
@@ -98,12 +103,13 @@ public class NCBILoadTask extends AbstractScriptWrapper {
             throw new RuntimeException("Failed during delete preparation", e);
         }
 
-        // D: Match genes
+        // D: Match genes, E: Build records, F: Delete + load, G: Assembly updates
         session = currentSession();
         tx = session.beginTransaction();
+        MatchResult matches;
         try {
             RnaAccessionMatcher rnaMatcher = new RnaAccessionMatcher(session, toDelete);
-            MatchResult matches = rnaMatcher.match();
+            matches = rnaMatcher.match();
 
             EnsemblSupplementMatcher supplementMatcher = new EnsemblSupplementMatcher(session, toDelete);
             matches = supplementMatcher.augment(matches);
@@ -134,8 +140,21 @@ public class NCBILoadTask extends AbstractScriptWrapper {
             throw new RuntimeException("Failed during matching/loading", e);
         }
 
-        // H: Report
-        // TODO Phase 3: NcbiLoadStatistics + NCBIReportBuilder
+        // H: Capture after state + generate report
+        session = currentSession();
+        tx = session.beginTransaction();
+        try {
+            NcbiLoadStatistics afterStats = NcbiLoadStatistics.capture(session, "after");
+
+            NcbiLoadReportGenerator reportGenerator = new NcbiLoadReportGenerator(
+                    beforeStats, afterStats, matches, getDownloadDirectory());
+            reportGenerator.generate();
+
+            tx.commit();
+        } catch (Exception e) {
+            tx.rollback();
+            log.error("Failed to generate report (load was successful)", e);
+        }
 
         log.info("Finished NCBI Load Task");
     }
