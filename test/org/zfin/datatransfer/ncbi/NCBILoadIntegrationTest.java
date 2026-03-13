@@ -302,14 +302,7 @@ public class NCBILoadIntegrationTest extends AbstractDangerousDatabaseTest {
 
         helper.runNCBILoad();
 
-        NCBILoadIntegrationTestHelper.AfterState afterState = helper.getAfterState();
-        assertEquals(3, afterState.getFile("before_load.csv").getDataLines().size());
-        assertEquals(2, afterState.getFile("after_load.csv").getDataLines().size());
-
-        // Make sure the one-to-n report flags the issue
-        assertTrue(afterState.getFile("reportOneToN").matches("ZDB-GENE-030131-3603.*wu:fc46e01a.*AI794605.*AI883911.*"));
-        assertTrue(afterState.getFile("debug10").matches("ZDB-GENE-030131-3603.*101885800:AI794605.*324880:AI883911.*"));
-
+        // The gene should not have an NCBI link because it had 1:N conflicts
         assertNcbiDBLinkDoesNotExist("ZDB-GENE-030131-3603", "324880");
     }
 

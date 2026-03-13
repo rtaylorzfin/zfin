@@ -4,6 +4,7 @@ import org.hibernate.Session;
 import org.zfin.framework.HibernateUtil;
 
 import java.io.*;
+import java.lang.reflect.Field;
 import java.nio.file.Files;
 import java.nio.file.Path;
 import java.text.SimpleDateFormat;
@@ -245,8 +246,39 @@ public class NCBILoadIntegrationTestHelper {
     }
 
     public void runNCBILoad() {
+        runNCBILoadNew();
+    }
 
-        // Set environment variables
+    /**
+     * Run the NCBI load using the new NCBILoadTask implementation.
+     */
+    public void runNCBILoadNew() {
+        // Set environment variable so NCBILoadTask uses our temp dir
+        // NCBILoadTask reads NCBI_DOWNLOAD_DIRECTORY env var
+        String previousEnv = System.getenv("NCBI_DOWNLOAD_DIRECTORY");
+        try {
+            // NCBILoadTask checks System.getenv(), not System.getProperty()
+            // We need to use the ProcessBuilder-style env, but since we can't modify
+            // System.getenv() directly, we set it via a helper
+            setEnv("NCBI_DOWNLOAD_DIRECTORY", tempDir.toString());
+
+            NCBILoadTask task = new NCBILoadTask();
+            task.run();
+        } catch (Exception e) {
+            throw new RuntimeException("Failed to run NCBI load", e);
+        } finally {
+            if (previousEnv != null) {
+                setEnv("NCBI_DOWNLOAD_DIRECTORY", previousEnv);
+            } else {
+                removeEnv("NCBI_DOWNLOAD_DIRECTORY");
+            }
+        }
+    }
+
+    /**
+     * Run the NCBI load using the old NCBIDirectPort implementation (for comparison).
+     */
+    public void runNCBILoadLegacy() {
         System.setProperty("WORKING_DIR", tempDir.toString());
         System.setProperty("NO_SLEEP", "1");
         System.setProperty("SKIP_DOWNLOADS", "1");
@@ -254,10 +286,37 @@ public class NCBILoadIntegrationTestHelper {
         System.setProperty("DB_NAME", "zfindb");
         System.setProperty("SKIP_COMPRESS_ARTIFACTS", "1");
 
-        // Run the load
         NCBIDirectPort port = new NCBIDirectPort();
         port.initAll();
         port.run();
+    }
+
+    /**
+     * Set an environment variable at runtime (for testing only).
+     * Uses reflection to modify the process environment map.
+     */
+    @SuppressWarnings("unchecked")
+    private static void setEnv(String key, String value) {
+        try {
+            Map<String, String> env = System.getenv();
+            java.lang.reflect.Field field = env.getClass().getDeclaredField("m");
+            field.setAccessible(true);
+            ((Map<String, String>) field.get(env)).put(key, value);
+        } catch (Exception e) {
+            throw new RuntimeException("Failed to set environment variable: " + key, e);
+        }
+    }
+
+    @SuppressWarnings("unchecked")
+    private static void removeEnv(String key) {
+        try {
+            Map<String, String> env = System.getenv();
+            java.lang.reflect.Field field = env.getClass().getDeclaredField("m");
+            field.setAccessible(true);
+            ((Map<String, String>) field.get(env)).remove(key);
+        } catch (Exception e) {
+            throw new RuntimeException("Failed to remove environment variable: " + key, e);
+        }
     }
 
     public int getNCBILinkCount(String geneId) {

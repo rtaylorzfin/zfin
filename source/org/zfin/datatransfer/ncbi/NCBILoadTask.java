@@ -61,9 +61,16 @@ public class NCBILoadTask extends AbstractScriptWrapper {
     public void run() throws IOException {
         log.info("Starting NCBI Load Task");
 
-        // A: Download files
-        NCBIReleaseFetcher fetcher = new NCBIReleaseFetcher();
-        NCBIReleaseFileSet fileSet = fetcher.downloadLatestReleaseFileSet(getDownloadDirectory());
+        // A: Download files (or use existing if already present)
+        File downloadDir = getDownloadDirectory();
+        NCBIReleaseFileSet fileSet;
+        if (hasExistingFiles(downloadDir)) {
+            log.info("Using existing files in {}", downloadDir);
+            fileSet = buildFileSetFromExisting(downloadDir);
+        } else {
+            NCBIReleaseFetcher fetcher = new NCBIReleaseFetcher();
+            fileSet = fetcher.downloadLatestReleaseFileSet(downloadDir);
+        }
 
         // B: Load external resource tables
         Session session = currentSession();
@@ -76,10 +83,14 @@ public class NCBILoadTask extends AbstractScriptWrapper {
             NcbiRefSeqCatalogService.loadIntoPersistentTable(session, fileSet);
 
             log.info("Loading gene_info into external_resource table...");
-            File geneInfoFile = NcbiGeneInfoService.downloadAndExtract(
-                    NcbiGeneInfoService.resolveInputFileUrl(null));
+            File geneInfoFile;
+            if (fileSet.getZfGeneInfo() != null && fileSet.getZfGeneInfo().exists()) {
+                geneInfoFile = fileSet.getZfGeneInfo();
+            } else {
+                geneInfoFile = NcbiGeneInfoService.downloadAndExtract(
+                        NcbiGeneInfoService.resolveInputFileUrl(null));
+            }
             NcbiGeneInfoService.loadNcbiFileIntoPersistentTable(session, geneInfoFile);
-            geneInfoFile.delete();
 
             tx.commit();
         } catch (Exception e) {
@@ -94,6 +105,7 @@ public class NCBILoadTask extends AbstractScriptWrapper {
         Map<String, String> toDelete;
         try {
             beforeStats = NcbiLoadStatistics.capture(session, "before");
+            NcbiLoadStatistics.captureStateToCsv(session, new File(getDownloadDirectory(), "before_load.csv"));
 
             NcbiDeletePreparer deletePreparer = new NcbiDeletePreparer(session);
             toDelete = deletePreparer.prepare();
@@ -145,6 +157,7 @@ public class NCBILoadTask extends AbstractScriptWrapper {
         tx = session.beginTransaction();
         try {
             NcbiLoadStatistics afterStats = NcbiLoadStatistics.capture(session, "after");
+            NcbiLoadStatistics.captureStateToCsv(session, new File(getDownloadDirectory(), "after_load.csv"));
 
             NcbiLoadReportGenerator reportGenerator = new NcbiLoadReportGenerator(
                     beforeStats, afterStats, matches, getDownloadDirectory());
@@ -157,6 +170,27 @@ public class NCBILoadTask extends AbstractScriptWrapper {
         }
 
         log.info("Finished NCBI Load Task");
+    }
+
+    private boolean hasExistingFiles(File dir) {
+        return new File(dir, "gene2accession.gz").exists()
+                && new File(dir, "RefSeqCatalog.gz").exists();
+    }
+
+    private NCBIReleaseFileSet buildFileSetFromExisting(File dir) {
+        NCBIReleaseFileSet fileSet = new NCBIReleaseFileSet();
+        fileSet.setGene2accession(new File(dir, "gene2accession.gz"));
+        fileSet.setRefSeqCatalog(new File(dir, "RefSeqCatalog.gz"));
+        File geneInfo = new File(dir, "zf_gene_info.gz");
+        if (!geneInfo.exists()) {
+            geneInfo = new File(dir, "Danio_rerio.gene_info.gz");
+        }
+        fileSet.setZfGeneInfo(geneInfo);
+        File gene2vega = new File(dir, "gene2vega.gz");
+        if (gene2vega.exists()) {
+            fileSet.setGene2vega(gene2vega);
+        }
+        return fileSet;
     }
 
     private File getDownloadDirectory() {

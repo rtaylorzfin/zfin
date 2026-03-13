@@ -4,7 +4,11 @@ import lombok.Getter;
 import lombok.extern.log4j.Log4j2;
 import org.hibernate.Session;
 
+import java.io.File;
+import java.io.IOException;
+import java.io.PrintWriter;
 import java.util.LinkedHashMap;
+import java.util.List;
 import java.util.Map;
 
 import static org.zfin.datatransfer.ncbi.NCBIDirectPort.*;
@@ -116,6 +120,54 @@ public class NcbiLoadStatistics {
                 .setParameter("fdbcont", FDCONT_NCBI_GENE_ID)
                 .uniqueResult();
         return count != null ? count.intValue() : 0;
+    }
+
+    /**
+     * Write the full db_link state to a CSV file (compatible with the old captureState format).
+     * Used by integration/characterization tests that compare before/after snapshots.
+     */
+    @SuppressWarnings("unchecked")
+    public static void captureStateToCsv(Session session, File outputFile) {
+        String sql = """
+            SELECT d.dblink_linked_recid, d.dblink_acc_num, d.dblink_info, d.dblink_zdb_id,
+                   d.dblink_acc_num_display, d.dblink_length, d.dblink_fdbcont_zdb_id,
+                   string_agg(DISTINCT r.recattrib_source_zdb_id, '|' ORDER BY r.recattrib_source_zdb_id) AS recattrib_source_zdb_id,
+                   string_agg(DISTINCT a_name, '|' ORDER BY a_name) AS marker_assemblies,
+                   string_agg(DISTINCT vt_name, '|' ORDER BY vt_name) AS marker_annotation_status
+            FROM db_link d
+                LEFT JOIN record_attribution r ON d.dblink_zdb_id = r.recattrib_data_zdb_id
+                LEFT JOIN marker_assembly ON d.dblink_linked_recid = ma_mrkr_zdb_id
+                LEFT JOIN assembly ON ma_a_pk_id = a_pk_id
+                LEFT JOIN marker_annotation_status ON d.dblink_linked_recid = mas_mrkr_zdb_id
+                LEFT JOIN vocabulary_term ON mas_vt_pk_id = vt_id
+            GROUP BY d.dblink_linked_recid, d.dblink_acc_num, d.dblink_info, d.dblink_zdb_id,
+                     d.dblink_acc_num_display, d.dblink_length, d.dblink_fdbcont_zdb_id
+            ORDER BY d.dblink_linked_recid, d.dblink_acc_num
+            """;
+
+        List<Object[]> rows = session.createNativeQuery(sql).list();
+
+        try (PrintWriter writer = new PrintWriter(outputFile)) {
+            writer.println("dblink_linked_recid,dblink_acc_num,dblink_info,dblink_zdb_id,dblink_acc_num_display,dblink_length,dblink_fdbcont_zdb_id,recattrib_source_zdb_id,marker_assemblies,marker_annotation_status");
+            for (Object[] row : rows) {
+                StringBuilder sb = new StringBuilder();
+                for (int i = 0; i < row.length; i++) {
+                    if (i > 0) sb.append(",");
+                    Object val = row[i];
+                    if (val != null) {
+                        String s = val.toString();
+                        if (s.contains(",") || s.contains("\"") || s.contains("\n")) {
+                            sb.append("\"").append(s.replace("\"", "\"\"")).append("\"");
+                        } else {
+                            sb.append(s);
+                        }
+                    }
+                }
+                writer.println(sb);
+            }
+        } catch (IOException e) {
+            log.error("Failed to write state CSV to {}", outputFile, e);
+        }
     }
 
     /**
