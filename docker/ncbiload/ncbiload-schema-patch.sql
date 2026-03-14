@@ -42,6 +42,17 @@ CREATE TABLE IF NOT EXISTS load_file_log (
     lfl_table_name varchar(255)
 );
 
+-- Add lfl_table_name column if it doesn't exist (backup may predate migration ZFIN-10082)
+DO $$
+BEGIN
+    IF NOT EXISTS (
+        SELECT 1 FROM information_schema.columns
+        WHERE table_name = 'load_file_log' AND column_name = 'lfl_table_name'
+    ) THEN
+        ALTER TABLE load_file_log ADD COLUMN lfl_table_name varchar(255);
+    END IF;
+END $$;
+
 CREATE OR REPLACE VIEW external_resource.ncbi_danio_rerio_gene_info_zfin AS
     SELECT gene_id AS ncbi_id, replace(t.xref, 'ZFIN:', '') AS zdb_id
     FROM external_resource.ncbi_danio_rerio_gene_info, unnest(string_to_array(db_xrefs, '|')) AS t (xref)

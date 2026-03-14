@@ -4,9 +4,7 @@ import lombok.Getter;
 import lombok.extern.log4j.Log4j2;
 import org.hibernate.Session;
 
-import java.util.HashMap;
-import java.util.List;
-import java.util.Map;
+import java.util.*;
 
 import static org.zfin.datatransfer.ncbi.NCBIDirectPort.*;
 
@@ -34,86 +32,88 @@ public class NcbiDeletePreparer {
 
     /**
      * Build the toDelete map. Mirrors prepareNCBIgeneLoad.sql logic.
+     * Uses a temp table to avoid exceeding PostgreSQL's 65535 parameter limit
+     * when working with large candidate sets.
      */
     @SuppressWarnings("unchecked")
     public Map<String, String> prepare() {
+        // Create temp table to hold candidates (avoids massive IN clauses)
+        session.createNativeQuery("DROP TABLE IF EXISTS tmp_ncbi_delete_candidates").executeUpdate();
+        session.createNativeQuery("""
+            CREATE TEMP TABLE tmp_ncbi_delete_candidates (
+                zdb_id text NOT NULL PRIMARY KEY
+            )
+            """).executeUpdate();
+
         // Step 1: Find all db_link ZDB IDs attributed to load publications
-        String sql = """
+        session.createNativeQuery("""
+            INSERT INTO tmp_ncbi_delete_candidates (zdb_id)
             SELECT DISTINCT recattrib_data_zdb_id
             FROM record_attribution
             WHERE recattrib_source_zdb_id IN (:loadPubs)
-            """;
-
-        List<String> preDelete = session.createNativeQuery(sql)
+            """)
                 .setParameterList("loadPubs", List.of(PUB_MAPPED_BASED_ON_RNA, PUB_MAPPED_BASED_ON_NCBI_SUPPLEMENT))
-                .list();
+                .executeUpdate();
+
+        int initialCount = ((Number) session.createNativeQuery(
+                "SELECT COUNT(*) FROM tmp_ncbi_delete_candidates").uniqueResult()).intValue();
+        log.info("Step 1: {} candidates attributed to load pubs", initialCount);
 
         // Step 2: Exclude those in expression_experiment2 attributed only to load pub
-        String eeOnlyLoadPubSql = """
-            SELECT DISTINCT xpatex_dblink_zdb_id
-            FROM expression_experiment2
-            WHERE EXISTS (SELECT 1 FROM record_attribution
-                          WHERE xpatex_dblink_zdb_id = recattrib_data_zdb_id
-                          AND recattrib_source_zdb_id IN (:loadPubs))
-            AND NOT EXISTS (SELECT 1 FROM record_attribution
-                           WHERE xpatex_dblink_zdb_id = recattrib_data_zdb_id
-                           AND recattrib_source_zdb_id NOT IN (:loadPubs))
-            """;
-
-        List<String> eeExclusions = session.createNativeQuery(eeOnlyLoadPubSql)
+        int eeRemoved = session.createNativeQuery("""
+            DELETE FROM tmp_ncbi_delete_candidates
+            WHERE zdb_id IN (
+                SELECT DISTINCT xpatex_dblink_zdb_id
+                FROM expression_experiment2
+                WHERE EXISTS (SELECT 1 FROM record_attribution
+                              WHERE xpatex_dblink_zdb_id = recattrib_data_zdb_id
+                              AND recattrib_source_zdb_id IN (:loadPubs))
+                AND NOT EXISTS (SELECT 1 FROM record_attribution
+                               WHERE xpatex_dblink_zdb_id = recattrib_data_zdb_id
+                               AND recattrib_source_zdb_id NOT IN (:loadPubs))
+            )
+            """)
                 .setParameterList("loadPubs", List.of(PUB_MAPPED_BASED_ON_RNA, PUB_MAPPED_BASED_ON_NCBI_SUPPLEMENT))
-                .list();
-
-        preDelete.removeAll(eeExclusions);
+                .executeUpdate();
+        log.info("Step 2: excluded {} expression_experiment2 records", eeRemoved);
 
         // Step 3: Exclude those not linked to genes or RNAGs
-        if (!preDelete.isEmpty()) {
-            String notGeneOrRnagSql = """
+        int nonGeneRemoved = session.createNativeQuery("""
+            DELETE FROM tmp_ncbi_delete_candidates
+            WHERE zdb_id IN (
                 SELECT dblink_zdb_id FROM db_link
-                WHERE dblink_zdb_id IN (:candidates)
-                  AND dblink_linked_recid NOT LIKE 'ZDB-GENE%'
+                JOIN tmp_ncbi_delete_candidates ON dblink_zdb_id = zdb_id
+                WHERE dblink_linked_recid NOT LIKE 'ZDB-GENE%'
                   AND dblink_linked_recid NOT LIKE '%RNAG%'
-                """;
-
-            List<String> nonGeneLinks = session.createNativeQuery(notGeneOrRnagSql)
-                    .setParameterList("candidates", preDelete)
-                    .list();
-
-            preDelete.removeAll(nonGeneLinks);
-        }
+            )
+            """).executeUpdate();
+        log.info("Step 3: excluded {} non-gene/RNAG records", nonGeneRemoved);
 
         // Step 4: Exclude those attributed to a non-load publication
-        if (!preDelete.isEmpty()) {
-            String nonLoadPubSql = """
+        int manualRemoved = session.createNativeQuery("""
+            DELETE FROM tmp_ncbi_delete_candidates
+            WHERE zdb_id IN (
                 SELECT DISTINCT recattrib_data_zdb_id
                 FROM record_attribution
-                WHERE recattrib_data_zdb_id IN (:candidates)
-                  AND recattrib_source_zdb_id NOT IN (:loadPubs)
-                """;
-
-            List<String> nonLoadPubLinks = session.createNativeQuery(nonLoadPubSql)
-                    .setParameterList("candidates", preDelete)
-                    .setParameterList("loadPubs", List.of(PUB_MAPPED_BASED_ON_RNA, PUB_MAPPED_BASED_ON_NCBI_SUPPLEMENT))
-                    .list();
-
-            preDelete.removeAll(nonLoadPubLinks);
-        }
+                JOIN tmp_ncbi_delete_candidates ON recattrib_data_zdb_id = zdb_id
+                WHERE recattrib_source_zdb_id NOT IN (:loadPubs)
+            )
+            """)
+                .setParameterList("loadPubs", List.of(PUB_MAPPED_BASED_ON_RNA, PUB_MAPPED_BASED_ON_NCBI_SUPPLEMENT))
+                .executeUpdate();
+        log.info("Step 4: excluded {} manually curated records", manualRemoved);
 
         // Build toDelete map: dblink_zdb_id → accession
-        if (!preDelete.isEmpty()) {
-            String accSql = """
-                SELECT dblink_zdb_id, dblink_acc_num FROM db_link
-                WHERE dblink_zdb_id IN (:ids)
-                """;
+        List<Object[]> rows = session.createNativeQuery("""
+            SELECT dblink_zdb_id, dblink_acc_num FROM db_link
+            JOIN tmp_ncbi_delete_candidates ON dblink_zdb_id = zdb_id
+            """).list();
 
-            List<Object[]> rows = session.createNativeQuery(accSql)
-                    .setParameterList("ids", preDelete)
-                    .list();
-
-            for (Object[] row : rows) {
-                toDelete.put((String) row[0], (String) row[1]);
-            }
+        for (Object[] row : rows) {
+            toDelete.put((String) row[0], (String) row[1]);
         }
+
+        session.createNativeQuery("DROP TABLE IF EXISTS tmp_ncbi_delete_candidates").executeUpdate();
 
         log.info("Delete preparation: {} db_link records identified for deletion", toDelete.size());
         return toDelete;

@@ -306,6 +306,89 @@ public class NCBILoadIntegrationTest extends AbstractDangerousDatabaseTest {
         assertNcbiDBLinkDoesNotExist("ZDB-GENE-030131-3603", "324880");
     }
 
+    /**
+     * Test that genes matched via RNA get "Current" marker_annotation_status.
+     * The load should set status 12 (Current) for genes with NCBI Gene IDs
+     * attributed to load publications.
+     */
+    @Test
+    public void testMarkerAnnotationStatusForRnaMatch() throws IOException {
+        helper.beforeStateBuilder()
+                .withGene("ZDB-GENE-010319-10", "id:ibd2600")
+                .withDBLink("ZDB-GENE-010319-10", "BG985726", FDCONT_GENBANK_RNA, "ZDB-PUB-020723-5")
+                .withGene2AccessionFile("80928", "-", "BG985726.1")
+                .withZfGeneInfoFile("80928", "id:ibd2600", List.of("ZFIN:ZDB-GENE-010319-10"))
+                .build();
+
+        helper.runNCBILoad();
+
+        assertNcbiDBLinkExists("ZDB-GENE-010319-10", "80928");
+        assertMarkerAnnotationStatus("ZDB-GENE-010319-10", "Current");
+    }
+
+    /**
+     * Test that when a gene already has a db_link record with a different attribution (e.g. Vega pub)
+     * and the new load matches it via RNA, the attribution should be updated to the RNA pub.
+     * This tests the ON CONFLICT behavior — we need to ensure the record gets the correct pub.
+     */
+    @Test
+    public void testExistingRecordGetsUpdatedAttribution() throws IOException {
+        // Gene has existing RefSeq RNA link attributed to Vega pub
+        helper.beforeStateBuilder()
+                .withGene("ZDB-GENE-030131-1238", "gmpr2")
+                .withDBLink("ZDB-GENE-030131-1238", "GFIL01011600", FDCONT_GENBANK_RNA, "ZDB-PUB-020723-5")
+                .withDBLink("ZDB-GENE-030131-1238", "NM_001040304", FDCONT_REFSEQ_RNA, PUB_MAPPED_BASED_ON_VEGA)
+                .withGene2AccessionFile("678545", "-", "GFIL01011600.1")
+                .withGene2AccessionFile("678545", "VALIDATED", "NM_001040304.2")
+                .withZfGeneInfoFile("678545", "gmpr2", List.of("ZFIN:ZDB-GENE-030131-1238"))
+                .withRefSeqCatalogFile("NM_001040304.2", "2135")
+                .build();
+
+        helper.runNCBILoad();
+
+        // The existing RefSeq RNA link should now also have RNA pub attribution
+        assertDBLinkExists("ZDB-GENE-030131-1238", "NM_001040304", FDCONT_REFSEQ_RNA, PUB_MAPPED_BASED_ON_RNA);
+    }
+
+    /**
+     * Test that chromosome-level RefSeq DNA accessions (NC_) shared by multiple genes
+     * are NOT linked to individual genes. Old code used a 1:1 map where only the last
+     * gene parsed survived; new code explicitly detects shared accessions.
+     * Gene-specific RefSeq DNA accessions (NG_) should still be linked.
+     */
+    @Test
+    public void testSharedGenomicAccessionsNotLinked() throws IOException {
+        // Two genes share NC_007134 (chromosome-level), but gene1 also has NG_012345 (gene-specific)
+        helper.beforeStateBuilder()
+                .withGene("ZDB-GENE-010319-10", "id:ibd2600")
+                .withGene("ZDB-GENE-030131-1238", "gmpr2")
+                .withDBLink("ZDB-GENE-010319-10", "BG985726", FDCONT_GENBANK_RNA, "ZDB-PUB-020723-5")
+                .withDBLink("ZDB-GENE-030131-1238", "GFIL01011600", FDCONT_GENBANK_RNA, "ZDB-PUB-020723-5")
+                // Gene 80928: RNA match + shared NC_ + gene-specific NG_
+                .withGene2AccessionFile("7955", "80928", "-", "BG985726.1", "-", "-")
+                .withGene2AccessionFile("7955", "80928", "VALIDATED", "-", "-", "NC_007134.7")
+                .withGene2AccessionFile("7955", "80928", "VALIDATED", "-", "-", "NG_012345.1")
+                // Gene 678545: RNA match + shared NC_
+                .withGene2AccessionFile("7955", "678545", "-", "GFIL01011600.1", "-", "-")
+                .withGene2AccessionFile("7955", "678545", "VALIDATED", "-", "-", "NC_007134.7")
+                .withZfGeneInfoFile("80928", "id:ibd2600", List.of("ZFIN:ZDB-GENE-010319-10"))
+                .withZfGeneInfoFile("678545", "gmpr2", List.of("ZFIN:ZDB-GENE-030131-1238"))
+                .build();
+
+        helper.runNCBILoad();
+
+        // Both genes should get NCBI Gene ID links
+        assertNcbiDBLinkExists("ZDB-GENE-010319-10", "80928");
+        assertNcbiDBLinkExists("ZDB-GENE-030131-1238", "678545");
+
+        // Shared NC_ accession should NOT be linked to either gene
+        assertDBLinkDoesNotExist("ZDB-GENE-010319-10", "NC_007134", FDCONT_REFSEQ_DNA);
+        assertDBLinkDoesNotExist("ZDB-GENE-030131-1238", "NC_007134", FDCONT_REFSEQ_DNA);
+
+        // Gene-specific NG_ accession SHOULD be linked
+        assertDBLinkExists("ZDB-GENE-010319-10", "NG_012345", FDCONT_REFSEQ_DNA, PUB_MAPPED_BASED_ON_RNA);
+    }
+
     @Test
     public void testNotInCurrentRelease() throws IOException {
         // Create database state before the load
@@ -332,6 +415,11 @@ public class NCBILoadIntegrationTest extends AbstractDangerousDatabaseTest {
     public void assertNcbiDBLinkExists(String geneZdbID, String ncbiID) {
         List<String> links = helper.getNCBILinks(geneZdbID, ncbiID);
         assertEquals("NCBI DBLink " + ncbiID + " should exist for gene " + geneZdbID, 1, links.size());
+    }
+
+    public void assertDBLinkDoesNotExist(String geneZdbID, String accession, String fdcontID) {
+        assertFalse("DB link " + accession + " (" + fdcontID + ") should NOT exist for gene " + geneZdbID,
+                helper.dbLinkExists(geneZdbID, accession, fdcontID));
     }
 
     public void assertNcbiDBLinkDoesNotExist(String geneZdbID, String ncbiID) {

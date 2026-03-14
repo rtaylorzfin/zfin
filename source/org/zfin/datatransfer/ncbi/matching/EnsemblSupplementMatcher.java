@@ -4,7 +4,6 @@ import lombok.extern.log4j.Log4j2;
 import org.hibernate.Session;
 
 import java.util.List;
-import java.util.Map;
 
 import static org.zfin.datatransfer.ncbi.NCBIDirectPort.FDCONT_NCBI_GENE_ID;
 
@@ -20,16 +19,16 @@ import static org.zfin.datatransfer.ncbi.NCBIDirectPort.FDCONT_NCBI_GENE_ID;
  * 2. Do NOT already have an NCBI Gene ID in the database (from a non-load source)
  *
  * These are "one-way" matches (NCBI knows about ZFIN via Ensembl, but no RNA reciprocity).
+ *
+ * Expects a temp table 'tmp_dblinks_to_delete' to exist with dblink ZDB IDs to exclude.
  */
 @Log4j2
 public class EnsemblSupplementMatcher {
 
     private final Session session;
-    private final Map<String, String> toDelete;
 
-    public EnsemblSupplementMatcher(Session session, Map<String, String> toDelete) {
+    public EnsemblSupplementMatcher(Session session) {
         this.session = session;
-        this.toDelete = toDelete;
     }
 
     /**
@@ -84,28 +83,20 @@ public class EnsemblSupplementMatcher {
 
     /**
      * Check if a ZFIN gene already has an NCBI Gene ID link in the database
-     * (excluding those that are marked for deletion by the current load).
+     * (excluding those in the tmp_dblinks_to_delete temp table).
      */
     private boolean hasExistingNcbiGeneId(String zfinGene) {
         String sql = """
-            SELECT COUNT(*) FROM db_link
-            WHERE dblink_linked_recid = :gene
-              AND dblink_fdbcont_zdb_id = :fdbcont
+            SELECT COUNT(*) FROM db_link d
+            WHERE d.dblink_linked_recid = :gene
+              AND d.dblink_fdbcont_zdb_id = :fdbcont
+              AND NOT EXISTS (SELECT 1 FROM tmp_dblinks_to_delete td WHERE td.dblink_zdb_id = d.dblink_zdb_id)
             """;
 
-        if (toDelete != null && !toDelete.isEmpty()) {
-            sql += " AND dblink_zdb_id NOT IN (:toDeleteIds)";
-        }
-
-        var query = session.createNativeQuery(sql)
+        Number count = (Number) session.createNativeQuery(sql)
                 .setParameter("gene", zfinGene)
-                .setParameter("fdbcont", FDCONT_NCBI_GENE_ID);
-
-        if (toDelete != null && !toDelete.isEmpty()) {
-            query.setParameterList("toDeleteIds", toDelete.keySet());
-        }
-
-        Number count = (Number) query.uniqueResult();
+                .setParameter("fdbcont", FDCONT_NCBI_GENE_ID)
+                .uniqueResult();
         return count != null && count.intValue() > 0;
     }
 }

@@ -388,6 +388,23 @@ public class NCBILoadIntegrationTestHelper {
     }
 
 
+    public boolean dbLinkExists(String geneZdbID, String accessionNumber, String fdcontID) {
+        String sql = """
+            SELECT COUNT(*) FROM db_link dl
+            WHERE dl.dblink_linked_recid = ?
+            AND dl.dblink_fdbcont_zdb_id = ?
+            AND dl.dblink_acc_num = ?
+            """;
+
+        Number count = (Number) HibernateUtil.currentSession()
+                .createNativeQuery(sql)
+                .setParameter(1, geneZdbID)
+                .setParameter(2, fdcontID)
+                .setParameter(3, accessionNumber)
+                .uniqueResult();
+        return count != null && count.intValue() > 0;
+    }
+
     public Integer getDBLinkLengthIfExists(String geneZdbID, String accessionNumber, String fdcontID) {
         String sql = """
             SELECT dblink_length FROM db_link dl

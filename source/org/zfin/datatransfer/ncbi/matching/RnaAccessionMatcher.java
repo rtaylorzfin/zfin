@@ -20,16 +20,16 @@ import java.util.*;
  * 5. One-way ZFIN→NCBI: for each clean ZFIN gene, find which NCBI genes its accessions point to
  * 6. One-way NCBI→ZFIN: mirror direction
  * 7. Reciprocal check: only keep pairs where both directions agree on 1:1
+ *
+ * Expects a temp table 'tmp_dblinks_to_delete' to exist with dblink ZDB IDs to exclude.
  */
 @Log4j2
 public class RnaAccessionMatcher {
 
     private final Session session;
-    private final Map<String, String> toDelete;
 
-    public RnaAccessionMatcher(Session session, Map<String, String> toDelete) {
+    public RnaAccessionMatcher(Session session) {
         this.session = session;
-        this.toDelete = toDelete;
     }
 
     /**
@@ -95,29 +95,22 @@ public class RnaAccessionMatcher {
      * Build map of ZFIN gene ID → set of RNA accessions (unversioned).
      * Mirrors the logic of prepareNCBIgeneLoad.sql's genes_supported_by_rna view
      * and the ZFIN-side initialization in NCBIDirectPort.
+     *
+     * Excludes db_links in the tmp_dblinks_to_delete temp table.
      */
     @SuppressWarnings("unchecked")
     private Map<String, Set<String>> buildZfinGeneToAccessions() {
-        // Direct gene → GenBank RNA links
+        // Direct gene → GenBank RNA links (excluding those marked for delete via temp table)
         String sql = """
-            SELECT dblink_linked_recid, dblink_acc_num
-            FROM db_link
-            WHERE dblink_fdbcont_zdb_id = 'ZDB-FDBCONT-040412-37'
-              AND (dblink_linked_recid LIKE 'ZDB-GENE%' OR dblink_linked_recid LIKE '%RNAG%')
-              AND NOT EXISTS (SELECT 1 FROM marker WHERE mrkr_abbrev LIKE 'WITHDRAWN%' AND dblink_linked_recid = mrkr_zdb_id)
+            SELECT d.dblink_linked_recid, d.dblink_acc_num
+            FROM db_link d
+            WHERE d.dblink_fdbcont_zdb_id = 'ZDB-FDBCONT-040412-37'
+              AND (d.dblink_linked_recid LIKE 'ZDB-GENE%' OR d.dblink_linked_recid LIKE '%RNAG%')
+              AND NOT EXISTS (SELECT 1 FROM marker WHERE mrkr_abbrev LIKE 'WITHDRAWN%' AND d.dblink_linked_recid = mrkr_zdb_id)
+              AND NOT EXISTS (SELECT 1 FROM tmp_dblinks_to_delete td WHERE td.dblink_zdb_id = d.dblink_zdb_id)
             """;
 
-        // Add exclusion for dblinks marked for delete
-        if (toDelete != null && !toDelete.isEmpty()) {
-            sql += " AND dblink_zdb_id NOT IN (:toDeleteIds)";
-        }
-
-        var query = session.createNativeQuery(sql);
-        if (toDelete != null && !toDelete.isEmpty()) {
-            query.setParameterList("toDeleteIds", toDelete.keySet());
-        }
-
-        List<Object[]> directRows = query.list();
+        List<Object[]> directRows = session.createNativeQuery(sql).list();
         Map<String, Set<String>> geneToAccs = new HashMap<>();
         for (Object[] row : directRows) {
             String gene = (String) row[0];
@@ -127,24 +120,16 @@ public class RnaAccessionMatcher {
 
         // Also include "gene encodes small segment" relationships
         String smallSegSql = """
-            SELECT mrel_mrkr_1_zdb_id, dblink_acc_num
+            SELECT mrel_mrkr_1_zdb_id, d.dblink_acc_num
             FROM marker_relationship
-            JOIN db_link ON dblink_linked_recid = mrel_mrkr_2_zdb_id
+            JOIN db_link d ON d.dblink_linked_recid = mrel_mrkr_2_zdb_id
             WHERE mrel_type = 'gene encodes small segment'
-              AND dblink_fdbcont_zdb_id = 'ZDB-FDBCONT-040412-37'
+              AND d.dblink_fdbcont_zdb_id = 'ZDB-FDBCONT-040412-37'
               AND NOT EXISTS (SELECT 1 FROM marker WHERE mrkr_abbrev LIKE 'WITHDRAWN%' AND mrel_mrkr_1_zdb_id = mrkr_zdb_id)
+              AND NOT EXISTS (SELECT 1 FROM tmp_dblinks_to_delete td WHERE td.dblink_zdb_id = d.dblink_zdb_id)
             """;
 
-        if (toDelete != null && !toDelete.isEmpty()) {
-            smallSegSql += " AND dblink_zdb_id NOT IN (:toDeleteIds)";
-        }
-
-        var ssQuery = session.createNativeQuery(smallSegSql);
-        if (toDelete != null && !toDelete.isEmpty()) {
-            ssQuery.setParameterList("toDeleteIds", toDelete.keySet());
-        }
-
-        List<Object[]> ssRows = ssQuery.list();
+        List<Object[]> ssRows = session.createNativeQuery(smallSegSql).list();
         for (Object[] row : ssRows) {
             String gene = (String) row[0];
             String acc = (String) row[1];

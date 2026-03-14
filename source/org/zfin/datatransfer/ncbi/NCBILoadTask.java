@@ -129,10 +129,13 @@ public class NCBILoadTask extends AbstractScriptWrapper {
         tx = session.beginTransaction();
         MatchResult matches;
         try {
-            RnaAccessionMatcher rnaMatcher = new RnaAccessionMatcher(session, toDelete);
+            // Create temp table with toDelete IDs for use by matchers and loader
+            createToDeleteTempTable(session, toDelete);
+
+            RnaAccessionMatcher rnaMatcher = new RnaAccessionMatcher(session);
             matches = rnaMatcher.match();
 
-            EnsemblSupplementMatcher supplementMatcher = new EnsemblSupplementMatcher(session, toDelete);
+            EnsemblSupplementMatcher supplementMatcher = new EnsemblSupplementMatcher(session);
             matches = supplementMatcher.augment(matches);
 
             VegaLegacyHandler vegaHandler = new VegaLegacyHandler(session);
@@ -200,6 +203,35 @@ public class NCBILoadTask extends AbstractScriptWrapper {
             fileSet.setGene2vega(gene2vega);
         }
         return fileSet;
+    }
+
+    /**
+     * Create a temp table containing the dblink ZDB IDs to be deleted.
+     * Used by matchers and loader to exclude these records via JOINs instead of large IN clauses.
+     * The table name is 'tmp_dblinks_to_delete' — referenced by RnaAccessionMatcher,
+     * EnsemblSupplementMatcher, and NcbiDbLinkLoader.
+     */
+    private void createToDeleteTempTable(Session session, Map<String, String> toDelete) {
+        session.createNativeQuery("DROP TABLE IF EXISTS tmp_dblinks_to_delete").executeUpdate();
+        session.createNativeQuery("""
+            CREATE TEMP TABLE tmp_dblinks_to_delete (
+                dblink_zdb_id text NOT NULL PRIMARY KEY
+            )
+            """).executeUpdate();
+
+        if (toDelete.isEmpty()) return;
+
+        List<String> idList = new java.util.ArrayList<>(toDelete.keySet());
+        for (int i = 0; i < idList.size(); i += 1000) {
+            List<String> batch = idList.subList(i, Math.min(i + 1000, idList.size()));
+            StringBuilder sb = new StringBuilder("INSERT INTO tmp_dblinks_to_delete VALUES ");
+            for (int j = 0; j < batch.size(); j++) {
+                if (j > 0) sb.append(",");
+                sb.append("('").append(batch.get(j).replace("'", "''")).append("')");
+            }
+            session.createNativeQuery(sb.toString()).executeUpdate();
+        }
+        log.info("Loaded {} toDelete IDs into temp table", toDelete.size());
     }
 
     /**

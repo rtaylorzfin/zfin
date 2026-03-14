@@ -49,11 +49,16 @@ public class NcbiDbLinkLoader {
         preserved.forEach(effectiveDelete::remove);
         log.info("Preserved {} 'not in current release' gene IDs from deletion", preserved.size());
 
+        // Load effective delete IDs into a temp table (used by steps 2 and 3)
+        createDeleteTempTable(effectiveDelete.keySet());
+
         // Step 2: Delete from reference_protein
-        deleteReferenceProteins(effectiveDelete.keySet());
+        deleteReferenceProteins();
 
         // Step 3: Delete from zdb_active_data (cascades to db_link)
-        deleteActiveData(effectiveDelete.keySet());
+        deleteActiveData();
+
+        dropDeleteTempTable();
 
         // Step 4: Remove load-pub attributions from manually curated GenBank accessions
         removeLoadPubFromManuallyCurated();
@@ -72,11 +77,40 @@ public class NcbiDbLinkLoader {
     }
 
     /**
+     * Create a temp table with the delete candidate IDs for use by multiple steps.
+     */
+    private void createDeleteTempTable(Set<String> deleteIds) {
+        session.createNativeQuery("DROP TABLE IF EXISTS tmp_ncbi_effective_delete").executeUpdate();
+        session.createNativeQuery("""
+            CREATE TEMP TABLE tmp_ncbi_effective_delete (
+                zdb_id text NOT NULL PRIMARY KEY
+            )
+            """).executeUpdate();
+
+        if (deleteIds.isEmpty()) return;
+
+        List<String> idList = new ArrayList<>(deleteIds);
+        for (int i = 0; i < idList.size(); i += 1000) {
+            List<String> batch = idList.subList(i, Math.min(i + 1000, idList.size()));
+            StringBuilder sb = new StringBuilder("INSERT INTO tmp_ncbi_effective_delete VALUES ");
+            for (int j = 0; j < batch.size(); j++) {
+                if (j > 0) sb.append(",");
+                sb.append("('").append(batch.get(j).replace("'", "''")).append("')");
+            }
+            session.createNativeQuery(sb.toString()).executeUpdate();
+        }
+        log.info("Loaded {} delete candidate IDs into temp table", deleteIds.size());
+    }
+
+    private void dropDeleteTempTable() {
+        session.createNativeQuery("DROP TABLE IF EXISTS tmp_ncbi_effective_delete").executeUpdate();
+    }
+
+    /**
      * Preserve NCBI Gene IDs that are:
      * 1. Marked for deletion
      * 2. Not in current release
      * 3. NOT being replaced by a new load record
-     * 4. NOT involved in N:N conflicts (deferred to Phase 3)
      *
      * Returns set of dblink_zdb_ids to preserve (remove from delete set).
      */
@@ -97,73 +131,84 @@ public class NcbiDbLinkLoader {
             }
         }
 
-        Set<String> notInCurrentSet = new HashSet<>(notInCurrentRelease);
+        // Load "not in current" IDs into temp table
+        session.createNativeQuery("DROP TABLE IF EXISTS tmp_not_in_current_preserve").executeUpdate();
+        session.createNativeQuery("CREATE TEMP TABLE tmp_not_in_current_preserve (ncbi_gene_id text NOT NULL)").executeUpdate();
+        for (int i = 0; i < notInCurrentRelease.size(); i += 1000) {
+            List<String> batch = notInCurrentRelease.subList(i, Math.min(i + 1000, notInCurrentRelease.size()));
+            StringBuilder sb = new StringBuilder("INSERT INTO tmp_not_in_current_preserve VALUES ");
+            for (int j = 0; j < batch.size(); j++) {
+                if (j > 0) sb.append(",");
+                sb.append("('").append(batch.get(j).replace("'", "''")).append("')");
+            }
+            session.createNativeQuery(sb.toString()).executeUpdate();
+        }
+
+        // Load delete candidate IDs into temp table
+        session.createNativeQuery("DROP TABLE IF EXISTS tmp_delete_candidates_preserve").executeUpdate();
+        session.createNativeQuery("CREATE TEMP TABLE tmp_delete_candidates_preserve (zdb_id text NOT NULL)").executeUpdate();
+        List<String> deleteIdList = new ArrayList<>(toDelete.keySet());
+        for (int i = 0; i < deleteIdList.size(); i += 1000) {
+            List<String> batch = deleteIdList.subList(i, Math.min(i + 1000, deleteIdList.size()));
+            StringBuilder sb = new StringBuilder("INSERT INTO tmp_delete_candidates_preserve VALUES ");
+            for (int j = 0; j < batch.size(); j++) {
+                if (j > 0) sb.append(",");
+                sb.append("('").append(batch.get(j).replace("'", "''")).append("')");
+            }
+            session.createNativeQuery(sb.toString()).executeUpdate();
+        }
 
         // Query db_link for delete candidates that have "not in current" NCBI Gene IDs
         String sql = """
             SELECT dblink_zdb_id, dblink_linked_recid, dblink_acc_num
             FROM db_link
-            WHERE dblink_zdb_id IN (:deleteIds)
-              AND dblink_fdbcont_zdb_id = :fdbcont
-              AND dblink_acc_num IN (:notInCurrent)
+            JOIN tmp_delete_candidates_preserve ON dblink_zdb_id = zdb_id
+            JOIN tmp_not_in_current_preserve ON dblink_acc_num = ncbi_gene_id
+            WHERE dblink_fdbcont_zdb_id = :fdbcont
             """;
 
-        // Batch the notInCurrent set to avoid parameter limit issues
-        List<String> notInCurrentList = new ArrayList<>(notInCurrentSet);
-        for (int i = 0; i < notInCurrentList.size(); i += 1000) {
-            List<String> batch = notInCurrentList.subList(i, Math.min(i + 1000, notInCurrentList.size()));
+        List<Object[]> rows = session.createNativeQuery(sql)
+                .setParameter("fdbcont", FDCONT_NCBI_GENE_ID)
+                .list();
 
-            List<Object[]> rows = session.createNativeQuery(sql)
-                    .setParameterList("deleteIds", toDelete.keySet())
-                    .setParameter("fdbcont", FDCONT_NCBI_GENE_ID)
-                    .setParameterList("notInCurrent", batch)
-                    .list();
+        for (Object[] row : rows) {
+            String dblinkZdbId = (String) row[0];
+            String geneId = (String) row[1];
 
-            for (Object[] row : rows) {
-                String dblinkZdbId = (String) row[0];
-                String geneId = (String) row[1];
-
-                // Only preserve if gene is NOT being replaced by new load
-                if (!genesBeingLoaded.contains(geneId)) {
-                    preserved.add(dblinkZdbId);
-                }
+            // Only preserve if gene is NOT being replaced by new load
+            if (!genesBeingLoaded.contains(geneId)) {
+                preserved.add(dblinkZdbId);
             }
         }
+
+        session.createNativeQuery("DROP TABLE IF EXISTS tmp_not_in_current_preserve").executeUpdate();
+        session.createNativeQuery("DROP TABLE IF EXISTS tmp_delete_candidates_preserve").executeUpdate();
 
         return preserved;
     }
 
     /**
      * Delete from reference_protein for records being deleted.
+     * Uses the tmp_ncbi_effective_delete temp table.
      */
-    private void deleteReferenceProteins(Set<String> deleteIds) {
-        if (deleteIds.isEmpty()) return;
-
-        int deleted = session.createNativeQuery(
-                "DELETE FROM reference_protein WHERE rp_dblink_zdb_id IN (:ids)")
-                .setParameterList("ids", deleteIds)
-                .executeUpdate();
+    private void deleteReferenceProteins() {
+        int deleted = session.createNativeQuery("""
+            DELETE FROM reference_protein
+            WHERE rp_dblink_zdb_id IN (SELECT zdb_id FROM tmp_ncbi_effective_delete)
+            """).executeUpdate();
         log.info("Deleted {} reference_protein records", deleted);
     }
 
     /**
      * Delete from zdb_active_data, which cascades to db_link and record_attribution.
+     * Uses the tmp_ncbi_effective_delete temp table.
      */
-    private void deleteActiveData(Set<String> deleteIds) {
-        if (deleteIds.isEmpty()) return;
-
-        // Batch deletes to avoid oversized IN clauses
-        List<String> idList = new ArrayList<>(deleteIds);
-        int totalDeleted = 0;
-        for (int i = 0; i < idList.size(); i += 1000) {
-            List<String> batch = idList.subList(i, Math.min(i + 1000, idList.size()));
-            int deleted = session.createNativeQuery(
-                    "DELETE FROM zdb_active_data WHERE zactvd_zdb_id IN (:ids)")
-                    .setParameterList("ids", batch)
-                    .executeUpdate();
-            totalDeleted += deleted;
-        }
-        log.info("Deleted {} zdb_active_data records (cascading to db_link)", totalDeleted);
+    private void deleteActiveData() {
+        int deleted = session.createNativeQuery("""
+            DELETE FROM zdb_active_data
+            WHERE zactvd_zdb_id IN (SELECT zdb_id FROM tmp_ncbi_effective_delete)
+            """).executeUpdate();
+        log.info("Deleted {} zdb_active_data records (cascading to db_link)", deleted);
     }
 
     /**
@@ -318,6 +363,26 @@ public class NcbiDbLinkLoader {
                 session.createNativeQuery(
                         "DELETE FROM zdb_active_data WHERE zactvd_zdb_id = :id")
                         .setParameter("id", zdbId)
+                        .executeUpdate();
+
+                // Add load pub attribution to the existing record if not already present
+                session.createNativeQuery("""
+                    INSERT INTO record_attribution (recattrib_data_zdb_id, recattrib_source_zdb_id)
+                    SELECT dblink_zdb_id, :pub
+                    FROM db_link
+                    WHERE dblink_linked_recid = :gene
+                      AND dblink_acc_num = :acc
+                      AND dblink_fdbcont_zdb_id = :fdbcont
+                      AND NOT EXISTS (
+                          SELECT 1 FROM record_attribution
+                          WHERE recattrib_data_zdb_id = dblink_zdb_id
+                            AND recattrib_source_zdb_id = :pub
+                      )
+                    """)
+                        .setParameter("pub", row.pub())
+                        .setParameter("gene", row.geneID())
+                        .setParameter("acc", row.accession())
+                        .setParameter("fdbcont", row.fdb())
                         .executeUpdate();
             }
 
