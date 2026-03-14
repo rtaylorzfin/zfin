@@ -236,6 +236,7 @@ services:
     volumes:
       - ${DOCKER_SOURCE_ROOTS_PATH}:/opt/zfin/source_roots/zfin.org
       - ${DOCKER_RESEARCH_PATH}:/mnt/research
+      - catalina_base:/opt/zfin/catalina_bases/zfin.org
       - maven_cache:/home/gradle/.m2
       - gradle_cache:/home/gradle/.gradle
   fail2ban:

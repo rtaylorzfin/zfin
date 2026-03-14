@@ -11,15 +11,19 @@ RUN /etc/init.d/postgresql start && \
     su - postgres -c "createuser --superuser gradle" && \
     su - postgres -c "createuser --superuser informix" && \
     su - postgres -c "createuser --superuser apache" && \
-    su - postgres -c "createdb zfindb"
+    su - postgres -c "createdb zfindb" && \
+    /etc/init.d/postgresql stop
 
 RUN perl -i -pe 's/peer/trust/' /etc/postgresql/18/main/pg_hba.conf && \
     perl -i -pe 's/scram-sha-256/trust/' /etc/postgresql/18/main/pg_hba.conf
 
 # If needed, create a new zfindbdump.bak file with: pg_dump -Fc zfindb -f zfindbdump.bak
 ADD zfindbdump.bak /tmp/zfindbdump.bak
+ADD ncbiload-schema-patch.sql /tmp/ncbiload-schema-patch.sql
 RUN /etc/init.d/postgresql start && \
-    su - postgres -c "pg_restore -d zfindb -j 8 /tmp/zfindbdump.bak"
+    su - postgres -c "pg_restore -d zfindb -j 8 /tmp/zfindbdump.bak" && \
+    psql -U gradle -d zfindb -f /tmp/ncbiload-schema-patch.sql && \
+    /etc/init.d/postgresql stop
 
 #Modify sudoers to allow gradle to run sudo without a password
 RUN echo "gradle ALL=(ALL) NOPASSWD: ALL" >> /etc/sudoers
