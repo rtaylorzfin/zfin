@@ -30,14 +30,30 @@ public class AccessionWriter {
     private final Session session;
     private final MatchResult matches;
     private final Map<String, String> toDelete;
+    private final boolean legacyBehavior;
 
     // Track what's already been added to prevent duplicates
     private final Set<String> added = new HashSet<>();
+
+    /**
+     * In legacy mode, these 1:1 maps replicate the old code's last-write-wins behavior.
+     * Key = accession, Value = gene_id that "owns" it (last one parsed).
+     * Accessions shared by multiple genes effectively get assigned to whichever gene
+     * was last in the gene2accession file. If that gene isn't matched to a ZFIN gene,
+     * the accession is dropped for ALL genes.
+     */
+    private Map<String, String> legacyRefSeqRnaOwner;
+    private Map<String, String> legacyRefPeptOwner;
+    private Map<String, String> legacyRefSeqDnaOwner;
+    private Map<String, String> legacyGenBankRnaOwner;
+    private Map<String, String> legacyGenPeptOwner;
+    private Map<String, String> legacyGenBankDnaOwner;
 
     public AccessionWriter(Session session, MatchResult matches, Map<String, String> toDelete) {
         this.session = session;
         this.matches = matches;
         this.toDelete = toDelete;
+        this.legacyBehavior = NcbiDbLinkLoader.isLegacyBehaviorEnabled();
     }
 
     public NCBIOutputFileToLoad buildLoadRecords() {
@@ -53,6 +69,12 @@ public class AccessionWriter {
         // Pre-load set of genomic accessions shared by multiple genes (NC_ chromosomes etc.)
         // These should not be linked to individual genes — old code's 1:1 map naturally dropped them.
         Set<String> sharedGenomicAccessions = loadSharedGenomicAccessions();
+
+        // In legacy mode, build 1:1 maps that replicate old code's last-write-wins behavior
+        if (legacyBehavior) {
+            buildLegacyOwnerMaps();
+            log.info("Legacy mode: built 1:1 owner maps for accession filtering");
+        }
 
         // Write NCBI Gene IDs + downstream accessions for each match type
         writeMatchedGenes(matches.getConfirmed(), PUB_MAPPED_BASED_ON_RNA, recordsToLoad, lengths, sharedGenomicAccessions);
@@ -114,32 +136,33 @@ public class AccessionWriter {
             // This is mutually exclusive: an accession goes to GenBank OR RefSeq, never both.
             if (isGenBank) {
                 // GenBank RNA (status="-", non-RefSeq prefix)
-                if (rnaAcc != null) {
+                if (rnaAcc != null && ownsAccession(legacyGenBankRnaOwner, rnaAcc, ncbiGene)) {
                     addIfNew(records, zfinGene, rnaAcc, FDCONT_GENBANK_RNA, pub, lengths);
                 }
 
                 // GenPept (status="-", non-RefSeq protein)
-                if (proteinAcc != null) {
+                if (proteinAcc != null && ownsAccession(legacyGenPeptOwner, proteinAcc, ncbiGene)) {
                     addIfNew(records, zfinGene, proteinAcc, FDCONT_GENPEPT, pub, lengths);
                 }
 
                 // GenBank DNA (status="-", non-RefSeq genomic)
-                if (genomicAcc != null) {
+                if (genomicAcc != null && ownsAccession(legacyGenBankDnaOwner, genomicAcc, ncbiGene)) {
                     addIfNew(records, zfinGene, genomicAcc, FDCONT_GENBANK_DNA, pub, lengths);
                 }
             } else {
                 // RefSeq RNA (NM_, XM_, NR_, XR_)
-                if (rnaAcc != null && isRefSeqRna(rnaAcc)) {
+                if (rnaAcc != null && isRefSeqRna(rnaAcc) && ownsAccession(legacyRefSeqRnaOwner, rnaAcc, ncbiGene)) {
                     addIfNew(records, zfinGene, rnaAcc, FDCONT_REFSEQ_RNA, pub, lengths);
                 }
 
                 // RefPept (NP_, XP_)
-                if (proteinAcc != null && isRefSeqProtein(proteinAcc)) {
+                if (proteinAcc != null && isRefSeqProtein(proteinAcc) && ownsAccession(legacyRefPeptOwner, proteinAcc, ncbiGene)) {
                     addIfNew(records, zfinGene, proteinAcc, FDCONT_REFPEPT, pub, lengths);
                 }
 
                 // RefSeq DNA (NC_, NT_, NW_, etc.) — skip chromosome-level accessions shared by multiple genes
-                if (genomicAcc != null && isRefSeqDna(genomicAcc) && !sharedGenomicAccessions.contains(genomicAcc)) {
+                if (genomicAcc != null && isRefSeqDna(genomicAcc) && !sharedGenomicAccessions.contains(genomicAcc)
+                        && ownsAccession(legacyRefSeqDnaOwner, genomicAcc, ncbiGene)) {
                     addIfNew(records, zfinGene, genomicAcc, FDCONT_REFSEQ_DNA, pub, lengths);
                 }
             }
@@ -217,6 +240,61 @@ public class AccessionWriter {
             lengths.put((String) row[0], (Integer) row[1]);
         }
         return lengths;
+    }
+
+    /**
+     * In legacy mode, check whether this gene "owns" the accession in the 1:1 map.
+     * In non-legacy mode (ownerMap is null), always returns true — all accessions are written.
+     */
+    private boolean ownsAccession(Map<String, String> ownerMap, String accession, String ncbiGene) {
+        if (ownerMap == null) return true; // non-legacy mode
+        return ncbiGene.equals(ownerMap.get(accession));
+    }
+
+    /**
+     * Build 1:1 maps (accession → gene_id) replicating the old code's last-write-wins behavior.
+     * The old code iterates gene2accession rows in file order and uses Map.put(), so the last
+     * gene_id seen for a given accession wins. We replicate this by using the database row order
+     * (which matches file insertion order via the serial primary key).
+     */
+    @SuppressWarnings("unchecked")
+    private void buildLegacyOwnerMaps() {
+        legacyRefSeqRnaOwner = new HashMap<>();
+        legacyRefPeptOwner = new HashMap<>();
+        legacyRefSeqDnaOwner = new HashMap<>();
+        legacyGenBankRnaOwner = new HashMap<>();
+        legacyGenPeptOwner = new HashMap<>();
+        legacyGenBankDnaOwner = new HashMap<>();
+
+        String sql = """
+            SELECT gene_id, status, rna_accession, protein_accession, genomic_accession
+            FROM external_resource.ncbi_gene2accession
+            ORDER BY id
+            """;
+
+        List<Object[]> rows = session.createNativeQuery(sql).list();
+        for (Object[] row : rows) {
+            String geneId = (String) row[0];
+            String status = (String) row[1];
+            String rnaAcc = (String) row[2];
+            String proteinAcc = (String) row[3];
+            String genomicAcc = (String) row[4];
+            boolean isGenBank = (status == null);
+
+            if (isGenBank) {
+                if (rnaAcc != null) legacyGenBankRnaOwner.put(rnaAcc, geneId);
+                if (proteinAcc != null) legacyGenPeptOwner.put(proteinAcc, geneId);
+                if (genomicAcc != null) legacyGenBankDnaOwner.put(genomicAcc, geneId);
+            } else {
+                if (rnaAcc != null && isRefSeqRna(rnaAcc)) legacyRefSeqRnaOwner.put(rnaAcc, geneId);
+                if (proteinAcc != null && isRefSeqProtein(proteinAcc)) legacyRefPeptOwner.put(proteinAcc, geneId);
+                if (genomicAcc != null && isRefSeqDna(genomicAcc)) legacyRefSeqDnaOwner.put(genomicAcc, geneId);
+            }
+        }
+
+        log.info("Legacy owner maps: RefSeq RNA={}, RefPept={}, RefSeq DNA={}, GenBank RNA={}, GenPept={}, GenBank DNA={}",
+                legacyRefSeqRnaOwner.size(), legacyRefPeptOwner.size(), legacyRefSeqDnaOwner.size(),
+                legacyGenBankRnaOwner.size(), legacyGenPeptOwner.size(), legacyGenBankDnaOwner.size());
     }
 
     // ---- Accession type classification ----
