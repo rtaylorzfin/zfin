@@ -29,8 +29,32 @@ public class NcbiDbLinkLoader {
 
     private final Session session;
 
+    /**
+     * When true, replicates the old code's behavior in two areas:
+     *
+     * 1. ON CONFLICT attribution: if a db_link insert hits a conflict, the orphaned
+     *    ZDB ID is cleaned up but NO attribution is added to the existing record.
+     *    (Old code created orphaned attributions pointing to non-existent ZDB IDs.)
+     *
+     * 2. AccessionWriter uses 1:1 map last-write-wins filtering (handled there).
+     *
+     * When false (default), the new behavior correctly adds attributions on conflict
+     * and writes all per-gene accessions without the 1:1 map artifact.
+     */
+    private boolean legacyBehavior;
+
     public NcbiDbLinkLoader(Session session) {
         this.session = session;
+        this.legacyBehavior = isLegacyBehaviorEnabled();
+    }
+
+    public void setLegacyBehavior(boolean legacyBehavior) {
+        this.legacyBehavior = legacyBehavior;
+    }
+
+    public static boolean isLegacyBehaviorEnabled() {
+        return "true".equalsIgnoreCase(System.getProperty("NCBI_LEGACY_BEHAVIOR"))
+                || "true".equalsIgnoreCase(System.getenv("NCBI_LEGACY_BEHAVIOR"));
     }
 
     /**
@@ -322,8 +346,12 @@ public class NcbiDbLinkLoader {
             }
         }
 
+        log.info("ON CONFLICT attribution behavior: {}",
+                legacyBehavior ? "SKIP (old behavior)" : "ADD (new behavior)");
+
         int inserted = 0;
         int attributed = 0;
+        int conflictSkipped = 0;
 
         for (LoadFileRow row : deduped.values()) {
             // Generate ZDB ID
@@ -365,25 +393,30 @@ public class NcbiDbLinkLoader {
                         .setParameter("id", zdbId)
                         .executeUpdate();
 
+                conflictSkipped++;
+
                 // Add load pub attribution to the existing record if not already present
-                session.createNativeQuery("""
-                    INSERT INTO record_attribution (recattrib_data_zdb_id, recattrib_source_zdb_id)
-                    SELECT dblink_zdb_id, :pub
-                    FROM db_link
-                    WHERE dblink_linked_recid = :gene
-                      AND dblink_acc_num = :acc
-                      AND dblink_fdbcont_zdb_id = :fdbcont
-                      AND NOT EXISTS (
-                          SELECT 1 FROM record_attribution
-                          WHERE recattrib_data_zdb_id = dblink_zdb_id
-                            AND recattrib_source_zdb_id = :pub
-                      )
-                    """)
-                        .setParameter("pub", row.pub())
-                        .setParameter("gene", row.geneID())
-                        .setParameter("acc", row.accession())
-                        .setParameter("fdbcont", row.fdb())
-                        .executeUpdate();
+                // (skipped when replicating old code behavior)
+                if (!legacyBehavior) {
+                    session.createNativeQuery("""
+                        INSERT INTO record_attribution (recattrib_data_zdb_id, recattrib_source_zdb_id)
+                        SELECT dblink_zdb_id, :pub
+                        FROM db_link
+                        WHERE dblink_linked_recid = :gene
+                          AND dblink_acc_num = :acc
+                          AND dblink_fdbcont_zdb_id = :fdbcont
+                          AND NOT EXISTS (
+                              SELECT 1 FROM record_attribution
+                              WHERE recattrib_data_zdb_id = dblink_zdb_id
+                                AND recattrib_source_zdb_id = :pub
+                          )
+                        """)
+                            .setParameter("pub", row.pub())
+                            .setParameter("gene", row.geneID())
+                            .setParameter("acc", row.accession())
+                            .setParameter("fdbcont", row.fdb())
+                            .executeUpdate();
+                }
             }
 
             // Flush periodically
@@ -394,8 +427,8 @@ public class NcbiDbLinkLoader {
         }
 
         session.flush();
-        log.info("Inserted {} db_link records with {} attributions (from {} deduped rows)",
-                inserted, attributed, deduped.size());
+        log.info("Inserted {} db_link records with {} attributions ({} conflicts, from {} deduped rows)",
+                inserted, attributed, conflictSkipped, deduped.size());
     }
 
     private int pubPriority(String pub) {
