@@ -111,7 +111,7 @@ public class NCBILoadTask extends AbstractScriptWrapper {
         Map<String, String> toDelete;
         try {
             beforeStats = NcbiLoadStatistics.capture(session, "before");
-            NcbiLoadStatistics.captureStateToCsv(session, new File(getDownloadDirectory(), "before_load.csv"));
+            NcbiLoadStatistics.captureAllStateToCsv(session, new File(getDownloadDirectory(), "before_load.csv"));
 
             NcbiDeletePreparer deletePreparer = new NcbiDeletePreparer(session);
             toDelete = deletePreparer.prepare();
@@ -169,7 +169,7 @@ public class NCBILoadTask extends AbstractScriptWrapper {
         tx = session.beginTransaction();
         try {
             NcbiLoadStatistics afterStats = NcbiLoadStatistics.capture(session, "after");
-            NcbiLoadStatistics.captureStateToCsv(session, new File(getDownloadDirectory(), "after_load.csv"));
+            NcbiLoadStatistics.captureAllStateToCsv(session, new File(getDownloadDirectory(), "after_load.csv"));
 
             NcbiLoadReportGenerator reportGenerator = new NcbiLoadReportGenerator(
                     beforeStats, afterStats, matches, getDownloadDirectory());
