@@ -5,6 +5,7 @@ import org.apache.commons.csv.CSVRecord;
 import org.junit.Before;
 import org.junit.Test;
 import org.zfin.AbstractDangerousDatabaseTest;
+import org.zfin.datatransfer.ncbi.report.NcbiLoadStatistics;
 import org.zfin.datatransfer.util.CSVDiff;
 import org.zfin.framework.HibernateUtil;
 
@@ -180,6 +181,51 @@ public class NCBILoadCharacterizationTest extends AbstractDangerousDatabaseTest 
         System.out.println("\n*** Baseline files saved to: " + outputDir);
         System.out.println("*** Copy to archive from host with:");
         System.out.println("***   cp build/ncbi-baselines/after_load_*.csv.gz /research/zarchive/load_files/NCBI-gene-load-archive/2026-01-30/");
+    }
+
+    /**
+     * Generate baseline CSV files using the LEGACY NCBIDirectPort implementation.
+     * Produces the same 3-CSV format (dblinks, annotation, assembly) for comparison
+     * against the new code's output.
+     *
+     * docker compose run --rm compile bash -lc 'gradle -DB=/opt/zfin/unloads/db/2026.01.29.1/2026.01.29.1.bak loaddb; \
+     *   psql -v ON_ERROR_STOP=1 -f source/org/zfin/db/postGmakePostloaddb/1179/ZFIN-10082.sql; \
+     *   psql -v ON_ERROR_STOP=1 -f source/org/zfin/db/postGmakePostloaddb/1180/ZFIN-10173-gene2accession.sql; \
+     *   SKIP_DANGER_WARNING=1 gradle -PincludeNcbiCharacterizationTest test --info \
+     *   --tests org.zfin.datatransfer.ncbi.NCBILoadCharacterizationTest.generateLegacyBaseline; exec bash'
+     */
+    @Test
+    public void generateLegacyBaseline() throws IOException {
+        assertDatabaseDate(2026, 1, 29);
+
+        copyInputFiles();
+
+        helper.runNCBILoadLegacy();
+
+        // Capture the database state produced by the legacy load into the 3-CSV format
+        File csvBase = new File(tempDir.toFile(), "after_load.csv");
+        NcbiLoadStatistics.captureAllStateToCsv(HibernateUtil.currentSession(), csvBase);
+
+        // Save to build directory
+        Path outputDir = Path.of("/opt/zfin/source_roots/zfin.org/build/ncbi-legacy-baselines");
+        Files.createDirectories(outputDir);
+        for (String suffix : List.of("dblinks", "annotation", "assembly")) {
+            Path source = tempDir.resolve("after_load_" + suffix + ".csv");
+            if (!Files.exists(source)) {
+                throw new RuntimeException("Expected output file not found: " + source);
+            }
+            long lines = Files.lines(source).count();
+            System.out.println("Generated " + source.getFileName() + " with " + lines + " lines (including header)");
+
+            Path gzTarget = outputDir.resolve("legacy_" + suffix + ".csv.gz");
+            try (var out = new java.util.zip.GZIPOutputStream(Files.newOutputStream(gzTarget));
+                 var in = Files.newInputStream(source)) {
+                in.transferTo(out);
+            }
+            System.out.println("Saved legacy baseline to " + gzTarget);
+        }
+        System.out.println("\n*** Legacy baseline files saved to: " + outputDir);
+        System.out.println("*** Compare against new baselines with csvDiff gradle task");
     }
 
     /**
