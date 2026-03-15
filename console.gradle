@@ -240,6 +240,11 @@ task ncbiLoadPort(type: JavaExec) {
     main = 'org.zfin.datatransfer.ncbi.NCBIDirectPort'
 }
 
+task ncbiLoad(type: JavaExec) {
+    classpath = sourceSets.main.runtimeClasspath
+    main = 'org.zfin.datatransfer.ncbi.NCBILoadTask'
+}
+
 task csv2xlsx(type: JavaExec) {
     classpath = sourceSets.main.runtimeClasspath
     main = 'org.zfin.datatransfer.util.CSVToXLSXConverter'

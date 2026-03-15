@@ -19,7 +19,6 @@ import java.util.List;
 import java.util.Map;
 
 import static org.junit.Assert.assertEquals;
-import static org.junit.Assert.assertTrue;
 import static org.zfin.datatransfer.ncbi.port.PortHelper.envTrue;
 import static org.zfin.util.FileUtil.gunzipFile;
 
@@ -64,13 +63,31 @@ public class NCBILoadCharacterizationTest extends AbstractDangerousDatabaseTest 
 
         helper.runNCBILoad();
 
-        // Verify database state
-        CSVDiff diff = new CSVDiff("aftertest",
+        // Verify database state — compare each aspect independently to avoid
+        // gene-level changes (annotation status, assembly) being amplified across all db_link rows
+
+        // 1. Compare db_links (per db_link row)
+        assertCsvMatch("dblinks",
                 new String[]{"dblink_linked_recid", "dblink_acc_num", "dblink_fdbcont_zdb_id"},
                 new String[]{"dblink_info", "dblink_zdb_id"});
 
-        Map<String, List<CSVRecord>> results = diff.processToMap(tempDir.resolve("expected_changes.csv").toString(),
-                tempDir.resolve("after_load.csv").toString());
+        // 2. Compare marker_annotation_status (per gene)
+        assertCsvMatch("annotation",
+                new String[]{"mrkr_zdb_id"},
+                new String[]{});
+
+        // 3. Compare marker_assembly (per gene+assembly)
+        assertCsvMatch("assembly",
+                new String[]{"mrkr_zdb_id", "assembly_name"},
+                new String[]{});
+    }
+
+    private void assertCsvMatch(String suffix, String[] keyColumns, String[] ignoreColumns) throws IOException {
+        String expectedFile = tempDir.resolve("expected_" + suffix + ".csv").toString();
+        String actualFile = tempDir.resolve("after_load_" + suffix + ".csv").toString();
+
+        CSVDiff diff = new CSVDiff("aftertest_" + suffix, keyColumns, ignoreColumns);
+        Map<String, List<CSVRecord>> results = diff.processToMap(expectedFile, actualFile);
 
         List<CSVRecord> added = results.get("added");
         List<CSVRecord> deleted = results.get("deleted");
@@ -78,32 +95,28 @@ public class NCBILoadCharacterizationTest extends AbstractDangerousDatabaseTest 
         List<CSVRecord> updated2 = results.get("updated2");
 
         // Write diffs to files for analysis
-        writeDiffFile(tempDir.resolve("diff_added.csv").toString(), added, "added");
-        writeDiffFile(tempDir.resolve("diff_deleted.csv").toString(), deleted, "deleted");
-        writeDiffFile(tempDir.resolve("diff_updated1.csv").toString(), updated1, "updated1");
-        writeDiffFile(tempDir.resolve("diff_updated2.csv").toString(), updated2, "updated2");
+        writeDiffFile(tempDir.resolve("diff_" + suffix + "_added.csv").toString(), added, suffix + " added");
+        writeDiffFile(tempDir.resolve("diff_" + suffix + "_deleted.csv").toString(), deleted, suffix + " deleted");
+        writeDiffFile(tempDir.resolve("diff_" + suffix + "_updated1.csv").toString(), updated1, suffix + " updated1");
+        writeDiffFile(tempDir.resolve("diff_" + suffix + "_updated2.csv").toString(), updated2, suffix + " updated2");
 
         if (!added.isEmpty()) {
-            System.out.println("ADDED (" + added.size() + " records) — written to " + tempDir.resolve("diff_added.csv"));
-            added.stream().limit(20).forEach(r -> System.out.println("  " + r));
+            System.out.println(suffix.toUpperCase() + " ADDED (" + added.size() + " records):");
+            added.stream().limit(10).forEach(r -> System.out.println("  " + r));
         }
         if (!deleted.isEmpty()) {
-            System.out.println("DELETED (" + deleted.size() + " records):");
-            deleted.stream().limit(20).forEach(r -> System.out.println("  " + r));
+            System.out.println(suffix.toUpperCase() + " DELETED (" + deleted.size() + " records):");
+            deleted.stream().limit(10).forEach(r -> System.out.println("  " + r));
         }
         if (!updated1.isEmpty()) {
-            System.out.println("UPDATED1 (" + updated1.size() + " records):");
-            updated1.stream().limit(20).forEach(r -> System.out.println("  " + r));
-        }
-        if (!updated2.isEmpty()) {
-            System.out.println("UPDATED2 (" + updated2.size() + " records):");
-            updated2.stream().limit(20).forEach(r -> System.out.println("  " + r));
+            System.out.println(suffix.toUpperCase() + " UPDATED (" + updated1.size() + " records):");
+            updated1.stream().limit(10).forEach(r -> System.out.println("  " + r));
         }
 
-        assertEquals("added records", 0, added.size());
-        assertEquals("deleted records", 0, deleted.size());
-        assertEquals("updated1 records", 0, updated1.size());
-        assertEquals("updated2 records", 0, updated2.size());
+        assertEquals(suffix + " added records", 0, added.size());
+        assertEquals(suffix + " deleted records", 0, deleted.size());
+        assertEquals(suffix + " updated1 records", 0, updated1.size());
+        assertEquals(suffix + " updated2 records", 0, updated2.size());
     }
 
     private void writeDiffFile(String path, List<CSVRecord> records, String label) {
@@ -127,7 +140,52 @@ public class NCBILoadCharacterizationTest extends AbstractDangerousDatabaseTest 
         assertEquals("Database unload date should be " + expectedDate, expectedDate, date);
     }
 
-    private void copyCharacterizationTestData() {
+    /**
+     * Generate baseline CSV files for the characterization test.
+     * Run this once against a freshly loaded database to create the expected output files.
+     *
+     * docker compose run --rm compile bash -lc 'gradle -DB=/opt/zfin/unloads/db/2026.01.29.1/2026.01.29.1.bak loaddb; \
+     *   psql -v ON_ERROR_STOP=1 -f source/org/zfin/db/postGmakePostloaddb/1179/ZFIN-10082.sql; \
+     *   psql -v ON_ERROR_STOP=1 -f source/org/zfin/db/postGmakePostloaddb/1180/ZFIN-10173-gene2accession.sql; \
+     *   SKIP_DANGER_WARNING=1 gradle -PincludeNcbiCharacterizationTest test --info \
+     *   --tests org.zfin.datatransfer.ncbi.NCBILoadCharacterizationTest.generateBaseline; exec bash'
+     */
+    @Test
+    public void generateBaseline() throws IOException {
+        assertDatabaseDate(2026, 1, 29);
+
+        copyInputFiles();
+
+        helper.runNCBILoad();
+
+        // Gzip generated CSVs and save to source tree (which is mounted rw)
+        Path outputDir = Path.of("/opt/zfin/source_roots/zfin.org/build/ncbi-baselines");
+        Files.createDirectories(outputDir);
+        for (String suffix : List.of("dblinks", "annotation", "assembly")) {
+            Path source = tempDir.resolve("after_load_" + suffix + ".csv");
+            if (!Files.exists(source)) {
+                throw new RuntimeException("Expected output file not found: " + source);
+            }
+            long lines = Files.lines(source).count();
+            System.out.println("Generated " + source.getFileName() + " with " + lines + " lines (including header)");
+
+            // Gzip to output directory
+            Path gzTarget = outputDir.resolve("after_load_" + suffix + ".csv.gz");
+            try (var out = new java.util.zip.GZIPOutputStream(Files.newOutputStream(gzTarget));
+                 var in = Files.newInputStream(source)) {
+                in.transferTo(out);
+            }
+            System.out.println("Saved baseline to " + gzTarget);
+        }
+        System.out.println("\n*** Baseline files saved to: " + outputDir);
+        System.out.println("*** Copy to archive from host with:");
+        System.out.println("***   cp build/ncbi-baselines/after_load_*.csv.gz /research/zarchive/load_files/NCBI-gene-load-archive/2026-01-30/");
+    }
+
+    /**
+     * Copy only the NCBI input files (no baselines) to the temp directory.
+     */
+    private void copyInputFiles() {
         String sourceDir = "/mnt/research/zarchive/load_files/NCBI-gene-load-archive/2026-01-30";
         List<String> filesToCopy = List.of(
             "gene2accession.gz",
@@ -135,8 +193,7 @@ public class NCBILoadCharacterizationTest extends AbstractDangerousDatabaseTest 
             "RefSeqCatalog.gz",
             "RELEASE_NUMBER",
             "seq.fasta",
-            "zf_gene_info.gz",
-            "after_load.csv.gz"
+            "zf_gene_info.gz"
         );
         for (String filename : filesToCopy) {
             File file = new File(sourceDir, filename);
@@ -145,12 +202,29 @@ public class NCBILoadCharacterizationTest extends AbstractDangerousDatabaseTest 
             }
             try {
                 Files.copy(file.toPath(), tempDir.resolve(filename), StandardCopyOption.REPLACE_EXISTING);
+            } catch (IOException e) {
+                throw new RuntimeException(e);
+            }
+        }
+    }
 
-                //special handling for after_load.csv.gz
-                if (filename.equals("after_load.csv.gz")) {
-                    Files.move(tempDir.resolve(filename), tempDir.resolve("expected_changes.csv.gz"), StandardCopyOption.REPLACE_EXISTING);
-                    gunzipFile(tempDir.resolve("expected_changes.csv.gz").toAbsolutePath().toString());
-                }
+    private void copyCharacterizationTestData() {
+        copyInputFiles();
+
+        // Copy baseline files (three separate CSVs)
+        String sourceDir = "/mnt/research/zarchive/load_files/NCBI-gene-load-archive/2026-01-30";
+        for (String suffix : List.of("dblinks", "annotation", "assembly")) {
+            String baselineFilename = "after_load_" + suffix + ".csv.gz";
+            File baselineFile = new File(sourceDir, baselineFilename);
+            if (!baselineFile.exists()) {
+                throw new RuntimeException("Baseline file does not exist: " + baselineFile.getAbsolutePath()
+                        + "\nRun the load once and save the output files as baselines. See doc/ncbi-characterization-test.md");
+            }
+            try {
+                Files.copy(baselineFile.toPath(), tempDir.resolve(baselineFilename), StandardCopyOption.REPLACE_EXISTING);
+                String expectedName = "expected_" + suffix + ".csv.gz";
+                Files.move(tempDir.resolve(baselineFilename), tempDir.resolve(expectedName), StandardCopyOption.REPLACE_EXISTING);
+                gunzipFile(tempDir.resolve(expectedName).toAbsolutePath().toString());
             } catch (IOException e) {
                 throw new RuntimeException(e);
             }

@@ -123,32 +123,82 @@ public class NcbiLoadStatistics {
     }
 
     /**
-     * Write the full db_link state to a CSV file (compatible with the old captureState format).
-     * Used by integration/characterization tests that compare before/after snapshots.
+     * Capture all state to separate CSV files: db_links, annotation status, and assemblies.
+     * Splitting these avoids amplification where a single gene-level change (e.g. marker_annotation_status)
+     * shows up as N changes (one per db_link row for that gene).
+     *
+     * @param baseFile The base file path — e.g. "before_load" produces before_load_dblinks.csv, etc.
+     */
+    public static void captureAllStateToCsv(Session session, File baseFile) {
+        String baseName = baseFile.getName().replaceFirst("\\.csv$", "");
+        File dir = baseFile.getParentFile();
+
+        captureDbLinksToCsv(session, new File(dir, baseName + "_dblinks.csv"));
+        captureAnnotationStatusToCsv(session, new File(dir, baseName + "_annotation.csv"));
+        captureAssemblyToCsv(session, new File(dir, baseName + "_assembly.csv"));
+    }
+
+    /**
+     * Write db_link + record_attribution state to CSV. One row per db_link.
      */
     @SuppressWarnings("unchecked")
-    public static void captureStateToCsv(Session session, File outputFile) {
+    public static void captureDbLinksToCsv(Session session, File outputFile) {
         String sql = """
             SELECT d.dblink_linked_recid, d.dblink_acc_num, d.dblink_info, d.dblink_zdb_id,
                    d.dblink_acc_num_display, d.dblink_length, d.dblink_fdbcont_zdb_id,
-                   string_agg(DISTINCT r.recattrib_source_zdb_id, '|' ORDER BY r.recattrib_source_zdb_id) AS recattrib_source_zdb_id,
-                   string_agg(DISTINCT a_name, '|' ORDER BY a_name) AS marker_assemblies,
-                   string_agg(DISTINCT vt_name, '|' ORDER BY vt_name) AS marker_annotation_status
+                   string_agg(DISTINCT r.recattrib_source_zdb_id, '|' ORDER BY r.recattrib_source_zdb_id) AS recattrib_source_zdb_id
             FROM db_link d
                 LEFT JOIN record_attribution r ON d.dblink_zdb_id = r.recattrib_data_zdb_id
-                LEFT JOIN marker_assembly ON d.dblink_linked_recid = ma_mrkr_zdb_id
-                LEFT JOIN assembly ON ma_a_pk_id = a_pk_id
-                LEFT JOIN marker_annotation_status ON d.dblink_linked_recid = mas_mrkr_zdb_id
-                LEFT JOIN vocabulary_term ON mas_vt_pk_id = vt_id
+            WHERE (d.dblink_linked_recid LIKE 'ZDB-GENE%' OR d.dblink_linked_recid LIKE '%RNAG%')
             GROUP BY d.dblink_linked_recid, d.dblink_acc_num, d.dblink_info, d.dblink_zdb_id,
                      d.dblink_acc_num_display, d.dblink_length, d.dblink_fdbcont_zdb_id
             ORDER BY d.dblink_linked_recid, d.dblink_acc_num
             """;
 
+        writeCsvFromQuery(session, sql,
+                "dblink_linked_recid,dblink_acc_num,dblink_info,dblink_zdb_id,dblink_acc_num_display,dblink_length,dblink_fdbcont_zdb_id,recattrib_source_zdb_id",
+                outputFile);
+    }
+
+    /**
+     * Write marker_annotation_status to CSV. One row per gene.
+     */
+    @SuppressWarnings("unchecked")
+    public static void captureAnnotationStatusToCsv(Session session, File outputFile) {
+        String sql = """
+            SELECT mas_mrkr_zdb_id, vt_name AS marker_annotation_status
+            FROM marker_annotation_status
+                LEFT JOIN vocabulary_term ON mas_vt_pk_id = vt_id
+            ORDER BY mas_mrkr_zdb_id
+            """;
+
+        writeCsvFromQuery(session, sql,
+                "mrkr_zdb_id,marker_annotation_status",
+                outputFile);
+    }
+
+    /**
+     * Write marker_assembly to CSV. One row per gene+assembly.
+     */
+    @SuppressWarnings("unchecked")
+    public static void captureAssemblyToCsv(Session session, File outputFile) {
+        String sql = """
+            SELECT ma_mrkr_zdb_id, a_name AS assembly_name
+            FROM marker_assembly
+                JOIN assembly ON ma_a_pk_id = a_pk_id
+            ORDER BY ma_mrkr_zdb_id, a_name
+            """;
+
+        writeCsvFromQuery(session, sql,
+                "mrkr_zdb_id,assembly_name",
+                outputFile);
+    }
+
+    private static void writeCsvFromQuery(Session session, String sql, String header, File outputFile) {
         List<Object[]> rows = session.createNativeQuery(sql).list();
 
         try (PrintWriter writer = new PrintWriter(outputFile)) {
-            writer.println("dblink_linked_recid,dblink_acc_num,dblink_info,dblink_zdb_id,dblink_acc_num_display,dblink_length,dblink_fdbcont_zdb_id,recattrib_source_zdb_id,marker_assemblies,marker_annotation_status");
+            writer.println(header);
             for (Object[] row : rows) {
                 StringBuilder sb = new StringBuilder();
                 for (int i = 0; i < row.length; i++) {

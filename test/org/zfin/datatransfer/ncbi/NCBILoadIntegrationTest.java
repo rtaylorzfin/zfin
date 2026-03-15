@@ -61,10 +61,10 @@ public class NCBILoadIntegrationTest extends AbstractDangerousDatabaseTest {
 
         // Verify output files
         NCBILoadIntegrationTestHelper.AfterState afterState = helper.getAfterState();
-        assertEquals(true, afterState.getFile("before_load.csv").exists());
-        assertEquals(true, afterState.getFile("after_load.csv").exists());
-        assertEquals(1, afterState.getFile("before_load.csv").getDataLines().size());
-        assertEquals(2, afterState.getFile("after_load.csv").getDataLines().size());
+        assertEquals(true, afterState.getFile("before_load_dblinks.csv").exists());
+        assertEquals(true, afterState.getFile("after_load_dblinks.csv").exists());
+        assertEquals(1, afterState.getFile("before_load_dblinks.csv").getDataLines().size());
+        assertEquals(2, afterState.getFile("after_load_dblinks.csv").getDataLines().size());
 
         assertDBLinkExists("ZDB-GENE-010319-10", "80928", FDCONT_NCBI_GENE_ID, PUB_MAPPED_BASED_ON_RNA);
     }
@@ -116,8 +116,8 @@ public class NCBILoadIntegrationTest extends AbstractDangerousDatabaseTest {
         helper.runNCBILoad();
 
         NCBILoadIntegrationTestHelper.AfterState afterState = helper.getAfterState();
-        assertEquals(2, afterState.getFile("before_load.csv").getDataLines().size());
-        assertEquals(3, afterState.getFile("after_load.csv").getDataLines().size());
+        assertEquals(2, afterState.getFile("before_load_dblinks.csv").getDataLines().size());
+        assertEquals(3, afterState.getFile("after_load_dblinks.csv").getDataLines().size());
 
         //Check that the old NCBI Gene ID was replaced with the new one
         assertNcbiDBLinkDoesNotExist("ZDB-GENE-120709-33", "103910949");
@@ -160,10 +160,10 @@ public class NCBILoadIntegrationTest extends AbstractDangerousDatabaseTest {
 
 
         NCBILoadIntegrationTestHelper.AfterState afterState = helper.getAfterState();
-        assertEquals(3, afterState.getFile("before_load.csv").getDataLines().size());
+        assertEquals(3, afterState.getFile("before_load_dblinks.csv").getDataLines().size());
 
 
-        assertEquals(3, afterState.getFile("after_load.csv").getDataLines().size()); //currently getting 1 back, but should be 3?
+        assertEquals(3, afterState.getFile("after_load_dblinks.csv").getDataLines().size()); //currently getting 1 back, but should be 3?
 
         //Check that the old NCBI Gene ID was replaced with the new one
         assertNcbiDBLinkDoesNotExist("ZDB-GENE-120709-33", "103910949");
@@ -187,8 +187,8 @@ public class NCBILoadIntegrationTest extends AbstractDangerousDatabaseTest {
         helper.runNCBILoad();
 
         NCBILoadIntegrationTestHelper.AfterState afterState = helper.getAfterState();
-        assertEquals(1, afterState.getFile("before_load.csv").getDataLines().size());
-        assertEquals(2, afterState.getFile("after_load.csv").getDataLines().size());
+        assertEquals(0, afterState.getFile("before_load_dblinks.csv").getDataLines().size());
+        assertEquals(1, afterState.getFile("after_load_dblinks.csv").getDataLines().size());
 
         // Expect to now have a NCBI Gene ID link of 107980443 based on the Vega mapping
         assertDBLinkExists("ZDB-GENE-040724-74", "107980443", FDCONT_NCBI_GENE_ID, PUB_MAPPED_BASED_ON_VEGA);
@@ -210,9 +210,11 @@ public class NCBILoadIntegrationTest extends AbstractDangerousDatabaseTest {
 
         NCBILoadIntegrationTestHelper.AfterState afterState = helper.getAfterState();
 
-        //The before load and after load files should both have 2 entries, since no links should be created due to the conflict
-        assertEquals(2, afterState.getFile("before_load.csv").getDataLines().size());
-        assertEquals(2, afterState.getFile("after_load.csv").getDataLines().size());
+        //The before and after dblinks files should both have 0 entries — Vega links are on
+        //transcripts (not genes), so they don't appear in the gene-level dblinks CSV.
+        //No NCBI links should be created due to the conflict.
+        assertEquals(0, afterState.getFile("before_load_dblinks.csv").getDataLines().size());
+        assertEquals(0, afterState.getFile("after_load_dblinks.csv").getDataLines().size());
     }
 
     @Test
@@ -229,8 +231,8 @@ public class NCBILoadIntegrationTest extends AbstractDangerousDatabaseTest {
         helper.runNCBILoad();
 
         NCBILoadIntegrationTestHelper.AfterState afterState = helper.getAfterState();
-        assertEquals(2, afterState.getFile("before_load.csv").getDataLines().size());
-        assertEquals(3, afterState.getFile("after_load.csv").getDataLines().size());
+        assertEquals(1, afterState.getFile("before_load_dblinks.csv").getDataLines().size());
+        assertEquals(2, afterState.getFile("after_load_dblinks.csv").getDataLines().size());
 
         assertDBLinkExists("ZDB-GENE-120703-25", "108183518", FDCONT_NCBI_GENE_ID, PUB_MAPPED_BASED_ON_RNA);
     }
@@ -259,8 +261,8 @@ public class NCBILoadIntegrationTest extends AbstractDangerousDatabaseTest {
         helper.runNCBILoad();
 
         NCBILoadIntegrationTestHelper.AfterState afterState = helper.getAfterState();
-        assertEquals(2, afterState.getFile("before_load.csv").getDataLines().size());
-        assertEquals(3, afterState.getFile("after_load.csv").getDataLines().size());
+        assertEquals(1, afterState.getFile("before_load_dblinks.csv").getDataLines().size());
+        assertEquals(2, afterState.getFile("after_load_dblinks.csv").getDataLines().size());
 
         assertDBLinkExists("ZDB-GENE-120703-25", "108183518", FDCONT_NCBI_GENE_ID, PUB_MAPPED_BASED_ON_NCBI_SUPPLEMENT);
     }
