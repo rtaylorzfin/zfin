@@ -4,6 +4,10 @@ import lombok.extern.log4j.Log4j2;
 import org.hibernate.Session;
 import org.zfin.datatransfer.ncbi.NCBIOutputFileToLoad;
 import org.zfin.datatransfer.ncbi.NCBIOutputFileToLoad.LoadFileRow;
+import org.zfin.datatransfer.ncbi.load.NcbiDiffComputer.CurrentDbLink;
+import org.zfin.datatransfer.ncbi.load.NcbiDiffComputer.DiffResult;
+import org.zfin.datatransfer.ncbi.load.NcbiDiffComputer.DiffUpdate;
+import org.zfin.datatransfer.ncbi.load.NcbiDiffComputer.KeptRecord;
 
 import java.util.*;
 
@@ -74,6 +78,328 @@ public class NcbiDbLinkLoader {
 
         // Step 9: Update marker_annotation_status
         updateMarkerAnnotationStatus(notInCurrentRelease);
+    }
+
+    /**
+     * Execute an incremental load: compute diff against current state and apply only the delta.
+     * Eliminates the expensive bulk DELETE from zdb_active_data for unchanged records.
+     *
+     * @param currentState Current load-owned db_link records keyed by natural key
+     * @param recordsToLoad Desired state from AccessionWriter
+     * @param notInCurrentRelease NCBI gene IDs not in current annotation release
+     */
+    public void incrementalLoad(Map<String, CurrentDbLink> currentState,
+                                NCBIOutputFileToLoad recordsToLoad,
+                                List<String> notInCurrentRelease) {
+
+        // Step 1: Remove load-pub attributions from manually curated GenBank accessions
+        removeLoadPubFromManuallyCurated();
+
+        // Step 2: Resolve conflicts with manually-curated NCBI Gene IDs (modifies recordsToLoad in place)
+        resolveManualCurationConflicts(recordsToLoad);
+
+        // Step 3: Compute diff
+        NcbiDiffComputer diffComputer = new NcbiDiffComputer();
+        DiffResult diff = diffComputer.computeDiff(currentState, recordsToLoad);
+
+        // Step 4: Apply deletes — only records that are no longer needed
+        // First, preserve "not in current release" gene IDs (same logic as drop-and-reload path)
+        List<String> effectiveDeletes = filterNotInCurrentRelease(
+                diff.toDeleteZdbIds(), currentState, recordsToLoad, notInCurrentRelease);
+        applyIncrementalDeletes(effectiveDeletes);
+
+        // Step 5: Apply updates — length or pub changes on existing records
+        applyIncrementalUpdates(diff.toUpdate());
+
+        // Step 6: Apply inserts — only truly new records
+        applyIncrementalInserts(diff.toAdd());
+
+        // Step 7: Normalize attributions on kept + updated records
+        // Drop-and-reload gives each record a single fresh load-pub attribution.
+        // The incremental path must produce the same result by removing stale load-pub
+        // attributions and ensuring only the correct one from the current load is present.
+        normalizeAttributions(diff.kept(), diff.toUpdate());
+
+        // Step 8: Post-load many-to-many cleanup
+        cleanupPostLoadManyToMany();
+
+        // Step 9: Update marker_annotation_status (full rebuild — fast enough)
+        updateMarkerAnnotationStatus(notInCurrentRelease);
+    }
+
+    /**
+     * Filter out "not in current release" NCBI Gene ID records from the delete list.
+     * These are gene IDs that NCBI has flagged as not in the current annotation release —
+     * we preserve them unless the gene is being actively replaced by a new load record.
+     *
+     * Mirrors the preserveNotInCurrentRelease logic from the drop-and-reload path.
+     */
+    private List<String> filterNotInCurrentRelease(List<String> toDeleteZdbIds,
+                                                    Map<String, CurrentDbLink> currentState,
+                                                    NCBIOutputFileToLoad recordsToLoad,
+                                                    List<String> notInCurrentRelease) {
+        if (notInCurrentRelease.isEmpty() || toDeleteZdbIds.isEmpty()) {
+            return toDeleteZdbIds;
+        }
+
+        Set<String> notInCurrentSet = new HashSet<>(notInCurrentRelease);
+
+        // Find genes being loaded as NCBI Gene IDs
+        Set<String> genesBeingLoaded = new HashSet<>();
+        for (LoadFileRow row : recordsToLoad.getRows()) {
+            if (FDCONT_NCBI_GENE_ID.equals(row.fdb())) {
+                genesBeingLoaded.add(row.geneID());
+            }
+        }
+
+        // Build reverse lookup: zdbId → CurrentDbLink
+        Map<String, CurrentDbLink> zdbIdToDbLink = new HashMap<>();
+        for (CurrentDbLink dbLink : currentState.values()) {
+            zdbIdToDbLink.put(dbLink.zdbId(), dbLink);
+        }
+
+        Set<String> preserved = new HashSet<>();
+        for (String zdbId : toDeleteZdbIds) {
+            CurrentDbLink dbLink = zdbIdToDbLink.get(zdbId);
+            if (dbLink != null
+                    && FDCONT_NCBI_GENE_ID.equals(dbLink.fdbcont())
+                    && notInCurrentSet.contains(dbLink.accession())
+                    && !genesBeingLoaded.contains(dbLink.geneId())) {
+                preserved.add(zdbId);
+            }
+        }
+
+        if (!preserved.isEmpty()) {
+            log.info("Preserved {} 'not in current release' gene IDs from incremental deletion", preserved.size());
+        }
+
+        List<String> filtered = new ArrayList<>(toDeleteZdbIds);
+        filtered.removeAll(preserved);
+        return filtered;
+    }
+
+    /**
+     * Delete only the records that are no longer in the desired state.
+     */
+    private void applyIncrementalDeletes(List<String> toDeleteZdbIds) {
+        if (toDeleteZdbIds.isEmpty()) {
+            log.info("Incremental delete: 0 records to delete");
+            return;
+        }
+
+        // Delete reference_protein for these records
+        createDeleteTempTable(new HashSet<>(toDeleteZdbIds));
+        deleteReferenceProteins();
+
+        // Delete from zdb_active_data (cascades to db_link + record_attribution)
+        deleteActiveData();
+        dropDeleteTempTable();
+
+        log.info("Incremental delete: removed {} records", toDeleteZdbIds.size());
+    }
+
+    /**
+     * Apply updates to existing records (length and/or attribution changes).
+     */
+    private void applyIncrementalUpdates(List<DiffUpdate> updates) {
+        if (updates.isEmpty()) {
+            log.info("Incremental update: 0 records to update");
+            return;
+        }
+
+        int lengthUpdated = 0;
+        int pubUpdated = 0;
+
+        for (DiffUpdate update : updates) {
+            // Update length if changed
+            if (!Objects.equals(update.newLength(), update.oldLength())) {
+                session.createNativeQuery(
+                        "UPDATE db_link SET dblink_length = :length WHERE dblink_zdb_id = :id")
+                        .setParameter("length", update.newLength())
+                        .setParameter("id", update.zdbId())
+                        .executeUpdate();
+                lengthUpdated++;
+            }
+
+            // Update attribution if new pub has higher priority
+            if (!Objects.equals(update.newPub(), update.oldPub())) {
+                // Add the new (higher priority) pub attribution if not already present
+                session.createNativeQuery("""
+                    INSERT INTO record_attribution (recattrib_data_zdb_id, recattrib_source_zdb_id)
+                    SELECT :id, :pub
+                    WHERE NOT EXISTS (
+                        SELECT 1 FROM record_attribution
+                        WHERE recattrib_data_zdb_id = :id AND recattrib_source_zdb_id = :pub
+                    )
+                    """)
+                        .setParameter("id", update.zdbId())
+                        .setParameter("pub", update.newPub())
+                        .executeUpdate();
+                pubUpdated++;
+            }
+
+            if ((lengthUpdated + pubUpdated) % 100 == 0) {
+                session.flush();
+                session.clear();
+            }
+        }
+
+        session.flush();
+        log.info("Incremental update: {} length changes, {} pub changes", lengthUpdated, pubUpdated);
+    }
+
+    /**
+     * Insert only truly new records (not already in the database).
+     */
+    private void applyIncrementalInserts(List<LoadFileRow> toAdd) {
+        if (toAdd.isEmpty()) {
+            log.info("Incremental insert: 0 records to insert");
+            return;
+        }
+
+        int inserted = 0;
+        int conflictSkipped = 0;
+
+        for (LoadFileRow row : toAdd) {
+            String zdbId = (String) session.createNativeQuery(
+                    "SELECT get_id_and_insert_active_data('DBLINK')")
+                    .uniqueResult();
+
+            int affected = session.createNativeQuery("""
+                INSERT INTO db_link (dblink_linked_recid, dblink_acc_num, dblink_acc_num_display,
+                                     dblink_info, dblink_zdb_id, dblink_length, dblink_fdbcont_zdb_id)
+                VALUES (:gene, :acc, :acc, :info, :zdbId, :length, :fdbcont)
+                ON CONFLICT (dblink_linked_recid, dblink_acc_num, dblink_fdbcont_zdb_id) DO NOTHING
+                """)
+                    .setParameter("gene", row.geneID())
+                    .setParameter("acc", row.accession())
+                    .setParameter("info", "uncurated: NCBI gene load")
+                    .setParameter("zdbId", zdbId)
+                    .setParameter("length", row.length())
+                    .setParameter("fdbcont", row.fdb())
+                    .executeUpdate();
+
+            if (affected > 0) {
+                inserted++;
+                session.createNativeQuery(
+                        "INSERT INTO record_attribution (recattrib_data_zdb_id, recattrib_source_zdb_id) VALUES (:data, :source)")
+                        .setParameter("data", zdbId)
+                        .setParameter("source", row.pub())
+                        .executeUpdate();
+            } else {
+                // Conflict — clean up the active data we just created
+                session.createNativeQuery(
+                        "DELETE FROM zdb_active_data WHERE zactvd_zdb_id = :id")
+                        .setParameter("id", zdbId)
+                        .executeUpdate();
+                conflictSkipped++;
+
+                // Add attribution to existing record
+                session.createNativeQuery("""
+                    INSERT INTO record_attribution (recattrib_data_zdb_id, recattrib_source_zdb_id)
+                    SELECT dblink_zdb_id, :pub
+                    FROM db_link
+                    WHERE dblink_linked_recid = :gene
+                      AND dblink_acc_num = :acc
+                      AND dblink_fdbcont_zdb_id = :fdbcont
+                      AND NOT EXISTS (
+                          SELECT 1 FROM record_attribution
+                          WHERE recattrib_data_zdb_id = dblink_zdb_id
+                            AND recattrib_source_zdb_id = :pub
+                      )
+                    """)
+                        .setParameter("pub", row.pub())
+                        .setParameter("gene", row.geneID())
+                        .setParameter("acc", row.accession())
+                        .setParameter("fdbcont", row.fdb())
+                        .executeUpdate();
+            }
+
+            if ((inserted + conflictSkipped) % 100 == 0) {
+                session.flush();
+                session.clear();
+            }
+        }
+
+        session.flush();
+        log.info("Incremental insert: {} new records ({} conflicts with pre-existing)", inserted, conflictSkipped);
+    }
+
+    /**
+     * Normalize load-pub attributions on kept and updated records so the incremental path
+     * produces identical attribution output to the drop-and-reload path.
+     *
+     * Drop-and-reload deletes all load-owned records and recreates them with a single fresh
+     * attribution. Kept/updated records may have accumulated multiple load-pub attributions
+     * from prior runs. This step ensures each record has exactly the correct load pub.
+     */
+    private void normalizeAttributions(List<KeptRecord> kept, List<DiffUpdate> updated) {
+        // Collect all zdb_id → desired pub mappings
+        Map<String, String> zdbIdToPub = new HashMap<>();
+        for (KeptRecord k : kept) {
+            zdbIdToPub.put(k.zdbId(), k.desiredPub());
+        }
+        for (DiffUpdate u : updated) {
+            zdbIdToPub.put(u.zdbId(), u.newPub());
+        }
+
+        if (zdbIdToPub.isEmpty()) {
+            log.info("Attribution normalization: 0 records to normalize");
+            return;
+        }
+
+        List<String> loadPubs = List.of(PUB_MAPPED_BASED_ON_RNA, PUB_MAPPED_BASED_ON_NCBI_SUPPLEMENT, PUB_MAPPED_BASED_ON_VEGA);
+
+        // Load IDs into temp table for efficient bulk operations
+        session.createNativeQuery("DROP TABLE IF EXISTS tmp_normalize_attrib").executeUpdate();
+        session.createNativeQuery("""
+            CREATE TEMP TABLE tmp_normalize_attrib (
+                zdb_id text NOT NULL,
+                desired_pub text NOT NULL
+            )
+            """).executeUpdate();
+
+        List<Map.Entry<String, String>> entries = new ArrayList<>(zdbIdToPub.entrySet());
+        for (int i = 0; i < entries.size(); i += 1000) {
+            List<Map.Entry<String, String>> batch = entries.subList(i, Math.min(i + 1000, entries.size()));
+            StringBuilder sb = new StringBuilder("INSERT INTO tmp_normalize_attrib VALUES ");
+            for (int j = 0; j < batch.size(); j++) {
+                if (j > 0) sb.append(",");
+                sb.append("('").append(batch.get(j).getKey().replace("'", "''"))
+                        .append("','").append(batch.get(j).getValue().replace("'", "''")).append("')");
+            }
+            session.createNativeQuery(sb.toString()).executeUpdate();
+        }
+
+        // Remove stale load-pub attributions (any load pub that isn't the desired one)
+        int removed = session.createNativeQuery("""
+            DELETE FROM record_attribution
+            WHERE recattrib_source_zdb_id IN (:loadPubs)
+              AND EXISTS (
+                  SELECT 1 FROM tmp_normalize_attrib
+                  WHERE zdb_id = recattrib_data_zdb_id
+                    AND desired_pub <> recattrib_source_zdb_id
+              )
+            """)
+                .setParameterList("loadPubs", loadPubs)
+                .executeUpdate();
+
+        // Ensure the desired pub attribution exists
+        int added = session.createNativeQuery("""
+            INSERT INTO record_attribution (recattrib_data_zdb_id, recattrib_source_zdb_id)
+            SELECT zdb_id, desired_pub FROM tmp_normalize_attrib
+            WHERE NOT EXISTS (
+                SELECT 1 FROM record_attribution
+                WHERE recattrib_data_zdb_id = zdb_id
+                  AND recattrib_source_zdb_id = desired_pub
+            )
+            """).executeUpdate();
+
+        session.createNativeQuery("DROP TABLE IF EXISTS tmp_normalize_attrib").executeUpdate();
+        session.flush();
+
+        log.info("Attribution normalization: removed {} stale, added {} missing attributions across {} records",
+                removed, added, zdbIdToPub.size());
     }
 
     /**

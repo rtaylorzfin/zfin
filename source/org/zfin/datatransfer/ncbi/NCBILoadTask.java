@@ -7,6 +7,7 @@ import org.zfin.datatransfer.ncbi.load.AccessionWriter;
 import org.zfin.datatransfer.ncbi.load.MarkerAssemblyUpdater;
 import org.zfin.datatransfer.ncbi.load.NcbiDbLinkLoader;
 import org.zfin.datatransfer.ncbi.load.NcbiDeletePreparer;
+import org.zfin.datatransfer.ncbi.load.NcbiDiffComputer.CurrentDbLink;
 import org.zfin.datatransfer.webservice.NCBIEfetch;
 import org.zfin.datatransfer.ncbi.matching.EnsemblSupplementMatcher;
 import org.zfin.datatransfer.ncbi.matching.MatchResult;
@@ -104,17 +105,26 @@ public class NCBILoadTask extends AbstractScriptWrapper {
             throw new RuntimeException("Failed to load external resource tables", e);
         }
 
+        boolean incremental = "true".equalsIgnoreCase(System.getenv("NCBI_INCREMENTAL_LOAD"));
+        log.info("Load mode: {}", incremental ? "INCREMENTAL" : "DROP-AND-RELOAD");
+
         // C: Capture before state + prepare deletes
         session = currentSession();
         tx = session.beginTransaction();
         NcbiLoadStatistics beforeStats;
         Map<String, String> toDelete;
+        Map<String, CurrentDbLink> currentState = null;
         try {
             beforeStats = NcbiLoadStatistics.capture(session, "before");
             NcbiLoadStatistics.captureAllStateToCsv(session, new File(getDownloadDirectory(), "before_load.csv"));
 
             NcbiDeletePreparer deletePreparer = new NcbiDeletePreparer(session);
-            toDelete = deletePreparer.prepare();
+            if (incremental) {
+                currentState = deletePreparer.prepareWithMetadata();
+                toDelete = deletePreparer.getToDelete();
+            } else {
+                toDelete = deletePreparer.prepare();
+            }
             tx.commit();
         } catch (Exception e) {
             tx.rollback();
@@ -150,9 +160,13 @@ public class NCBILoadTask extends AbstractScriptWrapper {
             AccessionWriter accWriter = new AccessionWriter(session, matches, toDelete);
             NCBIOutputFileToLoad recordsToLoad = accWriter.buildLoadRecords();
 
-            // F: Execute delete + load
+            // F: Execute load (incremental or drop-and-reload)
             NcbiDbLinkLoader loader = new NcbiDbLinkLoader(session);
-            loader.deleteAndLoad(toDelete, recordsToLoad, notInCurrentRelease);
+            if (incremental) {
+                loader.incrementalLoad(currentState, recordsToLoad, notInCurrentRelease);
+            } else {
+                loader.deleteAndLoad(toDelete, recordsToLoad, notInCurrentRelease);
+            }
 
             // G: Assembly updates
             MarkerAssemblyUpdater assemblyUpdater = new MarkerAssemblyUpdater(session);

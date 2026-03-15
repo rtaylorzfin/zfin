@@ -4,158 +4,141 @@
 
 The NCBI Gene Load imports gene and accession data from NCBI into ZFIN. It matches NCBI genes to ZFIN genes via shared accessions, then loads downstream accessions (RefSeq, GenBank) as `db_link` records with proper attribution and annotation status.
 
-`NCBILoadTask` replaces `NCBIDirectPort` — the new implementation is a from-scratch rewrite in Java that produces equivalent results with clearer architecture and better correctness in two areas (see [Behavioral Differences](#behavioral-differences-from-legacy-code)).
+## Phases
 
-## Architecture
+The load runs in sequential phases:
 
-```
-NCBILoadTask (orchestrator)
-├── Phase A: Download NCBI data files (or reuse existing)
-├── Phase B: Load external_resource tables
-│   ├── NcbiGene2AccessionService
-│   ├── NcbiRefSeqCatalogService
-│   └── NcbiGeneInfoService
-├── Phase C: Capture before-state + prepare delete candidates
-│   ├── NcbiLoadStatistics.capture("before")
-│   └── NcbiDeletePreparer.prepare()
-├── Phase D-G: Match + Load (single transaction)
-│   ├── RnaAccessionMatcher.match()         — primary 1:1 RNA matching
-│   ├── EnsemblSupplementMatcher.augment()  — secondary Ensembl matching
-│   ├── VegaLegacyHandler.reintroduce()     — preserve retired Vega links
-│   ├── AccessionWriter.buildLoadRecords()  — build full record set
-│   ├── NcbiDbLinkLoader.deleteAndLoad()    — delete/insert cycle
-│   └── MarkerAssemblyUpdater.update()      — assembly + chromosome locations
-└── Phase H: Capture after-state + generate report
-    ├── NcbiLoadStatistics.capture("after")
-    └── NcbiLoadReportGenerator.generate()
-```
+1. **Download** NCBI data files (or reuse existing ones from a prior run)
+2. **Stage** input data into PostgreSQL tables (`external_resource` schema) for efficient SQL joins
+3. **Capture** before-state snapshot for reporting
+4. **Match** ZFIN genes to NCBI genes (see [Matching](#matching))
+5. **Build** the full set of db_link records to load (see [Record Building](#record-building))
+6. **Load** records into the database (see [Loading](#loading))
+7. **Update** assembly linkages for newly matched genes (see [Assembly Linkage](#assembly-linkage))
+8. **Capture** after-state and generate a summary report
 
-### Key Files
+Phases 4–7 run in a single database transaction.
 
-| File | Purpose |
+## Input Files
+
+Downloaded from NCBI FTP:
+
+| File | Content |
 |------|---------|
-| `NCBILoadTask.java` | Orchestrator — chains all phases |
-| `matching/RnaAccessionMatcher.java` | Primary gene matching via shared RNA accessions |
-| `matching/EnsemblSupplementMatcher.java` | Secondary matching via Ensembl cross-references |
-| `matching/VegaLegacyHandler.java` | Preserves legacy Vega-attributed NCBI links |
-| `matching/MatchResult.java` | Value object holding all match results |
-| `load/AccessionWriter.java` | Builds load records from matches + gene2accession |
-| `load/NcbiDbLinkLoader.java` | Delete/insert cycle with conflict resolution |
-| `load/NcbiDeletePreparer.java` | Identifies db_link records to delete |
-| `load/MarkerAssemblyUpdater.java` | Updates marker_assembly + chromosome locations |
-| `NCBIOutputFileToLoad.java` | In-memory load file (replaces `toLoad.unl`) |
-| `report/NcbiLoadStatistics.java` | Before/after state capture to CSV |
-| `report/NcbiLoadReportGenerator.java` | Summary report generation |
+| `gene2accession.gz` | NCBI gene → accession mappings (filtered to taxid 7955) |
+| `zf_gene_info.gz` | NCBI gene metadata + dbXrefs (Ensembl, ZFIN cross-refs) |
+| `RefSeqCatalog.gz` | RefSeq accession sequence lengths |
+| `notInCurrentReleaseGeneIDs.unl` | NCBI gene IDs not in current annotation release |
+| `RELEASE_NUMBER` | NCBI release version |
 
-## Matching Algorithm
+These are staged into PostgreSQL tables for the load:
 
-### Step 1: RNA Accession Matching (Primary)
+| Table | Source |
+|-------|--------|
+| `external_resource.ncbi_gene2accession` | gene2accession.gz |
+| `external_resource.ncbi_refseq_catalog` | RefSeqCatalog.gz |
+| `external_resource.ncbi_gene_info` | zf_gene_info.gz |
 
-The primary matcher finds reciprocal 1:1 mappings between ZFIN genes and NCBI genes via shared GenBank RNA accessions.
+## Matching
 
-1. Build ZFIN map: `ZFIN gene → {RNA accessions}` from `db_link` where `fdbcont = GenBank RNA`
-2. Build NCBI map: `NCBI gene → {RNA accessions}` from `external_resource.ncbi_gene2accession` where status = "-" (GenBank)
-3. Identify "problematic" accessions — those appearing on multiple genes on either side
-4. **Conservative filter**: Exclude any gene that has *any* problematic accession
-5. One-way ZFIN→NCBI: For each ZFIN gene, find which NCBI genes it can reach via clean accessions
-6. One-way NCBI→ZFIN: Mirror direction
-7. Keep only pairs where both directions agree on a 1:1 mapping
+The goal is to establish 1:1 mappings between ZFIN genes and NCBI genes. Three methods are tried in priority order:
 
-**Output**: `confirmed` BidiMap (ZFIN gene ↔ NCBI gene), plus `oneToN` and `nToOne` conflict maps.
+### 1. RNA Accession Matching (Primary)
 
-### Step 2: Ensembl Supplement Matching (Secondary)
+Find reciprocal 1:1 mappings via shared GenBank RNA accessions.
 
-For genes that failed RNA matching, attempt matching via Ensembl cross-references in NCBI's `gene_info` file.
+- Build maps: `ZFIN gene → {RNA accessions}` and `NCBI gene → {RNA accessions}`
+- Exclude any gene that has an accession appearing on multiple genes on either side (conservative filter)
+- Compute one-way mappings in both directions; keep only pairs where both agree on a 1:1 match
 
-1. Find NCBI genes that reference `Ensembl:ENSDARG*` in their `dbXrefs` column
-2. Find ZFIN genes with matching ENSDARG db_links
-3. Skip genes already matched via RNA or with pre-existing NCBI Gene IDs
-4. Add as supplementary matches (attributed to `ZDB-PUB-020723-3`, the Ensembl supplement pub)
+### 2. Ensembl Supplement Matching
 
-### Step 3: Vega Legacy Preservation
+For unmatched genes, attempt matching via Ensembl (`ENSDARG`) cross-references in NCBI's `gene_info` dbXrefs column. Skip genes already matched or with pre-existing NCBI Gene IDs.
 
-For genes matched via the now-retired Vega database, preserve existing NCBI Gene ID links attributed to `ZDB-PUB-130725-2` (Vega pub).
+### 3. Vega Legacy Preservation
 
-1. Query existing NCBI Gene ID links with Vega attribution
-2. Skip if already matched via RNA or Ensembl
-3. Reintroduce as lowest-priority matches
+Preserve existing NCBI Gene ID links that were originally established via the retired Vega database. Lowest priority — only applies if RNA and Ensembl matching didn't cover the gene.
 
 ### Match Priority
 
-When the same accession could receive multiple attributions, priority determines which publication wins:
+When an accession could receive attribution from multiple methods:
 
-1. **RNA** (`ZDB-PUB-020723-5`) — highest priority
+1. **RNA** (`ZDB-PUB-020723-5`) — highest
 2. **Ensembl Supplement** (`ZDB-PUB-020723-3`)
-3. **Vega** (`ZDB-PUB-130725-2`) — lowest priority
+3. **Vega** (`ZDB-PUB-130725-2`) — lowest
 
-## Load Process
-
-### AccessionWriter — Building Records
+## Record Building
 
 For each matched gene pair (ZFIN gene ↔ NCBI gene):
 
-1. Write an NCBI Gene ID record (`fdbcont = ZDB-FDBCONT-040412-1`)
+1. Create an NCBI Gene ID record
 2. Query `gene2accession` for all accessions belonging to this NCBI gene
-3. Categorize by status and prefix:
+3. Categorize each accession by its status and prefix:
 
-| Status | Prefix Pattern | FDBCont Type |
-|--------|---------------|-------------|
+| Status | Prefix Pattern | Type |
+|--------|---------------|------|
 | `-` (GenBank) | RNA accession | GenBank RNA |
 | `-` | Protein accession | GenPept |
 | `-` | DNA accession | GenBank DNA |
-| Any other | `NM_`, `XM_`, `NR_`, `XR_` | RefSeq RNA |
-| Any other | `NP_`, `XP_` | RefPept |
-| Any other | `NC_`, `NT_`, `NW_`, `NG_`, `AC_` | RefSeq DNA |
+| Other (RefSeq) | `NM_`, `XM_`, `NR_`, `XR_` | RefSeq RNA |
+| Other | `NP_`, `XP_` | RefPept |
+| Other | `NC_`, `NT_`, `NW_`, `NG_`, `AC_` | RefSeq DNA |
 
 4. Look up sequence lengths from RefSeq catalog and existing db_links
-5. **Filter shared genomic accessions**: Chromosome-level accessions (e.g., `NC_*`) shared by multiple NCBI genes are excluded — they represent chromosomes, not individual genes
+5. Filter shared genomic accessions: chromosome-level accessions (e.g. `NC_*`) shared by multiple NCBI genes are excluded — they represent chromosomes, not individual genes
 
-### NcbiDbLinkLoader — Delete/Insert Cycle
+## Loading
 
-Nine-step process within a single transaction:
+Two load modes are available:
 
-1. **Preserve "not in current release"**: Don't delete NCBI Gene IDs for genes flagged as not in current NCBI release (unless being actively replaced)
-2. **Delete reference_protein**: Clean up protein cross-references for records being deleted
-3. **Delete zdb_active_data**: Cascade-deletes db_link + record_attribution for all delete candidates
-4. **Remove load-pub attributions**: Strip automated attributions from manually curated GenBank accessions
-5. **Resolve manual curation conflicts**: If a manually curated NCBI Gene ID conflicts with the load's match, prefer manual curation
-6. **Insert db_link records**: Bulk insert with `ON CONFLICT DO NOTHING` for pre-existing records
-7. **Insert record_attribution**: Link each new db_link to its publication
-8. **Many-to-many cleanup**: Post-load check — if multiple ZFIN genes share an NCBI Gene ID (or vice versa), remove all of them
-9. **Update marker_annotation_status**: Set status to "Current" (12) for genes with load-attributed NCBI IDs; "Not in current annotation release" (13) for flagged genes; "Unknown" for genes that lost their NCBI ID
+### Drop-and-Reload (default)
 
-### MarkerAssemblyUpdater — Assembly Linkage
+Deletes all load-attributed db_link records, then re-inserts the full computed set. Conceptually simple but slow due to cascade deletes through `zdb_active_data`.
 
-For genes that received new NCBI Gene IDs and have matching GFF3 entries:
+### Incremental (opt-in via `NCBI_INCREMENTAL_LOAD=true`)
 
-1. Insert `marker_assembly` record for GRCz12tu
-2. Insert `sequence_feature_chromosome_location_generated` records (NCBI + ZFIN sources)
-3. Insert gene_id into `gff3_ncbi_attribute`
-4. GRCz11 fallback for genes with Ensembl locations but no GRCz12tu
+Computes the diff between current database state and the desired state, then applies only the delta (adds, deletes, updates). Validated to produce identical output to drop-and-reload.
+
+### Load Rules (apply to both modes)
+
+These rules govern the load regardless of mode:
+
+- **Manual curation wins**: If a manually curated NCBI Gene ID (attributed to a non-load publication) conflicts with the load's match, prefer manual curation and remove the conflicting load record
+- **Preserve not-in-current-release**: NCBI Gene IDs flagged as not in the current annotation release are preserved from deletion, unless the gene is being actively replaced by a new match
+- **ON CONFLICT handling**: When inserting a db_link that already exists, skip the insert but add the load publication as an attribution on the existing record
+- **Many-to-many cleanup**: After loading, check for and remove any cases where multiple ZFIN genes share an NCBI Gene ID (or vice versa)
+- **Remove stale attributions**: Strip load-pub attributions from GenBank accessions that also have manual curation
+- **Annotation status**: Update `marker_annotation_status` — "Current" for genes with load-attributed NCBI IDs, "Not in current annotation release" for flagged genes
+
+## Assembly Linkage
+
+For genes that received new NCBI Gene IDs and have corresponding entries in the GFF3 data:
+
+1. Create `marker_assembly` records for GRCz12tu
+2. Create `sequence_feature_chromosome_location_generated` records (NCBI and ZFIN sources)
+3. Record the gene ID linkage in `gff3_ncbi_attribute`
+4. GRCz11 fallback: genes with Ensembl locations but no GRCz12tu get a GRCz11 assembly entry
+
+The GFF3 join uses an extracted GeneID index rather than regex matching against raw Dbxref attribute values.
 
 ## Key Business Rules
 
-1. **1:1 enforcement**: Each ZFIN gene should map to at most one NCBI Gene ID, and vice versa
-2. **Manual curation wins**: Manually curated NCBI Gene IDs (non-load publications) take precedence over automated matches
-3. **Conservative matching**: Any gene with *any* ambiguous accession is excluded from matching entirely
-4. **Drop-and-reload**: All load-attributed db_links are deleted and recreated each run (full recalculation)
-5. **Annotation status tracking**: Genes' curation status is updated based on whether they received/lost NCBI Gene IDs
-6. **Load publications**: Three distinct publications track attribution source:
+1. **1:1 enforcement**: Each ZFIN gene maps to at most one NCBI Gene ID, and vice versa
+2. **Manual curation wins**: Non-automated attributions always take precedence over load matches
+3. **Conservative matching**: Any gene with any ambiguous accession is excluded from matching entirely
+4. **Annotation status tracking**: Genes' curation status is updated based on whether they received/lost NCBI Gene IDs
+5. **Three load publications** track attribution source:
    - `ZDB-PUB-020723-5`: RNA-based match
    - `ZDB-PUB-020723-3`: NCBI supplement (Ensembl-based)
    - `ZDB-PUB-130725-2`: Vega-based (legacy)
 
-## Testing Strategy
+## Testing
 
-### Integration Tests (`NCBILoadIntegrationTest`)
+### Integration Tests
 
-Run in the `ncbiload` Docker container against a minimal test database. Each test:
-1. Creates specific gene/db_link state via `BeforeStateBuilder`
-2. Sets up synthetic NCBI input files (gene2accession, gene_info, etc.)
-3. Runs `NCBILoadTask`
-4. Asserts specific db_link and attribution outcomes
+Run against a minimal test database with synthetic NCBI input files. Each test creates specific gene/db_link state, runs the full load, and asserts specific outcomes.
 
-14 tests cover: simple RNA match, RefSeq downstream, Ensembl matching, replaced gene IDs, idempotent re-runs, Vega conflicts, 1:N warnings, lost gene IDs, annotation status, ON CONFLICT attribution, shared genomic accessions, not-in-current-release handling.
+Covers: simple RNA match, RefSeq downstream, Ensembl matching, replaced gene IDs, idempotent re-runs, Vega conflicts, 1:N warnings, lost gene IDs, annotation status, ON CONFLICT attribution, shared genomic accessions, not-in-current-release handling.
 
 ```bash
 docker compose run --rm ncbiload bash -lc \
@@ -163,14 +146,15 @@ docker compose run --rm ncbiload bash -lc \
    --tests org.zfin.datatransfer.ncbi.NCBILoadIntegrationTest'
 ```
 
-### Characterization Test (`NCBILoadCharacterizationTest`)
+### Characterization Test
 
-Run against a full database unload (2026.01.29.1) with real NCBI data from 2026-01-30. Verifies that the load produces identical output to a saved baseline.
+Run against a full database unload (2026.01.29.1) with real NCBI data from 2026-01-30. Verifies that the load produces identical output to a saved baseline across three dimensions:
 
-State is captured in three separate CSVs to avoid amplification:
-- `after_load_dblinks.csv` — one row per db_link (with aggregated attributions)
-- `after_load_annotation.csv` — one row per gene (marker_annotation_status)
-- `after_load_assembly.csv` — one row per gene+assembly
+- **dblinks**: one row per db_link with aggregated attributions
+- **annotation**: one row per gene (marker_annotation_status)
+- **assembly**: one row per gene+assembly
+
+Splitting into three CSVs avoids amplification where a single gene-level change appears as N changes (one per db_link row).
 
 ```bash
 docker compose run --rm compile bash -lc \
@@ -181,66 +165,21 @@ docker compose run --rm compile bash -lc \
    --tests org.zfin.datatransfer.ncbi.NCBILoadCharacterizationTest.testPointInTimeCharacterization'
 ```
 
-### Unit Tests (`NCBILoadCharacterizationTest` — baseline generation)
-
-To regenerate baselines after intentional changes:
-
-```bash
-# Same as above but run generateBaseline instead of testPointInTimeCharacterization
-```
+To regenerate baselines after intentional changes, run `generateBaseline` instead of `testPointInTimeCharacterization`.
 
 ## Behavioral Differences from Legacy Code
 
-Two intentional improvements over `NCBIDirectPort`:
+Two intentional improvements over the original `NCBIDirectPort`:
 
-### 1. ON CONFLICT Attribution
+1. **ON CONFLICT attribution**: The old code created orphaned `record_attribution` entries pointing to non-existent ZDB IDs when an insert conflicted. The new code correctly attributes the existing record.
 
-**Legacy**: When inserting a db_link that already exists, the old code created a `record_attribution` entry pointing to a non-existent db_link ZDB ID (orphaned attribution).
+2. **Accession ownership**: The old code used a 1:1 map (`accession → geneId`) when building gene2accession data, silently dropping entries via last-write-wins. The new code preserves all per-gene accessions.
 
-**New**: Uses `ON CONFLICT DO NOTHING` for the db_link insert, then adds attribution to the *existing* record. Result: proper attribution on existing records.
-
-### 2. Accession Ownership
-
-**Legacy**: Used a 1:1 `Map<accession, geneId>` when building gene2accession data. For NCBI genes with multiple accession rows, the last-write-wins semantics silently dropped earlier entries.
-
-**New**: Uses a `Map<geneId, List<accession>>` — all per-gene accessions from gene2accession are preserved. Result: more complete accession linkage.
-
-## Gradle Tasks
+## Usage
 
 ```bash
 gradle ncbiLoadPort   # Legacy NCBIDirectPort
-gradle ncbiLoad       # New NCBILoadTask
+gradle ncbiLoad       # New NCBILoadTask (drop-and-reload)
+
+NCBI_INCREMENTAL_LOAD=true gradle ncbiLoad   # Incremental mode
 ```
-
-## Input Files
-
-Downloaded from NCBI FTP and processed:
-
-| File | Content |
-|------|---------|
-| `gene2accession.gz` | NCBI gene → accession mappings (filtered to taxid 7955) |
-| `zf_gene_info.gz` | NCBI gene metadata + dbXrefs (Ensembl, ZFIN cross-refs) |
-| `RefSeqCatalog.gz` | RefSeq accession lengths |
-| `notInCurrentReleaseGeneIDs.unl` | NCBI genes not in current release |
-| `seq.fasta` | BLAST sequences (used by external BLAST step, not by load) |
-| `RELEASE_NUMBER` | NCBI release version |
-
-## External Resource Tables
-
-The load populates these PostgreSQL tables from input files for efficient SQL joins:
-
-| Table | Source File | Purpose |
-|-------|------------|---------|
-| `external_resource.ncbi_gene2accession` | gene2accession.gz | Gene→accession mappings |
-| `external_resource.ncbi_refseq_catalog` | RefSeqCatalog.gz | Accession sequence lengths |
-| `external_resource.ncbi_gene_info` | zf_gene_info.gz | Gene metadata + cross-references |
-
-## Performance Notes
-
-The load takes ~2.5 hours against a full production database. The main bottlenecks are:
-
-1. **Bulk DELETE from zdb_active_data** (~45 min): Cascade-deletes ~100K db_link records through database triggers
-2. **INSERT INTO sequence_feature_chromosome_location_generated** (~30 min): Cross-join with regex matching against GFF3 tables
-3. **Conflict-path individual DELETEs** (~15 min): One-by-one cleanup of ON CONFLICT records
-
-Future optimization: incremental load (compute diff and apply delta instead of drop-and-reload).

@@ -26,6 +26,10 @@ public class MarkerAssemblyUpdater {
     }
 
     public void update() {
+        // Extract GeneIDs from gff3_ncbi_attribute Dbxref values into an indexed temp table.
+        // This replaces expensive regexp_like cross-joins with simple equi-joins.
+        createGeneIdLookupTable();
+
         // Create temp table of genes that need assembly updates
         createTempNewGeneTable();
 
@@ -46,6 +50,39 @@ public class MarkerAssemblyUpdater {
 
         // Clean up
         session.createNativeQuery("DROP TABLE IF EXISTS tmp_new_gene").executeUpdate();
+        session.createNativeQuery("DROP TABLE IF EXISTS tmp_gff3_gene_id").executeUpdate();
+    }
+
+    /**
+     * Extract GeneID values from gff3_ncbi_attribute Dbxref entries into an indexed temp table.
+     * The Dbxref value format is "GeneID:12345,Genbank:..." — a comma-separated list.
+     *
+     * This replaces expensive regexp_like cross-joins (30+ minutes) with simple equi-joins (seconds).
+     */
+    private void createGeneIdLookupTable() {
+        session.createNativeQuery("DROP TABLE IF EXISTS tmp_gff3_gene_id").executeUpdate();
+
+        String sql = """
+            CREATE TEMP TABLE tmp_gff3_gene_id AS
+            SELECT gna_gff_pk_id,
+                   substring(
+                       unnest(string_to_array(gna_value, ','))
+                       FROM 'GeneID:(\\d+)'
+                   ) AS gene_id
+            FROM gff3_ncbi_attribute
+            WHERE gna_key = 'Dbxref'
+              AND gna_value LIKE '%GeneID:%'
+            """;
+        session.createNativeQuery(sql).executeUpdate();
+
+        // Remove nulls (entries that didn't match the GeneID pattern)
+        session.createNativeQuery("DELETE FROM tmp_gff3_gene_id WHERE gene_id IS NULL").executeUpdate();
+
+        // Create index for fast equi-joins
+        session.createNativeQuery("CREATE INDEX idx_tmp_gff3_gene_id ON tmp_gff3_gene_id (gene_id)").executeUpdate();
+
+        Number count = (Number) session.createNativeQuery("SELECT COUNT(*) FROM tmp_gff3_gene_id").uniqueResult();
+        log.info("Extracted {} GeneID entries from gff3_ncbi_attribute Dbxref values", count);
     }
 
     /**
@@ -67,7 +104,8 @@ public class MarkerAssemblyUpdater {
               )
               AND EXISTS (
                   SELECT 1 FROM gff3_ncbi
-                  WHERE gff_attributes LIKE '%GeneID:' || db.dblink_acc_num || '%'
+                  JOIN tmp_gff3_gene_id ON gff_pk_id = gna_gff_pk_id
+                  WHERE gene_id = db.dblink_acc_num
                     AND gff_feature IN ('gene', 'pseudogene')
               )
               AND NOT EXISTS (
@@ -103,12 +141,10 @@ public class MarkerAssemblyUpdater {
             INSERT INTO sequence_feature_chromosome_location_generated
                 (sfclg_data_zdb_id, sfclg_chromosome, sfclg_assembly, sfclg_start, sfclg_end, sfclg_acc_num, sfclg_location_source)
             SELECT gene_zdb_id, gff_seqname, 'GRCz12tu', gff_start, gff_end, accession, :source
-            FROM tmp_new_gene, gff3_ncbi, gff3_ncbi_attribute
-            WHERE gna_key = 'Dbxref'
-              AND (regexp_like(gna_value, '.*GeneID:' || accession || '$')
-                   OR regexp_like(gna_value, '.*GeneID:' || accession || ','))
-              AND gna_gff_pk_id = gff_pk_id
-              AND gff_feature IN ('gene', 'pseudogene')
+            FROM tmp_new_gene
+            JOIN tmp_gff3_gene_id ON gene_id = accession
+            JOIN gff3_ncbi ON gff_pk_id = gna_gff_pk_id
+            WHERE gff_feature IN ('gene', 'pseudogene')
             """;
         int inserted = session.createNativeQuery(sql)
                 .setParameter("source", source)
@@ -120,12 +156,10 @@ public class MarkerAssemblyUpdater {
         String sql = """
             INSERT INTO gff3_ncbi_attribute (gna_gff_pk_id, gna_key, gna_value)
             SELECT gff_pk_id, 'gene_id', gene_zdb_id
-            FROM tmp_new_gene, gff3_ncbi, gff3_ncbi_attribute
-            WHERE gna_key = 'Dbxref'
-              AND (regexp_like(gna_value, '.*GeneID:' || accession || '$')
-                   OR regexp_like(gna_value, '.*GeneID:' || accession || ','))
-              AND gna_gff_pk_id = gff_pk_id
-              AND gff_feature IN ('gene', 'pseudogene')
+            FROM tmp_new_gene
+            JOIN tmp_gff3_gene_id ON gene_id = accession
+            JOIN gff3_ncbi ON gff_pk_id = gna_gff_pk_id
+            WHERE gff_feature IN ('gene', 'pseudogene')
             ON CONFLICT (gna_pk_id) DO NOTHING
             """;
         int inserted = session.createNativeQuery(sql).executeUpdate();
