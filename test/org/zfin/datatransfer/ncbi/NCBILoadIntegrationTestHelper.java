@@ -209,7 +209,7 @@ public class NCBILoadIntegrationTestHelper {
         }
     }
 
-    private static void gzipFile(Path filePath) throws IOException {
+    static void gzipFile(Path filePath) throws IOException {
         ProcessBuilder pb = new ProcessBuilder("gzip", "-f", filePath.toString());
         try {
             Process process = pb.start();
@@ -295,8 +295,16 @@ public class NCBILoadIntegrationTestHelper {
      * Set an environment variable at runtime (for testing only).
      * Uses reflection to modify the process environment map.
      */
+    public void enableIncrementalLoad() {
+        setEnv("NCBI_INCREMENTAL_LOAD", "true");
+    }
+
+    public void disableIncrementalLoad() {
+        removeEnv("NCBI_INCREMENTAL_LOAD");
+    }
+
     @SuppressWarnings("unchecked")
-    private static void setEnv(String key, String value) {
+    static void setEnv(String key, String value) {
         try {
             Map<String, String> env = System.getenv();
             java.lang.reflect.Field field = env.getClass().getDeclaredField("m");
@@ -308,7 +316,7 @@ public class NCBILoadIntegrationTestHelper {
     }
 
     @SuppressWarnings("unchecked")
-    private static void removeEnv(String key) {
+    static void removeEnv(String key) {
         try {
             Map<String, String> env = System.getenv();
             java.lang.reflect.Field field = env.getClass().getDeclaredField("m");

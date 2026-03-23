@@ -405,6 +405,209 @@ public class NCBILoadIntegrationTest extends AbstractDangerousDatabaseTest {
         assertMarkerAnnotationStatus("ZDB-GENE-010319-10", "Not in current annotation release");
     }
 
+    // ========== Incremental Load Tests ==========
+
+    /**
+     * Run the load twice with identical inputs — second run uses incremental mode.
+     * Database state should be identical after both runs.
+     */
+    @Test
+    public void testIncrementalIdempotentRerun() throws IOException {
+        helper.beforeStateBuilder()
+                .withGene("ZDB-GENE-010319-10", "id:ibd2600")
+                .withDBLink("ZDB-GENE-010319-10", "BG985726", FDCONT_GENBANK_RNA, "ZDB-PUB-020723-5")
+                .withGene2AccessionFile("80928", "-", "BG985726.1")
+                .withGene2AccessionFile("80928", "VALIDATED", "NM_001040304.2")
+                .withZfGeneInfoFile("80928", "id:ibd2600", List.of("ZFIN:ZDB-GENE-010319-10"))
+                .withRefSeqCatalogFile("NM_001040304.2", "2135")
+                .build();
+
+        // First run: drop-and-reload
+        helper.runNCBILoad();
+
+        assertNcbiDBLinkExists("ZDB-GENE-010319-10", "80928");
+        assertDBLinkExists("ZDB-GENE-010319-10", "NM_001040304", FDCONT_REFSEQ_RNA, PUB_MAPPED_BASED_ON_RNA);
+        Integer lengthAfterFirst = helper.getDBLinkLengthIfExists("ZDB-GENE-010319-10", "NM_001040304", FDCONT_REFSEQ_RNA);
+        assertEquals(Integer.valueOf(2135), lengthAfterFirst);
+
+        // Second run: incremental with same inputs
+        helper.enableIncrementalLoad();
+        helper.runNCBILoad();
+
+        // State should be identical
+        assertNcbiDBLinkExists("ZDB-GENE-010319-10", "80928");
+        assertDBLinkExists("ZDB-GENE-010319-10", "NM_001040304", FDCONT_REFSEQ_RNA, PUB_MAPPED_BASED_ON_RNA);
+        Integer lengthAfterSecond = helper.getDBLinkLengthIfExists("ZDB-GENE-010319-10", "NM_001040304", FDCONT_REFSEQ_RNA);
+        assertEquals(Integer.valueOf(2135), lengthAfterSecond);
+    }
+
+    /**
+     * Run drop-and-reload for one gene, then add a second gene and run incremental.
+     * Only the new gene's records should be inserted.
+     */
+    @Test
+    public void testIncrementalAddNewGene() throws IOException {
+        helper.beforeStateBuilder()
+                .withGene("ZDB-GENE-010319-10", "id:ibd2600")
+                .withGene("ZDB-GENE-030131-1238", "gmpr2")
+                .withDBLink("ZDB-GENE-010319-10", "BG985726", FDCONT_GENBANK_RNA, "ZDB-PUB-020723-5")
+                .withDBLink("ZDB-GENE-030131-1238", "GFIL01011600", FDCONT_GENBANK_RNA, "ZDB-PUB-020723-5")
+                .withGene2AccessionFile("80928", "-", "BG985726.1")
+                .withZfGeneInfoFile("80928", "id:ibd2600", List.of("ZFIN:ZDB-GENE-010319-10"))
+                .build();
+
+        // First run: only gene1 matches
+        helper.runNCBILoad();
+        assertNcbiDBLinkExists("ZDB-GENE-010319-10", "80928");
+        assertEquals(0, helper.getNCBILinkCount("ZDB-GENE-030131-1238"));
+
+        // Replace input files with both genes' data and run incremental
+        helper.fillTestFiles(
+                "7955\t80928\t-\tBG985726.1\t-\t-\t-\t-\t-\t-\t-\t-\t-\t-\t-\t-\n" +
+                "7955\t678545\t-\tGFIL01011600.1\t-\t-\t-\t-\t-\t-\t-\t-\t-\t-\t-\t-",
+                "7955\t80928\tid:ibd2600\t-\t-\tZFIN:ZDB-GENE-010319-10\t-\t-\t-\t-\t-\t-\t-\t-\t-\t-\t-\n" +
+                "7955\t678545\tgmpr2\t-\t-\tZFIN:ZDB-GENE-030131-1238\t-\t-\t-\t-\t-\t-\t-\t-\t-\t-\t-"
+        );
+
+        helper.enableIncrementalLoad();
+        helper.runNCBILoad();
+
+        // Both genes should now have NCBI links
+        assertNcbiDBLinkExists("ZDB-GENE-010319-10", "80928");
+        assertNcbiDBLinkExists("ZDB-GENE-030131-1238", "678545");
+    }
+
+    /**
+     * Run load for two genes, then remove one from input files and run incremental.
+     * Only the removed gene's load-attributed records should be deleted.
+     */
+    @Test
+    public void testIncrementalDeleteGene() throws IOException {
+        helper.beforeStateBuilder()
+                .withGene("ZDB-GENE-010319-10", "id:ibd2600")
+                .withGene("ZDB-GENE-030131-1238", "gmpr2")
+                .withDBLink("ZDB-GENE-010319-10", "BG985726", FDCONT_GENBANK_RNA, "ZDB-PUB-020723-5")
+                .withDBLink("ZDB-GENE-030131-1238", "GFIL01011600", FDCONT_GENBANK_RNA, "ZDB-PUB-020723-5")
+                .withGene2AccessionFile("80928", "-", "BG985726.1")
+                .withGene2AccessionFile("678545", "-", "GFIL01011600.1")
+                .withZfGeneInfoFile("80928", "id:ibd2600", List.of("ZFIN:ZDB-GENE-010319-10"))
+                .withZfGeneInfoFile("678545", "gmpr2", List.of("ZFIN:ZDB-GENE-030131-1238"))
+                .build();
+
+        // First run: both genes match
+        helper.runNCBILoad();
+        assertNcbiDBLinkExists("ZDB-GENE-010319-10", "80928");
+        assertNcbiDBLinkExists("ZDB-GENE-030131-1238", "678545");
+
+        // Remove gene2 from input files (only keep gene1)
+        helper.fillTestFiles(
+                "7955\t80928\t-\tBG985726.1\t-\t-\t-\t-\t-\t-\t-\t-\t-\t-\t-\t-",
+                "7955\t80928\tid:ibd2600\t-\t-\tZFIN:ZDB-GENE-010319-10\t-\t-\t-\t-\t-\t-\t-\t-\t-\t-\t-"
+        );
+
+        helper.enableIncrementalLoad();
+        helper.runNCBILoad();
+
+        // Gene1 still has NCBI link, gene2 does not
+        assertNcbiDBLinkExists("ZDB-GENE-010319-10", "80928");
+        assertNcbiDBLinkDoesNotExist("ZDB-GENE-030131-1238", "678545");
+    }
+
+    /**
+     * Run load, then change a sequence length in the RefSeq catalog and run incremental.
+     * The length should be updated in place without deleting/re-inserting the record.
+     */
+    @Test
+    public void testIncrementalLengthUpdate() throws IOException {
+        helper.beforeStateBuilder()
+                .withGene("ZDB-GENE-030131-1238", "gmpr2")
+                .withDBLink("ZDB-GENE-030131-1238", "GFIL01011600", FDCONT_GENBANK_RNA, "ZDB-PUB-020723-5")
+                .withGene2AccessionFile("678545", "-", "GFIL01011600.1")
+                .withGene2AccessionFile("678545", "VALIDATED", "NM_001040304.2")
+                .withZfGeneInfoFile("678545", "gmpr2", List.of("ZFIN:ZDB-GENE-030131-1238"))
+                .withRefSeqCatalogFile("NM_001040304.2", "2135")
+                .build();
+
+        // First run
+        helper.runNCBILoad();
+        assertEquals(Integer.valueOf(2135), helper.getDBLinkLengthIfExists("ZDB-GENE-030131-1238", "NM_001040304", FDCONT_REFSEQ_RNA));
+
+        // Update RefSeq catalog with new length
+        helper.fillTestFile("RefSeqCatalog", "7955\tIGNORED\tNM_001040304.2\tIGNORED\tIGNORED\t3000");
+        NCBILoadIntegrationTestHelper.gzipFile(tempDir.resolve("RefSeqCatalog"));
+
+        helper.enableIncrementalLoad();
+        helper.runNCBILoad();
+
+        // Length should be updated
+        assertEquals(Integer.valueOf(3000), helper.getDBLinkLengthIfExists("ZDB-GENE-030131-1238", "NM_001040304", FDCONT_REFSEQ_RNA));
+    }
+
+    /**
+     * Gene with NCBI Gene ID flagged as not-in-current-release should survive incremental deletion.
+     */
+    @Test
+    public void testIncrementalNotInCurrentReleasePreservation() throws IOException {
+        helper.beforeStateBuilder()
+                .withGene("ZDB-GENE-010319-10", "id:ibd2600")
+                .withDBLink("ZDB-GENE-010319-10", "BG985726", FDCONT_GENBANK_RNA, "ZDB-PUB-020723-5")
+                .withGene2AccessionFile("80928", "-", "BG985726.1")
+                .withZfGeneInfoFile("80928", "id:ibd2600", List.of("ZFIN:ZDB-GENE-010319-10"))
+                .build();
+
+        // First run: gene gets NCBI link
+        helper.runNCBILoad();
+        assertNcbiDBLinkExists("ZDB-GENE-010319-10", "80928");
+
+        // Now remove gene from gene_info (no longer matchable) but flag as not-in-current-release
+        helper.fillTestFiles("", "");  // empty input files
+        helper.fillTestFile("notInCurrentReleaseGeneIDs.unl", "80928");
+
+        helper.enableIncrementalLoad();
+        helper.runNCBILoad();
+
+        // NCBI Gene ID should be preserved (not deleted) because it's in not-in-current-release list
+        assertNcbiDBLinkExists("ZDB-GENE-010319-10", "80928");
+        assertMarkerAnnotationStatus("ZDB-GENE-010319-10", "Not in current annotation release");
+    }
+
+    /**
+     * A record matched via Ensembl (supplement pub) that is later matched via RNA (higher priority)
+     * should have its attribution upgraded by the incremental load.
+     */
+    @Test
+    public void testIncrementalAttributionUpgrade() throws IOException {
+        // Initially match via Ensembl only (no RNA accession in db_link)
+        helper.beforeStateBuilder()
+                .withGene("ZDB-GENE-030131-1238", "gmpr2")
+                .withDBLink("ZDB-GENE-030131-1238", "ENSDARG00000099337", FDCONT_ENSDARG, "ZDB-PUB-200123-1")
+                .withZfGeneInfoFile("678545", "gmpr2",
+                        List.of("ZFIN:ZDB-GENE-030131-1238", "Ensembl:ENSDARG00000099337"))
+                .withGene2AccessionFile("678545", "-", "GFIL01011600.1")
+                .build();
+
+        // First run: matches via Ensembl → supplement pub
+        helper.runNCBILoad();
+        assertDBLinkExists("ZDB-GENE-030131-1238", "678545", FDCONT_NCBI_GENE_ID, PUB_MAPPED_BASED_ON_NCBI_SUPPLEMENT);
+
+        // Add RNA accession to the database (simulating a curator adding GenBank RNA)
+        HibernateUtil.currentSession().beginTransaction();
+        helper.createDBLink("ZDB-GENE-030131-1238", "GFIL01011600", FDCONT_GENBANK_RNA, "ZDB-PUB-020723-5");
+        HibernateUtil.currentSession().getTransaction().commit();
+
+        // Update input files to include RNA accession (already present) and gene_info
+        helper.fillTestFiles(
+                "7955\t678545\t-\tGFIL01011600.1\t-\t-\t-\t-\t-\t-\t-\t-\t-\t-\t-\t-",
+                "7955\t678545\tgmpr2\t-\t-\tZFIN:ZDB-GENE-030131-1238|Ensembl:ENSDARG00000099337\t-\t-\t-\t-\t-\t-\t-\t-\t-\t-\t-"
+        );
+
+        helper.enableIncrementalLoad();
+        helper.runNCBILoad();
+
+        // Attribution should be upgraded from supplement to RNA
+        assertDBLinkExists("ZDB-GENE-030131-1238", "678545", FDCONT_NCBI_GENE_ID, PUB_MAPPED_BASED_ON_RNA);
+    }
+
     private void assertMarkerAnnotationStatus(String geneZdbID, String status) {
         String statusInDB = helper.getMarkerAnnotationStatus(geneZdbID);
         assertEquals(status, statusInDB);
@@ -462,6 +665,9 @@ public class NCBILoadIntegrationTest extends AbstractDangerousDatabaseTest {
             System.clearProperty("LOAD_NCBI_ONE_WAY_GENES");
             System.clearProperty("DB_NAME");
             System.clearProperty("SKIP_COMPRESS_ARTIFACTS");
+
+            // Clear incremental load env var
+            NCBILoadIntegrationTestHelper.removeEnv("NCBI_INCREMENTAL_LOAD");
 
             // Force cleanup of temp directory if it still exists
             if (tempDir != null && Files.exists(tempDir)) {

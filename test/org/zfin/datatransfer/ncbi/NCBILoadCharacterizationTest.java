@@ -229,6 +229,104 @@ public class NCBILoadCharacterizationTest extends AbstractDangerousDatabaseTest 
     }
 
     /**
+     * Compare legacy (NCBIDirectPort) baselines against new (NCBILoadTask) baselines.
+     * No database needed — just decompresses and diffs the CSV files.
+     *
+     * Expects:
+     *   - New baselines at:    /mnt/research/zarchive/.../2026-01-30/after_load_{dblinks,annotation,assembly}.csv.gz
+     *   - Legacy baselines at: /opt/zfin/source_roots/zfin.org/build/ncbi-legacy-baselines/legacy_{dblinks,annotation,assembly}.csv.gz
+     *
+     * Run with:
+     *   docker compose run --rm compile bash -lc \
+     *     'SKIP_DANGER_WARNING=1 gradle -PincludeNcbiCharacterizationTest test --info \
+     *      --tests org.zfin.datatransfer.ncbi.NCBILoadCharacterizationTest.compareLegacyVsNew'
+     */
+    @Test
+    public void compareLegacyVsNew() throws IOException {
+        String archiveDir = "/mnt/research/zarchive/load_files/NCBI-gene-load-archive/2026-01-30";
+        String legacyDir = "/opt/zfin/source_roots/zfin.org/build/ncbi-legacy-baselines";
+
+        String[][] configs = {
+                {"dblinks", "dblink_linked_recid,dblink_acc_num,dblink_fdbcont_zdb_id", "dblink_info,dblink_zdb_id"},
+                {"annotation", "mrkr_zdb_id", ""},
+                {"assembly", "mrkr_zdb_id,assembly_name", ""},
+        };
+
+        for (String[] config : configs) {
+            String suffix = config[0];
+            String[] keyColumns = config[1].split(",");
+            String[] ignoreColumns = config[2].isEmpty() ? new String[0] : config[2].split(",");
+
+            // Decompress legacy baseline
+            Path legacyGz = Path.of(legacyDir, "legacy_" + suffix + ".csv.gz");
+            Path legacyCsv = tempDir.resolve("legacy_" + suffix + ".csv");
+            if (!Files.exists(legacyGz)) {
+                throw new RuntimeException("Legacy baseline not found: " + legacyGz
+                        + "\nRun generateLegacyBaseline first.");
+            }
+            Files.copy(legacyGz, tempDir.resolve(legacyGz.getFileName()), java.nio.file.StandardCopyOption.REPLACE_EXISTING);
+            gunzipFile(tempDir.resolve(legacyGz.getFileName()).toAbsolutePath().toString());
+
+            // Decompress new baseline
+            Path newGz = Path.of(archiveDir, "after_load_" + suffix + ".csv.gz");
+            Path newCsv = tempDir.resolve("new_" + suffix + ".csv");
+            if (!Files.exists(newGz)) {
+                throw new RuntimeException("New baseline not found: " + newGz
+                        + "\nRun generateBaseline first.");
+            }
+            Files.copy(newGz, tempDir.resolve("new_" + suffix + ".csv.gz"), java.nio.file.StandardCopyOption.REPLACE_EXISTING);
+            gunzipFile(tempDir.resolve("new_" + suffix + ".csv.gz").toAbsolutePath().toString());
+
+            // Run structured diff: file1=legacy, file2=new
+            CSVDiff diff = new CSVDiff("legacy_vs_new_" + suffix, keyColumns, ignoreColumns);
+            Map<String, List<CSVRecord>> results = diff.processToMap(legacyCsv.toString(), newCsv.toString());
+
+            List<CSVRecord> added = results.get("added");
+            List<CSVRecord> deleted = results.get("deleted");
+            List<CSVRecord> updated1 = results.get("updated1");
+            List<CSVRecord> updated2 = results.get("updated2");
+            List<CSVRecord> summary = results.get("summary");
+
+            System.out.println("\n========================================");
+            System.out.println("  " + suffix.toUpperCase() + ": Legacy vs New");
+            System.out.println("========================================");
+            if (summary != null && !summary.isEmpty()) {
+                System.out.println("Summary: " + summary.get(0));
+            }
+
+            // Write diff files for detailed analysis
+            writeDiffFile(tempDir.resolve("legacy_vs_new_" + suffix + "_added.csv").toString(), added, suffix + " added (in new, not in legacy)");
+            writeDiffFile(tempDir.resolve("legacy_vs_new_" + suffix + "_deleted.csv").toString(), deleted, suffix + " deleted (in legacy, not in new)");
+            writeDiffFile(tempDir.resolve("legacy_vs_new_" + suffix + "_updated_legacy.csv").toString(), updated1, suffix + " updated (legacy version)");
+            writeDiffFile(tempDir.resolve("legacy_vs_new_" + suffix + "_updated_new.csv").toString(), updated2, suffix + " updated (new version)");
+
+            if (!added.isEmpty()) {
+                System.out.println("\nADDED in new code (" + added.size() + " records):");
+                added.stream().limit(10).forEach(r -> System.out.println("  " + r));
+                if (added.size() > 10) System.out.println("  ... and " + (added.size() - 10) + " more");
+            }
+            if (!deleted.isEmpty()) {
+                System.out.println("\nDELETED from new code (" + deleted.size() + " records):");
+                deleted.stream().limit(10).forEach(r -> System.out.println("  " + r));
+                if (deleted.size() > 10) System.out.println("  ... and " + (deleted.size() - 10) + " more");
+            }
+            if (!updated1.isEmpty()) {
+                System.out.println("\nUPDATED (" + updated1.size() + " records):");
+                for (int i = 0; i < Math.min(10, updated1.size()); i++) {
+                    System.out.println("  legacy: " + updated1.get(i));
+                    System.out.println("  new:    " + updated2.get(i));
+                }
+                if (updated1.size() > 10) System.out.println("  ... and " + (updated1.size() - 10) + " more");
+            }
+            if (added.isEmpty() && deleted.isEmpty() && updated1.isEmpty()) {
+                System.out.println("\nNo differences found!");
+            }
+        }
+
+        System.out.println("\n*** Diff files written to: " + tempDir);
+    }
+
+    /**
      * Copy only the NCBI input files (no baselines) to the temp directory.
      */
     private void copyInputFiles() {
