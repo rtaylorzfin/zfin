@@ -74,7 +74,7 @@ services:
   db:
     build: ./postgresql/
     image: ghcr.io/zfin/zfin-db:${ZFIN_RELEASE}
-    command: -c 'max_connections=7500' -c 'shared_buffers=16GB' -c 'huge_pages=try' -c 'temp_buffers=2GB' -c 'work_mem=8GB' -c 'maintenance_work_mem=12GB' -c 'timezone=America/Los_Angeles' -c 'shared_preload_libraries="pg_stat_statements"'
+    command: -c 'max_connections=7500' -c 'shared_buffers=16GB' -c 'huge_pages=try' -c 'temp_buffers=2GB' -c 'work_mem=8GB' -c 'maintenance_work_mem=12GB' -c 'timezone=America/Los_Angeles' -c 'shared_preload_libraries="pg_stat_statements"' -c 'archive_mode=on' -c 'archive_command=pgbackrest --stanza=zfindb archive-push %p' -c 'wal_level=replica' -c 'max_wal_senders=3'
     environment:
       POSTGRES_USER: postgres
       POSTGRES_PASSWORD_FILE: /run/secrets/pg_pass
@@ -87,6 +87,8 @@ services:
 #      - "127.0.0.1:5444:5432"
     volumes:
       - pg_data:/var/lib/postgresql/
+      - pgbackrest_data:/var/lib/pgbackrest
+      - ${DOCKER_SOURCE_ROOTS_PATH}/docker/postgresql/pgbackrest.conf:/etc/pgbackrest/pgbackrest.conf:ro
       - ${DOCKER_SOURCE_ROOTS_PATH}/docker/pg_pass:/run/secrets/pg_pass:ro
       - www_data:/opt/zfin/www_homes/zfin.org
       - /etc/localtime:/etc/localtime:ro
@@ -362,6 +364,7 @@ volumes:
   elasticsearch_data:
   kibana_data:
   certbot_data:
+  pgbackrest_data:
   jbrowse_data:
   mailpit_data:
   nfs-zunloads:
