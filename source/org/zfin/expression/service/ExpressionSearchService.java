@@ -29,6 +29,7 @@ import org.zfin.publication.Publication;
 import org.zfin.publication.PublicationType;
 import org.zfin.publication.repository.PublicationRepository;
 import org.zfin.repository.RepositoryFactory;
+import org.zfin.framework.api.JsonResultResponse;
 import org.zfin.search.Category;
 import org.zfin.search.FieldName;
 import org.zfin.search.service.SolrService;
@@ -254,6 +255,39 @@ public class ExpressionSearchService {
                 .collect(Collectors.toList());
     }
 
+    public JsonResultResponse<ImageResult> getImageCount(ExpressionSearchCriteria criteria) {
+        SolrQuery solrQuery = new SolrQuery();
+
+        solrQuery = applyCriteria(solrQuery, criteria, OR);
+
+        solrQuery.setFields(FieldName.IMG_ZDB_ID.getName());
+        solrQuery.add("group", TRUE);
+        solrQuery.add("group.ngroups", TRUE);
+        solrQuery.add("group.field", FieldName.FIG_ZDB_ID.getName());
+        solrQuery.setRows(5000);
+        solrQuery.setStart(0);
+
+        QueryResponse queryResponse;
+        try {
+            queryResponse = SolrService.getSolrClient().query(solrQuery);
+        } catch (SolrServerException | IOException e) {
+            throw new RuntimeException("Error querying Solr for expression image count", e);
+        }
+
+        long totalImages = queryResponse.getGroupResponse().getValues().get(0).getValues().stream()
+                .map(this::getFirstDocumentFromGroup)
+                .mapToLong(doc -> {
+                    ArrayList<?> idList = (ArrayList<?>) doc.get(FieldName.IMG_ZDB_ID.getName());
+                    return idList != null ? idList.size() : 0;
+                })
+                .sum();
+
+        JsonResultResponse<ImageResult> response = new JsonResultResponse<>();
+        response.setTotal(totalImages);
+        response.setReturnedRecords(0);
+        return response;
+    }
+
     public List<ImageResult> getImageResults(ExpressionSearchCriteria criteria) {
         SolrQuery solrQuery = new SolrQuery();
 
@@ -365,6 +399,45 @@ public class ExpressionSearchService {
         populateStageRange(geneResult, criteria, AND, fq(FieldName.GENE_ZDB_ID, gene.getZdbID()));
         injectHighlighting(geneResult, response);
         return geneResult;
+    }
+
+    public JsonResultResponse<ImageResult> getImageResultsPaginated(ExpressionSearchCriteria criteria, int page, int limit) {
+        SolrQuery solrQuery = new SolrQuery();
+
+        solrQuery = applyCriteria(solrQuery, criteria, OR);
+
+        solrQuery.setFields(
+                FieldName.ID.getName(),
+                FieldName.IMG_ZDB_ID.getName(),
+                FieldName.THUMBNAIL.getName()
+        );
+        solrQuery.add("group", TRUE);
+        solrQuery.add("group.ngroups", TRUE);
+        solrQuery.add("group.field", FieldName.FIG_ZDB_ID.getName());
+        // Paginate at the figure-group level
+        solrQuery.setRows(limit);
+        solrQuery.setStart((page - 1) * limit);
+        solrQuery.addSort("date", SolrQuery.ORDER.asc);
+
+        QueryResponse queryResponse;
+        try {
+            queryResponse = SolrService.getSolrClient().query(solrQuery);
+        } catch (SolrServerException | IOException e) {
+            throw new RuntimeException("Error querying Solr for expression images", e);
+        }
+
+        GroupCommand groupCommand = queryResponse.getGroupResponse().getValues().get(0);
+        List<ImageResult> images = groupCommand.getValues().stream()
+                .map(this::getFirstDocumentFromGroup)
+                .map(this::buildImageResults)
+                .flatMap(List::stream)
+                .collect(Collectors.toList());
+
+        JsonResultResponse<ImageResult> response = new JsonResultResponse<>();
+        response.setResults(images);
+        response.setTotal(groupCommand.getNGroups());
+        response.setReturnedRecords(images.size());
+        return response;
     }
 
     private List<ImageResult> buildImageResults(SolrDocument document) {
