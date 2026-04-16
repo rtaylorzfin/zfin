@@ -1,11 +1,16 @@
 import React, {useCallback, useEffect, useRef, useState} from 'react';
-import usePagedImageWindow, {ImageItem} from '../hooks/usePagedImageWindow';
 
+const IMAGES_PER_PAGE = 10;
 const IMG_URL = '/imageLoadUp/';
 const POPUP_URL = '/action/image/publication/image-popup/';
 const IMG_PAGE_URL = '/';
 
 const LOADING_HTML = '<div style="padding: 2em; text-align: center;"><i class="fas fa-spinner fa-spin fa-2x"></i><div style="margin-top: 0.5em;">Loading...</div></div>';
+
+interface ImageItem {
+    zdbID: string;
+    imageThumbnail: string;
+}
 
 interface ImageThumbnailProps {
     image: ImageItem;
@@ -35,9 +40,36 @@ interface ExpressionImageGalleryProps {
     query: string;
 }
 
+const stripPaginationParams = (qs: string): string => {
+    return qs.split('&')
+        .filter(p => {
+            const key = p.split('=')[0];
+            return key !== 'page' && key !== 'rows' && key !== 'limit';
+        })
+        .join('&');
+};
+
 const ExpressionImageGallery = ({query}: ExpressionImageGalleryProps) => {
-    const baseUrl = `/action/expression/image-gallery?${query}`;
-    const {images, displayPage, setDisplayPage, totalImages, totalPages, loading} = usePagedImageWindow(baseUrl);
+    const cleanQuery = stripPaginationParams(query);
+    const [page, setPage] = useState(1);
+    const [images, setImages] = useState<ImageItem[]>([]);
+    const [total, setTotal] = useState(0);
+    const [pending, setPending] = useState(false);
+
+    useEffect(() => {
+        const url = `/action/expression/image-gallery?${cleanQuery}&page=${page}&limit=${IMAGES_PER_PAGE}`;
+        setPending(true);
+        fetch(url)
+            .then(r => r.json())
+            .then(data => {
+                setImages(data.results || []);
+                setTotal(data.total || 0);
+            })
+            .catch(() => {})
+            .finally(() => setPending(false));
+    }, [query, page]);
+
+    const lastPage = Math.max(1, Math.ceil(total / IMAGES_PER_PAGE));
 
     const [pageInput, setPageInput] = useState('1');
     const [popupHtml, setPopupHtml] = useState<string | null>(null);
@@ -46,7 +78,7 @@ const ExpressionImageGallery = ({query}: ExpressionImageGalleryProps) => {
     const activeImageId = useRef<string | null>(null);
     const hideTimeout = useRef<ReturnType<typeof setTimeout> | null>(null);
 
-    // Pre-fetch popup HTML for all images on the current display page
+    // Pre-fetch popup HTML for all images on the current page
     useEffect(() => {
         images.forEach((image) => {
             if (!popupCache.current[image.zdbID]) {
@@ -64,8 +96,8 @@ const ExpressionImageGallery = ({query}: ExpressionImageGalleryProps) => {
     }, [images]);
 
     useEffect(() => {
-        setPageInput(String(displayPage));
-    }, [displayPage]);
+        setPageInput(String(page));
+    }, [page]);
 
     const handleImageHover = useCallback((image: ImageItem) => {
         if (hideTimeout.current) { clearTimeout(hideTimeout.current); }
@@ -105,8 +137,8 @@ const ExpressionImageGallery = ({query}: ExpressionImageGalleryProps) => {
     const handlePageInputCommit = () => {
         let p = parseInt(pageInput, 10);
         if (isNaN(p) || p < 1) { p = 1; }
-        if (totalPages !== null && p > totalPages) { p = totalPages; }
-        setDisplayPage(p);
+        if (p > lastPage) { p = lastPage; }
+        setPage(p);
         setPageInput(String(p));
     };
 
@@ -116,29 +148,18 @@ const ExpressionImageGallery = ({query}: ExpressionImageGalleryProps) => {
         }
     };
 
-    if (!loading && totalImages === 0) {
+    if (!pending && total === 0) {
         return null;
     }
-
-    const totalImagesDisplay = totalImages !== null
-        ? <>{totalImages} images</>
-        : <i className='fas fa-spinner fa-spin' />;
-
-    const totalPagesDisplay = totalPages !== null
-        ? totalPages
-        : <i className='fas fa-spinner fa-spin' />;
-
-    const canGoNext = totalPages === null || displayPage < totalPages;
-    const showControls = totalPages === null || totalPages > 1;
 
     return (
         <div id='xpresimg_all' style={{position: 'relative'}}>
             <div id='xpresimg_control_box' style={{marginTop: '20px'}}>
-                <span id='xpresimg_thumbs_title'>Figure Gallery ({totalImagesDisplay})</span>
-                {showControls && (
+                <span id='xpresimg_thumbs_title'>Figure Gallery ({total} images)</span>
+                {lastPage > 1 && (
                     <span id='xpresimg_controls'>
-                        {displayPage > 1 ? (
-                            <a href='#' onClick={(e) => { e.preventDefault(); setDisplayPage(displayPage - 1); }}>
+                        {page > 1 ? (
+                            <a href='#' onClick={(e) => { e.preventDefault(); setPage(page - 1); }}>
                                 <img src='/images/arrow_back.png' alt='Previous' />
                             </a>
                         ) : (
@@ -152,9 +173,9 @@ const ExpressionImageGallery = ({query}: ExpressionImageGalleryProps) => {
                             onBlur={handlePageInputCommit}
                             onKeyDown={handleKeyDown}
                         />
-                        <span> / {totalPagesDisplay} </span>
-                        {canGoNext ? (
-                            <a href='#' onClick={(e) => { e.preventDefault(); setDisplayPage(displayPage + 1); }}>
+                        <span> / {lastPage} </span>
+                        {page < lastPage ? (
+                            <a href='#' onClick={(e) => { e.preventDefault(); setPage(page + 1); }}>
                                 <img src='/images/arrow_next.png' alt='Next' />
                             </a>
                         ) : (
@@ -164,7 +185,7 @@ const ExpressionImageGallery = ({query}: ExpressionImageGalleryProps) => {
                 )}
             </div>
             <div id='xpresimg_box'>
-                {loading && images.length === 0 && <span>Loading...</span>}
+                {pending && images.length === 0 && <span>Loading...</span>}
                 {images.map((image) => (
                     <ImageThumbnail
                         key={image.zdbID}

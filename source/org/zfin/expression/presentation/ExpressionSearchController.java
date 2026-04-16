@@ -122,19 +122,13 @@ public class ExpressionSearchController {
     JsonResultResponse<ImageResult> imageGallery(
             ExpressionSearchCriteria criteria,
             @RequestParam(value = "page", defaultValue = "1") int page,
-            @RequestParam(value = "limit", defaultValue = "20") int limit,
-            @RequestParam(value = "countOnly", defaultValue = "false") boolean countOnly,
+            @RequestParam(value = "limit", defaultValue = "10") int limit,
             HttpServletRequest request) {
         if (criteria.getRows() == null) {
             criteria.setRows(DEFAULT_PAGE_SIZE);
         }
         if (criteria.getPage() == null) {
             criteria.setPage(1);
-        }
-        if (countOnly) {
-            JsonResultResponse<ImageResult> response = expressionSearchService.getImageCount(criteria);
-            response.setHttpServletRequest(request);
-            return response;
         }
         JsonResultResponse<ImageResult> response = expressionSearchService.getImageResultsPaginated(criteria, page, limit);
         response.setHttpServletRequest(request);

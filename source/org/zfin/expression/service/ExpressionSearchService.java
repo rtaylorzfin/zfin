@@ -15,6 +15,7 @@ import org.zfin.anatomy.DevelopmentStage;
 import org.zfin.anatomy.repository.AnatomyRepository;
 import org.zfin.expression.*;
 import org.zfin.expression.presentation.*;
+import java.util.Collections;
 import org.zfin.expression.repository.ExpressionRepository;
 import org.zfin.figure.repository.FigureRepository;
 import org.zfin.marker.Marker;
@@ -255,38 +256,6 @@ public class ExpressionSearchService {
                 .collect(Collectors.toList());
     }
 
-    public JsonResultResponse<ImageResult> getImageCount(ExpressionSearchCriteria criteria) {
-        SolrQuery solrQuery = new SolrQuery();
-
-        solrQuery = applyCriteria(solrQuery, criteria, OR);
-
-        solrQuery.setFields(FieldName.IMG_ZDB_ID.getName());
-        solrQuery.add("group", TRUE);
-        solrQuery.add("group.ngroups", TRUE);
-        solrQuery.add("group.field", FieldName.FIG_ZDB_ID.getName());
-        solrQuery.setRows(5000);
-        solrQuery.setStart(0);
-
-        QueryResponse queryResponse;
-        try {
-            queryResponse = SolrService.getSolrClient().query(solrQuery);
-        } catch (SolrServerException | IOException e) {
-            throw new RuntimeException("Error querying Solr for expression image count", e);
-        }
-
-        long totalImages = queryResponse.getGroupResponse().getValues().get(0).getValues().stream()
-                .map(this::getFirstDocumentFromGroup)
-                .mapToLong(doc -> {
-                    ArrayList<?> idList = (ArrayList<?>) doc.get(FieldName.IMG_ZDB_ID.getName());
-                    return idList != null ? idList.size() : 0;
-                })
-                .sum();
-
-        JsonResultResponse<ImageResult> response = new JsonResultResponse<>();
-        response.setTotal(totalImages);
-        response.setReturnedRecords(0);
-        return response;
-    }
 
     public List<ImageResult> getImageResults(ExpressionSearchCriteria criteria) {
         SolrQuery solrQuery = new SolrQuery();
@@ -406,18 +375,25 @@ public class ExpressionSearchService {
 
         solrQuery = applyCriteria(solrQuery, criteria, OR);
 
-        solrQuery.setFields(
-                FieldName.ID.getName(),
-                FieldName.IMG_ZDB_ID.getName(),
-                FieldName.THUMBNAIL.getName()
-        );
-        solrQuery.add("group", TRUE);
-        solrQuery.add("group.ngroups", TRUE);
-        solrQuery.add("group.field", FieldName.FIG_ZDB_ID.getName());
-        // Paginate at the figure-group level
-        solrQuery.setRows(limit);
-        solrQuery.setStart((page - 1) * limit);
-        solrQuery.addSort("date", SolrQuery.ORDER.asc);
+        // We don't need Solr to return documents — just the facet
+        solrQuery.setRows(0);
+
+        // Use JSON facet to paginate individual images directly
+        String jsonFacet = "{" +
+                "  images: {" +
+                "    terms: {" +
+                "      field: " + FieldName.IMG_ZDB_ID.getName() + "," +
+                "      limit: " + limit + "," +
+                "      offset: " + ((page - 1) * limit) + "," +
+                "      numBuckets: true," +
+                "      sort: \"img_order desc\"," +
+                "      facet: {" +
+                "        img_order: \"max(expression_image_sort)\"" +
+                "      }" +
+                "    }" +
+                "  }" +
+                "}";
+        solrQuery.set("json.facet", jsonFacet);
 
         QueryResponse queryResponse;
         try {
@@ -426,17 +402,43 @@ public class ExpressionSearchService {
             throw new RuntimeException("Error querying Solr for expression images", e);
         }
 
-        GroupCommand groupCommand = queryResponse.getGroupResponse().getValues().get(0);
-        List<ImageResult> images = groupCommand.getValues().stream()
-                .map(this::getFirstDocumentFromGroup)
-                .map(this::buildImageResults)
-                .flatMap(List::stream)
+        JsonResultResponse<ImageResult> response = new JsonResultResponse<>();
+
+        @SuppressWarnings("unchecked")
+        org.apache.solr.common.util.NamedList<Object> facets =
+                (org.apache.solr.common.util.NamedList<Object>) queryResponse.getResponse().get("facets");
+        @SuppressWarnings("unchecked")
+        org.apache.solr.common.util.NamedList<Object> imagesFacet =
+                (org.apache.solr.common.util.NamedList<Object>) facets.get("images");
+
+        if (imagesFacet == null) {
+            response.setTotal(0);
+            response.setResults(Collections.emptyList());
+            return response;
+        }
+
+        Integer total = (Integer) Optional.of(imagesFacet.get("numBuckets")).orElse(0);
+        @SuppressWarnings("unchecked")
+        List<org.apache.solr.common.util.NamedList<Object>> buckets =
+                (List<org.apache.solr.common.util.NamedList<Object>>) imagesFacet.get("buckets");
+
+        List<String> imageIds = buckets.stream()
+                .map(bucket -> bucket.get("val").toString())
                 .collect(Collectors.toList());
 
-        JsonResultResponse<ImageResult> response = new JsonResultResponse<>();
-        response.setResults(images);
-        response.setTotal(groupCommand.getNGroups());
-        response.setReturnedRecords(images.size());
+        List<Image> images = figureRepository.getImages(imageIds);
+        List<ImageResult> results = images.stream()
+                .map(img -> {
+                    ImageResult result = new ImageResult();
+                    result.setImageZdbId(img.getZdbID());
+                    result.setImageThumbnail(img.getThumbnail());
+                    return result;
+                })
+                .collect(Collectors.toList());
+
+        response.setResults(results);
+        response.setTotal(total);
+        response.setReturnedRecords(results.size());
         return response;
     }
 
