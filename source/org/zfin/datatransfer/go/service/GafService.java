@@ -444,7 +444,7 @@ public class GafService {
                 }
             }
             if (goEvidenceCodeEnum == GoEvidenceCodeEnum.IEA && inferredFrom.size() > 1) {
-                logger.info("IEA annotation with {} inferences for {}: {}",
+                logger.info("Loaded IEA annotation with {} inferences for {}: {}",
                     inferredFrom.size(), gafEntry.getEntryId(),
                     inferredFrom.stream()
                         .map(InferenceGroupMember::getInferredFrom)
