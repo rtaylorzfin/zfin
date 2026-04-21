@@ -104,7 +104,7 @@ The ~17,000 "Gene not found" errors come from ~9,000 unique IDs:
 
 | ID Type | % of unique IDs | Description |
 |---------|----------------|-------------|
-| RNAcentral (`URS*`) | ~63% | Non-coding RNA IDs. Most are not in ZFIN's `db_link`. ~30 can now be mapped after the taxon suffix fix. |
+| RNAcentral (`URS*`) | ~63% | Non-coding RNA IDs. Most are not in ZFIN's `db_link`. 30 unique IDs (55 annotation matches) now load after the TranscriptDBLink fix. |
 | TrEMBL (`A0A*`) | ~36% | Unreviewed UniProt entries. Computationally predicted proteins not yet loaded into ZFIN. |
 | Swiss-Prot / other | ~1% | Older accessions not present in ZFIN. |
 
@@ -122,9 +122,9 @@ By annotation source: RNAcentral (~51%), UniProt (~36%), GO_Central (~13%).
 
 ### RNAcentral ID Mapping (GafService.getGenes)
 
-**Problem**: The RNA GAF file uses IDs with taxon suffixes (`URS0000005DE0_7955`) but ZFIN stores them without (`URS0000005DE0`). Additionally, RNAcentral entries in `db_link` are under the `RNA Central` foreign DB, not UniProtKB, so the existing UniProt-only lookup never found them. Many link to transcripts, not genes directly.
+**Problem**: The RNA GAF file uses IDs with taxon suffixes (`URS0000005DE0_7955`) but ZFIN stores them without (`URS0000005DE0`). Additionally, RNAcentral `db_link` records point to transcripts (`ZDB-TSCRIPT-*`), which use the Hibernate discriminator `'TSCR'`. The original code queried `MarkerDBLink` (discriminator `'MARK'`), which silently excluded all transcript-linked records.
 
-**Fix**: Added a `URS*` branch in `getGenes()` that strips the `_7955` suffix, searches all foreign databases, and resolves transcript → gene via the "gene produces transcript" relationship. ~30 previously unmapped annotations now load.
+**Fix**: Added a `URS*` branch in `getGenes()` that strips the `_7955` suffix and queries `TranscriptDBLink` directly. The transcript's parent gene is resolved via the "gene produces transcript" relationship. Confirmed: 55 RNACentral matches from 30 unique URS IDs now load, mapping to miRNA genes (mir196c, mir214a, etc.), lincRNA genes, and lncRNA genes (gas5).
 
 **Monitoring**: All matches are logged with `"RNACentral Match"` prefix.
 
@@ -192,7 +192,7 @@ grep "NCBI API token appears invalid"
 
 ## Historical Trend Analysis
 
-A one-off analysis of 12 months of historical details files was performed to produce trend graphs. The results are in `tmp/details/alldetails/report/gaf-error-report.html`. Going forward, the Java `GafErrorSummary` generates the error summary automatically as part of each load run.
+A one-off analysis of 12 months of historical details files was performed to produce trend graphs. The results are in https://zfin.atlassian.net/browse/ZFIN-10231 (gaf-error-report.html). Going forward, the Java `GafErrorSummary` generates the error summary automatically as part of each load run.
 
 Key findings:
 - RNAcentral errors are constant (~5,730 unique IDs / ~8,969 occurrences) — structural, won't change unless ZFIN maps more RNA IDs
