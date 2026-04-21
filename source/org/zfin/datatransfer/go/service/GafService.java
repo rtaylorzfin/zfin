@@ -227,6 +227,7 @@ public class GafService {
             for (MarkerDBLink markerDBLink : markerDBLinks) {
                 Marker linked = markerDBLink.getMarker();
                 if (linked.getZdbID().startsWith("ZDB-GENE-") || linked.getZdbID().contains("RNAG")) {
+                    logger.info("RNACentral Match: {} -> {} ({})", entryId, linked.getZdbID(), linked.getAbbreviation());
                     returnGenes.add(linked);
                 } else if (linked.getZdbID().startsWith("ZDB-TSCRIPT-")) {
                     // Transcript — find the parent gene via "gene produces transcript"
@@ -234,6 +235,8 @@ public class GafService {
                         linked, MarkerRelationship.Type.GENE_PRODUCES_TRANSCRIPT);
                     for (Marker gene : genes) {
                         if (gene.getZdbID().startsWith("ZDB-GENE-") || gene.getZdbID().contains("RNAG")) {
+                            logger.info("RNACentral Match: {} -> transcript {} -> gene {} ({})",
+                                entryId, linked.getAbbreviation(), gene.getZdbID(), gene.getAbbreviation());
                             returnGenes.add(gene);
                         }
                     }
