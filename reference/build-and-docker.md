@@ -144,6 +144,22 @@ ant deploy-catalina-base
 ant deploy-without-tests
 ```
 
+## Publishing Docker Images to GHCR
+
+The `containerList` in `build.gradle` (base, compile, db, ncbiload, blast) is
+tagged and pushed to `ghcr.io/zfin/zfin-<container>` by four gradle tasks:
+
+| Task | What it does |
+|------|-------------|
+| `tagGHCRImages` | Tags each image with the version in `release` (e.g. `:1181`) |
+| `tagLatestGHCRImages` | Re-tags the same images as `:latest` |
+| `pushGHCRImages` | Pushes the versioned tags to GHCR |
+| `pushLatestGHCRImages` | Pushes the `:latest` tags to GHCR |
+
+The `Latest` variants were added in ZFIN-10181 so the most recent build can be
+referenced without pinning to a release number. Run them after a successful
+versioned tag/push so `:latest` always points at a published version.
+
 ## Ant Task Dependency Trees
 
 ### `ant do` — Compile Only
