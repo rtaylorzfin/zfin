@@ -45,7 +45,7 @@ create temp table
   tmp_gff_start_end (accnum varchar(50),chrom varchar(20), gene varchar(50),
        start int,
        endVal int
-);
+); 
 
 
 insert into tmp_gff_start_end (accnum,chrom, gene)
@@ -88,14 +88,14 @@ create index gene2_index on tmp_gene (accnum1);
 update tmp_gene
  set start = (select min(start)
       	      	      from tmp_gff_start_end
-		      where  gene = accnum1
+		      where  gene = accnum1 
 		      and chrom = chrom1);
 
 
 update tmp_gene
  set endVal = (select max(endVal)
       	      	      from tmp_gff_start_end
-		      where  gene = accnum1
+		      where  gene = accnum1 
 		      and chrom = chrom1);
 
 
@@ -128,7 +128,7 @@ select count(*) as counter, geneId, chrom1, source, source as subsource, dblink_
 group by geneId, chrom1, source, dblink_acc_num;
 
 
-insert into sequence_feature_chromosome_location_generated (sfclg_data_Zdb_id,
+insert into sequence_feature_chromosome_location_generated (sfclg_data_Zdb_id, 
        	    			       sfclg_chromosome,
 				       sfclg_acc_num,
 				       sfclg_location_source,
