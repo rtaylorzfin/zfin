@@ -568,6 +568,7 @@ public abstract class AbstractFeatureView extends Composite implements Revertibl
     void setFeatureAssemblyList() {
         featureAssembly.addItem("");
         featureAssembly.addItem("GRCz12tu");
+        featureAssembly.addItem("GRCz11");
     }
 
 
