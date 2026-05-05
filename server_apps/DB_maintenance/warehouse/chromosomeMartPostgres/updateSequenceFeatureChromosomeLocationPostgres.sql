@@ -25,7 +25,11 @@ select count(*) as tmp_gene_count from tmp_gene;
 -- Add ENSDARG-fallback EnsemblStartEndLoader rows for genes not in tmp_gene.
 -- Introduced by ZFIN-9989 (PR #1619) for genes whose ENSDARG accession has no
 -- ENSDART transcripts (so the gbrowse-refresh ENSDART path produces nothing
--- for them).
+-- for them). The NOT EXISTS clause makes this idempotent — subsequent runs
+-- skip rows already inserted. We can't rely on uk_sfclg_unique_location +
+-- ON CONFLICT here because that constraint covers sfclg_assembly and
+-- sfclg_location_subsource, which we leave NULL; PostgreSQL treats NULLs in
+-- unique indexes as distinct, so the constraint doesn't fire on rerun.
 insert into sequence_feature_chromosome_location_generated (sfclg_data_zdb_id,
        sfclg_chromosome,
        sfclg_start,
@@ -54,7 +58,15 @@ select distinct dblink_linked_recid,
    )
    -- exclude ExpressionAtlas (fdb_db_display_name = 'ExpressionAtlas')
    and fdb_db_pk_id != 91
-on conflict do nothing
+   and not exists (
+     select 1 from sequence_feature_chromosome_location_generated existing
+      where existing.sfclg_data_zdb_id = dblink_linked_recid
+        and existing.sfclg_location_source = 'EnsemblStartEndLoader'
+        and existing.sfclg_acc_num = dblink_acc_num
+        and existing.sfclg_chromosome = gff_seqname
+        and existing.sfclg_start = gff_start
+        and existing.sfclg_end = gff_end
+   )
 ;
 
 -- Tag zmp gbrowse track for the additional ZMP pub. Refresh-GBrowse-Tracks_d
