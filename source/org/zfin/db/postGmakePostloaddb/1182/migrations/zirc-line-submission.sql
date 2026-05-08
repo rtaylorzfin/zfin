@@ -221,3 +221,16 @@ VALUES ('LINESUBMISSION', current_date - 1, 'line_submission',
 ON CONFLICT (zobjtype_name) DO NOTHING;
 
 CREATE SEQUENCE IF NOT EXISTS linesubmission_seq START 1;
+
+-- The original INSERT above wrote zobjtype_home_table = 'line_submission'
+-- (bare). The actual table lives in the zirc schema, so consumers that
+-- substitute the value into a FROM clause without a search_path containing
+-- zirc fail (notably InfrastructureRepositoryTest.runDynamicDbScript2 via
+-- test/dbTestScript.sqlj). Schema-qualify the value so it resolves
+-- consistently. p_check_zdb_object_table now parses 'schema.table' values,
+-- so this UPDATE passes the trigger validation. Idempotent.
+--changeset cmpich:zirc-line-submission-schema-qualify
+UPDATE zdb_object_type
+   SET zobjtype_home_table = 'zirc.line_submission'
+ WHERE zobjtype_name = 'LINESUBMISSION'
+   AND zobjtype_home_table = 'line_submission';

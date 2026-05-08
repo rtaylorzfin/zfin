@@ -5,20 +5,30 @@
   --REPLACES:
   --sub zdbObjectHomeTableColumnExist 
 
-  create or replace function p_check_zdb_object_table (vTableName text, 
+  create or replace function p_check_zdb_object_table (vTableName text,
 	  				     vColumnName text)
   returns void as $$
   declare vOkInSystables		integer;
    vOkInSyscolumns	integer;
    vTableId		integer;
+   -- vTableName may be schema-qualified ('schema.table') or bare ('table').
+   -- Bare names default to the public schema.
+   vSchema		text := 'public';
+   vBareTable		text := vTableName;
   begin
-   vTableId = (select pg_class.oid 
-		   from pg_class 
-		   where relname = vTableName);
+   if position('.' in vTableName) > 0 then
+       vSchema    := split_part(vTableName, '.', 1);
+       vBareTable := split_part(vTableName, '.', 2);
+   end if;
 
-   vOkInSystables = (select count(*) 
+   vTableId = (select c.oid
+		   from pg_class c
+		   join pg_namespace n on n.oid = c.relnamespace
+		   where n.nspname = vSchema and c.relname = vBareTable);
+
+   vOkInSystables = (select count(*)
 			  from pg_tables
-			  where tablename = vTableName);
+			  where schemaname = vSchema and tablename = vBareTable);
   raise notice 'vOkInSystables: %', vOkInSystables;
   raise notice 'vTableid: %', vTableid;
 
