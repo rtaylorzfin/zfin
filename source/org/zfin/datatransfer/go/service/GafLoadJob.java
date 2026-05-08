@@ -13,6 +13,8 @@ import org.springframework.stereotype.Component;
 import org.zfin.datatransfer.go.*;
 import org.zfin.datatransfer.persistence.LoadFileLog;
 import org.zfin.datatransfer.service.DownloadService;
+import org.zfin.report.Report;
+import org.zfin.report.ReportWriter;
 import org.zfin.framework.HibernateUtil;
 import org.zfin.infrastructure.ant.AbstractValidateDataReportTask;
 import org.zfin.mutant.MarkerGoTermEvidence;
@@ -216,8 +218,9 @@ public class GafLoadJob extends AbstractValidateDataReportTask {
 
             // Generate categorized error summary
             File errorSummaryFile = new File(new File(dataDirectory, jobName), jobName + "_error_summary.txt");
+            GafErrorSummary errorSummary = null;
             try {
-                GafErrorSummary errorSummary = new GafErrorSummary();
+                errorSummary = new GafErrorSummary();
                 errorSummary.setParserRejections(gafParser.getRejectionCounts());
                 errorSummary.processErrors(gafJobData.getErrors());
                 errorSummary.writeToFile(errorSummaryFile);
@@ -225,6 +228,21 @@ public class GafLoadJob extends AbstractValidateDataReportTask {
                 System.out.println("Error summary written to: " + errorSummaryFile.getAbsolutePath());
             } catch (Exception ex) {
                 logger.warn("Failed to generate error summary", ex);
+            }
+
+            // Generate the HTML report viewer alongside the .txt files.
+            try {
+                File htmlReport = new File(new File(dataDirectory, jobName), jobName + ".html");
+                List<String> sources = organization.equals("GOA")
+                    ? List.of(downloadUrl, downloadUrl2, downloadUrl3)
+                    : List.of(downloadUrl);
+                Report report = new GafReportBuilder()
+                    .build(jobName, organization, sources, gafJobData, errorSummary);
+                new ReportWriter().write(report, htmlReport);
+                logger.info("HTML report written to: {}", htmlReport.getAbsolutePath());
+                System.out.println("HTML report written to: " + htmlReport.getAbsolutePath());
+            } catch (Exception ex) {
+                logger.warn("Failed to generate HTML report", ex);
             }
 
             //throw an exception if parser encountered an error
