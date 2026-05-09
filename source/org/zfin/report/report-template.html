@@ -222,7 +222,8 @@
         .data-table {
             border-collapse: collapse;
             border: 1px solid #ccc;
-            width: 100%;
+            /* Size to content — small tables shouldn't stretch the full pane,
+               making it harder to trace a row across mostly-empty space. */
         }
         .data-table th, .data-table td {
             text-align: left;
@@ -232,6 +233,9 @@
         }
         .data-table th { background: #c9e0e0; }
         .data-table tr:nth-child(even) { background: #f6fafa; }
+        /* The children-list is the main navigation surface for a structural
+           node; keep it full width so titles + columns line up across siblings. */
+        .children-list .data-table { width: 100%; }
 
         .children-list {
             margin-top: 24px;
@@ -560,15 +564,23 @@
             definitions && definitions.categories);
         if (children.length === 0) return null;
 
+        // Only show field columns when every child is a leaf — otherwise we're
+        // looking at a category-of-categories view (e.g. type → subType) where
+        // some children may carry fields (single-action collapse) and others
+        // don't (multi-action structural), giving a column union that's mostly
+        // empty. At those intermediate levels, just show title + items count.
+        const childrenAreLeaves = children.every(c => !c.children || c.children.length === 0);
         const fieldKeys = [];
-        const seenFields = new Set();
-        for (const c of children) {
-            if (!c.fields) continue;
-            for (const k of Object.keys(c.fields)) {
-                if (!seenFields.has(k)) { seenFields.add(k); fieldKeys.push(k); }
+        if (childrenAreLeaves) {
+            const seenFields = new Set();
+            for (const c of children) {
+                if (!c.fields) continue;
+                for (const k of Object.keys(c.fields)) {
+                    if (!seenFields.has(k)) { seenFields.add(k); fieldKeys.push(k); }
+                }
             }
         }
-        const anyTags = children.some(c => (c.tags || []).length > 0);
+        const anyTags = childrenAreLeaves && children.some(c => (c.tags || []).length > 0);
         const anyChildCounts = children.some(c => displayCount(c) != null);
 
         const q = search.toLowerCase();
@@ -648,6 +660,21 @@
 
         const outEdges = edgesIndex.outgoing.get(node.id) || [];
         const inEdges = edgesIndex.incoming.get(node.id) || [];
+
+        // Arrow keys mirror the prev/next buttons so the user can hammer
+        // through siblings without reaching for the mouse. We skip when an
+        // input/textarea is focused so search boxes still work normally.
+        useEffect(() => {
+            function onKey(e) {
+                if (e.altKey || e.ctrlKey || e.metaKey || e.shiftKey) return;
+                const t = e.target;
+                if (t && (t.tagName === 'INPUT' || t.tagName === 'TEXTAREA' || t.isContentEditable)) return;
+                if (e.key === 'ArrowLeft' && prev) { e.preventDefault(); onSelect(prev.id); }
+                else if (e.key === 'ArrowRight' && next) { e.preventDefault(); onSelect(next.id); }
+            }
+            window.addEventListener('keydown', onKey);
+            return () => window.removeEventListener('keydown', onKey);
+        }, [prev && prev.id, next && next.id]);
 
         return html`
             <div className="node-view">

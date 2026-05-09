@@ -8,9 +8,11 @@ import org.zfin.datatransfer.report.model.LoadReportTableHeader;
 import org.zfin.datatransfer.report.model.ZfinReport;
 
 import java.util.ArrayList;
+import java.util.HashSet;
 import java.util.LinkedHashMap;
 import java.util.List;
 import java.util.Map;
+import java.util.Set;
 
 /**
  * Converts a legacy {@link ZfinReport} (flat action list with type/subType)
@@ -28,11 +30,22 @@ import java.util.Map;
  *   <li>{@code supplementalData}       → top-level {@code blobs}</li>
  *   <li>{@code actions}                → grouped by {@code type} → {@code subType} → action leaf
  *       (typeNode and subTypeNode are structural; action leaves carry fields/body/tables/links/tags)</li>
- *   <li>{@code action.relatedActionsKeys} → not translated (the new schema's
- *       drill-down via subType groups already aggregates related items)</li>
+ *   <li>{@code action.relatedActionsKeys} → top-level {@link Report.Edge}
+ *       entries. For every key shared by ≤ {@link #MAX_ACTIONS_PER_RELATED_KEY}
+ *       actions, all pairs of those actions get a deduped "related" edge so
+ *       the viewer's Related section surfaces siblings on the same
+ *       gene/accession. Keys that span more actions than the cap are skipped.</li>
  * </ul>
+ *
+ * <p>When a subType group contains exactly one action, the intermediate
+ * subType wrapper is folded into the action node directly: the user clicks
+ * the subType title and lands on its content, instead of a one-row table
+ * pointing to a single child.
  */
 public class LegacyReportAdapter {
+
+    /** Above this size, related-actions edges aren't emitted for a key. */
+    private static final int MAX_ACTIONS_PER_RELATED_KEY = 50;
 
     public Report adapt(ZfinReport legacy) {
         Report report = new Report()
@@ -71,25 +84,73 @@ public class LegacyReportAdapter {
             for (Map.Entry<String, List<LoadReportAction>> stEntry : typeEntry.getValue().entrySet()) {
                 String subType = stEntry.getKey();
                 List<LoadReportAction> actions = stEntry.getValue();
-                ReportNode subTypeNode = new ReportNode()
-                    .id("type-" + slugify(type) + "-st-" + subIdx++ + "-" + slugify(subType))
-                    .title(subType)
-                    .categoryRef(type)
-                    .count(actions.size());
+                String subBaseId = "type-" + slugify(type) + "-st-" + subIdx++ + "-" + slugify(subType);
 
-                int actionIdx = 0;
-                for (LoadReportAction a : actions) {
-                    subTypeNode.addChild(adaptAction(a, type, subTypeNode.getId() + "-a-" + actionIdx++));
+                if (actions.size() == 1) {
+                    // Skip the intermediate "list of one" — clicking the subType title
+                    // should land directly on the content. Re-title with the subType
+                    // since the action's accession-based title is often "N/A — N/A"
+                    // for REPORTS-style actions that aren't gene-scoped.
+                    ReportNode merged = adaptAction(actions.get(0), type, subBaseId);
+                    merged.title(subType);
+                    if (merged.getCount() == null) merged.count(1);
+                    typeNode.addChild(merged);
+                    typeTotal += 1;
+                } else {
+                    ReportNode subTypeNode = new ReportNode()
+                        .id(subBaseId)
+                        .title(subType)
+                        .categoryRef(type)
+                        .count(actions.size());
+                    int actionIdx = 0;
+                    for (LoadReportAction a : actions) {
+                        subTypeNode.addChild(adaptAction(a, type, subBaseId + "-a-" + actionIdx++));
+                    }
+                    typeNode.addChild(subTypeNode);
+                    typeTotal += actions.size();
                 }
-                typeNode.addChild(subTypeNode);
-                typeTotal += actions.size();
             }
             typeNode.count(typeTotal);
             root.addChild(typeNode);
         }
 
         report.root(root);
+        addRelatedEdges(report, legacy.getActions());
         return report;
+    }
+
+    /**
+     * Build "related" edges from {@code relatedActionsKeys}. For every shared key
+     * with at most {@link #MAX_ACTIONS_PER_RELATED_KEY} actions, every pair of
+     * those actions gets one deduped edge — the renderer's Related section
+     * surfaces it on both endpoints (incoming + outgoing).
+     */
+    private void addRelatedEdges(Report report, List<LoadReportAction> actions) {
+        if (actions == null) return;
+        // Map each key to the action ids that carry it.
+        Map<String, List<String>> keyToIds = new LinkedHashMap<>();
+        for (LoadReportAction a : actions) {
+            List<String> keys = a.getRelatedActionsKeys();
+            if (keys == null || keys.isEmpty()) continue;
+            String id = a.getId() != null ? String.valueOf(a.getId()) : null;
+            if (id == null) continue;
+            for (String k : keys) {
+                keyToIds.computeIfAbsent(k, x -> new ArrayList<>()).add(id);
+            }
+        }
+        Set<String> seen = new HashSet<>();
+        for (List<String> ids : keyToIds.values()) {
+            if (ids.size() < 2 || ids.size() > MAX_ACTIONS_PER_RELATED_KEY) continue;
+            for (int i = 0; i < ids.size(); i++) {
+                for (int j = i + 1; j < ids.size(); j++) {
+                    String a = ids.get(i), b = ids.get(j);
+                    String pair = a.compareTo(b) < 0 ? a + "::" + b : b + "::" + a;
+                    if (seen.add(pair)) {
+                        report.addEdge(a, b, "related");
+                    }
+                }
+            }
+        }
     }
 
     private Report.Meta adaptMeta(ZfinReport legacy) {
@@ -126,8 +187,14 @@ public class LegacyReportAdapter {
             .title(buildActionTitle(a))
             .categoryRef(typeRef);
 
-        if (a.getAccession() != null)        n.field("accession", a.getAccession());
-        if (a.getGeneZdbID() != null)        n.field("geneZdbID", a.getGeneZdbID());
+        // Producers sometimes set placeholder "N/A" strings for accession/geneZdbID
+        // on actions that aren't gene-scoped (e.g. REPORTS category). Treat those
+        // as absent so the rendered field list stays clean.
+        String accession = nullIfPlaceholder(a.getAccession());
+        String geneZdbID = nullIfPlaceholder(a.getGeneZdbID());
+
+        if (accession != null)               n.field("accession", accession);
+        if (geneZdbID != null)               n.field("geneZdbID", geneZdbID);
         if (a.getDbName() != null)           n.field("database", a.getDbName());
         if (a.getMd5() != null)              n.field("md5", a.getMd5());
         if (a.getLength() != null)           n.field("length", a.getLength());
@@ -142,7 +209,12 @@ public class LegacyReportAdapter {
         }
 
         if (a.getDetails() != null && !a.getDetails().isEmpty()) {
-            n.body(Report.Body.text(a.getDetails()));
+            ReportTable kv = tryParseKeyValueTable(a.getDetails());
+            if (kv != null) {
+                n.addTable(kv);
+            } else {
+                n.body(Report.Body.text(a.getDetails()));
+            }
         }
 
         if (a.getTables() != null) {
@@ -189,12 +261,80 @@ public class LegacyReportAdapter {
     }
 
     private static String buildActionTitle(LoadReportAction a) {
-        if (a.getAccession() != null && a.getGeneZdbID() != null) {
-            return a.getGeneZdbID() + " — " + a.getAccession();
+        String accession = nullIfPlaceholder(a.getAccession());
+        String geneZdbID = nullIfPlaceholder(a.getGeneZdbID());
+        if (accession != null && geneZdbID != null) {
+            return geneZdbID + " — " + accession;
         }
-        if (a.getAccession() != null) return a.getAccession();
-        if (a.getGeneZdbID() != null) return a.getGeneZdbID();
+        if (accession != null) return accession;
+        if (geneZdbID != null) return geneZdbID;
         return a.getSubType() != null ? a.getSubType() : "Item";
+    }
+
+    /** Treat empty/null/whitespace and "N/A" placeholders as absent. */
+    private static String nullIfPlaceholder(String s) {
+        if (s == null) return null;
+        String t = s.trim();
+        if (t.isEmpty() || "N/A".equalsIgnoreCase(t)) return null;
+        return s;
+    }
+
+    /**
+     * If {@code details} is a block of colon-aligned key/value lines like
+     * <pre>
+     * ZDB ID          : ZDB-GENE-050419-154
+     * Length          : 9069 -&gt; 9069
+     * </pre>
+     * convert it to a table. Lines containing {@code " -> "} produce
+     * Before/After columns; otherwise just Field/Value. Returns null if any
+     * non-blank line isn't k:v shaped — the caller should fall back to a
+     * plain body.
+     */
+    static ReportTable tryParseKeyValueTable(String details) {
+        if (details == null) return null;
+        List<String[]> rows = new ArrayList<>();
+        boolean anyArrow = false;
+        for (String rawLine : details.split("\\R", -1)) {
+            String trimmed = rawLine.trim();
+            if (trimmed.isEmpty()) continue;
+            int colon = rawLine.indexOf(':');
+            if (colon <= 0) return null;
+            String key = rawLine.substring(0, colon).trim();
+            String value = rawLine.substring(colon + 1).trim();
+            if (key.isEmpty()) return null;
+            String[] arrowSplit = value.split("\\s+->\\s+", 2);
+            if (arrowSplit.length == 2) {
+                anyArrow = true;
+                rows.add(new String[]{key, arrowSplit[0], arrowSplit[1]});
+            } else {
+                rows.add(new String[]{key, value, null});
+            }
+        }
+        if (rows.isEmpty()) return null;
+
+        ReportTable table = new ReportTable();
+        if (anyArrow) {
+            table.addColumn(ReportTable.Column.of("field",  "Field"));
+            table.addColumn(ReportTable.Column.of("before", "Before"));
+            table.addColumn(ReportTable.Column.of("after",  "After"));
+            for (String[] row : rows) {
+                Map<String, Object> r = new LinkedHashMap<>();
+                r.put("field",  row[0]);
+                r.put("before", row[1]);
+                r.put("after",  row[2] != null ? row[2] : "");
+                table.addRow(r);
+            }
+        } else {
+            table.addColumn(ReportTable.Column.of("field", "Field"));
+            table.addColumn(ReportTable.Column.of("value", "Value"));
+            for (String[] row : rows) {
+                Map<String, Object> r = new LinkedHashMap<>();
+                r.put("field", row[0]);
+                r.put("value", row[1]);
+                table.addRow(r);
+            }
+        }
+        return table;
     }
 
     private static Map<String, Map<String, List<LoadReportAction>>> groupActions(List<LoadReportAction> actions) {
