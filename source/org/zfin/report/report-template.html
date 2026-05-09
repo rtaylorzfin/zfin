@@ -337,13 +337,15 @@
         return anySet ? sum : null;
     }
 
-    // A node belongs in the tree if it has children, tables, or a body —
-    // i.e. it's a meaningful drill-down target. Pure leaves with only fields
-    // are filtered out so giant flat lists don't blow up the sidebar.
+    // A node belongs in the tree if it has children, tables, or an explicit
+    // count — i.e. it's a meaningful drill-down target. Body alone isn't enough
+    // (a body is a leaf-detail kind of thing); a 20k-leaf action tree would
+    // otherwise blow up the sidebar. Producers that want a body-only node
+    // visible in the tree can set count=N to opt in.
     function isStructural(node) {
         return (node.children && node.children.length > 0)
             || (node.tables   && node.tables.length   > 0)
-            || (node.body && node.body.content);
+            || node.count != null;
     }
 
     function sortByCategory(children, categoryDefs) {
