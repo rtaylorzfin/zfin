@@ -1348,12 +1348,13 @@ def copyWebAppFiles(String webappRoot) {
         include 'mchange-log.properties'
     }
 
-    // Copy Hibernate mappings and properties from source
+    // Copy Hibernate mappings, properties, and HTML templates from source
     copy {
         from 'source'
         into webappRoot + '/WEB-INF/classes'
         include '**/*.hbm.xml'
         include '**/*.properties'
+        include '**/*.html'
     }
 
     // Copy asset manifest from TARGETROOT
@@ -1461,6 +1462,17 @@ compileJava {
     options.fork = true
     options.forkOptions.memoryMaximumSize = '556m'
 }
+
+// Copy classpath-loaded templates next to their compiled consumers so they
+// resolve via getResourceAsStream from both the Ant DB_maintenance runtime
+// (which only has home/WEB-INF/classes on its classpath) and the deployed webapp.
+task copyClasspathTemplates(type: Copy) {
+    from('source') {
+        include '**/*.html'
+    }
+    into 'home/WEB-INF/classes'
+}
+compileJava.finalizedBy copyClasspathTemplates
 
 // ============================================================================
 // GWT COMPILATION TASKS
@@ -1590,7 +1602,7 @@ task npmBuild(type: Exec) {
 task dirtycopy {
     description = 'Incremental sync of classes, JSPs, and configs to Tomcat (no lib jars)'
     group = 'development'
-    dependsOn compileJava
+    dependsOn compileJava, copyClasspathTemplates
 
     def catBase = System.getenv('CATALINA_BASE') ?: '/opt/zfin/catalina_bases/zfin.org'
     def webappRoot = catBase + '/webapps/ROOT'
@@ -1601,6 +1613,7 @@ task dirtycopy {
     inputs.files fileTree('source') {
         include '**/*.hbm.xml'
         include '**/*.properties'
+        include '**/*.html'
     }
 
     doLast {
