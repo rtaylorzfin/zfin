@@ -1473,6 +1473,11 @@ task copyClasspathTemplates(type: Copy) {
     into 'home/WEB-INF/classes'
 }
 compileJava.finalizedBy copyClasspathTemplates
+// compileTestJava reads from home/WEB-INF/classes (the same dir that
+// copyClasspathTemplates writes into), so Gradle needs the dependency
+// declared explicitly. Same applies to test runtime / processTestResources.
+compileTestJava.dependsOn copyClasspathTemplates
+processTestResources.dependsOn copyClasspathTemplates
 
 // ============================================================================
 // GWT COMPILATION TASKS
