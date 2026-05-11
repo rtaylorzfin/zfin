@@ -36,7 +36,16 @@ public class GafReportBuilder {
     private static final String SCHEMA_COUNT       = "labelCount";
     private static final String SCHEMA_KV          = "keyValue";
 
-    /** Pulls key='value' pairs out of toString() blobs like GafEntry{...} or MarkerGoTermEvidence{...}. */
+    /**
+     * Pulls {@code key='value'} pairs out of toString() blobs like
+     * {@code GafEntry{...}} or {@code MarkerGoTermEvidence{...}}.
+     *
+     * <p>Assumes the producer toString()s don't embed escaped apostrophes in
+     * values (i.e. {@code name='O'Brien'} would terminate the value early and
+     * drop the rest of the row's fields). True for the two source classes
+     * today; if either ever quotes apostrophes in toString(), this needs a
+     * tolerant tokenizer instead.
+     */
     private static final Pattern KV_PATTERN = Pattern.compile("(\\w+)='([^']*)'");
 
     public Report build(String jobName,
@@ -45,10 +54,12 @@ public class GafReportBuilder {
                         GafJobData data,
                         GafErrorSummary errorSummary) {
 
+        // No subtitle: the renderer already formats createdAt locale-aware
+        // in the footer, so a server-locale Date.toString() above would be
+        // redundant noise.
         Report report = new Report()
             .meta(new Report.Meta()
                 .title(jobName + " — " + organization + " GAF Load")
-                .subtitle("Generated " + new java.util.Date().toString())
                 .createdAt(System.currentTimeMillis())
                 .schemaVersion("1"))
             .definitions(buildDefinitions());

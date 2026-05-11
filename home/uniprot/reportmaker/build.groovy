@@ -58,7 +58,10 @@ if (startIdx < 0 || endIdx < 0) {
     System.exit(3)
 }
 
-def json    = JsonOutput.prettyPrint(JsonOutput.toJson(data))
+// Escape "</" → "<\/" so any string in the data can't break out of the
+// surrounding <script> block (e.g. an error blob containing "</script>")
+// and can't reproduce our PLACEHOLDER_END sentinel. "<\/" is JSON-legal.
+def json    = JsonOutput.prettyPrint(JsonOutput.toJson(data)).replace('</', '<\\/')
 def payload = "${START}\n        window.REPORT_DATA = ${json};\n        "
 def out     = template.substring(0, startIdx) + payload + template.substring(endIdx)
 

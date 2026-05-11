@@ -230,20 +230,7 @@ public class GafLoadJob extends AbstractValidateDataReportTask {
                 logger.warn("Failed to generate error summary", ex);
             }
 
-            // Generate the HTML report viewer alongside the .txt files.
-            try {
-                File htmlReport = new File(new File(dataDirectory, jobName), jobName + ".html");
-                List<String> sources = organization.equals("GOA")
-                    ? List.of(downloadUrl, downloadUrl2, downloadUrl3)
-                    : List.of(downloadUrl);
-                Report report = new GafReportBuilder()
-                    .build(jobName, organization, sources, gafJobData, errorSummary);
-                new ReportWriter().write(report, htmlReport);
-                logger.info("HTML report written to: {}", htmlReport.getAbsolutePath());
-                System.out.println("HTML report written to: " + htmlReport.getAbsolutePath());
-            } catch (Exception ex) {
-                logger.warn("Failed to generate HTML report", ex);
-            }
+            writeHtmlReport(gafJobData, errorSummary);
 
             //throw an exception if parser encountered an error
             //do this at the end so the load works for records that are valid
@@ -338,6 +325,23 @@ public class GafLoadJob extends AbstractValidateDataReportTask {
         }
 
         HibernateUtil.flushAndCommitCurrentSession();
+    }
+
+    /** Generate the HTML report viewer alongside the .txt artifacts. */
+    private void writeHtmlReport(GafJobData gafJobData, GafErrorSummary errorSummary) {
+        try {
+            File htmlReport = new File(new File(dataDirectory, jobName), jobName + ".html");
+            List<String> sources = organization.equals("GOA")
+                ? List.of(downloadUrl, downloadUrl2, downloadUrl3)
+                : List.of(downloadUrl);
+            Report report = new GafReportBuilder()
+                .build(jobName, organization, sources, gafJobData, errorSummary);
+            new ReportWriter().write(report, htmlReport);
+            logger.info("HTML report written to: {}", htmlReport.getAbsolutePath());
+            System.out.println("HTML report written to: " + htmlReport.getAbsolutePath());
+        } catch (Exception ex) {
+            logger.warn("Failed to generate HTML report", ex);
+        }
     }
 
     private void addAnnotations(GafJobData gafJobData) {

@@ -1465,10 +1465,12 @@ compileJava {
 
 // Copy classpath-loaded templates next to their compiled consumers so they
 // resolve via getResourceAsStream from both the Ant DB_maintenance runtime
-// (which only has home/WEB-INF/classes on its classpath) and the deployed webapp.
+// (which only has home/WEB-INF/classes on its classpath) and the deployed
+// webapp. Scoped narrowly to the org.zfin.report package so unrelated HTML
+// assets dropped under source/ later don't silently land on the classpath.
 task copyClasspathTemplates(type: Copy) {
     from('source') {
-        include '**/*.html'
+        include 'org/zfin/report/*.html'
     }
     into 'home/WEB-INF/classes'
 }

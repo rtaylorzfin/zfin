@@ -44,8 +44,21 @@ import java.util.Set;
  */
 public class LegacyReportAdapter {
 
-    /** Above this size, related-actions edges aren't emitted for a key. */
+    /**
+     * Above this size, related-actions edges aren't emitted for a key.
+     * Edges grow O(N²) per key, and a "celebrity" gene shared by hundreds
+     * of actions would balloon the report; the user can still find those
+     * actions via the subType list. 50 keeps the typical case well-covered
+     * (the long tail of small clusters) without runaway HTML size.
+     */
     private static final int MAX_ACTIONS_PER_RELATED_KEY = 50;
+
+    /**
+     * Above this many k:v lines, the details parser bails out so a
+     * runaway/non-k:v body falls back to plain text rendering instead of
+     * producing a giant table.
+     */
+    private static final int MAX_KV_LINES = 1000;
 
     public Report adapt(ZfinReport legacy) {
         Report report = new Report()
@@ -138,13 +151,17 @@ public class LegacyReportAdapter {
                 keyToIds.computeIfAbsent(k, x -> new ArrayList<>()).add(id);
             }
         }
-        Set<String> seen = new HashSet<>();
+        // Tuple-based dedup so two ids that happen to contain the same
+        // separator characters can't collide with a different pair.
+        Set<Map.Entry<String, String>> seen = new HashSet<>();
         for (List<String> ids : keyToIds.values()) {
             if (ids.size() < 2 || ids.size() > MAX_ACTIONS_PER_RELATED_KEY) continue;
             for (int i = 0; i < ids.size(); i++) {
                 for (int j = i + 1; j < ids.size(); j++) {
                     String a = ids.get(i), b = ids.get(j);
-                    String pair = a.compareTo(b) < 0 ? a + "::" + b : b + "::" + a;
+                    Map.Entry<String, String> pair = a.compareTo(b) < 0
+                        ? Map.entry(a, b)
+                        : Map.entry(b, a);
                     if (seen.add(pair)) {
                         report.addEdge(a, b, "related");
                     }
@@ -309,6 +326,7 @@ public class LegacyReportAdapter {
             } else {
                 rows.add(new String[]{key, value, null});
             }
+            if (rows.size() > MAX_KV_LINES) return null;
         }
         if (rows.isEmpty()) return null;
 

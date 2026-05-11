@@ -385,7 +385,12 @@
 
     function csvEscape(v) {
         const s = (v == null) ? '' : String(v);
-        return /[",\n]/.test(s) ? '"' + s.replace(/"/g, '""') + '"' : s;
+        // Defuse CSV formula injection: values starting with =, +, -, @, tab or CR
+        // get interpreted as formulas by Excel/Sheets. Prepend a single quote so
+        // the spreadsheet renders them as literal text.
+        const needsFormulaGuard = /^[=+\-@\t\r]/.test(s);
+        const guarded = needsFormulaGuard ? "'" + s : s;
+        return /[",\n]/.test(guarded) ? '"' + guarded.replace(/"/g, '""') + '"' : guarded;
     }
 
     function downloadCsv(columns, rows, filename) {

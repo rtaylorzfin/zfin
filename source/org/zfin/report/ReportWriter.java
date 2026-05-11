@@ -55,7 +55,11 @@ public class ReportWriter {
             throw new IOException("Template missing " + PLACEHOLDER_START + " / "
                 + PLACEHOLDER_END + " markers.");
         }
-        String json = mapper.writeValueAsString(report);
+        // Escape "</" → "<\/" so user-controlled strings can't break out of the
+        // surrounding <script> block (e.g. an error blob containing "</script>")
+        // and so the inlined JSON can't accidentally reproduce our PLACEHOLDER_END
+        // sentinel. "<\/" is a JSON-legal escape that decodes back to "</".
+        String json = mapper.writeValueAsString(report).replace("</", "<\\/");
         String payload = PLACEHOLDER_START
             + "\n        window.REPORT_DATA = " + json + ";\n        ";
         return template.substring(0, start) + payload + template.substring(end);
