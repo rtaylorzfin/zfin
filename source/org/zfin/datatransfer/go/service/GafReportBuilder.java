@@ -310,7 +310,7 @@ public class GafReportBuilder {
     }
 
     /** Extracts key='value' pairs from the GafEntry{...} or MarkerGoTermEvidence{...} blob inside a message. */
-    private static Map<String, String> parseEntryFields(String message) {
+    static Map<String, String> parseEntryFields(String message) {
         Map<String, String> out = new LinkedHashMap<>();
         int gafIdx  = message.indexOf("GafEntry{");
         int mgteIdx = message.indexOf("MarkerGoTermEvidence{");
