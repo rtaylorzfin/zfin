@@ -2,16 +2,26 @@
   "manifest_version": 3,
   "name": "ZFIN Helper",
   "version": "0.1.0",
-  "description": "Quick utilities for ZFIN sites: command palette, login auto-fill, and cross-environment navigation.",
+  "description": "Quick utilities for ZFIN sites: command palette and cross-environment navigation.",
   "minimum_chrome_version": "102",
   "permissions": ["storage"],
-  "host_permissions": ["*://zfin.org/*", "*://*.zfin.org/*"],
+  "host_permissions": [
+    "*://zfin.org/*",
+    "*://*.zfin.org/*",
+    "*://localhost/*",
+    "*://zfin.atlassian.net/*"
+  ],
   "background": {
     "service_worker": "background.js"
   },
   "content_scripts": [
     {
-      "matches": ["*://zfin.org/*", "*://*.zfin.org/*"],
+      "matches": [
+        "*://zfin.org/*",
+        "*://*.zfin.org/*",
+        "*://localhost/*",
+        "*://zfin.atlassian.net/*"
+      ],
       "js": ["content.js"],
       "run_at": "document_idle",
       "all_frames": false
@@ -26,8 +36,8 @@
   "commands": {
     "open-helper": {
       "suggested_key": {
-        "default": "Ctrl+K",
-        "mac": "Command+K"
+        "default": "Ctrl+Period",
+        "mac": "Command+Period"
       },
       "description": "Open ZFIN Helper"
     }

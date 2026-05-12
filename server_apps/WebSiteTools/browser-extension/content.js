@@ -7,6 +7,7 @@
     "trunk.zfin.org",
     "test.zfin.org",
     "schlapp.zfin.org",
+    "franklin.zfin.org",
     "zfin.org",
   ];
 
@@ -15,7 +16,6 @@
 
   let host = null;
   let root = null;
-  let currentCreds = null;
   let envCache = DEFAULT_ENV_HOSTS.slice();
   let envEditMode = false;
   let pagesCache = [];
@@ -110,22 +110,18 @@
           display: flex; align-items: center; justify-content: space-between;
           gap: 8px; margin-bottom: 8px;
         }
+        .header-buttons { display: flex; gap: 4px; }
         h2 {
           margin: 0; font-size: 12px; text-transform: uppercase;
           letter-spacing: 0.04em; color: #475569; font-weight: 600;
         }
-        label.field {
-          display: block; font-size: 12px; color: #475569; margin-top: 6px;
-        }
-        input[type=text], input[type=password] {
+        input[type=text] {
           width: 100%; box-sizing: border-box;
           padding: 7px 9px; font-size: 14px;
           border: 1px solid #cbd5e1; border-radius: 6px;
           background: #f8fafc;
         }
         input:focus { outline: 2px solid #0ea5e9; border-color: #0ea5e9; background: white; }
-        .row { display: flex; gap: 8px; align-items: center; flex-wrap: wrap; }
-        .row.mt { margin-top: 10px; }
         button {
           font: inherit; font-size: 13px; cursor: pointer;
           padding: 6px 10px; border-radius: 6px;
@@ -136,8 +132,6 @@
         button[disabled] { opacity: 0.5; cursor: default; }
         button.primary { background: #0ea5e9; color: white; border-color: #0284c7; }
         button.primary:hover:not([disabled]) { background: #0284c7; }
-        button.danger { background: white; color: #b91c1c; border-color: #fecaca; }
-        button.danger:hover:not([disabled]) { background: #fef2f2; }
         button.ghost { background: transparent; border-color: transparent; color: #475569; padding: 4px 8px; font-size: 12px; }
         button.ghost:hover:not([disabled]) { background: #f1f5f9; }
         kbd {
@@ -155,16 +149,6 @@
           background: rgba(255,255,255,0.18);
           border-color: rgba(255,255,255,0.35);
           color: white;
-        }
-        .login-summary {
-          display: flex; align-items: center; gap: 10px;
-          font-size: 13px; color: #0f172a;
-        }
-        .login-summary .badge {
-          display: inline-flex; align-items: center; gap: 6px;
-          padding: 3px 10px; border-radius: 999px;
-          background: #ecfdf5; color: #047857;
-          font-size: 12px; font-weight: 500;
         }
         .input-with-kbd {
           display: flex; align-items: stretch; gap: 6px;
@@ -235,11 +219,6 @@
           display: flex; align-items: center; gap: 6px; flex-wrap: wrap;
         }
         .actions-row { display: flex; gap: 8px; flex-wrap: wrap; }
-        .status {
-          margin-top: 8px; font-size: 12px; color: #475569; min-height: 1em;
-        }
-        .status.ok { color: #047857; }
-        .status.err { color: #b91c1c; }
         .close {
           background: transparent; border: 0; color: white;
           font-size: 18px; cursor: pointer; padding: 0 4px; line-height: 1;
@@ -256,34 +235,6 @@
 
           <div class="body">
             <section>
-              <h2>Login auto-fill</h2>
-
-              <div id="zh-collapsed" hidden>
-                <div class="login-summary">
-                  <span class="badge">Saved as <strong id="zh-user-display"></strong></span>
-                </div>
-                <div class="row mt">
-                  <button class="primary" id="zh-fill"><span>Fill + sign in</span><kbd>F</kbd></button>
-                  <button id="zh-edit"><span>Edit</span><kbd>E</kbd></button>
-                  <button class="danger" id="zh-clear"><span>Forget</span><kbd>X</kbd></button>
-                </div>
-              </div>
-
-              <div id="zh-expanded">
-                <label class="field" for="zh-user">Username</label>
-                <input id="zh-user" type="text" autocomplete="off" spellcheck="false">
-                <label class="field" for="zh-pass">Password</label>
-                <input id="zh-pass" type="password" autocomplete="off">
-                <div class="row mt">
-                  <button class="primary" id="zh-save"><span>Save for session</span><kbd>↵</kbd></button>
-                  <button id="zh-cancel" hidden><span>Cancel</span><kbd>esc</kbd></button>
-                </div>
-              </div>
-
-              <div class="status" id="zh-cred-status"></div>
-            </section>
-
-            <section>
               <h2>Quick actions</h2>
               <div class="actions-row">
                 <button id="zh-go-case"><span>Go to case</span><kbd>C</kbd></button>
@@ -294,7 +245,10 @@
             <section>
               <div class="section-header">
                 <h2>Recent pages</h2>
-                <button class="ghost" id="zh-pages-clear">Clear</button>
+                <div class="header-buttons">
+                  <button class="ghost" id="zh-pages-export">Export</button>
+                  <button class="ghost" id="zh-pages-clear">Clear</button>
+                </div>
               </div>
               <div class="input-with-kbd">
                 <input id="zh-pages-filter" type="text" autocomplete="off" spellcheck="false" placeholder="Filter recent pages…">
@@ -331,19 +285,13 @@
       if (e.target === backdrop) hideUI();
     });
     root.querySelector(".close").addEventListener("click", hideUI);
-    root.querySelector("#zh-save").addEventListener("click", () => saveCreds());
-    root.querySelector("#zh-fill").addEventListener("click", () => fillLogin({ showFeedback: true, submit: true }));
-    root.querySelector("#zh-clear").addEventListener("click", () => clearCreds());
-    root.querySelector("#zh-edit").addEventListener("click", () => expandLogin());
-    root.querySelector("#zh-cancel").addEventListener("click", () => {
-      if (currentCreds) collapseLogin();
-    });
     root.querySelector("#zh-go-case").addEventListener("click", () => goToCase());
     root.querySelector("#zh-go-gene").addEventListener("click", () => goToGene());
 
     root.querySelector("#zh-pages-filter").addEventListener("input", () => renderPages());
     root.querySelector("#zh-pages-filter").addEventListener("keydown", onPagesFilterKey);
     root.querySelector("#zh-pages-clear").addEventListener("click", clearPages);
+    root.querySelector("#zh-pages-export").addEventListener("click", exportPages);
 
     root.querySelector("#zh-env-edit-toggle").addEventListener("click", toggleEnvEdit);
     root.querySelector("#zh-env-add-btn").addEventListener("click", () => addEnv(root.querySelector("#zh-env-add-input").value));
@@ -509,6 +457,20 @@
     renderPages();
   }
 
+  function exportPages() {
+    const pages = pagesCache || [];
+    const blob = new Blob([JSON.stringify(pages, null, 2)], { type: "application/json" });
+    const url = URL.createObjectURL(blob);
+    const stamp = new Date().toISOString().slice(0, 10);
+    const a = document.createElement("a");
+    a.href = url;
+    a.download = `zfin-helper-pages-${stamp}.json`;
+    document.body.appendChild(a);
+    a.click();
+    a.remove();
+    setTimeout(() => URL.revokeObjectURL(url), 1000);
+  }
+
   async function pushPageHistory(entry) {
     if (!entry?.url) return;
     const list = await getStored("recentPages", []);
@@ -524,45 +486,15 @@
     if (root) renderPages();
   }
 
-  function expandLogin() {
-    root.querySelector("#zh-collapsed").hidden = true;
-    root.querySelector("#zh-expanded").hidden = false;
-    root.querySelector("#zh-cancel").hidden = !currentCreds;
-    if (currentCreds) {
-      root.querySelector("#zh-user").value = currentCreds.username || "";
-      root.querySelector("#zh-pass").value = currentCreds.password || "";
-    }
-    setTimeout(() => {
-      const u = root.querySelector("#zh-user");
-      (u.value ? root.querySelector("#zh-pass") : u).focus();
-    }, 0);
-  }
-
-  function collapseLogin() {
-    if (!currentCreds) {
-      expandLogin();
-      return;
-    }
-    root.querySelector("#zh-user-display").textContent = currentCreds.username;
-    root.querySelector("#zh-collapsed").hidden = false;
-    root.querySelector("#zh-expanded").hidden = true;
-    setTimeout(() => root.querySelector(".panel").focus(), 0);
-  }
-
   async function showUI() {
     ensureUI();
     host.style.display = "block";
     await Promise.all([loadEnvs(), loadPages()]);
-    currentCreds = await sendMessage({ type: "get-credentials" });
     renderEnvList();
     renderPages();
-    if (currentCreds) {
-      collapseLogin();
-      setStatus("", "");
-    } else {
-      expandLogin();
-      setStatus("No credentials stored for this browser session.", "");
-    }
+    // Pull focus off the omnibox / prior page element so keyboard shortcuts
+    // (C, G, R, 1-9, Esc) reach the panel immediately.
+    root.querySelector(".panel")?.focus();
   }
 
   function hideUI() {
@@ -578,95 +510,6 @@
     if (!ae) return false;
     const t = ae.tagName;
     return t === "INPUT" || t === "TEXTAREA";
-  }
-
-  function setStatus(text, kind) {
-    const el = root.querySelector("#zh-cred-status");
-    el.textContent = text;
-    el.className = "status" + (kind ? " " + kind : "");
-  }
-
-  async function saveCreds() {
-    const username = root.querySelector("#zh-user").value.trim();
-    const password = root.querySelector("#zh-pass").value;
-    if (!username || !password) {
-      setStatus("Enter both a username and password.", "err");
-      return;
-    }
-    const result = await sendMessage({ type: "set-credentials", username, password });
-    if (!result || !result.ok) {
-      setStatus(
-        "Could not save credentials. The extension may need to be reloaded — try chrome://extensions, click reload, then refresh this page.",
-        "err",
-      );
-      return;
-    }
-    currentCreds = { username, password };
-    collapseLogin();
-    setStatus("Saved for this browser session.", "ok");
-  }
-
-  async function clearCreds() {
-    await sendMessage({ type: "clear-credentials" });
-    currentCreds = null;
-    root.querySelector("#zh-user").value = "";
-    root.querySelector("#zh-pass").value = "";
-    expandLogin();
-    setStatus("Credentials forgotten.", "ok");
-  }
-
-  async function fillLogin({ showFeedback = false, submit = false } = {}) {
-    const form = findLoginForm();
-    if (!form) {
-      if (showFeedback) setStatus("No login form on this page.", "err");
-      return false;
-    }
-    let creds = currentCreds;
-    if (!creds || !creds.username || !creds.password) {
-      creds = await sendMessage({ type: "get-credentials" });
-    }
-    if (!creds || !creds.username || !creds.password) {
-      if (showFeedback) setStatus("No credentials saved yet.", "err");
-      return false;
-    }
-    setNativeValue(form.username, creds.username);
-    setNativeValue(form.password, creds.password);
-    if (submit) {
-      hideUI();
-      const submitBtn = form.form?.querySelector('button[type="submit"], input[type="submit"]');
-      if (submitBtn) submitBtn.click();
-      else if (form.form?.requestSubmit) form.form.requestSubmit();
-      else form.form?.submit();
-    } else if (showFeedback) {
-      setStatus("Login form filled.", "ok");
-    }
-    return true;
-  }
-
-  function findLoginForm() {
-    const password = document.querySelector('input[type="password"]');
-    if (!password) return null;
-    const form = password.form;
-    let username =
-      form?.querySelector('input[name="username"], input[name="j_username"], input[type="email"]') ||
-      document.querySelector('input[name="username"]');
-    if (!username) {
-      const candidates = form
-        ? form.querySelectorAll('input[type="text"], input:not([type])')
-        : document.querySelectorAll('input[type="text"], input:not([type])');
-      username = candidates[0] || null;
-    }
-    if (!username) return null;
-    return { username, password, form };
-  }
-
-  function setNativeValue(input, value) {
-    const proto = Object.getPrototypeOf(input);
-    const setter = Object.getOwnPropertyDescriptor(proto, "value")?.set;
-    if (setter) setter.call(input, value);
-    else input.value = value;
-    input.dispatchEvent(new Event("input", { bubbles: true }));
-    input.dispatchEvent(new Event("change", { bubbles: true }));
   }
 
   async function goToCase() {
@@ -694,24 +537,11 @@
     location.href = url;
   }
 
-  function sendMessage(msg) {
-    return new Promise((resolve) => {
-      try {
-        chrome.runtime.sendMessage(msg, (response) => {
-          if (chrome.runtime.lastError) resolve(null);
-          else resolve(response);
-        });
-      } catch {
-        resolve(null);
-      }
-    });
-  }
-
   document.addEventListener(
     "keydown",
     (e) => {
       const isToggle =
-        (e.metaKey || e.ctrlKey) && !e.altKey && !e.shiftKey && e.key.toLowerCase() === "k";
+        (e.metaKey || e.ctrlKey) && !e.altKey && !e.shiftKey && e.key === ".";
       if (isToggle) {
         e.preventDefault();
         e.stopPropagation();
@@ -738,10 +568,7 @@
       if (focusedInPanelInput()) {
         if (e.key === "Enter") {
           const ae = root.activeElement;
-          if (ae?.id === "zh-user" || ae?.id === "zh-pass") {
-            e.preventDefault();
-            saveCreds();
-          } else if (ae?.id === "zh-env-add-input") {
+          if (ae?.id === "zh-env-add-input") {
             e.preventDefault();
             addEnv(ae.value);
           }
@@ -750,18 +577,14 @@
       }
 
       const k = e.key.toLowerCase();
-      const collapsed = !root.querySelector("#zh-collapsed").hidden;
-
-      if (collapsed && k === "f") { e.preventDefault(); fillLogin({ showFeedback: true, submit: true }); return; }
-      if (collapsed && k === "e") { e.preventDefault(); expandLogin(); return; }
-      if (collapsed && k === "x") { e.preventDefault(); clearCreds(); return; }
 
       if (k === "c") { e.preventDefault(); goToCase(); return; }
       if (k === "g") { e.preventDefault(); goToGene(); return; }
       if (k === "r") { e.preventDefault(); root.querySelector("#zh-pages-filter").focus(); return; }
 
-      if (/^[1-9]$/.test(e.key)) {
-        const idx = parseInt(e.key, 10) - 1;
+      const digitMatch = /^Digit([1-9])$/.exec(e.code);
+      if (digitMatch) {
+        const idx = parseInt(digitMatch[1], 10) - 1;
         const target = envCache && envCache[idx];
         if (!target || target === location.host.toLowerCase()) return;
         e.preventDefault();
@@ -783,12 +606,6 @@
     return false;
   });
 
-  function isLoginPage() {
-    if (/\/(login|sign[- ]?in)/i.test(location.pathname)) return true;
-    const form = document.querySelector('form#login, form[action*="j_security-check"]');
-    return !!form;
-  }
-
   function shouldRecordCurrentPage() {
     if (/\/(login|j_security[_-]check)/i.test(location.pathname)) return false;
     return true;
@@ -805,9 +622,6 @@
   // the user never opens the helper before navigating.
   loadEnvs();
 
-  if (isLoginPage()) {
-    setTimeout(() => fillLogin({ showFeedback: false, submit: false }), 150);
-  }
   // Record immediately at content-script-idle so fast navigations still capture.
   recordCurrentPage();
   // And once more after a short delay in case the page sets its title late.
