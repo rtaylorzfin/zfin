@@ -159,6 +159,7 @@ public class LegacyReportAdapter {
             for (int i = 0; i < ids.size(); i++) {
                 for (int j = i + 1; j < ids.size(); j++) {
                     String a = ids.get(i), b = ids.get(j);
+                    if (a.equals(b)) continue;
                     Map.Entry<String, String> pair = a.compareTo(b) < 0
                         ? Map.entry(a, b)
                         : Map.entry(b, a);

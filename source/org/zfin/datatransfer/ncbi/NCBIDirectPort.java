@@ -4073,7 +4073,7 @@ public class NCBIDirectPort extends AbstractScriptWrapper {
         try {
             org.zfin.report.Report adapted = new org.zfin.report.LegacyReportAdapter().adapt(legacy);
             String html = new org.zfin.report.ReportWriter().render(adapted);
-            FileUtils.writeStringToFile(reportFile, html);
+            FileUtils.writeStringToFile(reportFile, html, StandardCharsets.UTF_8);
             writeToFileOrZip(new File(workingDir, "ncbi_report.html.zip"), html, "UTF-8");
             // Reports for big loads can run into the tens of MB; once we have the .zip,
             // discard the raw .html if it's larger than the cap.

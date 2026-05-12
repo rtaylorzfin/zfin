@@ -320,13 +320,6 @@
         return path;
     }
 
-    function countDescendants(node) {
-        if (!node || !node.children) return 0;
-        let n = node.children.length;
-        for (const c of node.children) n += countDescendants(c);
-        return n;
-    }
-
     // Use the node's explicit count if set; otherwise sum the explicit counts
     // of descendants. Returns null if no count info is available, so the renderer
     // can suppress the parenthetical entirely.

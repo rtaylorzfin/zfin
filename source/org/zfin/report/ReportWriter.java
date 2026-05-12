@@ -50,10 +50,10 @@ public class ReportWriter {
 
     private String inlineInto(Report report, String template) throws IOException {
         int start = template.indexOf(PLACEHOLDER_START);
-        int end   = template.indexOf(PLACEHOLDER_END);
+        int end   = start < 0 ? -1 : template.indexOf(PLACEHOLDER_END, start);
         if (start < 0 || end < 0) {
             throw new IOException("Template missing " + PLACEHOLDER_START + " / "
-                + PLACEHOLDER_END + " markers.");
+                + PLACEHOLDER_END + " markers (or end precedes start).");
         }
         // Escape "</" → "<\/" so user-controlled strings can't break out of the
         // surrounding <script> block (e.g. an error blob containing "</script>")

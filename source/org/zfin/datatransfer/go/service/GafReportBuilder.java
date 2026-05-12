@@ -92,7 +92,7 @@ public class GafReportBuilder {
             .field("markerName",   Report.FieldDef.text("Gene"))
             .field("zdbID",        Report.FieldDef.link("ZDB ID", "https://zfin.org/{value}"))
             .field("publication",  Report.FieldDef.link("Publication", "https://zfin.org/{value}"))
-            .field("goTermID",     Report.FieldDef.link("GO term ID", "http://amigo.geneontology.org/amigo/term/{value}"))
+            .field("goTermID",     Report.FieldDef.link("GO term ID", "https://amigo.geneontology.org/amigo/term/{value}"))
             .field("uniprot",      Report.FieldDef.link("UniProt", "https://www.uniprot.org/uniprotkb/{value}"))
             .field("count",        Report.FieldDef.number("Count"))
 
