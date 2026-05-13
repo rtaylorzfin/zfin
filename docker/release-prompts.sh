@@ -2,21 +2,51 @@
 
 # Interactive ZFIN release driver. Walks through deployment steps with
 # forward/back navigation so you can re-run a step without restarting.
+# Auto-wraps in a screen session and a `script` typescript recording.
+# Set NO_SCREEN=1 or NO_SCRIPT=1 to opt out of either wrapper
+# (e.g. on macOS where `script` flags differ).
 
 cmprun() {
     docker compose run --rm compile bash -lc "$1"
 }
 
-read -rp "Release number (e.g. 1234): " RELEASE
-read -rp "Deploy dir (e.g. /opt/zfin/source_roots/test/zfin/docker): " DEPLOY_DIR
+SCRIPT_PATH="$(cd "$(dirname "${BASH_SOURCE[0]}")" && pwd)/$(basename "${BASH_SOURCE[0]}")"
+LOG_DIR=/research/zusers/informix/release-logs
 
-if [ -z "$RELEASE" ] || [ -z "$DEPLOY_DIR" ]; then
-    echo "Both release number and deploy dir are required."
-    exit 1
+if [ -z "$RELEASE_PROMPTS_INPUTS" ]; then
+    read -rp "Release number (e.g. 1234): " RELEASE
+    read -rp "Deploy dir (e.g. /opt/zfin/source_roots/test/zfin/docker): " DEPLOY_DIR
+
+    if [ -z "$RELEASE" ] || [ -z "$DEPLOY_DIR" ]; then
+        echo "Both release number and deploy dir are required."
+        exit 1
+    fi
+
+    export RELEASE DEPLOY_DIR
+    export RELEASE_PROMPTS_INPUTS=1
+fi
+
+if [ -z "$STY" ] && [ -z "$NO_SCREEN" ]; then
+    if ! command -v screen >/dev/null; then
+        echo "screen not found. Install it or rerun with NO_SCREEN=1." >&2
+        exit 1
+    fi
+    echo "Launching screen session 'release-$RELEASE' (detach with Ctrl-A d)..."
+    exec screen -S "release-$RELEASE" "$SCRIPT_PATH"
+fi
+
+if [ -z "$RELEASE_PROMPTS_RECORDING" ] && [ -z "$NO_SCRIPT" ]; then
+    if ! command -v script >/dev/null; then
+        echo "script not found. Install util-linux or rerun with NO_SCRIPT=1." >&2
+        exit 1
+    fi
+    mkdir -p "$LOG_DIR"
+    export RELEASE_PROMPTS_RECORDING=1
+    echo "Recording session to $LOG_DIR/$RELEASE (timing $LOG_DIR/$RELEASE.timing)..."
+    exec script --timing="$LOG_DIR/$RELEASE.timing" "$LOG_DIR/$RELEASE" -c "$SCRIPT_PATH"
 fi
 
 labels=(
-    "Begin release process. Run inside a screen session. Started: script --timing=/research/zusers/informix/release-logs/$RELEASE.timing /research/zusers/informix/release-logs/$RELEASE ?"
     "cd $DEPLOY_DIR"
     "docker compose down jenkins"
     "cmprun 'git status'"
@@ -45,7 +75,6 @@ labels=(
 )
 
 commands=(
-    ""
     "cd \"$DEPLOY_DIR\""
     "docker compose down jenkins"
     "cmprun 'git status'"
