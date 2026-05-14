@@ -1,0 +1,462 @@
+Give me some advice. The hosted application at https://cell.zfin.org/action/zirc/dashboard has the new feature of accepting line submissions. It contains all the features we require at this point. However, I want to consider the possibility of a better architectural approach. If we start with the base of what is available in /Users/ryan/dev/worktree/zirc-submission-prelude which has database entities mapped out, can you use blackbox-style testing/exploring of cell.zfin.org/action/zirc/dashboard and come up with a plan and architecture for how you would implement the application. Please prioritize clean architecture--readability, maintainability, testability, etc. If there are libraries or tools or practices that would help accomplish those goals, we should take advantage of them.
+3:29 PM
+
+I’ll treat this as two tracks: first learn the existing codebase shape, then explore the hosted flow as a user without making irreversible changes. After that I’ll synthesize an implementation architecture, with the current app as the behavioral reference rather than the code template.
+
+
+Explored 2 files, 1 search, 1 list
+The repo looks like the main ZFIN Java/Spring app with a modern React/Webpack island setup. I’ve only found the feature flag so far, so I’m narrowing the search to the new domain classes, schema, controllers, and JSP/React entry points rather than scanning the whole monolith.
+
+
+Explored 3 searches, 3 lists
+Important discovery: the current local controller has a “create-on-render” path for new submissions. That means simply opening the new-submission URL may persist an empty row, so I’m going to avoid mutating the hosted account unless you explicitly want me to create a draft.
+
+
+Explored 6 files, 2 searches, 1 list
+Feel free to make changes -- even destructive changes -- on cell.zfin.org. It is a dev site.
+3:31 PM
+
+
+Worked for 2m 25s
+My advice: keep the database model from zirc-submission-prelude, but do not build the application around the current prelude controller style. The hosted app’s behavior is better than the prelude in one key way: it creates the LineSubmission on first save, not on page render. I’d preserve that.
+
+What I Observed
+The hosted flow has:
+
+Dashboard with active/closed submissions.
+New submission page with autosave-like behavior.
+First saved field creates ZDB-LINESUBMISSION-260514-1.
+Mutation creation routes to /action/zirc/mutation/1/edit.
+Sections: overview, acceptance reasons, mutations, linked features, background, additional info.
+Mutation sections: general, genes, lesions, genotyping assays, phenotypes, lethality, publications.
+Child rows are edited inline in section-based forms.
+The prelude has strong entity/schema groundwork in:
+
+/Users/ryan/dev/worktree/zirc-submission-prelude/source/org/zfin/zirc/entity
+/Users/ryan/dev/worktree/zirc-submission-prelude/source/org/zfin/db/postGmakePostloaddb/1182/migrations/zirc-line-submission.sql
+But its controller at /Users/ryan/dev/worktree/zirc-submission-prelude/source/org/zfin/zirc/presentation/ZircDashboardController.java is too much direct HibernateUtil, manual transactions, and presentation-specific persistence logic.
+
+Recommended Architecture
+Use a boring, clean layered module inside the existing monolith:
+
+org.zfin.zirc
+  entity/          JPA entities only
+  repository/      Hibernate queries, no business rules
+  service/         transactions, lifecycle, validation, ownership
+  dto/             request/response models for JSON
+  validation/      domain validators and field rules
+  presentation/    MVC page controllers
+  api/             JSON API controllers
+The core idea: treat LineSubmission as the aggregate root. Mutations, genes, lesions, assays, phenotypes, linked features, and people are edited through service methods that enforce aggregate invariants.
+
+Examples:
+
+LineSubmissionService
+  createDraftForCurrentUser()
+  updateOverview(id, OverviewCommand)
+  updateAcceptanceReasons(id, ReasonsCommand)
+  submit(id)
+  softDelete(id)
+
+MutationService
+  addMutation(submissionId)
+  updateGeneral(mutationId, MutationGeneralCommand)
+  removeMutation(mutationId)
+
+GenotypingAssayService
+  addAssay(mutationId)
+  uploadAssayFile(assayId, file, currentUser)
+API Shape
+Prefer resource endpoints over update-field string dispatch:
+
+POST   /action/api/zirc/line-submissions
+GET    /action/api/zirc/line-submissions/{id}
+PATCH  /action/api/zirc/line-submissions/{id}/overview
+PATCH  /action/api/zirc/line-submissions/{id}/background
+PATCH  /action/api/zirc/line-submissions/{id}/acceptance-reasons
+POST   /action/api/zirc/line-submissions/{id}/mutations
+PATCH  /action/api/zirc/mutations/{id}/general
+POST   /action/api/zirc/mutations/{id}/genes
+POST   /action/api/zirc/mutations/{id}/lesions
+POST   /action/api/zirc/mutations/{id}/genotyping-assays
+POST   /action/api/zirc/mutations/{id}/phenotypes
+MVC controllers should only render shells/JSPs and pass initial IDs. React should call JSON APIs.
+
+Frontend
+I’d build the edit UI as one React feature folder, not scattered JSP/jQuery:
+
+home/javascript/react/zirc/
+  api/
+  components/
+  forms/
+  pages/
+  types/
+  validation/
+Use TypeScript for this feature. For form state, I’d strongly consider React Hook Form plus Zod or Valibot. It would make conditional fields, autosave, and validation much cleaner than hand-rolled input wiring. Autosave should be debounced and section-scoped, with explicit states: Unsaved, Saving, Saved, Error.
+
+Practices I’d Prioritize
+
+First save creates draft, not page render.
+Soft delete for drafts and submissions.
+Typed enums/constants for option values instead of loose strings.
+Server-side validation as the source of truth.
+UI validation mirrors server rules, but never replaces them.
+One transaction per service operation.
+DTOs instead of exposing JPA entities to JSON.
+Integration tests for services and repositories.
+Playwright blackbox tests for the hosted workflows.
+Fixtures/builders for line submissions, mutations, assays, and phenotypes.
+Biggest Architectural Change
+Move away from “field name + value” updates. They are convenient early, but they age poorly: hard to validate, hard to type, hard to test, and easy to couple to UI labels. Section-level commands are a better midpoint: still simple for autosave, but coherent enough to validate and evolve.
+
+I’d use the prelude schema/entities as the foundation, then replace the controller-first implementation with a service/API-driven one. That gives you the hosted app’s current functionality, but with much better seams for tests, validation, workflow, and future curator-facing features.
+
+
+
+
+
+3:33 PM
+Can you explore the application more -- paying attention to the behavior when you select different types under genotyping assays or phenotypes? Also, look at the autocomplete fields. The linked features UI is buggy, but you can probably glean its intended use by looking at it too. When you are done, create some specs for how you would direct a team to implement it.
+3:38 PM
+
+
+Worked for 3m 57s
+I explored the hosted flow more deeply using the dev draft ZDB-LINESUBMISSION-260514-1.
+
+Key Findings
+Genotyping assays are type-driven. The assay type controls both the form fields and upload bucket:
+
+PCR + gel electrophoresis: forward/reverse primers, WT/MUT PCR products, annotated gel images.
+PCR + sequencing: shared PCR fields, sequencing primer, chromatograms.
+RFLP: shared PCR fields, restriction enzyme name/catalog, WT/MUT cleavage checkboxes, WT/MUT digest products, annotated gel images.
+dCAPS: RFLP fields plus primer with introduced mismatch.
+ASA: WT/MUT PCR products, WT-specific primer, MUT-specific primer, common primer, annotated result images.
+KASP: ASA fields plus genomic DNA sequence for KASP design.
+HRMA: forward/reverse primers, WT/MUT PCR products, annotated melt curve files.
+SSLP: forward/reverse primers, annotated gel images, marker name, marker distance, marker genomic location, induced/outcrossed backgrounds, induced/outcrossed PCR products.
+Phenotypes are currently simpler: description, hpf/dpf timing unit, start/end, ZFIN image permission, ZIRC image permission, non-Mendelian percentage/comment, segregation CSV, phenotype type CSV. I would replace the CSV fields with structured multi-select/chip controls.
+
+Autocomplete behavior:
+
+Gene autocomplete searches ZFIN genes and shows symbol (ZDB-GENE-...).
+Selecting a gene writes the canonical symbol and displays/stores the ZDB ID.
+“Allele in ZFIN = Yes” converts allele designation into a ZFIN feature autocomplete.
+“Allele in ZFIN = No” behaves like free-text allele designation.
+The autocomplete contract should return { label, displayName, zdbID, type }.
+Linked features intent is clear despite the buggy UI: once there are at least two mutations, the section allows selecting Mutation A, Mutation B, whether distance is known, and additional info. From the schema, “distance known” should reveal distance in centimorgans and/or megabases. The form currently disappears after interacting with one selector, so I’d treat that as a React state/render bug around incomplete linked-feature drafts.
+
+Implementation Specs
+
+Build LineSubmission as the aggregate root. Mutations, linked features, people, and submission-level fields belong to this aggregate.
+Build Mutation as a child aggregate boundary for nested gene, lesion, assay, phenotype, lethality, and publication edits.
+Use draft creation on first save, not page render.
+Use section-level APIs, not generic field/value endpoints.
+Use typed DTOs for every save command.
+Validate on both client and server, with server validation authoritative.
+Autosave should be debounced per section and show Saving, Saved, and Error.
+Child rows should support Add, Done, Remove, and preserve unsaved local state until committed.
+Dynamic assay fields should be generated from a single assay-type field definition table.
+Hidden fields from a previous assay type should either be cleared intentionally or retained but ignored by validation; choose one and document it. I prefer clearing on type change after confirmation if dirty.
+File uploads should be type-aware and stored under assay-specific file kinds: gel_image, chromatogram, result_image, melt_curve.
+Phenotype timing should store canonical hpfStart/hpfEnd; dpf is only a UI input mode converted on save.
+Phenotype segregation and type should become arrays, not CSV strings in the UI.
+Linked feature pairs must be normalized server-side so (A,B) and (B,A) cannot duplicate.
+Linked feature validation should reject same-mutation pairs.
+Linked feature Distance known = Yes should reveal cM and Mb fields.
+Autocomplete inputs must store stable IDs, not labels.
+If an autocomplete text value no longer matches the selected ZDB ID, clear the selected ID and require re-selection.
+Use React Hook Form plus Zod/Valibot for the ZIRC React feature; it fits the conditional form matrix well.
+Keep JSP as a shell only: page title, nav, root mount, initial IDs.
+Put feature JS under a dedicated home/javascript/react/zirc/ folder.
+Suggested API
+
+POST   /action/api/zirc/line-submissions
+GET    /action/api/zirc/line-submissions/{id}
+PATCH  /action/api/zirc/line-submissions/{id}/overview
+PATCH  /action/api/zirc/line-submissions/{id}/acceptance-reasons
+PATCH  /action/api/zirc/line-submissions/{id}/background
+POST   /action/api/zirc/line-submissions/{id}/mutations
+PATCH  /action/api/zirc/mutations/{id}/general
+POST   /action/api/zirc/mutations/{id}/genes
+POST   /action/api/zirc/mutations/{id}/genotyping-assays
+PATCH  /action/api/zirc/genotyping-assays/{id}
+POST   /action/api/zirc/mutations/{id}/phenotypes
+PATCH  /action/api/zirc/phenotypes/{id}
+POST   /action/api/zirc/line-submissions/{id}/linked-features
+Testing Specs
+
+Unit-test assay type field matrix.
+Unit-test hpf/dpf conversion and validation.
+Unit-test linked-feature pair normalization.
+Integration-test draft creation on first save.
+Integration-test autocomplete stores ZDB IDs.
+Playwright-test full flow: create submission, add two mutations, add linked feature, add each assay type, add phenotype.
+
+
+
+
+3:41 PM
+Why patch by section?
+3:42 PM
+
+Patch by section because it gives you the best tradeoff between too granular and too bulky.
+
+A generic update-field(field, value) endpoint is easy to build, but weak architecturally: validation becomes scattered, conditional rules are awkward, field renames leak into the API, and related values can be saved in invalid combinations.
+
+A giant PATCH /line-submission/{id} for the whole submission is cleaner than field updates, but it makes autosave heavier and increases merge/conflict risk when multiple sections or child editors evolve independently.
+
+Section-level patches are the nice middle:
+
+PATCH /line-submissions/{id}/overview
+PATCH /line-submissions/{id}/background
+PATCH /line-submissions/{id}/acceptance-reasons
+PATCH /mutations/{id}/general
+PATCH /phenotypes/{id}
+PATCH /genotyping-assays/{id}
+Each endpoint maps to a real user task and a coherent validation boundary. For example, backgroundChangeable and backgroundChangeConcerns can be validated together. Assay type and assay-type-specific fields can be validated together. Phenotype timing unit, start, end, and derived hpf values can be validated together.
+
+So the rule of thumb I’d use is: patch the smallest coherent domain object or form section that has validation rules as a unit. Not one field, not the whole application state.
+
+
+
+
+
+3:42 PM
+mutations are always children of line-submissions. genotyping assays are always children of mutations, etc.
+3:44 PM
+
+Yes, exactly. That hierarchy should drive the model and the API.
+
+I’d think of it as:
+
+LineSubmission
+  Mutations
+    Genes
+    Lesions
+    GenotypingAssays
+      Files
+    Phenotypes
+    Publications
+  LinkedFeatures
+  People
+So instead of treating everything as independent top-level resources, the write model should enforce parent ownership:
+
+POST  /line-submissions/{submissionId}/mutations
+POST  /mutations/{mutationId}/genotyping-assays
+POST  /genotyping-assays/{assayId}/files
+POST  /mutations/{mutationId}/phenotypes
+POST  /line-submissions/{submissionId}/linked-features
+And every service method should verify the parent relationship before changing anything. For example, editing assay 17 should either occur through a mutation-scoped route or validate that assay 17 belongs to mutation 1, which belongs to the current submission/user.
+
+Architecturally, that means LineSubmission is the root aggregate, but Mutation can still be a useful sub-boundary for implementation because its children are numerous. The important part is: no orphan creates, no cross-submission linking, and no child endpoint that silently trusts an ID without checking ancestry.
+
+
+
+
+
+3:44 PM
+Okay, can you create a plan to implement this?
+3:45 PM
+
+Yes. I’d implement it in phases so the team gets a clean spine early, then fills in the complex child editors without fighting the architecture.
+
+Implementation Plan
+Phase 1: Domain And Schema Baseline
+
+Keep the zirc schema and entity model from zirc-submission-prelude as the starting point.
+Confirm parent-child invariants in DB constraints:
+mutations require line_submission_id
+genes/lesions/assays/phenotypes/publications require mutation_id
+assay files require assay_id
+linked features require same-submission mutation pairs
+Add/confirm lifecycle fields: isDraft, submittedAt, deletedAt, createdAt, updatedAt.
+Define Java enums/constants for roles, assay types, file kinds, acceptance reasons, backgrounds, mutagenesis stages/protocols.
+Phase 2: Service Layer
+Create services before building controllers:
+
+LineSubmissionService
+MutationService
+GeneService
+LesionService
+GenotypingAssayService
+PhenotypeService
+LinkedFeatureService
+ZircAutocompleteService
+Each service should own transactions and ancestry checks. Example: GenotypingAssayService.update(submissionId, mutationId, assayId, command) verifies the assay belongs to that mutation and submission before saving.
+
+Phase 3: API Contract
+Build JSON APIs around the hierarchy:
+
+POST   /action/api/zirc/line-submissions
+GET    /action/api/zirc/line-submissions/{submissionId}
+PATCH  /action/api/zirc/line-submissions/{submissionId}/overview
+PATCH  /action/api/zirc/line-submissions/{submissionId}/acceptance-reasons
+PATCH  /action/api/zirc/line-submissions/{submissionId}/background
+PATCH  /action/api/zirc/line-submissions/{submissionId}/additional-info
+
+POST   /action/api/zirc/line-submissions/{submissionId}/mutations
+PATCH  /action/api/zirc/line-submissions/{submissionId}/mutations/{mutationId}/general
+DELETE /action/api/zirc/line-submissions/{submissionId}/mutations/{mutationId}
+
+POST   /action/api/zirc/line-submissions/{submissionId}/mutations/{mutationId}/genes
+PATCH  /action/api/zirc/line-submissions/{submissionId}/mutations/{mutationId}/genes/{geneId}
+DELETE /action/api/zirc/line-submissions/{submissionId}/mutations/{mutationId}/genes/{geneId}
+
+POST   /action/api/zirc/line-submissions/{submissionId}/mutations/{mutationId}/genotyping-assays
+PATCH  /action/api/zirc/line-submissions/{submissionId}/mutations/{mutationId}/genotyping-assays/{assayId}
+DELETE /action/api/zirc/line-submissions/{submissionId}/mutations/{mutationId}/genotyping-assays/{assayId}
+
+POST   /action/api/zirc/line-submissions/{submissionId}/linked-features
+PATCH  /action/api/zirc/line-submissions/{submissionId}/linked-features/{pairId}
+DELETE /action/api/zirc/line-submissions/{submissionId}/linked-features/{pairId}
+Use DTO command objects, not generic field/value.
+
+Phase 4: Frontend Foundation
+Create a dedicated React/TypeScript feature area:
+
+home/javascript/react/zirc/
+  api/
+  components/
+  forms/
+  pages/
+  schemas/
+  types/
+  utils/
+Use:
+
+React Hook Form for forms.
+Zod or Valibot for client validation.
+A small API client wrapping existing http.
+Central field metadata for assay types.
+JSP should only mount React roots and pass IDs.
+
+Phase 5: Submission Editor
+Implement:
+
+Dashboard.
+Create draft on first save.
+Overview section.
+Acceptance reasons.
+Background.
+Additional info.
+Autosave status.
+Do this before child editors so the draft lifecycle is solid.
+
+Phase 6: Mutation Editor
+Implement:
+
+Add/remove mutation.
+Mutation general fields.
+Allele free-text vs ZFIN feature autocomplete.
+Mutagenesis stage/protocol.
+Lethality section.
+Publications.
+Phase 7: Child Editors
+Implement in this order:
+
+Genes with ZFIN gene autocomplete and stored ZDB-GENE-*.
+Lesions with type-specific conditional fields.
+Genotyping assays with assay-type field matrix and file upload.
+Phenotypes with timing conversion, image permissions, segregation/type arrays.
+Linked features with normalized mutation pairs and distance fields.
+Phase 8: Validation
+Server rules should cover:
+
+No child without valid parent.
+No child from a different submission.
+No linked feature where mutation A equals mutation B.
+No duplicate linked feature pair in reverse order.
+Assay type required before type-specific fields are validated.
+Primer fields accept only expected nucleotide alphabet where required.
+Phenotype timing stores hpf canonically.
+Autocomplete-backed fields must store IDs, not only labels.
+Phase 9: Tests
+Prioritize:
+
+Service integration tests for hierarchy/ancestry checks.
+Unit tests for assay type field matrix.
+Unit tests for hpf/dpf conversion.
+Unit tests for linked-feature normalization.
+API tests for create/update/delete flows.
+Playwright tests for the main happy path:
+create submission, add two mutations, add gene, add assay of each type, add phenotype, add linked feature.
+Phase 10: Migration From Prototype
+
+Replace controller-direct Hibernate calls with services.
+Remove create-on-render behavior.
+Keep existing hosted UX behavior where it works.
+Fix linked features as part of the structured editor rewrite.
+Add feature flag around the new implementation until parity is verified.
+I’d make the first milestone: create a draft submission, autosave overview/background/reasons, add/remove mutations, and pass service/API tests. Once that spine is good, the assay/phenotype complexity has somewhere clean to live.
+
+
+
+
+
+3:45 PM
+Okay, I've moved the code starting point to /opt/zfin/source_roots/coral/zfin.org. Let's begin implementing the plan
+3:51 PM
+
+
+Great, let’s get our hands into the new starting point. I’ll first inspect the repo shape and current ZIRC implementation under /opt/zfin/source_roots/coral/zfin.org, then I’ll start with the architectural spine: services/repositories/API boundaries before touching the fancier form behavior.
+
+
+Listed files, ran 2 commands
+This codebase is at the same prelude state: ZIRC has entities and one direct-Hibernate controller, but no service/API layer yet. I also see lots of unrelated untracked files already in the repo, so I’ll ignore those and keep changes scoped to source/org/zfin/zirc and the ZIRC JSP/React entry points.
+
+
+Explored 2 files, 2 searches, 1 list
+I’ve got enough context to make the first concrete slice. I’m going to add a ZIRC repository/service/API layer for submission overview-style updates and mutation creation with parent checks, then simplify the MVC controller to delegate instead of owning persistence. Because /opt/zfin/... is outside the writable sandbox, I’ll request permission when I write the files.
+
+
+Explored 3 files, 1 search
+I’m going to land this as a first implementation slice rather than the whole UI rewrite: repository + service + DTOs + REST endpoints + MVC delegation. That gives the team a real clean-architecture foothold without trying to rebuild all React forms in one pass.
+
+
+Created 8 files, explored 1 search
+The service layer is in. I noticed the old controller refers to featuresLinked, but the current entity no longer has that field, so this slice will also remove that stale update path while replacing it with typed section updates.
+
+Edited 1 file
+Context automatically compacted
+I’ll pick this up from the first implementation slice: get the server-side shape in place for draft creation, section-level updates, and mutation child operations, then compile-check it. I’m going to inspect the controller/build details first so the new API fits the project rather than floating off into its own little architecture island.
+
+
+Explored 1 file, 2 searches
+The project is on Java 21, so the existing toList() usage is fine. I also spotted one small compile cleanup already: the dashboard controller uses Collections.emptyList() and needs the import restored while we add the API layer.
+
+
+Explored 4 files, 3 searches, 1 list
+I’m going to add the first API controller now. This is deliberately a narrow server-side slice: create a draft, patch each root section, and add/delete mutations with the line-submission ancestry enforced in the service.
+
+Created 1 file, edited 1 file
+The API file is in. Next I’m going to compile it against the repo because this codebase has a few older local conventions, and a compiler pass will tell us quickly where the first slice disagrees with reality.
+
+
+Ran 2 commands
+Steered conversation
+I actually usually run build commands inside docker container using helper script zrun -c 'gradle compileJava'
+
+Worked for 12m 38s
+Gradle needed access to ~/.gradle, and the escalation was declined, so I’ll keep verification inside allowed paths as much as possible. I’m going to try a sandbox-local Gradle user home; if the build then bumps into project-output permissions, I’ll stop there and report that cleanly.
+
+Ran ./gradlew --gradle-user-home /private/tmp/gradle-zfin compileJava
+Steered conversation
+You've hit your usage limit. Upgrade to Plus to continue using Codex (https://chatgpt.com/explore/plus), or try again at May 21st, 2026 2:18 PM.
+11 files changed
++457
+-62
+Undo
+
+Review
+
+/opt/zfin/source_roots/coral/zfin.org/source/org/zfin/zirc/repository/ZircSubmissionRepository.java
+/opt/zfin/source_roots/coral/zfin.org/source/org/zfin/zirc/repository/HibernateZircSubmissionRepository.java
+/opt/zfin/source_roots/coral/zfin.org/source/org/zfin/zirc/service/LineSubmissionOverviewUpdate.java
+/opt/zfin/source_roots/coral/zfin.org/source/org/zfin/zirc/service/LineSubmissionBackgroundUpdate.java
+/opt/zfin/source_roots/coral/zfin.org/source/org/zfin/zirc/service/LineSubmissionAdditionalInfoUpdate.java
+/opt/zfin/source_roots/coral/zfin.org/source/org/zfin/zirc/service/LineSubmissionAcceptanceReasonsUpdate.java
+/opt/zfin/source_roots/coral/zfin.org/source/org/zfin/zirc/service/ZircEntityNotFoundException.java
+/opt/zfin/source_roots/coral/zfin.org/source/org/zfin/zirc/service/ZircSubmissionService.java
+/opt/zfin/source_roots/coral/zfin.org/source/org/zfin/zirc/presentation/ZircDashboardController.java
+/opt/zfin/source_roots/coral/zfin.org/source/org/zfin/zirc/presentation/ZircDashboardController.java
+/opt/zfin/source_roots/coral/zfin.org/source/org/zfin/zirc/presentation/ZircSubmissionApiController.java
