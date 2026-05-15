@@ -68,55 +68,6 @@ public class ZircDashboardController {
     }
 
     /**
-     * Per-field save endpoint for the edit page. The {@code field} parameter is the entity
-     * property name; mapped through an explicit switch so we never accept arbitrary column
-     * updates. Empty strings collapse to null so the DB sees real NULLs.
-     */
-    @RequestMapping(value = "/line-submission/{zdbID}/update-field", method = RequestMethod.POST)
-    @ResponseBody
-    public Map<String, Object> updateField(@PathVariable String zdbID,
-                                           @RequestParam("field") String field,
-                                           @RequestParam(value = "value", required = false) String value) {
-        LineSubmission submission = HibernateUtil.currentSession().get(LineSubmission.class, zdbID);
-        if (submission == null) {
-            throw new ResponseStatusException(HttpStatus.NOT_FOUND, "Line submission " + zdbID + " not found");
-        }
-
-        String s = (value != null && !value.isBlank()) ? value.trim() : null;
-
-        HibernateUtil.createTransaction();
-        switch (field) {
-            case "name":                       submission.setName(s); break;
-            case "abbreviation":               submission.setAbbreviation(s); break;
-            case "previousNames":              submission.setPreviousNames(s); break;
-            case "maternalBackground":         submission.setMaternalBackground(s); break;
-            case "paternalBackground":         submission.setPaternalBackground(s); break;
-            case "backgroundChangeable":       submission.setBackgroundChangeable(parseTriBool(s)); break;
-            case "backgroundChangeConcerns":   submission.setBackgroundChangeConcerns(s); break;
-            case "unreportedFeaturesDetails":  submission.setUnreportedFeaturesDetails(s); break;
-            case "husbandryInfo":              submission.setHusbandryInfo(s); break;
-            case "additionalInfo":             submission.setAdditionalInfo(s); break;
-            default:
-                throw new ResponseStatusException(HttpStatus.BAD_REQUEST, "Unknown field: " + field);
-        }
-        HibernateUtil.currentSession().merge(submission);
-        HibernateUtil.flushAndCommitCurrentSession();
-
-        Map<String, Object> result = new HashMap<>();
-        result.put("status", "ok");
-        result.put("field", field);
-        result.put("value", s);
-        return result;
-    }
-
-    private static Boolean parseTriBool(String s) {
-        if (s == null || s.isBlank()) return null;
-        if ("true".equalsIgnoreCase(s) || "yes".equalsIgnoreCase(s)) return Boolean.TRUE;
-        if ("false".equalsIgnoreCase(s) || "no".equalsIgnoreCase(s)) return Boolean.FALSE;
-        return null;
-    }
-
-    /**
      * JSON autocomplete for the "add submitter" modal on the line-submission detail page.
      * Returns a list of {label, value, fullName} entries suitable for jQuery UI autocomplete:
      * "label" is shown in the dropdown ("Pich, Christian (ZDB-PERS-060413-1)"), "value" is

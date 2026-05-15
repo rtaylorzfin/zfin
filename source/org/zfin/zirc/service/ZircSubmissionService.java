@@ -5,6 +5,10 @@ import org.springframework.stereotype.Service;
 import org.zfin.framework.HibernateUtil;
 import org.zfin.profile.Person;
 import org.zfin.profile.service.ProfileService;
+import org.zfin.zirc.dto.LineSubmissionAcceptanceReasonsUpdate;
+import org.zfin.zirc.dto.LineSubmissionAdditionalInfoUpdate;
+import org.zfin.zirc.dto.LineSubmissionBackgroundUpdate;
+import org.zfin.zirc.dto.LineSubmissionOverviewUpdate;
 import org.zfin.zirc.entity.LineSubmission;
 import org.zfin.zirc.entity.LineSubmissionPerson;
 import org.zfin.zirc.entity.Mutation;
@@ -60,9 +64,9 @@ public class ZircSubmissionService {
     public LineSubmission updateOverview(String zdbID, LineSubmissionOverviewUpdate update) {
         LineSubmission submission = getRequiredLineSubmission(zdbID);
         HibernateUtil.createTransaction();
-        submission.setName(clean(update.getName()));
-        submission.setAbbreviation(clean(update.getAbbreviation()));
-        submission.setPreviousNames(clean(update.getPreviousNames()));
+        submission.setName(clean(update.name()));
+        submission.setAbbreviation(clean(update.abbreviation()));
+        submission.setPreviousNames(clean(update.previousNames()));
         HibernateUtil.flushAndCommitCurrentSession();
         return submission;
     }
@@ -70,8 +74,8 @@ public class ZircSubmissionService {
     public LineSubmission updateAcceptanceReasons(String zdbID, LineSubmissionAcceptanceReasonsUpdate update) {
         LineSubmission submission = getRequiredLineSubmission(zdbID);
         HibernateUtil.createTransaction();
-        submission.setReasons(update.getReasons() == null ? new String[0] : update.getReasons());
-        submission.setReasonsOther(clean(update.getReasonsOther()));
+        submission.setReasons(update.reasons() == null ? new String[0] : update.reasons());
+        submission.setReasonsOther(clean(update.reasonsOther()));
         HibernateUtil.flushAndCommitCurrentSession();
         return submission;
     }
@@ -79,11 +83,11 @@ public class ZircSubmissionService {
     public LineSubmission updateBackground(String zdbID, LineSubmissionBackgroundUpdate update) {
         LineSubmission submission = getRequiredLineSubmission(zdbID);
         HibernateUtil.createTransaction();
-        submission.setSingleAllelic(update.getSingleAllelic());
-        submission.setMaternalBackground(clean(update.getMaternalBackground()));
-        submission.setPaternalBackground(clean(update.getPaternalBackground()));
-        submission.setBackgroundChangeable(update.getBackgroundChangeable());
-        submission.setBackgroundChangeConcerns(clean(update.getBackgroundChangeConcerns()));
+        submission.setSingleAllelic(update.singleAllelic());
+        submission.setMaternalBackground(clean(update.maternalBackground()));
+        submission.setPaternalBackground(clean(update.paternalBackground()));
+        submission.setBackgroundChangeable(update.backgroundChangeable());
+        submission.setBackgroundChangeConcerns(clean(update.backgroundChangeConcerns()));
         HibernateUtil.flushAndCommitCurrentSession();
         return submission;
     }
@@ -91,9 +95,9 @@ public class ZircSubmissionService {
     public LineSubmission updateAdditionalInfo(String zdbID, LineSubmissionAdditionalInfoUpdate update) {
         LineSubmission submission = getRequiredLineSubmission(zdbID);
         HibernateUtil.createTransaction();
-        submission.setUnreportedFeaturesDetails(clean(update.getUnreportedFeaturesDetails()));
-        submission.setHusbandryInfo(clean(update.getHusbandryInfo()));
-        submission.setAdditionalInfo(clean(update.getAdditionalInfo()));
+        submission.setUnreportedFeaturesDetails(clean(update.unreportedFeaturesDetails()));
+        submission.setHusbandryInfo(clean(update.husbandryInfo()));
+        submission.setAdditionalInfo(clean(update.additionalInfo()));
         HibernateUtil.flushAndCommitCurrentSession();
         return submission;
     }
