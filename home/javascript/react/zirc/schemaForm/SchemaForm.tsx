@@ -1,22 +1,21 @@
 import * as React from 'react';
 import { useQuery } from '@tanstack/react-query';
-import Form from '@rjsf/bootstrap-4';
-import validator from '@rjsf/validator-ajv8';
-import type { RJSFSchema, UiSchema } from '@rjsf/utils';
+import { JsonForms } from '@jsonforms/react';
+import type { JsonSchema, UISchemaElement } from '@jsonforms/core';
 import { api } from '../api/client';
 import { LineSubmissionResponse } from '../api/types';
 import { useCreateLineSubmission } from '../api/queries';
 import { SaveStatusBadge } from '../components/SaveStatusBadge';
 import { SaveStatus } from '../hooks/useSectionAutosave';
-import { SectionObjectFieldTemplate } from './templates/SectionObjectFieldTemplate';
-import { RowFieldTemplate } from './templates/RowFieldTemplate';
+import { sectionRendererEntry } from './renderers/SectionRenderer';
+import { rowControlRendererEntry } from './renderers/RowControlRenderer';
 
 type FormDataShape = {
     name?: string;
     previousNames?: string;
 };
 
-type FormSchemaResponse = { schema: RJSFSchema; uiSchema: UiSchema };
+type FormSchemaResponse = { schema: JsonSchema; uiSchema: UISchemaElement };
 
 type Props = {
     submission: LineSubmissionResponse | null;
@@ -25,30 +24,24 @@ type Props = {
 
 const AUTOSAVE_DEBOUNCE_MS = 800;
 
-// Custom templates produce the reference markup (<section class="section">,
-// <h2 class="heading">, <table class="table table-borderless">, fr-* ids).
-// Once a uiSchema arrives that opts into our custom widgets (autocomplete,
-// MultipleChoiceWithOther, etc.) the same template set still applies.
-const TEMPLATES = {
-    ObjectFieldTemplate: SectionObjectFieldTemplate,
-    FieldTemplate: RowFieldTemplate,
-};
+// JSON Forms requires an explicit renderer registry; only the reference-styled
+// ones are registered, so any unknown widget kind (number, array of objects,
+// etc.) surfaces as a "no matching renderer" — by design, the schema can only
+// describe what we know how to render.
+const renderers = [sectionRendererEntry, rowControlRendererEntry];
 
 /**
- * Spike renderer for the schema-driven Overview section. Subscribes to the
- * /form-schema endpoint, lets rjsf draw the inputs through our reference-
- * styled templates, and fires one field-path PATCH per changed leaf when
- * the user pauses typing.
- *
- * Limited to Overview for the spike; conditional reveals, custom widgets,
- * and nested sections come if we adopt the pattern.
+ * Schema-driven Overview form. The Java side at GET /api/zirc/form-schema is
+ * the single source of truth for both the JSON Schema and the JSON Forms
+ * uiSchema; the client just dispatches them to JsonForms with our reference-
+ * styled renderers and emits one field-path PATCH per changed leaf on save.
  */
 export function SchemaForm({ submission, onCreated }: Props) {
     const { data: schemaResponse, isLoading: schemaLoading, isError: schemaError } =
         useQuery<FormSchemaResponse>({
             queryKey: ['zirc', 'form-schema'],
             queryFn: () => api.get<FormSchemaResponse>('/form-schema'),
-            staleTime: Infinity, // schema is static for a session; refetch on hard reload
+            staleTime: Infinity,
         });
 
     const initialData: FormDataShape = {
@@ -74,9 +67,8 @@ export function SchemaForm({ submission, onCreated }: Props) {
         }
 
         const handle = window.setTimeout(async () => {
-            // Diff current form data against last persisted state — emit one
-            // PATCH per changed leaf so the server-side audit log captures
-            // each field change discretely.
+            // Diff against last persisted state — one PATCH per changed leaf
+            // so the server-side audit log captures each field change.
             const changes: Array<[string, unknown]> = [];
             (Object.keys(formData) as Array<keyof FormDataShape>).forEach((key) => {
                 if (!Object.is(formData[key], lastSavedRef.current[key])) {
@@ -125,26 +117,17 @@ export function SchemaForm({ submission, onCreated }: Props) {
 
     return (
         <div>
-            {/* Save status sits above the form; the ObjectFieldTemplate
-                produces the section/h2/table inside the Form, so we don't
-                wrap a section here. */}
             <div className='d-flex justify-content-end mb-1'>
                 <SaveStatusBadge status={status} message={errorMessage} />
             </div>
-            <Form
+            <JsonForms
                 schema={schemaResponse.schema}
-                uiSchema={schemaResponse.uiSchema}
-                formData={formData}
-                onChange={(e) => setFormData(e.formData as FormDataShape)}
-                validator={validator}
-                templates={TEMPLATES}
-                idPrefix='fr'
-                idSeparator='-'
-                liveValidate
-            >
-                {/* hide the default Submit button — we autosave */}
-                <></>
-            </Form>
+                uischema={schemaResponse.uiSchema}
+                data={formData}
+                renderers={renderers}
+                cells={[]}
+                onChange={({ data }) => setFormData(data as FormDataShape)}
+            />
         </div>
     );
 }
