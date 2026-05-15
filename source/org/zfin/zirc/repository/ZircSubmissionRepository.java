@@ -1,6 +1,7 @@
 package org.zfin.zirc.repository;
 
 import org.zfin.profile.Person;
+import org.zfin.zirc.entity.GenotypingAssay;
 import org.zfin.zirc.entity.LineSubmission;
 import org.zfin.zirc.entity.Mutation;
 
@@ -13,6 +14,8 @@ public interface ZircSubmissionRepository {
     LineSubmission getLineSubmission(String zdbID);
 
     Mutation getMutation(Long mutationId);
+
+    GenotypingAssay getAssay(Long assayId);
 
     Person getPerson(String personZdbID);
 

@@ -1,7 +1,9 @@
 package org.zfin.zirc.dto;
 
+import org.zfin.zirc.entity.GenotypingAssay;
 import org.zfin.zirc.entity.Mutation;
 
+import java.util.Comparator;
 import java.util.List;
 
 public record MutationResponse(
@@ -26,9 +28,19 @@ public record MutationResponse(
         String lethalityWindowEnd,
         String lethalityAdditionalInfo,
         // Publications
-        List<String> publications) {
+        List<String> publications,
+        // Genotyping assays — summary rows only; full per-assay fields are
+        // fetched separately when a card is expanded.
+        List<AssaySummary> assays) {
 
     public static MutationResponse of(Mutation m) {
+        List<AssaySummary> assays = m.getGenotypingAssays() == null ? List.of() :
+                m.getGenotypingAssays().stream()
+                        .sorted(Comparator.comparing(
+                                GenotypingAssay::getSortOrder,
+                                Comparator.nullsLast(Comparator.naturalOrder())))
+                        .map(AssaySummary::of)
+                        .toList();
         return new MutationResponse(
                 m.getId(),
                 m.getLineSubmission().getZdbID(),
@@ -47,6 +59,7 @@ public record MutationResponse(
                 m.getLethalityWindowStart(),
                 m.getLethalityWindowEnd(),
                 m.getLethalityAdditionalInfo(),
-                List.copyOf(m.getPublications() == null ? List.of() : m.getPublications()));
+                List.copyOf(m.getPublications() == null ? List.of() : m.getPublications()),
+                assays);
     }
 }

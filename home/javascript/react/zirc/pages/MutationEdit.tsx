@@ -4,7 +4,7 @@ import { JsonForms } from '@jsonforms/react';
 import type { JsonSchema, UISchemaElement } from '@jsonforms/core';
 import { queryClient } from '../queryClient';
 import { api } from '../api/client';
-import { MutationResponse } from '../api/types';
+import { AssaySummary, MutationResponse } from '../api/types';
 import { useMutationById } from '../api/queries';
 import { SaveStatusBadge, SaveStatus } from '../components/SaveStatusBadge';
 import { sectionRendererEntry } from '../schemaForm/renderers/SectionRenderer';
@@ -14,6 +14,7 @@ import { textareaRowRendererEntry } from '../schemaForm/renderers/TextareaRowRen
 import { yesNoRadioRendererEntry } from '../schemaForm/renderers/YesNoRadioRenderer';
 import { selectWithOtherRendererEntry } from '../schemaForm/renderers/SelectWithOtherRenderer';
 import { publicationsListRendererEntry } from '../schemaForm/renderers/PublicationsListRenderer';
+import { assaysListRendererEntry } from '../schemaForm/renderers/AssaysListRenderer';
 
 export type MutationEditProps = {
     // From data-mutation-id on the JSP mount.
@@ -49,6 +50,10 @@ type FormDataShape = {
     lethalityAdditionalInfo?: string | null;
     // Publications
     publications?: string[];
+    // Genotyping assays — server-managed, like /mutations on the
+    // submission. Mirrored into local state so the renderer sees
+    // post-Add/Delete updates; never PATCH'd (see EXTERNALLY_MANAGED_PATHS).
+    assays?: AssaySummary[];
 };
 
 type FormSchemaResponse = { schema: JsonSchema; uiSchema: UISchemaElement };
@@ -63,6 +68,7 @@ const renderers = [
     yesNoRadioRendererEntry,
     selectWithOtherRendererEntry,
     publicationsListRendererEntry,
+    assaysListRendererEntry,
 ];
 
 function initialDataFromMutation(m: MutationResponse): FormDataShape {
@@ -82,8 +88,14 @@ function initialDataFromMutation(m: MutationResponse): FormDataShape {
         lethalityWindowEnd: m.lethalityWindowEnd ?? '',
         lethalityAdditionalInfo: m.lethalityAdditionalInfo ?? '',
         publications: m.publications ?? [],
+        assays: m.assays ?? [],
     };
 }
+
+// Paths whose changes flow through dedicated endpoints (POST/DELETE), not
+// the field-path PATCH. Without this filter, an Add/Delete on the assays
+// list would emit a spurious PATCH /assays trying to write an array.
+const EXTERNALLY_MANAGED_PATHS = new Set<string>(['/assays']);
 
 function diffLeaves(
     prev: unknown,
@@ -140,6 +152,20 @@ function MutationEditInner({ mutationId, submissionId }: MutationEditProps) {
         lastSavedRef.current = seed;
     }, [mutation?.id, formData]);
 
+    // Mirror server-managed assays list into the local form state after the
+    // initial seed, so Add/Delete refetches surface in the renderer without
+    // triggering the autosave diff. Same pattern as the mutations sync in
+    // SchemaForm on the submission page.
+    const assaysKey = JSON.stringify(mutation?.assays ?? []);
+    React.useEffect(() => {
+        if (!mutation || formData == null) {return;}
+        const next = mutation.assays ?? [];
+        setFormData((d) => (d == null ? d : { ...d, assays: next }));
+        if (lastSavedRef.current != null) {
+            lastSavedRef.current = { ...lastSavedRef.current, assays: next };
+        }
+    }, [assaysKey]);
+
     const [status, setStatus] = React.useState<SaveStatus>('idle');
     const [errorMessage, setErrorMessage] = React.useState<string | null>(null);
 
@@ -151,7 +177,8 @@ function MutationEditInner({ mutationId, submissionId }: MutationEditProps) {
         if (!idNum || formData == null || lastSavedRef.current == null) {return;}
 
         const handle = window.setTimeout(async () => {
-            const changes = diffLeaves(lastSavedRef.current, formData);
+            const changes = diffLeaves(lastSavedRef.current, formData)
+                .filter(([path]) => !EXTERNALLY_MANAGED_PATHS.has(path));
             if (changes.length === 0) {return;}
 
             setStatus('saving');

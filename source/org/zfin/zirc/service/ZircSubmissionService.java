@@ -11,6 +11,7 @@ import org.zfin.profile.service.ProfileService;
 import org.zfin.zirc.api.ZircFormSchema;
 import org.zfin.zirc.api.ZircMutationFormSchema;
 import org.zfin.zirc.dto.FieldUpdate;
+import org.zfin.zirc.entity.GenotypingAssay;
 import org.zfin.zirc.entity.LineSubmission;
 import org.zfin.zirc.entity.LineSubmissionPerson;
 import org.zfin.zirc.entity.Mutation;
@@ -142,6 +143,18 @@ public class ZircSubmissionService {
         return mutation;
     }
 
+    /**
+     * Look up an assay by database id alone. Parent-mutation ownership
+     * checks are deferred to the controller when needed.
+     */
+    public GenotypingAssay getRequiredAssayById(Long assayId) {
+        GenotypingAssay assay = repository.getAssay(assayId);
+        if (assay == null) {
+            throw new ZircEntityNotFoundException("Assay " + assayId + " not found");
+        }
+        return assay;
+    }
+
     private static String safeJson(JsonNode node) {
         try {
             return node == null ? "null" : AUDIT_MAPPER.writeValueAsString(node);
@@ -165,6 +178,31 @@ public class ZircSubmissionService {
         Mutation mutation = getRequiredMutation(submissionId, mutationId);
         HibernateUtil.createTransaction();
         repository.delete(mutation);
+        HibernateUtil.flushAndCommitCurrentSession();
+    }
+
+    /**
+     * Create a new {@link GenotypingAssay} under the given mutation. Mirrors
+     * {@link #addMutation} — assigns the next sort order so cards stay
+     * stably ordered. Returns the parent mutation so callers can refresh the
+     * MutationResponse in one round trip.
+     */
+    public Mutation addAssay(Long mutationId) {
+        Mutation mutation = getRequiredMutationById(mutationId);
+        HibernateUtil.createTransaction();
+        GenotypingAssay assay = new GenotypingAssay();
+        assay.setMutation(mutation);
+        assay.setSortOrder(nextAssaySortOrder(mutation));
+        repository.save(assay);
+        mutation.getGenotypingAssays().add(assay);
+        HibernateUtil.flushAndCommitCurrentSession();
+        return mutation;
+    }
+
+    public void deleteAssay(Long assayId) {
+        GenotypingAssay assay = getRequiredAssayById(assayId);
+        HibernateUtil.createTransaction();
+        repository.delete(assay);
         HibernateUtil.flushAndCommitCurrentSession();
     }
 
@@ -206,6 +244,14 @@ public class ZircSubmissionService {
     private static int nextMutationSortOrder(LineSubmission submission) {
         return submission.getMutations().stream()
                 .map(Mutation::getSortOrder)
+                .max(Comparator.naturalOrder())
+                .orElse(0) + 1;
+    }
+
+    private static int nextAssaySortOrder(Mutation mutation) {
+        return mutation.getGenotypingAssays().stream()
+                .map(GenotypingAssay::getSortOrder)
+                .filter(java.util.Objects::nonNull)
                 .max(Comparator.naturalOrder())
                 .orElse(0) + 1;
     }

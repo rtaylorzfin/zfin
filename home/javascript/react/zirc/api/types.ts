@@ -43,6 +43,14 @@ export interface MutationResponse {
     lethalityAdditionalInfo: string | null;
     // Publications
     publications: string[];
+    // Genotyping assays — summary rows only, surfaced as collapsed cards.
+    assays: AssaySummary[];
+}
+
+export interface AssaySummary {
+    id: number;
+    sortOrder: number;
+    assayType: string | null;
 }
 
 // RFC 7807 problem detail returned by ZircApiExceptionHandler.

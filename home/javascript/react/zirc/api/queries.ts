@@ -54,3 +54,25 @@ export function useMutationById(id: number | null) {
         enabled: !!id,
     });
 }
+
+export function useAddAssay() {
+    const qc = useQueryClient();
+    return useMutation({
+        mutationFn: (mutationId: number) =>
+            api.post<MutationResponse>(`/mutations/${mutationId}/assays`),
+        onSuccess: (_data, mutationId) => {
+            qc.invalidateQueries({ queryKey: mutationKey(mutationId) });
+        },
+    });
+}
+
+export function useDeleteAssay() {
+    const qc = useQueryClient();
+    return useMutation({
+        mutationFn: ({ assayId }: { mutationId: number; assayId: number }) =>
+            api.delete<void>(`/assays/${assayId}`),
+        onSuccess: (_data, vars) => {
+            qc.invalidateQueries({ queryKey: mutationKey(vars.mutationId) });
+        },
+    });
+}

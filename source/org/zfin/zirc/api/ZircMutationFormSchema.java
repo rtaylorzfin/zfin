@@ -65,6 +65,10 @@ public final class ZircMutationFormSchema {
         properties.put("lethalityAdditionalInfo",  stringProp(5000, "Lethality Additional Info"));
         // Publications
         properties.put("publications",             stringListProp("Publications"));
+        // Genotyping assays — summary rows that the AssaysListRenderer
+        // turns into expandable cards. Add/Delete go through dedicated
+        // endpoints, so MutationEdit's diff filter must skip /assays.
+        properties.put("assays",                   assaysSummaryArrayProp());
 
         Map<String, Object> root = new LinkedHashMap<>();
         root.put("type", "object");
@@ -119,7 +123,13 @@ public final class ZircMutationFormSchema {
                 group("Publications", List.of(
                         controlWithOptions("#/properties/publications",
                                 Map.of("widget", "stringList"))
-                ))
+                )),
+                // Genotyping Assays is a list of child rows like the
+                // submission's Mutations section — drop the table wrapper.
+                groupWithOptions("Genotyping Assays",
+                        Map.of("layout", "plain"),
+                        List.of(controlWithOptions("#/properties/assays",
+                                Map.of("widget", "assaysList"))))
         ));
     }
 
@@ -203,6 +213,28 @@ public final class ZircMutationFormSchema {
         return p;
     }
 
+    /**
+     * Mirror of {@link org.zfin.zirc.dto.AssaySummary}; the per-card
+     * header reads from this. Full assay fields come from a dedicated
+     * /api/zirc/assays/{id} endpoint when a card is expanded (M4.2).
+     */
+    private static Map<String, Object> assaysSummaryArrayProp() {
+        Map<String, Object> itemProps = new LinkedHashMap<>();
+        itemProps.put("id",        Map.of("type", "number"));
+        itemProps.put("sortOrder", Map.of("type", "number"));
+        itemProps.put("assayType", Map.of("type", List.of("string", "null")));
+
+        Map<String, Object> item = new LinkedHashMap<>();
+        item.put("type", "object");
+        item.put("properties", itemProps);
+
+        Map<String, Object> arr = new LinkedHashMap<>();
+        arr.put("type", "array");
+        arr.put("title", "Genotyping Assays");
+        arr.put("items", item);
+        return arr;
+    }
+
     // ─── uiSchema builders ──────────────────────────────────────────────────
 
     private static Map<String, Object> verticalLayout(List<Map<String, Object>> elements) {
@@ -217,6 +249,15 @@ public final class ZircMutationFormSchema {
         g.put("type", "Group");
         g.put("label", label);
         g.put("elements", elements);
+        return g;
+    }
+
+    private static Map<String, Object> groupWithOptions(
+            String label,
+            Map<String, Object> options,
+            List<Map<String, Object>> elements) {
+        Map<String, Object> g = group(label, elements);
+        g.put("options", options);
         return g;
     }
 
