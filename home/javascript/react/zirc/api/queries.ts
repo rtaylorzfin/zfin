@@ -44,3 +44,13 @@ export function useDeleteMutation() {
         },
     });
 }
+
+export const mutationKey = (id: number) => ['zirc', 'mutation', id] as const;
+
+export function useMutationById(id: number | null) {
+    return useQuery({
+        queryKey: mutationKey(id ?? 0),
+        queryFn: () => api.get<MutationResponse>(`/mutations/${id}`),
+        enabled: !!id,
+    });
+}

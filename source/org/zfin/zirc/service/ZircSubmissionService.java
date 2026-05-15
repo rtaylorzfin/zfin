@@ -9,6 +9,7 @@ import org.zfin.framework.HibernateUtil;
 import org.zfin.profile.Person;
 import org.zfin.profile.service.ProfileService;
 import org.zfin.zirc.api.ZircFormSchema;
+import org.zfin.zirc.api.ZircMutationFormSchema;
 import org.zfin.zirc.dto.FieldUpdate;
 import org.zfin.zirc.entity.LineSubmission;
 import org.zfin.zirc.entity.LineSubmissionPerson;
@@ -93,6 +94,52 @@ public class ZircSubmissionService {
                 safeJson(update.value()));
 
         return submission;
+    }
+
+    /**
+     * Apply a single field change to a Mutation against
+     * {@link ZircMutationFormSchema#FIELDS}. Mirrors {@link #updateField} but
+     * for the per-mutation aggregate; audit log keys by mutation id.
+     */
+    public Mutation updateMutationField(Long mutationId, FieldUpdate update) {
+        Mutation mutation = repository.getMutation(mutationId);
+        if (mutation == null) {
+            throw new ZircEntityNotFoundException("Mutation " + mutationId + " not found");
+        }
+
+        ZircMutationFormSchema.FieldDescriptor descriptor =
+                ZircMutationFormSchema.FIELDS.get(update.path());
+        if (descriptor == null) {
+            throw new IllegalArgumentException("Unknown mutation field path: " + update.path());
+        }
+
+        JsonNode oldValue = descriptor.read().apply(mutation);
+        HibernateUtil.createTransaction();
+        descriptor.write().accept(mutation, update.value());
+        HibernateUtil.flushAndCommitCurrentSession();
+
+        Person currentUser = ProfileService.getCurrentSecurityUser();
+        String userId = currentUser == null ? "anonymous" : currentUser.getZdbID();
+        log.info("ZIRC_AUDIT user={} mutation={} path={} old={} new={}",
+                userId, mutationId, update.path(),
+                safeJson(oldValue),
+                safeJson(update.value()));
+
+        return mutation;
+    }
+
+    /**
+     * Look up a mutation by database id alone (no parent-submission check).
+     * Used by the mutation edit page where the URL only carries the mutation
+     * id; ownership/visibility checks come from the parent submission via
+     * {@link Mutation#getLineSubmission()} when needed.
+     */
+    public Mutation getRequiredMutationById(Long mutationId) {
+        Mutation mutation = repository.getMutation(mutationId);
+        if (mutation == null) {
+            throw new ZircEntityNotFoundException("Mutation " + mutationId + " not found");
+        }
+        return mutation;
     }
 
     private static String safeJson(JsonNode node) {

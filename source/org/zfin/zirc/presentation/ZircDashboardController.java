@@ -14,6 +14,7 @@ import org.zfin.framework.HibernateUtil;
 import org.zfin.framework.presentation.LookupStrings;
 import org.zfin.profile.Person;
 import org.zfin.zirc.entity.LineSubmission;
+import org.zfin.zirc.entity.Mutation;
 import org.zfin.zirc.service.ZircEntityNotFoundException;
 import org.zfin.zirc.service.ZircSubmissionService;
 
@@ -65,6 +66,28 @@ public class ZircDashboardController {
                 ? submission.getName() : zdbID;
         model.addAttribute(LookupStrings.DYNAMIC_TITLE, "Edit Line Submission: " + label);
         return "zirc/line-submission-edit";
+    }
+
+    /**
+     * Per-mutation edit page. Mutation is identified by its database id alone;
+     * the parent submission is resolved for the back-link and page title.
+     */
+    @RequestMapping(value = "/mutation/{mutationId}/edit", method = RequestMethod.GET)
+    public String editMutation(@PathVariable Long mutationId, Model model) {
+        Mutation mutation;
+        try {
+            mutation = zircSubmissionService.getRequiredMutationById(mutationId);
+        } catch (ZircEntityNotFoundException e) {
+            throw new ResponseStatusException(HttpStatus.NOT_FOUND, e.getMessage());
+        }
+        LineSubmission submission = mutation.getLineSubmission();
+        model.addAttribute("mutation", mutation);
+        model.addAttribute("submission", submission);
+        String label = mutation.getAlleleDesignation() != null && !mutation.getAlleleDesignation().isBlank()
+                ? mutation.getAlleleDesignation()
+                : "Mutation #" + mutation.getSortOrder();
+        model.addAttribute(LookupStrings.DYNAMIC_TITLE, "Edit Mutation: " + label);
+        return "zirc/mutation-edit";
     }
 
     /**

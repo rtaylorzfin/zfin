@@ -8,7 +8,9 @@ public record MutationResponse(
         Integer sortOrder,
         String alleleDesignation,
         Boolean alleleInZfin,
-        String mutationType) {
+        String mutationType,
+        String mutationDiscoverer,
+        String mutationInstitution) {
 
     public static MutationResponse of(Mutation m) {
         return new MutationResponse(
@@ -17,6 +19,8 @@ public record MutationResponse(
                 m.getSortOrder(),
                 m.getAlleleDesignation(),
                 m.getAlleleInZfin(),
-                m.getMutationType());
+                m.getMutationType(),
+                m.getMutationDiscoverer(),
+                m.getMutationInstitution());
     }
 }
