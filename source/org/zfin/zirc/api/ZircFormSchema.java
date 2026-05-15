@@ -104,9 +104,11 @@ public final class ZircFormSchema {
                         controlWithOptions("#/properties/background/properties/singleAllelic",
                                 Map.of("widget", "yesNoRadio")),
                         controlWithOptions("#/properties/background/properties/maternalBackground",
-                                Map.of("widget", "backgroundSelectWithOther")),
+                                Map.of("widget", "selectWithOther",
+                                       "standardValues", List.of("AB", "TU", "WIK", "AB/TU", "unknown"))),
                         controlWithOptions("#/properties/background/properties/paternalBackground",
-                                Map.of("widget", "backgroundSelectWithOther")),
+                                Map.of("widget", "selectWithOther",
+                                       "standardValues", List.of("AB", "TU", "WIK", "AB/TU", "unknown"))),
                         controlWithOptions("#/properties/background/properties/backgroundChangeable",
                                 Map.of("widget", "yesNoRadio"))
                 )),

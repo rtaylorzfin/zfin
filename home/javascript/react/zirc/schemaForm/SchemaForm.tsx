@@ -12,8 +12,9 @@ import { verticalLayoutRendererEntry } from './renderers/VerticalLayoutRenderer'
 import { textareaRowRendererEntry } from './renderers/TextareaRowRenderer';
 import { yesNoRadioRendererEntry } from './renderers/YesNoRadioRenderer';
 import { multipleChoiceWithOtherRendererEntry } from './renderers/MultipleChoiceWithOtherRenderer';
-import { backgroundSelectWithOtherRendererEntry } from './renderers/BackgroundSelectWithOtherRenderer';
+import { selectWithOtherRendererEntry } from './renderers/SelectWithOtherRenderer';
 import { mutationsListRendererEntry } from './renderers/MutationsListRenderer';
+import { publicationsListRendererEntry } from './renderers/PublicationsListRenderer';
 
 type FormData = Record<string, unknown>;
 
@@ -33,8 +34,9 @@ const renderers = [
     textareaRowRendererEntry,
     yesNoRadioRendererEntry,
     multipleChoiceWithOtherRendererEntry,
-    backgroundSelectWithOtherRendererEntry,
+    selectWithOtherRendererEntry,
     mutationsListRendererEntry,
+    publicationsListRendererEntry,
 ];
 
 // Paths whose changes flow through dedicated endpoints (POST/DELETE), not the

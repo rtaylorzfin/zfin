@@ -22,7 +22,9 @@ function TextareaRowRenderer({
     label,
     uischema,
     errors,
+    visible,
 }: ControlProps) {
+    if (visible === false) {return null;}
     const fieldName = path.split('.').pop() ?? path;
     const inputId = `fr-${fieldName}`;
     const labelId = `fr-label-${fieldName}`;

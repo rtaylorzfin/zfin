@@ -24,9 +24,25 @@ export interface MutationResponse {
     id: number;
     lineSubmissionId: string;
     sortOrder: number;
+    // General
     alleleDesignation: string | null;
     alleleInZfin: boolean | null;
     mutationType: string | null;
+    mutationDiscoverer: string | null;
+    mutationInstitution: string | null;
+    // Mutagenesis
+    mutagenesisStage: string | null;
+    mutagenesisProtocol: string | null;
+    molecularlyCharacterized: boolean | null;
+    // Lethality
+    homozygousLethal: boolean | null;
+    lethalityStageTypical: string | null;
+    lethalitySpecificTimepoint: string | null;
+    lethalityWindowStart: string | null;
+    lethalityWindowEnd: string | null;
+    lethalityAdditionalInfo: string | null;
+    // Publications
+    publications: string[];
 }
 
 // RFC 7807 problem detail returned by ZircApiExceptionHandler.

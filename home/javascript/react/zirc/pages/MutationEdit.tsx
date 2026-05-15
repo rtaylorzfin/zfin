@@ -12,6 +12,8 @@ import { rowControlRendererEntry } from '../schemaForm/renderers/RowControlRende
 import { verticalLayoutRendererEntry } from '../schemaForm/renderers/VerticalLayoutRenderer';
 import { textareaRowRendererEntry } from '../schemaForm/renderers/TextareaRowRenderer';
 import { yesNoRadioRendererEntry } from '../schemaForm/renderers/YesNoRadioRenderer';
+import { selectWithOtherRendererEntry } from '../schemaForm/renderers/SelectWithOtherRenderer';
+import { publicationsListRendererEntry } from '../schemaForm/renderers/PublicationsListRenderer';
 
 export type MutationEditProps = {
     // From data-mutation-id on the JSP mount.
@@ -28,11 +30,25 @@ export default function MutationEdit(props: MutationEditProps) {
 }
 
 type FormDataShape = {
+    // General
     alleleDesignation?: string | null;
     alleleInZfin?: boolean | null;
     mutationType?: string | null;
     mutationDiscoverer?: string | null;
     mutationInstitution?: string | null;
+    // Mutagenesis
+    mutagenesisStage?: string | null;
+    mutagenesisProtocol?: string | null;
+    molecularlyCharacterized?: boolean | null;
+    // Lethality
+    homozygousLethal?: boolean | null;
+    lethalityStageTypical?: string | null;
+    lethalitySpecificTimepoint?: string | null;
+    lethalityWindowStart?: string | null;
+    lethalityWindowEnd?: string | null;
+    lethalityAdditionalInfo?: string | null;
+    // Publications
+    publications?: string[];
 };
 
 type FormSchemaResponse = { schema: JsonSchema; uiSchema: UISchemaElement };
@@ -45,6 +61,8 @@ const renderers = [
     rowControlRendererEntry,
     textareaRowRendererEntry,
     yesNoRadioRendererEntry,
+    selectWithOtherRendererEntry,
+    publicationsListRendererEntry,
 ];
 
 function initialDataFromMutation(m: MutationResponse | undefined): FormDataShape {
@@ -55,6 +73,16 @@ function initialDataFromMutation(m: MutationResponse | undefined): FormDataShape
             mutationType: '',
             mutationDiscoverer: '',
             mutationInstitution: '',
+            mutagenesisStage: '',
+            mutagenesisProtocol: '',
+            molecularlyCharacterized: null,
+            homozygousLethal: null,
+            lethalityStageTypical: '',
+            lethalitySpecificTimepoint: '',
+            lethalityWindowStart: '',
+            lethalityWindowEnd: '',
+            lethalityAdditionalInfo: '',
+            publications: [],
         };
     }
     return {
@@ -63,6 +91,16 @@ function initialDataFromMutation(m: MutationResponse | undefined): FormDataShape
         mutationType: m.mutationType ?? '',
         mutationDiscoverer: m.mutationDiscoverer ?? '',
         mutationInstitution: m.mutationInstitution ?? '',
+        mutagenesisStage: m.mutagenesisStage ?? '',
+        mutagenesisProtocol: m.mutagenesisProtocol ?? '',
+        molecularlyCharacterized: m.molecularlyCharacterized,
+        homozygousLethal: m.homozygousLethal,
+        lethalityStageTypical: m.lethalityStageTypical ?? '',
+        lethalitySpecificTimepoint: m.lethalitySpecificTimepoint ?? '',
+        lethalityWindowStart: m.lethalityWindowStart ?? '',
+        lethalityWindowEnd: m.lethalityWindowEnd ?? '',
+        lethalityAdditionalInfo: m.lethalityAdditionalInfo ?? '',
+        publications: m.publications ?? [],
     };
 }
 

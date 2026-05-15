@@ -9,20 +9,29 @@ import {
 } from '@jsonforms/core';
 import { withJsonFormsControlProps } from '@jsonforms/react';
 
-const STANDARD_BACKGROUNDS = ['AB', 'TU', 'WIK', 'AB/TU', 'unknown'];
 const OTHER_SENTINEL = '__other';
 
 /**
- * Background select with revealed "Other" text input. "Other selected" is
- * tracked as local component state, distinct from the form value, so picking
- * Other on an empty field doesn't immediately hide the input again.
+ * Generic "select from a standard list, or type Other" widget. The canonical
+ * values come from uiSchema `options.standardValues`; the value the server
+ * receives is either one of those strings or the user's free-text override.
+ *
+ * "Other selected" is tracked as local UI state so picking Other on an empty
+ * field doesn't immediately hide the revealed input again.
+ *
+ * Used by Background's maternal/paternal strain selects and Mutagenesis's
+ * protocol select.
  */
-function BackgroundSelectWithOtherRenderer({ data, handleChange, path, label }: ControlProps) {
+function SelectWithOtherRenderer({ data, handleChange, path, label, uischema, visible }: ControlProps) {
+    if (visible === false) {return null;}
+
     const fieldName = path.split('.').pop() ?? path;
     const inputId = `fr-${fieldName}`;
     const labelId = `fr-label-${fieldName}`;
+    const options = (uischema as { options?: { standardValues?: string[] } } | undefined)?.options ?? {};
+    const standardValues = options.standardValues ?? [];
     const value = (data as string | undefined) ?? '';
-    const isStandard = STANDARD_BACKGROUNDS.includes(value);
+    const isStandard = standardValues.includes(value);
     const [otherSelected, setOtherSelected] = React.useState(() => value !== '' && !isStandard);
     const selectValue = isStandard ? value : (otherSelected ? OTHER_SENTINEL : '');
 
@@ -50,7 +59,7 @@ function BackgroundSelectWithOtherRenderer({ data, handleChange, path, label }: 
                         }}
                     >
                         <option value=''>(select)</option>
-                        {STANDARD_BACKGROUNDS.map((s) => (
+                        {standardValues.map((s) => (
                             <option key={s} value={s}>{s}</option>
                         ))}
                         <option value={OTHER_SENTINEL}>Other</option>
@@ -72,7 +81,7 @@ function BackgroundSelectWithOtherRenderer({ data, handleChange, path, label }: 
     );
 }
 
-export const backgroundSelectWithOtherRendererEntry: JsonFormsRendererRegistryEntry = {
-    tester: rankWith(20, and(isControl, optionIs('widget', 'backgroundSelectWithOther'))),
-    renderer: withJsonFormsControlProps(BackgroundSelectWithOtherRenderer),
+export const selectWithOtherRendererEntry: JsonFormsRendererRegistryEntry = {
+    tester: rankWith(20, and(isControl, optionIs('widget', 'selectWithOther'))),
+    renderer: withJsonFormsControlProps(SelectWithOtherRenderer),
 };

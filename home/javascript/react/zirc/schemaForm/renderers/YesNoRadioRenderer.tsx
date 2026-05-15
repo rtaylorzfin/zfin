@@ -16,7 +16,8 @@ import { withJsonFormsControlProps } from '@jsonforms/react';
  *
  * Tester: any Control whose uiSchema sets options.widget = 'yesNoRadio'.
  */
-function YesNoRadioRenderer({ data, handleChange, path, label }: ControlProps) {
+function YesNoRadioRenderer({ data, handleChange, path, label, visible }: ControlProps) {
+    if (visible === false) {return null;}
     const fieldName = path.split('.').pop() ?? path;
     const labelId = `fr-label-${fieldName}`;
     const name = `fr-${fieldName}-group`;

@@ -31,7 +31,9 @@ function MultipleChoiceWithOtherRenderer({
     path,
     schema,
     uischema,
+    visible,
 }: ControlProps) {
+    if (visible === false) {return null;}
     const obj: ReasonsObject = (data as ReasonsObject) ?? {};
     const reasons = obj.reasons ?? [];
     const reasonsOther = obj.reasonsOther ?? '';

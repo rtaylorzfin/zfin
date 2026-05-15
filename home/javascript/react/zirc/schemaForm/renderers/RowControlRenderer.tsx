@@ -24,9 +24,13 @@ function RowControlRenderer({
     label,
     required,
     errors,
+    visible,
 }: ControlProps) {
-    const inputId = `fr-${path}`;
-    const labelId = `fr-label-${path}`;
+    if (visible === false) {return null;}
+
+    const fieldName = path.split('.').pop() ?? path;
+    const inputId = `fr-${fieldName}`;
+    const labelId = `fr-label-${fieldName}`;
 
     return (
         <tr>
