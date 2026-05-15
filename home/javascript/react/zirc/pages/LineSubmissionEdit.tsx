@@ -3,6 +3,7 @@ import { QueryClientProvider } from '@tanstack/react-query';
 import { queryClient } from '../queryClient';
 import { useLineSubmission } from '../api/queries';
 import { SchemaForm } from '../schemaForm/SchemaForm';
+import { JsonFormsSchemaForm } from '../schemaForm/jsonforms/JsonFormsSchemaForm';
 import { AcceptanceReasonsForm } from '../forms/AcceptanceReasonsForm';
 import { BackgroundForm } from '../forms/BackgroundForm';
 import { AdditionalInfoForm } from '../forms/AdditionalInfoForm';
@@ -45,12 +46,18 @@ function LineSubmissionEditInner({ submissionId }: LineSubmissionEditProps) {
 
     const submission = query.data ?? createdSubmission ?? null;
 
+    // Toggle between the rjsf and JSON Forms spike implementations via URL
+    // query (?renderer=jsonforms). Both render the same Overview schema with
+    // the same backend; the rest of the page is unchanged.
+    const renderer =
+        typeof window !== 'undefined'
+            ? new URLSearchParams(window.location.search).get('renderer')
+            : null;
+    const OverviewRenderer = renderer === 'jsonforms' ? JsonFormsSchemaForm : SchemaForm;
+
     return (
         <>
-            {/* Spike: Overview is now driven by the schema endpoint.
-                The other three sections still render through their hand-built
-                forms so the comparison is isolated to Overview. */}
-            <SchemaForm
+            <OverviewRenderer
                 submission={submission}
                 onCreated={setCreatedSubmission}
             />

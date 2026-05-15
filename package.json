@@ -37,6 +37,8 @@
     "@geneontology/wc-ribbon-table": "0.0.57",
     "@jbrowse/react-app": "^2.18.0",
     "@jbrowse/react-linear-genome-view": "^2.18.0",
+    "@jsonforms/core": "^3.6.0",
+    "@jsonforms/react": "^3.6.0",
     "@rjsf/bootstrap-4": "^5.24.0",
     "@rjsf/core": "^5.24.0",
     "@rjsf/utils": "^5.24.0",
