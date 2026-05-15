@@ -57,6 +57,7 @@ public final class ZircFormSchema {
                 "reasons", reasonsArrayProp(),
                 "reasonsOther", stringProp(2000, "Other reason")
         )));
+        properties.put("mutations", mutationsSummaryArrayProp());
         properties.put("background", obj("Background", linkedMap(
                 "singleAllelic",        nullableBoolProp("Single-allelic submission"),
                 "maternalBackground",   stringProp(255, "Maternal"),
@@ -92,6 +93,13 @@ public final class ZircFormSchema {
                                 "label", "Why ZIRC should accept this line"
                         ))
                 )),
+                // Mutations is structurally different from the field sections —
+                // a list of child rows, edited on their own pages. The "plain"
+                // layout option tells SectionRenderer to drop the table wrapper.
+                groupWithOptions("Mutations",
+                        Map.of("layout", "plain"),
+                        List.of(controlWithOptions("#/properties/mutations",
+                                Map.of("widget", "mutationsList")))),
                 group("Background", List.of(
                         controlWithOptions("#/properties/background/properties/singleAllelic",
                                 Map.of("widget", "yesNoRadio")),
@@ -159,6 +167,31 @@ public final class ZircFormSchema {
         return p;
     }
 
+    /**
+     * Schema for the mutations summary list shown on the submission page.
+     * Items are read-only summaries — editing happens on the per-mutation
+     * page. The shape mirrors {@link org.zfin.zirc.dto.MutationResponse}.
+     */
+    private static Map<String, Object> mutationsSummaryArrayProp() {
+        Map<String, Object> itemProps = new LinkedHashMap<>();
+        itemProps.put("id",                Map.of("type", "number"));
+        itemProps.put("lineSubmissionId",  Map.of("type", "string"));
+        itemProps.put("sortOrder",         Map.of("type", "number"));
+        itemProps.put("alleleDesignation", Map.of("type", List.of("string", "null")));
+        itemProps.put("alleleInZfin",      Map.of("type", List.of("boolean", "null")));
+        itemProps.put("mutationType",      Map.of("type", List.of("string", "null")));
+
+        Map<String, Object> item = new LinkedHashMap<>();
+        item.put("type", "object");
+        item.put("properties", itemProps);
+
+        Map<String, Object> arr = new LinkedHashMap<>();
+        arr.put("type", "array");
+        arr.put("title", "Mutations");
+        arr.put("items", item);
+        return arr;
+    }
+
     private static Map<String, Object> reasonsArrayProp() {
         Map<String, Object> items = new LinkedHashMap<>();
         items.put("type", "string");
@@ -200,6 +233,15 @@ public final class ZircFormSchema {
         g.put("type", "Group");
         g.put("label", label);
         g.put("elements", elements);
+        return g;
+    }
+
+    private static Map<String, Object> groupWithOptions(
+            String label,
+            Map<String, Object> options,
+            List<Map<String, Object>> elements) {
+        Map<String, Object> g = group(label, elements);
+        g.put("options", options);
         return g;
     }
 

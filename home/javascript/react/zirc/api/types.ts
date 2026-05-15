@@ -16,6 +16,7 @@ export interface LineSubmissionResponse {
     additionalInfo: string | null;
     reasons: string[];
     reasonsOther: string | null;
+    mutations: MutationResponse[];
     draft: boolean;
 }
 

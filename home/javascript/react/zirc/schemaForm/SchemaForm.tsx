@@ -13,6 +13,7 @@ import { textareaRowRendererEntry } from './renderers/TextareaRowRenderer';
 import { yesNoRadioRendererEntry } from './renderers/YesNoRadioRenderer';
 import { multipleChoiceWithOtherRendererEntry } from './renderers/MultipleChoiceWithOtherRenderer';
 import { backgroundSelectWithOtherRendererEntry } from './renderers/BackgroundSelectWithOtherRenderer';
+import { mutationsListRendererEntry } from './renderers/MutationsListRenderer';
 
 type FormData = Record<string, unknown>;
 
@@ -33,7 +34,13 @@ const renderers = [
     yesNoRadioRendererEntry,
     multipleChoiceWithOtherRendererEntry,
     backgroundSelectWithOtherRendererEntry,
+    mutationsListRendererEntry,
 ];
+
+// Paths whose changes flow through dedicated endpoints (POST/DELETE), not the
+// field-path PATCH. SchemaForm's diff filters these out so an Add/Delete in
+// the mutations list doesn't trigger a spurious PATCH /mutations attempt.
+const EXTERNALLY_MANAGED_PATHS = new Set<string>(['/mutations']);
 
 function initialDataFromSubmission(submission: LineSubmissionResponse | null): FormData {
     if (!submission) {
@@ -41,6 +48,7 @@ function initialDataFromSubmission(submission: LineSubmissionResponse | null): F
             name: '',
             previousNames: '',
             acceptance: { reasons: [], reasonsOther: '' },
+            mutations: [],
             background: {
                 singleAllelic: null,
                 maternalBackground: '',
@@ -61,6 +69,7 @@ function initialDataFromSubmission(submission: LineSubmissionResponse | null): F
             reasons: submission.reasons ?? [],
             reasonsOther: submission.reasonsOther ?? '',
         },
+        mutations: submission.mutations ?? [],
         background: {
             singleAllelic: submission.singleAllelic,
             maternalBackground: submission.maternalBackground ?? '',
@@ -129,6 +138,18 @@ export function SchemaForm({ submission, onCreated }: Props) {
     const lastSavedRef = React.useRef<FormData>(initialData);
     const create = useCreateLineSubmission();
 
+    // Mutations live on the server; the React Query cache is authoritative.
+    // When the parent refetches (after an Add or Delete) we mirror the new
+    // list into the local form data so JsonForms re-renders the section.
+    // Other fields stay locally-owned to preserve unsaved keystrokes.
+    const mutationsKey = JSON.stringify(submission?.mutations ?? []);
+    React.useEffect(() => {
+        if (!submission) {return;}
+        const next = submission.mutations ?? [];
+        setFormData((d) => ({ ...d, mutations: next }));
+        lastSavedRef.current = { ...lastSavedRef.current, mutations: next };
+    }, [mutationsKey]);
+
     const [status, setStatus] = React.useState<SaveStatus>('idle');
     const [errorMessage, setErrorMessage] = React.useState<string | null>(null);
     const firstRender = React.useRef(true);
@@ -142,7 +163,8 @@ export function SchemaForm({ submission, onCreated }: Props) {
         }
 
         const handle = window.setTimeout(async () => {
-            const changes = diffLeaves(lastSavedRef.current, formData);
+            const changes = diffLeaves(lastSavedRef.current, formData)
+                .filter(([path]) => !EXTERNALLY_MANAGED_PATHS.has(path));
             if (changes.length === 0) {return;}
 
             setStatus('saving');
@@ -193,6 +215,7 @@ export function SchemaForm({ submission, onCreated }: Props) {
                 data={formData}
                 renderers={renderers}
                 cells={[]}
+                config={{ submissionId: submissionIdRef.current ?? submission?.zdbID }}
                 onChange={({ data }) => setFormData(data as FormData)}
             />
         </div>

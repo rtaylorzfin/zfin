@@ -2,12 +2,13 @@
 
 <c:set var="OVERVIEW"           value="Overview"/>
 <c:set var="ACCEPTANCE_REASONS" value="Acceptance Reasons"/>
+<c:set var="MUTATIONS"          value="Mutations"/>
 <c:set var="BACKGROUND"         value="Background"/>
 <c:set var="ADDITIONAL"         value="Additional Info"/>
 
-<%-- Sections grow as the React editor implements them. Mutations and Linked
-     Features are next; they require parent-child editor UI not yet built. --%>
-<c:set var="sections" value="${[OVERVIEW, ACCEPTANCE_REASONS, BACKGROUND, ADDITIONAL]}"/>
+<%-- Linked Features still pending; per the reference the section appears
+     only when 2+ mutations exist. --%>
+<c:set var="sections" value="${[OVERVIEW, ACCEPTANCE_REASONS, MUTATIONS, BACKGROUND, ADDITIONAL]}"/>
 
 <c:set var="isNewSubmission" value="${empty submission.zdbID}"/>
 <c:set var="entityLabel" value="${not empty submission.name

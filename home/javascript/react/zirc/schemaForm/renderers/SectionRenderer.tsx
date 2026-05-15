@@ -10,9 +10,12 @@ import { ResolvedJsonFormsDispatch, withJsonFormsLayoutProps } from '@jsonforms/
 
 /**
  * Renders a uiSchema "Group" element as a ZFIN-styled section: section.section
- * with an h2.heading and a table.table-borderless body. Child elements are
- * dispatched into the table body via ResolvedJsonFormsDispatch — the row
- * renderer is responsible for producing <tr> wrappers.
+ * with an h2.heading.
+ *
+ * Default body layout is a table.table-borderless whose <tr> rows come from
+ * the row-style Control renderers. Groups whose uiSchema sets
+ * options.layout = 'plain' get a plain <div> wrapper instead — for sections
+ * like Mutations whose body is a list of cards, not a table of fields.
  */
 function SectionRenderer({
     uischema,
@@ -28,25 +31,31 @@ function SectionRenderer({
         ? label.toLowerCase().replace(/[^a-z0-9-_:.]/g, '-').replace(/-+/g, '-')
         : 'section';
     const headingId = `${sectionId}-heading`;
+    const isPlain =
+        (layout.options as { layout?: string } | undefined)?.layout === 'plain';
+
+    const children = (layout.elements ?? []).map((child, index) => (
+        <ResolvedJsonFormsDispatch
+            key={`${path}-${index}`}
+            uischema={child}
+            schema={schema}
+            path={path}
+            enabled={enabled}
+            renderers={renderers}
+            cells={cells}
+        />
+    ));
 
     return (
         <section className='section' id={sectionId} aria-labelledby={headingId}>
             <h2 id={headingId} className='heading'>{label}</h2>
-            <table className='table table-borderless'>
-                <tbody>
-                    {(layout.elements ?? []).map((child, index) => (
-                        <ResolvedJsonFormsDispatch
-                            key={`${path}-${index}`}
-                            uischema={child}
-                            schema={schema}
-                            path={path}
-                            enabled={enabled}
-                            renderers={renderers}
-                            cells={cells}
-                        />
-                    ))}
-                </tbody>
-            </table>
+            {isPlain ? (
+                <div>{children}</div>
+            ) : (
+                <table className='table table-borderless'>
+                    <tbody>{children}</tbody>
+                </table>
+            )}
         </section>
     );
 }
