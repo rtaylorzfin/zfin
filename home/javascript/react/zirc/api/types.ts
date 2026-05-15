@@ -53,6 +53,47 @@ export interface AssaySummary {
     assayType: string | null;
 }
 
+// Full per-assay payload — used by the inline assay editor (M4.2). Field
+// visibility is decided by the uiSchema's conditional rules, not by which
+// fields are populated, so every column shows up here regardless of type.
+export interface AssayResponse {
+    id: number;
+    mutationId: number | null;
+    sortOrder: number;
+    assayType: string | null;
+    // PCR core
+    forwardPrimer: string | null;
+    reversePrimer: string | null;
+    expectedWtPcr: string | null;
+    expectedMutPcr: string | null;
+    // Sequencing
+    sequencingPrimer: string | null;
+    // dCAPS
+    dcapsMismatchPrimer: string | null;
+    // Allele-specific PCR
+    wtSpecificPrimer: string | null;
+    mutSpecificPrimer: string | null;
+    commonPrimer: string | null;
+    // KASP
+    kaspGenomicSequence: string | null;
+    // RFLP
+    restrictionEnzymeName: string | null;
+    restrictionEnzymeCatalog: string | null;
+    enzymeCleaves: string[];
+    expectedWtDigest: string | null;
+    expectedMutDigest: string | null;
+    // SSLP
+    sslpMarkerName: string | null;
+    sslpDistance: string | null;
+    sslpGenomicLocation: string | null;
+    sslpInducedBackground: string | null;
+    sslpOutcrossedBackground: string | null;
+    sslpInducedPcr: string | null;
+    sslpOutcrossedPcr: string | null;
+    // Catch-all
+    additionalInfo: string | null;
+}
+
 // RFC 7807 problem detail returned by ZircApiExceptionHandler.
 export interface ProblemDetail {
     type?: string;

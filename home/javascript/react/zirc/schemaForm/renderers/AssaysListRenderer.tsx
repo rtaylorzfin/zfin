@@ -10,32 +10,53 @@ import {
 import { withJsonFormsControlProps } from '@jsonforms/react';
 import { AssaySummary } from '../../api/types';
 import { useAddAssay, useDeleteAssay } from '../../api/queries';
+import { AssayEdit } from '../../pages/AssayEdit';
 
 /**
  * Renders the per-mutation list of genotyping assays as a stack of cards.
  *
- * Each card collapses to a one-line summary (assay type + sort order). The
- * full per-assay field set lands in M4.2, when expanding a card will mount
- * a per-assay schema-driven editor that PATCHes /assays/{id} with flat
- * paths — flat paths are why each assay gets its own card-scoped form
- * instead of inheriting the mutation's path namespace.
+ * Each card collapses to a one-line summary (assay type + sort order) and
+ * expands to mount {@link AssayEdit} inline. Expanding doesn't change the
+ * URL — the assay editor talks directly to /api/zirc/assays/{id} with flat
+ * paths, so it sidesteps the mutation form's path namespace. Add/Delete
+ * still go through their dedicated endpoints, and MutationEdit's diff
+ * filter skips /assays so those mutations don't fight autosave.
  *
- * Add/Delete go through dedicated endpoints (see useAddAssay /
- * useDeleteAssay); MutationEdit's diff filter skips /assays so these
- * mutations don't fight the autosave diff.
+ * Expansion state is local component state (a Set of expanded ids) so
+ * collapse on parent re-render is avoided.
  *
- * The mutation id needed for the endpoints comes through JsonForms'
- * `config` prop, which MutationEdit threads through.
+ * The mutation id needed for Add/Delete + the AssayEdit's parent-summary
+ * invalidate comes through JsonForms' `config` prop.
  */
 function AssaysListRenderer({ data, config }: ControlProps) {
     const assays = (data as AssaySummary[] | undefined) ?? [];
     const mutationId = (config as { mutationId?: number } | undefined)?.mutationId;
     const addAssay = useAddAssay();
     const deleteAssay = useDeleteAssay();
+    const [expanded, setExpanded] = React.useState<Set<number>>(new Set());
+
+    const toggle = (id: number) => {
+        setExpanded((prev) => {
+            const next = new Set(prev);
+            if (next.has(id)) {next.delete(id);} else {next.add(id);}
+            return next;
+        });
+    };
 
     const handleAdd = () => {
         if (!mutationId) {return;}
-        addAssay.mutate(mutationId);
+        addAssay.mutate(mutationId, {
+            // Open the newly-created card so the user can fill it in right away.
+            onSuccess: (mutation) => {
+                const newest = (mutation.assays ?? []).reduce<AssaySummary | null>(
+                    (best, a) => (best == null || a.id > best.id ? a : best),
+                    null,
+                );
+                if (newest) {
+                    setExpanded((prev) => new Set(prev).add(newest.id));
+                }
+            },
+        });
     };
 
     const handleDelete = (assayId: number) => {
@@ -64,23 +85,35 @@ function AssaysListRenderer({ data, config }: ControlProps) {
     return (
         <div>
             <ul className='list-unstyled'>
-                {assays.map((a) => (
-                    <li key={a.id} className='border rounded p-2 mb-2 d-flex justify-content-between align-items-center'>
-                        <div>
-                            <strong>{a.assayType || `Assay #${a.sortOrder}`}</strong>
-                        </div>
-                        <div>
-                            <button
-                                type='button'
-                                className='btn btn-sm btn-outline-danger'
-                                onClick={() => handleDelete(a.id)}
-                                disabled={deleteAssay.isPending}
-                            >
-                                Delete
-                            </button>
-                        </div>
-                    </li>
-                ))}
+                {assays.map((a) => {
+                    const isOpen = expanded.has(a.id);
+                    return (
+                        <li key={a.id} className='border rounded p-2 mb-2'>
+                            <div className='d-flex justify-content-between align-items-center'>
+                                <button
+                                    type='button'
+                                    className='btn btn-link p-0 text-left'
+                                    onClick={() => toggle(a.id)}
+                                    aria-expanded={isOpen}
+                                >
+                                    <span className='mr-2'>{isOpen ? '▾' : '▸'}</span>
+                                    <strong>{a.assayType || `Assay #${a.sortOrder}`}</strong>
+                                </button>
+                                <button
+                                    type='button'
+                                    className='btn btn-sm btn-outline-danger'
+                                    onClick={() => handleDelete(a.id)}
+                                    disabled={deleteAssay.isPending}
+                                >
+                                    Delete
+                                </button>
+                            </div>
+                            {isOpen && (
+                                <AssayEdit assayId={a.id} mutationId={mutationId} />
+                            )}
+                        </li>
+                    );
+                })}
             </ul>
             <button
                 type='button'

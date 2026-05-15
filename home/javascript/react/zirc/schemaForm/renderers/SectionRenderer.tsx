@@ -22,9 +22,14 @@ function SectionRenderer({
     schema,
     path,
     enabled,
+    visible,
     renderers,
     cells,
 }: LayoutProps) {
+    // Hidden by a uiSchema rule (e.g. the per-assayType groups in the assay
+    // schema). Without this gate, group-level rules are silently ignored —
+    // unlike Controls, which inherit rule handling from withJsonFormsControlProps.
+    if (visible === false) {return null;}
     const layout = uischema as GroupLayout;
     const label = layout.label ?? schema?.title ?? '';
     const sectionId = label

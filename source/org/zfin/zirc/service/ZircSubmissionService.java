@@ -8,6 +8,7 @@ import org.springframework.stereotype.Service;
 import org.zfin.framework.HibernateUtil;
 import org.zfin.profile.Person;
 import org.zfin.profile.service.ProfileService;
+import org.zfin.zirc.api.ZircAssayFormSchema;
 import org.zfin.zirc.api.ZircFormSchema;
 import org.zfin.zirc.api.ZircMutationFormSchema;
 import org.zfin.zirc.dto.FieldUpdate;
@@ -152,6 +153,35 @@ public class ZircSubmissionService {
         if (assay == null) {
             throw new ZircEntityNotFoundException("Assay " + assayId + " not found");
         }
+        return assay;
+    }
+
+    /**
+     * Apply a single field change to a GenotypingAssay against
+     * {@link ZircAssayFormSchema#FIELDS}. Mirrors {@link #updateMutationField}
+     * but for the per-assay aggregate; audit log keys by assay id.
+     */
+    public GenotypingAssay updateAssayField(Long assayId, FieldUpdate update) {
+        GenotypingAssay assay = getRequiredAssayById(assayId);
+
+        ZircAssayFormSchema.FieldDescriptor descriptor =
+                ZircAssayFormSchema.FIELDS.get(update.path());
+        if (descriptor == null) {
+            throw new IllegalArgumentException("Unknown assay field path: " + update.path());
+        }
+
+        JsonNode oldValue = descriptor.read().apply(assay);
+        HibernateUtil.createTransaction();
+        descriptor.write().accept(assay, update.value());
+        HibernateUtil.flushAndCommitCurrentSession();
+
+        Person currentUser = ProfileService.getCurrentSecurityUser();
+        String userId = currentUser == null ? "anonymous" : currentUser.getZdbID();
+        log.info("ZIRC_AUDIT user={} assay={} path={} old={} new={}",
+                userId, assayId, update.path(),
+                safeJson(oldValue),
+                safeJson(update.value()));
+
         return assay;
     }
 

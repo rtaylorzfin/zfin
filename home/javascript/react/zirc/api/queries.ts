@@ -1,6 +1,6 @@
 import { useMutation, useQuery, useQueryClient } from '@tanstack/react-query';
 import { api } from './client';
-import { LineSubmissionResponse, MutationResponse } from './types';
+import { AssayResponse, LineSubmissionResponse, MutationResponse } from './types';
 
 export const lineSubmissionKey = (id: string) => ['zirc', 'lineSubmission', id] as const;
 
@@ -74,5 +74,15 @@ export function useDeleteAssay() {
         onSuccess: (_data, vars) => {
             qc.invalidateQueries({ queryKey: mutationKey(vars.mutationId) });
         },
+    });
+}
+
+export const assayKey = (id: number) => ['zirc', 'assay', id] as const;
+
+export function useAssayById(id: number | null) {
+    return useQuery({
+        queryKey: assayKey(id ?? 0),
+        queryFn: () => api.get<AssayResponse>(`/assays/${id}`),
+        enabled: !!id,
     });
 }
