@@ -5,15 +5,16 @@ import type { JsonSchema, UISchemaElement } from '@jsonforms/core';
 import { api } from '../api/client';
 import { LineSubmissionResponse } from '../api/types';
 import { useCreateLineSubmission } from '../api/queries';
-import { SaveStatusBadge } from '../components/SaveStatusBadge';
-import { SaveStatus } from '../hooks/useSectionAutosave';
+import { SaveStatusBadge, SaveStatus } from '../components/SaveStatusBadge';
 import { sectionRendererEntry } from './renderers/SectionRenderer';
 import { rowControlRendererEntry } from './renderers/RowControlRenderer';
+import { verticalLayoutRendererEntry } from './renderers/VerticalLayoutRenderer';
+import { textareaRowRendererEntry } from './renderers/TextareaRowRenderer';
+import { yesNoRadioRendererEntry } from './renderers/YesNoRadioRenderer';
+import { multipleChoiceWithOtherRendererEntry } from './renderers/MultipleChoiceWithOtherRenderer';
+import { backgroundSelectWithOtherRendererEntry } from './renderers/BackgroundSelectWithOtherRenderer';
 
-type FormDataShape = {
-    name?: string;
-    previousNames?: string;
-};
+type FormData = Record<string, unknown>;
 
 type FormSchemaResponse = { schema: JsonSchema; uiSchema: UISchemaElement };
 
@@ -24,17 +25,95 @@ type Props = {
 
 const AUTOSAVE_DEBOUNCE_MS = 800;
 
-// JSON Forms requires an explicit renderer registry; only the reference-styled
-// ones are registered, so any unknown widget kind (number, array of objects,
-// etc.) surfaces as a "no matching renderer" — by design, the schema can only
-// describe what we know how to render.
-const renderers = [sectionRendererEntry, rowControlRendererEntry];
+const renderers = [
+    verticalLayoutRendererEntry,
+    sectionRendererEntry,
+    rowControlRendererEntry,
+    textareaRowRendererEntry,
+    yesNoRadioRendererEntry,
+    multipleChoiceWithOtherRendererEntry,
+    backgroundSelectWithOtherRendererEntry,
+];
+
+function initialDataFromSubmission(submission: LineSubmissionResponse | null): FormData {
+    if (!submission) {
+        return {
+            name: '',
+            previousNames: '',
+            acceptance: { reasons: [], reasonsOther: '' },
+            background: {
+                singleAllelic: null,
+                maternalBackground: '',
+                paternalBackground: '',
+                backgroundChangeable: null,
+            },
+            additionalInfo: {
+                unreportedFeaturesDetails: '',
+                husbandryInfo: '',
+                additionalInfo: '',
+            },
+        };
+    }
+    return {
+        name: submission.name ?? '',
+        previousNames: submission.previousNames ?? '',
+        acceptance: {
+            reasons: submission.reasons ?? [],
+            reasonsOther: submission.reasonsOther ?? '',
+        },
+        background: {
+            singleAllelic: submission.singleAllelic,
+            maternalBackground: submission.maternalBackground ?? '',
+            paternalBackground: submission.paternalBackground ?? '',
+            backgroundChangeable: submission.backgroundChangeable,
+        },
+        additionalInfo: {
+            unreportedFeaturesDetails: submission.unreportedFeaturesDetails ?? '',
+            husbandryInfo: submission.husbandryInfo ?? '',
+            additionalInfo: submission.additionalInfo ?? '',
+        },
+    };
+}
 
 /**
- * Schema-driven Overview form. The Java side at GET /api/zirc/form-schema is
- * the single source of truth for both the JSON Schema and the JSON Forms
- * uiSchema; the client just dispatches them to JsonForms with our reference-
- * styled renderers and emits one field-path PATCH per changed leaf on save.
+ * Walks two form-data trees and emits one [path, value] entry per leaf that
+ * changed. Arrays are treated as leaves (the whole list is sent as one
+ * value, since the schema models reasons[] as an atomic chip-list). Path is
+ * JSON Pointer (`/acceptance/reasons`).
+ */
+function diffLeaves(
+    prev: unknown,
+    curr: unknown,
+    basePath = '',
+): Array<[string, unknown]> {
+    const isPlainObject = (v: unknown): v is Record<string, unknown> =>
+        typeof v === 'object' && v !== null && !Array.isArray(v);
+
+    if (Array.isArray(prev) || Array.isArray(curr)) {
+        if (JSON.stringify(prev ?? null) !== JSON.stringify(curr ?? null)) {
+            return [[basePath || '/', curr ?? null]];
+        }
+        return [];
+    }
+    if (isPlainObject(prev) && isPlainObject(curr)) {
+        const keys = new Set([...Object.keys(prev), ...Object.keys(curr)]);
+        const changes: Array<[string, unknown]> = [];
+        for (const key of keys) {
+            changes.push(...diffLeaves(prev[key], curr[key], `${basePath}/${key}`));
+        }
+        return changes;
+    }
+    if (!Object.is(prev, curr)) {
+        return [[basePath || '/', curr ?? null]];
+    }
+    return [];
+}
+
+/**
+ * Schema-driven submission form. Server's GET /api/zirc/form-schema returns
+ * both the JSON Schema and the JSON Forms uiSchema; this component just
+ * dispatches them to JsonForms with our reference-styled renderers, then
+ * emits one field-path PATCH per changed leaf when the user pauses typing.
  */
 export function SchemaForm({ submission, onCreated }: Props) {
     const { data: schemaResponse, isLoading: schemaLoading, isError: schemaError } =
@@ -44,14 +123,10 @@ export function SchemaForm({ submission, onCreated }: Props) {
             staleTime: Infinity,
         });
 
-    const initialData: FormDataShape = {
-        name: submission?.name ?? '',
-        previousNames: submission?.previousNames ?? '',
-    };
-
-    const [formData, setFormData] = React.useState<FormDataShape>(initialData);
+    const initialData = React.useMemo(() => initialDataFromSubmission(submission), [submission?.zdbID]);
+    const [formData, setFormData] = React.useState<FormData>(initialData);
     const submissionIdRef = React.useRef<string | null>(submission?.zdbID ?? null);
-    const lastSavedRef = React.useRef<FormDataShape>(initialData);
+    const lastSavedRef = React.useRef<FormData>(initialData);
     const create = useCreateLineSubmission();
 
     const [status, setStatus] = React.useState<SaveStatus>('idle');
@@ -67,14 +142,7 @@ export function SchemaForm({ submission, onCreated }: Props) {
         }
 
         const handle = window.setTimeout(async () => {
-            // Diff against last persisted state — one PATCH per changed leaf
-            // so the server-side audit log captures each field change.
-            const changes: Array<[string, unknown]> = [];
-            (Object.keys(formData) as Array<keyof FormDataShape>).forEach((key) => {
-                if (!Object.is(formData[key], lastSavedRef.current[key])) {
-                    changes.push([`/${key}`, formData[key] ?? null]);
-                }
-            });
+            const changes = diffLeaves(lastSavedRef.current, formData);
             if (changes.length === 0) {return;}
 
             setStatus('saving');
@@ -97,9 +165,8 @@ export function SchemaForm({ submission, onCreated }: Props) {
                         `/line-submissions/${id}`,
                         { path, value },
                     );
-                    const fieldName = path.slice(1) as keyof FormDataShape;
-                    lastSavedRef.current = { ...lastSavedRef.current, [fieldName]: value as string };
                 }
+                lastSavedRef.current = formData;
                 setStatus('saved');
             } catch (e: unknown) {
                 setStatus('error');
@@ -126,7 +193,7 @@ export function SchemaForm({ submission, onCreated }: Props) {
                 data={formData}
                 renderers={renderers}
                 cells={[]}
-                onChange={({ data }) => setFormData(data as FormDataShape)}
+                onChange={({ data }) => setFormData(data as FormData)}
             />
         </div>
     );

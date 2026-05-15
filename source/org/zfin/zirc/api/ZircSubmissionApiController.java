@@ -15,10 +15,6 @@ import org.springframework.web.bind.annotation.ResponseStatus;
 import org.springframework.web.bind.annotation.RestController;
 import org.zfin.zirc.dto.FieldUpdate;
 import org.zfin.zirc.dto.FormSchemaResponse;
-import org.zfin.zirc.dto.LineSubmissionAcceptanceReasonsUpdate;
-import org.zfin.zirc.dto.LineSubmissionAdditionalInfoUpdate;
-import org.zfin.zirc.dto.LineSubmissionBackgroundUpdate;
-import org.zfin.zirc.dto.LineSubmissionOverviewUpdate;
 import org.zfin.zirc.dto.LineSubmissionResponse;
 import org.zfin.zirc.dto.MutationResponse;
 import org.zfin.zirc.service.ZircSubmissionService;
@@ -41,48 +37,20 @@ public class ZircSubmissionApiController {
         return LineSubmissionResponse.of(zircSubmissionService.createDraftForCurrentUser());
     }
 
+    @GetMapping("/line-submissions/{zdbID}")
+    public LineSubmissionResponse getLineSubmission(@PathVariable String zdbID) {
+        return LineSubmissionResponse.of(zircSubmissionService.getRequiredLineSubmission(zdbID));
+    }
+
     /**
-     * Single field change against the form schema (spike). Coexists with
-     * the section-PATCH endpoints above while we evaluate.
+     * Single field change against the form schema. The path is checked against
+     * {@link ZircFormSchema#FIELDS}; unknown paths reject with 400.
      */
     @PatchMapping("/line-submissions/{zdbID}")
     public LineSubmissionResponse updateField(
             @PathVariable String zdbID,
             @Valid @RequestBody FieldUpdate update) {
         return LineSubmissionResponse.of(zircSubmissionService.updateField(zdbID, update));
-    }
-
-    @GetMapping("/line-submissions/{zdbID}")
-    public LineSubmissionResponse getLineSubmission(@PathVariable String zdbID) {
-        return LineSubmissionResponse.of(zircSubmissionService.getRequiredLineSubmission(zdbID));
-    }
-
-    @PatchMapping("/line-submissions/{zdbID}/overview")
-    public LineSubmissionResponse updateOverview(
-            @PathVariable String zdbID,
-            @Valid @RequestBody LineSubmissionOverviewUpdate update) {
-        return LineSubmissionResponse.of(zircSubmissionService.updateOverview(zdbID, update));
-    }
-
-    @PatchMapping("/line-submissions/{zdbID}/acceptance-reasons")
-    public LineSubmissionResponse updateAcceptanceReasons(
-            @PathVariable String zdbID,
-            @Valid @RequestBody LineSubmissionAcceptanceReasonsUpdate update) {
-        return LineSubmissionResponse.of(zircSubmissionService.updateAcceptanceReasons(zdbID, update));
-    }
-
-    @PatchMapping("/line-submissions/{zdbID}/background")
-    public LineSubmissionResponse updateBackground(
-            @PathVariable String zdbID,
-            @Valid @RequestBody LineSubmissionBackgroundUpdate update) {
-        return LineSubmissionResponse.of(zircSubmissionService.updateBackground(zdbID, update));
-    }
-
-    @PatchMapping("/line-submissions/{zdbID}/additional-info")
-    public LineSubmissionResponse updateAdditionalInfo(
-            @PathVariable String zdbID,
-            @Valid @RequestBody LineSubmissionAdditionalInfoUpdate update) {
-        return LineSubmissionResponse.of(zircSubmissionService.updateAdditionalInfo(zdbID, update));
     }
 
     @PostMapping("/line-submissions/{zdbID}/mutations")

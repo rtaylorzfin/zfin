@@ -1,5 +1,5 @@
-// Hand-typed mirrors of the org.zfin.zirc.dto.* Java records.
-// Replace with OpenAPI-generated types once springdoc is wired (see milestone 2 backlog).
+// Hand-typed mirror of org.zfin.zirc.dto.LineSubmissionResponse, used by the
+// React Query cache and as the seed for the schema-driven form's initial data.
 
 export interface LineSubmissionResponse {
     zdbID: string;
@@ -26,29 +26,6 @@ export interface MutationResponse {
     alleleDesignation: string | null;
     alleleInZfin: boolean | null;
     mutationType: string | null;
-}
-
-export interface OverviewUpdate {
-    name?: string | null;
-    previousNames?: string | null;
-}
-
-export interface AcceptanceReasonsUpdate {
-    reasons: string[];
-    reasonsOther: string | null;
-}
-
-export interface BackgroundUpdate {
-    singleAllelic: boolean | null;
-    maternalBackground: string | null;
-    paternalBackground: string | null;
-    backgroundChangeable: boolean | null;
-}
-
-export interface AdditionalInfoUpdate {
-    unreportedFeaturesDetails: string | null;
-    husbandryInfo: string | null;
-    additionalInfo: string | null;
 }
 
 // RFC 7807 problem detail returned by ZircApiExceptionHandler.

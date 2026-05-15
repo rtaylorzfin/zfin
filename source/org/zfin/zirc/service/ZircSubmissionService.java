@@ -10,10 +10,6 @@ import org.zfin.profile.Person;
 import org.zfin.profile.service.ProfileService;
 import org.zfin.zirc.api.ZircFormSchema;
 import org.zfin.zirc.dto.FieldUpdate;
-import org.zfin.zirc.dto.LineSubmissionAcceptanceReasonsUpdate;
-import org.zfin.zirc.dto.LineSubmissionAdditionalInfoUpdate;
-import org.zfin.zirc.dto.LineSubmissionBackgroundUpdate;
-import org.zfin.zirc.dto.LineSubmissionOverviewUpdate;
 import org.zfin.zirc.entity.LineSubmission;
 import org.zfin.zirc.entity.LineSubmissionPerson;
 import org.zfin.zirc.entity.Mutation;
@@ -70,50 +66,33 @@ public class ZircSubmissionService {
     }
 
     /**
-     * Apply a single field change against the form schema. The path is
-     * checked against {@link ZircFormSchema#FIELD_HANDLERS}; unknown paths
-     * raise {@link IllegalArgumentException} (mapped to 400 by the advice).
-     *
-     * Audit row is written to the log for the spike; once we commit to this
-     * pattern the writer becomes a real table.
+     * Apply a single field change against the form schema. The path is checked
+     * against {@link ZircFormSchema#FIELDS}; unknown paths raise
+     * {@link IllegalArgumentException} (mapped to 400 by the advice). The same
+     * descriptor's read is used to capture the pre-update value for the audit
+     * log so old/new round-trip through Jackson consistently.
      */
     public LineSubmission updateField(String zdbID, FieldUpdate update) {
         LineSubmission submission = getRequiredLineSubmission(zdbID);
 
-        ZircFormSchema.FieldHandler handler = ZircFormSchema.FIELD_HANDLERS.get(update.path());
-        if (handler == null) {
+        ZircFormSchema.FieldDescriptor descriptor = ZircFormSchema.FIELDS.get(update.path());
+        if (descriptor == null) {
             throw new IllegalArgumentException("Unknown form field path: " + update.path());
         }
 
-        String oldValueJson = captureOldValue(submission, update.path());
+        JsonNode oldValue = descriptor.read().apply(submission);
         HibernateUtil.createTransaction();
-        handler.apply(submission, update.value());
+        descriptor.write().accept(submission, update.value());
         HibernateUtil.flushAndCommitCurrentSession();
 
         Person currentUser = ProfileService.getCurrentSecurityUser();
         String userId = currentUser == null ? "anonymous" : currentUser.getZdbID();
         log.info("ZIRC_AUDIT user={} submission={} path={} old={} new={}",
                 userId, zdbID, update.path(),
-                oldValueJson,
+                safeJson(oldValue),
                 safeJson(update.value()));
 
         return submission;
-    }
-
-    private String captureOldValue(LineSubmission submission, String path) {
-        // Cheap reflection-free old-value capture for the small Overview set;
-        // expanded as the schema grows. Returns a JSON-ish text representation
-        // for the audit log so old/new are comparable.
-        return switch (path) {
-            case "/name"          -> safeText(submission.getName());
-            case "/previousNames" -> safeText(submission.getPreviousNames());
-            default               -> "?";
-        };
-    }
-
-    private static String safeText(String s) {
-        if (s == null) {return "null";}
-        return "\"" + s.replace("\"", "\\\"") + "\"";
     }
 
     private static String safeJson(JsonNode node) {
@@ -122,45 +101,6 @@ public class ZircSubmissionService {
         } catch (Exception e) {
             return "?";
         }
-    }
-
-    public LineSubmission updateOverview(String zdbID, LineSubmissionOverviewUpdate update) {
-        LineSubmission submission = getRequiredLineSubmission(zdbID);
-        HibernateUtil.createTransaction();
-        submission.setName(clean(update.name()));
-        submission.setPreviousNames(clean(update.previousNames()));
-        HibernateUtil.flushAndCommitCurrentSession();
-        return submission;
-    }
-
-    public LineSubmission updateAcceptanceReasons(String zdbID, LineSubmissionAcceptanceReasonsUpdate update) {
-        LineSubmission submission = getRequiredLineSubmission(zdbID);
-        HibernateUtil.createTransaction();
-        submission.setReasons(update.reasons() == null ? new String[0] : update.reasons());
-        submission.setReasonsOther(clean(update.reasonsOther()));
-        HibernateUtil.flushAndCommitCurrentSession();
-        return submission;
-    }
-
-    public LineSubmission updateBackground(String zdbID, LineSubmissionBackgroundUpdate update) {
-        LineSubmission submission = getRequiredLineSubmission(zdbID);
-        HibernateUtil.createTransaction();
-        submission.setSingleAllelic(update.singleAllelic());
-        submission.setMaternalBackground(clean(update.maternalBackground()));
-        submission.setPaternalBackground(clean(update.paternalBackground()));
-        submission.setBackgroundChangeable(update.backgroundChangeable());
-        HibernateUtil.flushAndCommitCurrentSession();
-        return submission;
-    }
-
-    public LineSubmission updateAdditionalInfo(String zdbID, LineSubmissionAdditionalInfoUpdate update) {
-        LineSubmission submission = getRequiredLineSubmission(zdbID);
-        HibernateUtil.createTransaction();
-        submission.setUnreportedFeaturesDetails(clean(update.unreportedFeaturesDetails()));
-        submission.setHusbandryInfo(clean(update.husbandryInfo()));
-        submission.setAdditionalInfo(clean(update.additionalInfo()));
-        HibernateUtil.flushAndCommitCurrentSession();
-        return submission;
     }
 
     public Mutation addMutation(String submissionId) {
@@ -221,10 +161,6 @@ public class ZircSubmissionService {
                 .map(Mutation::getSortOrder)
                 .max(Comparator.naturalOrder())
                 .orElse(0) + 1;
-    }
-
-    private static String clean(String value) {
-        return value == null || value.isBlank() ? null : value.trim();
     }
 
 }

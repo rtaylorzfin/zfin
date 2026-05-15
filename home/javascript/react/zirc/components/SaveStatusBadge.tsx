@@ -1,5 +1,6 @@
 import * as React from 'react';
-import { SaveStatus } from '../hooks/useSectionAutosave';
+
+export type SaveStatus = 'idle' | 'saving' | 'saved' | 'error';
 
 export function SaveStatusBadge({
     status,
