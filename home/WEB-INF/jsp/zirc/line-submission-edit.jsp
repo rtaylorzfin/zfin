@@ -1,10 +1,13 @@
 <%@ include file="/WEB-INF/jsp-include/tag-import.jsp" %>
 
-<c:set var="OVERVIEW" value="Overview"/>
+<c:set var="OVERVIEW"           value="Overview"/>
+<c:set var="ACCEPTANCE_REASONS" value="Acceptance Reasons"/>
+<c:set var="BACKGROUND"         value="Background"/>
+<c:set var="ADDITIONAL"         value="Additional Info"/>
 
-<%-- Sections grow as the React editor implements them: Overview (milestone 1),
-     then Acceptance Reasons / Mutations / Linked Features / Background / Additional. --%>
-<c:set var="sections" value="${[OVERVIEW]}"/>
+<%-- Sections grow as the React editor implements them. Mutations and Linked
+     Features are next; they require parent-child editor UI not yet built. --%>
+<c:set var="sections" value="${[OVERVIEW, ACCEPTANCE_REASONS, BACKGROUND, ADDITIONAL]}"/>
 
 <c:set var="isNewSubmission" value="${empty submission.zdbID}"/>
 <c:set var="entityLabel" value="${not empty submission.name

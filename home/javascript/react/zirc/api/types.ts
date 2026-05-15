@@ -34,6 +34,25 @@ export interface OverviewUpdate {
     previousNames?: string | null;
 }
 
+export interface AcceptanceReasonsUpdate {
+    reasons: string[];
+    reasonsOther: string | null;
+}
+
+export interface BackgroundUpdate {
+    singleAllelic: boolean | null;
+    maternalBackground: string | null;
+    paternalBackground: string | null;
+    backgroundChangeable: boolean | null;
+    backgroundChangeConcerns: string | null;
+}
+
+export interface AdditionalInfoUpdate {
+    unreportedFeaturesDetails: string | null;
+    husbandryInfo: string | null;
+    additionalInfo: string | null;
+}
+
 // RFC 7807 problem detail returned by ZircApiExceptionHandler.
 export interface ProblemDetail {
     type?: string;

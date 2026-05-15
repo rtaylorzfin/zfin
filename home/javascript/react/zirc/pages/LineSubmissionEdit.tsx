@@ -3,6 +3,9 @@ import { QueryClientProvider } from '@tanstack/react-query';
 import { queryClient } from '../queryClient';
 import { useLineSubmission } from '../api/queries';
 import { OverviewForm } from '../forms/OverviewForm';
+import { AcceptanceReasonsForm } from '../forms/AcceptanceReasonsForm';
+import { BackgroundForm } from '../forms/BackgroundForm';
+import { AdditionalInfoForm } from '../forms/AdditionalInfoForm';
 import { LineSubmissionResponse } from '../api/types';
 
 export type LineSubmissionEditProps = {
@@ -43,9 +46,18 @@ function LineSubmissionEditInner({ submissionId }: LineSubmissionEditProps) {
     const submission = query.data ?? createdSubmission ?? null;
 
     return (
-        <OverviewForm
-            submission={submission}
-            onCreated={setCreatedSubmission}
-        />
+        <>
+            <OverviewForm
+                submission={submission}
+                onCreated={setCreatedSubmission}
+            />
+            {submission && (
+                <>
+                    <AcceptanceReasonsForm submission={submission} />
+                    <BackgroundForm submission={submission} />
+                    <AdditionalInfoForm submission={submission} />
+                </>
+            )}
+        </>
     );
 }
