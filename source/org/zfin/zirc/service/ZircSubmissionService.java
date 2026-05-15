@@ -1,10 +1,15 @@
 package org.zfin.zirc.service;
 
+import com.fasterxml.jackson.databind.JsonNode;
+import com.fasterxml.jackson.databind.ObjectMapper;
+import lombok.extern.log4j.Log4j2;
 import org.springframework.beans.factory.annotation.Autowired;
 import org.springframework.stereotype.Service;
 import org.zfin.framework.HibernateUtil;
 import org.zfin.profile.Person;
 import org.zfin.profile.service.ProfileService;
+import org.zfin.zirc.api.ZircFormSchema;
+import org.zfin.zirc.dto.FieldUpdate;
 import org.zfin.zirc.dto.LineSubmissionAcceptanceReasonsUpdate;
 import org.zfin.zirc.dto.LineSubmissionAdditionalInfoUpdate;
 import org.zfin.zirc.dto.LineSubmissionBackgroundUpdate;
@@ -19,7 +24,10 @@ import java.util.Comparator;
 import java.util.List;
 
 @Service
+@Log4j2
 public class ZircSubmissionService {
+
+    private static final ObjectMapper AUDIT_MAPPER = new ObjectMapper();
 
     @Autowired
     private ZircSubmissionRepository repository;
@@ -59,6 +67,61 @@ public class ZircSubmissionService {
         addCurrentUserAsSubmitter(submission);
         HibernateUtil.flushAndCommitCurrentSession();
         return submission;
+    }
+
+    /**
+     * Apply a single field change against the form schema. The path is
+     * checked against {@link ZircFormSchema#FIELD_HANDLERS}; unknown paths
+     * raise {@link IllegalArgumentException} (mapped to 400 by the advice).
+     *
+     * Audit row is written to the log for the spike; once we commit to this
+     * pattern the writer becomes a real table.
+     */
+    public LineSubmission updateField(String zdbID, FieldUpdate update) {
+        LineSubmission submission = getRequiredLineSubmission(zdbID);
+
+        ZircFormSchema.FieldHandler handler = ZircFormSchema.FIELD_HANDLERS.get(update.path());
+        if (handler == null) {
+            throw new IllegalArgumentException("Unknown form field path: " + update.path());
+        }
+
+        String oldValueJson = captureOldValue(submission, update.path());
+        HibernateUtil.createTransaction();
+        handler.apply(submission, update.value());
+        HibernateUtil.flushAndCommitCurrentSession();
+
+        Person currentUser = ProfileService.getCurrentSecurityUser();
+        String userId = currentUser == null ? "anonymous" : currentUser.getZdbID();
+        log.info("ZIRC_AUDIT user={} submission={} path={} old={} new={}",
+                userId, zdbID, update.path(),
+                oldValueJson,
+                safeJson(update.value()));
+
+        return submission;
+    }
+
+    private String captureOldValue(LineSubmission submission, String path) {
+        // Cheap reflection-free old-value capture for the small Overview set;
+        // expanded as the schema grows. Returns a JSON-ish text representation
+        // for the audit log so old/new are comparable.
+        return switch (path) {
+            case "/name"          -> safeText(submission.getName());
+            case "/previousNames" -> safeText(submission.getPreviousNames());
+            default               -> "?";
+        };
+    }
+
+    private static String safeText(String s) {
+        if (s == null) {return "null";}
+        return "\"" + s.replace("\"", "\\\"") + "\"";
+    }
+
+    private static String safeJson(JsonNode node) {
+        try {
+            return node == null ? "null" : AUDIT_MAPPER.writeValueAsString(node);
+        } catch (Exception e) {
+            return "?";
+        }
     }
 
     public LineSubmission updateOverview(String zdbID, LineSubmissionOverviewUpdate update) {

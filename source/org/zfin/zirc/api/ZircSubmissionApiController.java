@@ -13,6 +13,8 @@ import org.springframework.web.bind.annotation.RequestBody;
 import org.springframework.web.bind.annotation.RequestMapping;
 import org.springframework.web.bind.annotation.ResponseStatus;
 import org.springframework.web.bind.annotation.RestController;
+import org.zfin.zirc.dto.FieldUpdate;
+import org.zfin.zirc.dto.FormSchemaResponse;
 import org.zfin.zirc.dto.LineSubmissionAcceptanceReasonsUpdate;
 import org.zfin.zirc.dto.LineSubmissionAdditionalInfoUpdate;
 import org.zfin.zirc.dto.LineSubmissionBackgroundUpdate;
@@ -28,10 +30,26 @@ public class ZircSubmissionApiController {
     @Autowired
     private ZircSubmissionService zircSubmissionService;
 
+    @GetMapping("/form-schema")
+    public FormSchemaResponse getFormSchema() {
+        return new FormSchemaResponse(ZircFormSchema.schema(), ZircFormSchema.uiSchema());
+    }
+
     @PostMapping("/line-submissions")
     @ResponseStatus(HttpStatus.CREATED)
     public LineSubmissionResponse createLineSubmission() {
         return LineSubmissionResponse.of(zircSubmissionService.createDraftForCurrentUser());
+    }
+
+    /**
+     * Single field change against the form schema (spike). Coexists with
+     * the section-PATCH endpoints above while we evaluate.
+     */
+    @PatchMapping("/line-submissions/{zdbID}")
+    public LineSubmissionResponse updateField(
+            @PathVariable String zdbID,
+            @Valid @RequestBody FieldUpdate update) {
+        return LineSubmissionResponse.of(zircSubmissionService.updateField(zdbID, update));
     }
 
     @GetMapping("/line-submissions/{zdbID}")

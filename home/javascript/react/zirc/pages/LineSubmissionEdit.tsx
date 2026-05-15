@@ -2,7 +2,7 @@ import * as React from 'react';
 import { QueryClientProvider } from '@tanstack/react-query';
 import { queryClient } from '../queryClient';
 import { useLineSubmission } from '../api/queries';
-import { OverviewForm } from '../forms/OverviewForm';
+import { SchemaForm } from '../schemaForm/SchemaForm';
 import { AcceptanceReasonsForm } from '../forms/AcceptanceReasonsForm';
 import { BackgroundForm } from '../forms/BackgroundForm';
 import { AdditionalInfoForm } from '../forms/AdditionalInfoForm';
@@ -47,7 +47,10 @@ function LineSubmissionEditInner({ submissionId }: LineSubmissionEditProps) {
 
     return (
         <>
-            <OverviewForm
+            {/* Spike: Overview is now driven by the schema endpoint.
+                The other three sections still render through their hand-built
+                forms so the comparison is isolated to Overview. */}
+            <SchemaForm
                 submission={submission}
                 onCreated={setCreatedSubmission}
             />
