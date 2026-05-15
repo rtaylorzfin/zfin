@@ -5,21 +5,17 @@ import {
     backgroundSchema,
     BackgroundFormValues,
     fromFormBool,
+    STANDARD_BACKGROUNDS,
     toFormBool,
-    TriBool,
 } from '../schemas/background';
 import { useUpdateBackground } from '../api/queries';
 import { LineSubmissionResponse } from '../api/types';
 import { useSectionAutosave } from '../hooks/useSectionAutosave';
 import { SaveStatusBadge } from '../components/SaveStatusBadge';
 
-const TRI_OPTIONS: ReadonlyArray<{ value: TriBool; label: string }> = [
-    { value: 'true', label: 'Yes' },
-    { value: 'false', label: 'No' },
-    { value: '', label: 'Unspecified' },
-];
+const OTHER_SENTINEL = '__other';
 
-function TriStateRadioGroup({
+function YesNoRadio({
     name,
     label,
     idPrefix,
@@ -31,35 +27,111 @@ function TriStateRadioGroup({
     register: UseFormRegister<BackgroundFormValues>;
 }) {
     return (
-        <fieldset className='form-group'>
-            <legend className='col-form-label h6'>{label}</legend>
-            {TRI_OPTIONS.map((opt, i) => (
-                <div key={opt.label} className='form-check form-check-inline'>
-                    <input
-                        id={`${idPrefix}-${i}`}
-                        type='radio'
-                        className='form-check-input'
-                        value={opt.value}
-                        {...register(name)}
-                    />
-                    <label className='form-check-label' htmlFor={`${idPrefix}-${i}`}>
-                        {opt.label}
-                    </label>
+        <tr>
+            <th className='w-25' scope='row' id={`fr-label-${name}`}>{label}</th>
+            <td>
+                <div role='radiogroup' aria-labelledby={`fr-label-${name}`}>
+                    <div className='form-check form-check-inline'>
+                        <input
+                            type='radio'
+                            id={`${idPrefix}-true`}
+                            className='form-check-input'
+                            value='true'
+                            {...register(name)}
+                        />
+                        <label className='form-check-label' htmlFor={`${idPrefix}-true`}>Yes</label>
+                    </div>
+                    <div className='form-check form-check-inline'>
+                        <input
+                            type='radio'
+                            id={`${idPrefix}-false`}
+                            className='form-check-input'
+                            value='false'
+                            {...register(name)}
+                        />
+                        <label className='form-check-label' htmlFor={`${idPrefix}-false`}>No</label>
+                    </div>
                 </div>
-            ))}
-        </fieldset>
+            </td>
+        </tr>
+    );
+}
+
+function BackgroundSelectRow({
+    name,
+    label,
+    value,
+    onChange,
+}: {
+    name: 'maternalBackground' | 'paternalBackground';
+    label: string;
+    value: string;
+    onChange: (v: string) => void;
+}) {
+    const idBase = `fr-${name}`;
+    const isStandard = STANDARD_BACKGROUNDS.includes(value);
+    // "Other selected" is local UI state, distinct from the form value: picking
+    // Other initially clears the value so the user can type, and we must keep
+    // showing the input + the Other-sentinel in the select while they do.
+    const [otherSelected, setOtherSelected] = React.useState(() => value !== '' && !isStandard);
+    const selectValue = isStandard ? value : (otherSelected ? OTHER_SENTINEL : '');
+
+    return (
+        <tr>
+            <th className='w-25' scope='row' id={`fr-label-${name}`}>
+                <label htmlFor={idBase} className='mb-0'>{label}</label>
+            </th>
+            <td>
+                <div className='d-flex' style={{ gap: 8 }}>
+                    <select
+                        id={idBase}
+                        className='form-control'
+                        style={{ maxWidth: 200 }}
+                        value={selectValue}
+                        onChange={(e) => {
+                            const v = e.target.value;
+                            if (v === OTHER_SENTINEL) {
+                                setOtherSelected(true);
+                                // If the current value happens to be a standard one,
+                                // clear it so the revealed input starts empty.
+                                if (isStandard) {onChange('');}
+                            } else {
+                                setOtherSelected(false);
+                                onChange(v);
+                            }
+                        }}
+                    >
+                        <option value=''>(select)</option>
+                        {STANDARD_BACKGROUNDS.map((s) => (
+                            <option key={s} value={s}>{s}</option>
+                        ))}
+                        <option value={OTHER_SENTINEL}>Other</option>
+                    </select>
+                    {otherSelected && (
+                        <input
+                            type='text'
+                            id={`${idBase}-other`}
+                            className='form-control'
+                            placeholder='Other'
+                            aria-label={`${label} (other)`}
+                            value={value}
+                            onChange={(e) => onChange(e.target.value)}
+                        />
+                    )}
+                </div>
+            </td>
+        </tr>
     );
 }
 
 export function BackgroundForm({ submission }: { submission: LineSubmissionResponse }) {
-    const { register, watch, formState } = useForm<BackgroundFormValues>({
+    const { register, watch, setValue, formState } = useForm<BackgroundFormValues>({
         resolver: zodResolver(backgroundSchema),
         defaultValues: {
             singleAllelic: toFormBool(submission.singleAllelic),
             maternalBackground: submission.maternalBackground ?? '',
             paternalBackground: submission.paternalBackground ?? '',
             backgroundChangeable: toFormBool(submission.backgroundChangeable),
-            backgroundChangeConcerns: submission.backgroundChangeConcerns ?? '',
         },
         mode: 'onChange',
     });
@@ -78,78 +150,44 @@ export function BackgroundForm({ submission }: { submission: LineSubmissionRespo
                     maternalBackground: v.maternalBackground || null,
                     paternalBackground: v.paternalBackground || null,
                     backgroundChangeable: fromFormBool(v.backgroundChangeable),
-                    backgroundChangeConcerns: v.backgroundChangeConcerns || null,
                 },
             }),
     });
 
     return (
-        <section id='background' className='zirc-section mb-4'>
-            <header className='d-flex justify-content-between align-items-center mb-2'>
-                <h2 className='h4 mb-0'>Background</h2>
+        <section className='section' id='background' aria-labelledby='background-heading'>
+            <div className='d-flex justify-content-between align-items-center'>
+                <h2 id='background-heading' className='heading'>Background</h2>
                 <SaveStatusBadge status={status} message={errorMessage} />
-            </header>
-
-            <TriStateRadioGroup
-                name='singleAllelic'
-                label='Single allelic?'
-                idPrefix='zirc-background-single-allelic'
-                register={register}
-            />
-
-            <div className='form-group'>
-                <label htmlFor='zirc-background-maternal'>Maternal background</label>
-                <input
-                    id='zirc-background-maternal'
-                    className='form-control'
-                    autoComplete='off'
-                    {...register('maternalBackground')}
-                />
-                {formState.errors.maternalBackground && (
-                    <small className='text-danger'>
-                        {formState.errors.maternalBackground.message}
-                    </small>
-                )}
             </div>
-
-            <div className='form-group'>
-                <label htmlFor='zirc-background-paternal'>Paternal background</label>
-                <input
-                    id='zirc-background-paternal'
-                    className='form-control'
-                    autoComplete='off'
-                    {...register('paternalBackground')}
-                />
-                {formState.errors.paternalBackground && (
-                    <small className='text-danger'>
-                        {formState.errors.paternalBackground.message}
-                    </small>
-                )}
-            </div>
-
-            <TriStateRadioGroup
-                name='backgroundChangeable'
-                label='Is the genetic background changeable?'
-                idPrefix='zirc-background-changeable'
-                register={register}
-            />
-
-            <div className='form-group'>
-                <label htmlFor='zirc-background-concerns'>
-                    Background-change concerns
-                </label>
-                <textarea
-                    id='zirc-background-concerns'
-                    className='form-control'
-                    rows={3}
-                    {...register('backgroundChangeConcerns')}
-                />
-                {formState.errors.backgroundChangeConcerns && (
-                    <small className='text-danger'>
-                        {formState.errors.backgroundChangeConcerns.message}
-                    </small>
-                )}
-            </div>
+            <table className='table table-borderless'>
+                <tbody>
+                    <YesNoRadio
+                        name='singleAllelic'
+                        label='Single-allelic submission'
+                        idPrefix='fr-singleAllelic'
+                        register={register}
+                    />
+                    <BackgroundSelectRow
+                        name='maternalBackground'
+                        label='Maternal'
+                        value={values.maternalBackground}
+                        onChange={(v) => setValue('maternalBackground', v, { shouldDirty: true, shouldValidate: true })}
+                    />
+                    <BackgroundSelectRow
+                        name='paternalBackground'
+                        label='Paternal'
+                        value={values.paternalBackground}
+                        onChange={(v) => setValue('paternalBackground', v, { shouldDirty: true, shouldValidate: true })}
+                    />
+                    <YesNoRadio
+                        name='backgroundChangeable'
+                        label='Background Changeable'
+                        idPrefix='fr-backgroundChangeable'
+                        register={register}
+                    />
+                </tbody>
+            </table>
         </section>
     );
 }

@@ -39,58 +39,76 @@ export function AdditionalInfoForm({ submission }: { submission: LineSubmissionR
     });
 
     return (
-        <section id='additional-info' className='zirc-section mb-4'>
-            <header className='d-flex justify-content-between align-items-center mb-2'>
-                <h2 className='h4 mb-0'>Additional Info</h2>
+        <section
+            className='section'
+            id='additional-info'
+            aria-labelledby='additional-info-heading'
+        >
+            <div className='d-flex justify-content-between align-items-center'>
+                <h2 id='additional-info-heading' className='heading'>Additional Info</h2>
                 <SaveStatusBadge status={status} message={errorMessage} />
-            </header>
-
-            <div className='form-group'>
-                <label htmlFor='zirc-additional-unreported'>
-                    Unreported features details
-                </label>
-                <textarea
-                    id='zirc-additional-unreported'
-                    className='form-control'
-                    rows={3}
-                    {...register('unreportedFeaturesDetails')}
-                />
-                {formState.errors.unreportedFeaturesDetails && (
-                    <small className='text-danger'>
-                        {formState.errors.unreportedFeaturesDetails.message}
-                    </small>
-                )}
             </div>
-
-            <div className='form-group'>
-                <label htmlFor='zirc-additional-husbandry'>Husbandry info</label>
-                <textarea
-                    id='zirc-additional-husbandry'
-                    className='form-control'
-                    rows={3}
-                    {...register('husbandryInfo')}
-                />
-                {formState.errors.husbandryInfo && (
-                    <small className='text-danger'>
-                        {formState.errors.husbandryInfo.message}
-                    </small>
-                )}
-            </div>
-
-            <div className='form-group'>
-                <label htmlFor='zirc-additional-info'>Additional info</label>
-                <textarea
-                    id='zirc-additional-info'
-                    className='form-control'
-                    rows={3}
-                    {...register('additionalInfo')}
-                />
-                {formState.errors.additionalInfo && (
-                    <small className='text-danger'>
-                        {formState.errors.additionalInfo.message}
-                    </small>
-                )}
-            </div>
+            <table className='table table-borderless'>
+                <tbody>
+                    <tr>
+                        <th className='w-25' scope='row' id='fr-label-unreportedFeaturesDetails'>
+                            <label htmlFor='fr-unreportedFeaturesDetails' className='mb-0'>
+                                Unreported Features Details
+                            </label>
+                        </th>
+                        <td>
+                            <textarea
+                                id='fr-unreportedFeaturesDetails'
+                                className='form-control'
+                                rows={3}
+                                {...register('unreportedFeaturesDetails')}
+                            />
+                            {formState.errors.unreportedFeaturesDetails && (
+                                <small className='text-danger'>
+                                    {formState.errors.unreportedFeaturesDetails.message}
+                                </small>
+                            )}
+                        </td>
+                    </tr>
+                    <tr>
+                        <th className='w-25' scope='row' id='fr-label-husbandryInfo'>
+                            <label htmlFor='fr-husbandryInfo' className='mb-0'>Husbandry Info</label>
+                        </th>
+                        <td>
+                            <textarea
+                                id='fr-husbandryInfo'
+                                className='form-control'
+                                rows={3}
+                                placeholder='Husbandry-specific information, e.g. special feeding regime'
+                                {...register('husbandryInfo')}
+                            />
+                            {formState.errors.husbandryInfo && (
+                                <small className='text-danger'>
+                                    {formState.errors.husbandryInfo.message}
+                                </small>
+                            )}
+                        </td>
+                    </tr>
+                    <tr>
+                        <th className='w-25' scope='row' id='fr-label-additionalInfo'>
+                            <label htmlFor='fr-additionalInfo' className='mb-0'>Additional Info</label>
+                        </th>
+                        <td>
+                            <textarea
+                                id='fr-additionalInfo'
+                                className='form-control'
+                                rows={3}
+                                {...register('additionalInfo')}
+                            />
+                            {formState.errors.additionalInfo && (
+                                <small className='text-danger'>
+                                    {formState.errors.additionalInfo.message}
+                                </small>
+                            )}
+                        </td>
+                    </tr>
+                </tbody>
+            </table>
         </section>
     );
 }

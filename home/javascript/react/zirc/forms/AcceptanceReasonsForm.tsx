@@ -23,7 +23,6 @@ export function AcceptanceReasonsForm({ submission }: { submission: LineSubmissi
     });
     const values = watch();
     const updateReasons = useUpdateAcceptanceReasons();
-
     const showOther = values.reasons.includes(REASON_OTHER_VALUE);
 
     const { status, errorMessage } = useSectionAutosave({
@@ -43,46 +42,72 @@ export function AcceptanceReasonsForm({ submission }: { submission: LineSubmissi
     });
 
     return (
-        <section id='acceptance-reasons' className='zirc-section mb-4'>
-            <header className='d-flex justify-content-between align-items-center mb-2'>
-                <h2 className='h4 mb-0'>Acceptance Reasons</h2>
+        <section
+            className='section'
+            id='acceptance-reasons'
+            aria-labelledby='acceptance-reasons-heading'
+        >
+            <div className='d-flex justify-content-between align-items-center'>
+                <h2 id='acceptance-reasons-heading' className='heading'>Acceptance Reasons</h2>
                 <SaveStatusBadge status={status} message={errorMessage} />
-            </header>
-            <fieldset>
-                {CANONICAL_REASONS.map((r) => (
-                    <div key={r.value} className='form-check'>
-                        <input
-                            id={`zirc-reasons-${r.value}`}
-                            type='checkbox'
-                            className='form-check-input'
-                            value={r.value}
-                            {...register('reasons')}
-                        />
-                        <label
-                            htmlFor={`zirc-reasons-${r.value}`}
-                            className='form-check-label'
-                        >
-                            {r.label}
-                        </label>
-                    </div>
-                ))}
-            </fieldset>
-            {showOther && (
-                <div className='form-group mt-2'>
-                    <label htmlFor='zirc-reasons-other'>Describe the &quot;Other&quot; reason</label>
-                    <textarea
-                        id='zirc-reasons-other'
-                        className='form-control'
-                        rows={3}
-                        {...register('reasonsOther')}
-                    />
-                    {formState.errors.reasonsOther && (
-                        <small className='text-danger'>
-                            {formState.errors.reasonsOther.message}
-                        </small>
-                    )}
-                </div>
-            )}
+            </div>
+            <table className='table table-borderless'>
+                <tbody>
+                    <tr>
+                        <th className='w-25' scope='row' id='fr-label-reasons'>
+                            <label htmlFor='fr-reasons' className='mb-0'>
+                                Why ZIRC should accept this line
+                            </label>
+                        </th>
+                        <td>
+                            <fieldset
+                                className='border-0 p-0 m-0'
+                                aria-labelledby='fr-label-reasons'
+                            >
+                                {CANONICAL_REASONS.map((r) => (
+                                    <div key={r.value} className='form-check'>
+                                        <input
+                                            id={`fr-reasons-${r.value}`}
+                                            type='checkbox'
+                                            className='form-check-input'
+                                            value={r.value}
+                                            {...register('reasons')}
+                                        />
+                                        <label
+                                            className='form-check-label'
+                                            htmlFor={`fr-reasons-${r.value}`}
+                                        >
+                                            {r.label}
+                                        </label>
+                                    </div>
+                                ))}
+                                {showOther && (
+                                    <div className='mt-2 ml-4' style={{ maxWidth: 600 }}>
+                                        <label
+                                            htmlFor='fr-reasons-other-text'
+                                            className='sr-only'
+                                        >
+                                            Why ZIRC should accept this line (other details)
+                                        </label>
+                                        <input
+                                            id='fr-reasons-other-text'
+                                            type='text'
+                                            className='form-control'
+                                            placeholder='Describe'
+                                            {...register('reasonsOther')}
+                                        />
+                                        {formState.errors.reasonsOther && (
+                                            <small className='text-danger'>
+                                                {formState.errors.reasonsOther.message}
+                                            </small>
+                                        )}
+                                    </div>
+                                )}
+                            </fieldset>
+                        </td>
+                    </tr>
+                </tbody>
+            </table>
         </section>
     );
 }

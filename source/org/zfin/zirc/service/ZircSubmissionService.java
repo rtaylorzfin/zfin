@@ -65,7 +65,6 @@ public class ZircSubmissionService {
         LineSubmission submission = getRequiredLineSubmission(zdbID);
         HibernateUtil.createTransaction();
         submission.setName(clean(update.name()));
-        submission.setAbbreviation(clean(update.abbreviation()));
         submission.setPreviousNames(clean(update.previousNames()));
         HibernateUtil.flushAndCommitCurrentSession();
         return submission;
@@ -87,7 +86,6 @@ public class ZircSubmissionService {
         submission.setMaternalBackground(clean(update.maternalBackground()));
         submission.setPaternalBackground(clean(update.paternalBackground()));
         submission.setBackgroundChangeable(update.backgroundChangeable());
-        submission.setBackgroundChangeConcerns(clean(update.backgroundChangeConcerns()));
         HibernateUtil.flushAndCommitCurrentSession();
         return submission;
     }

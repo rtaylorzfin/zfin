@@ -30,7 +30,6 @@ export interface MutationResponse {
 
 export interface OverviewUpdate {
     name?: string | null;
-    abbreviation?: string | null;
     previousNames?: string | null;
 }
 
@@ -44,7 +43,6 @@ export interface BackgroundUpdate {
     maternalBackground: string | null;
     paternalBackground: string | null;
     backgroundChangeable: boolean | null;
-    backgroundChangeConcerns: string | null;
 }
 
 export interface AdditionalInfoUpdate {
