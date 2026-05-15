@@ -65,26 +65,7 @@ const renderers = [
     publicationsListRendererEntry,
 ];
 
-function initialDataFromMutation(m: MutationResponse | undefined): FormDataShape {
-    if (!m) {
-        return {
-            alleleDesignation: '',
-            alleleInZfin: null,
-            mutationType: '',
-            mutationDiscoverer: '',
-            mutationInstitution: '',
-            mutagenesisStage: '',
-            mutagenesisProtocol: '',
-            molecularlyCharacterized: null,
-            homozygousLethal: null,
-            lethalityStageTypical: '',
-            lethalitySpecificTimepoint: '',
-            lethalityWindowStart: '',
-            lethalityWindowEnd: '',
-            lethalityAdditionalInfo: '',
-            publications: [],
-        };
-    }
+function initialDataFromMutation(m: MutationResponse): FormDataShape {
     return {
         alleleDesignation: m.alleleDesignation ?? '',
         alleleInZfin: m.alleleInZfin,
@@ -142,34 +123,32 @@ function MutationEditInner({ mutationId, submissionId }: MutationEditProps) {
     const mutationQuery = useMutationById(idNum);
 
     const mutation = mutationQuery.data;
-    const initialData = React.useMemo(() => initialDataFromMutation(mutation), [mutation?.id]);
-    const [formData, setFormData] = React.useState<FormDataShape>(initialData);
-    const lastSavedRef = React.useRef<FormDataShape>(initialData);
-    const initialized = React.useRef(false);
 
-    // Once the server data arrives, seed the form state. Subsequent re-fetches
-    // (e.g. after editing in another tab) are ignored — the local state is the
-    // source of truth during the edit session.
+    // formData starts as null and stays null until the seed effect has run.
+    // Holding off on rendering JsonForms eliminates the window in which
+    // formData (captured from useState's initial value) and lastSavedRef
+    // (mutated by the seed effect) can disagree — that disagreement was the
+    // root cause of spurious "clear field" PATCHes under slow page loads.
+    // Documented in memory `zirc-schema-form-known-issues.md`.
+    const [formData, setFormData] = React.useState<FormDataShape | null>(null);
+    const lastSavedRef = React.useRef<FormDataShape | null>(null);
+
     React.useEffect(() => {
-        if (!mutation || initialized.current) {return;}
+        if (!mutation || formData !== null) {return;}
         const seed = initialDataFromMutation(mutation);
         setFormData(seed);
         lastSavedRef.current = seed;
-        initialized.current = true;
-    }, [mutation?.id]);
+    }, [mutation?.id, formData]);
 
     const [status, setStatus] = React.useState<SaveStatus>('idle');
     const [errorMessage, setErrorMessage] = React.useState<string | null>(null);
-    const firstChange = React.useRef(true);
 
-    const formDataKey = JSON.stringify(formData);
+    const formDataKey = formData == null ? 'null' : JSON.stringify(formData);
 
     React.useEffect(() => {
-        if (firstChange.current) {
-            firstChange.current = false;
-            return;
-        }
-        if (!idNum) {return;}
+        // No autosave until the seed has applied — guarantees that any diff
+        // is between two real values, not "empty default vs seed".
+        if (!idNum || formData == null || lastSavedRef.current == null) {return;}
 
         const handle = window.setTimeout(async () => {
             const changes = diffLeaves(lastSavedRef.current, formData);
@@ -198,7 +177,7 @@ function MutationEditInner({ mutationId, submissionId }: MutationEditProps) {
     if (!idNum) {
         return <div className='alert alert-danger'>Missing mutation id.</div>;
     }
-    if (schemaQuery.isLoading || mutationQuery.isLoading) {
+    if (schemaQuery.isLoading || mutationQuery.isLoading || formData == null) {
         return <p className='text-muted'>Loading…</p>;
     }
     if (schemaQuery.isError || mutationQuery.isError || !schemaQuery.data || !mutation) {

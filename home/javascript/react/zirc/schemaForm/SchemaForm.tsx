@@ -134,11 +134,23 @@ export function SchemaForm({ submission, onCreated }: Props) {
             staleTime: Infinity,
         });
 
-    const initialData = React.useMemo(() => initialDataFromSubmission(submission), [submission?.zdbID]);
-    const [formData, setFormData] = React.useState<FormData>(initialData);
+    // formData stays null until the seed effect has applied. This eliminates
+    // the closure-stale window where the autosave's diff could fire PATCHes
+    // against fields that hadn't been seeded yet — see
+    // memory/project_zirc_schema_form_known_issues.md for the failure mode.
+    const [formData, setFormData] = React.useState<FormData | null>(null);
     const submissionIdRef = React.useRef<string | null>(submission?.zdbID ?? null);
-    const lastSavedRef = React.useRef<FormData>(initialData);
+    const lastSavedRef = React.useRef<FormData | null>(null);
     const create = useCreateLineSubmission();
+
+    // Seed once per submission identity (null counts as a valid identity —
+    // /new gets the empty-defaults shape, /edit gets the server's shape).
+    React.useEffect(() => {
+        if (formData !== null) {return;}
+        const seed = initialDataFromSubmission(submission);
+        setFormData(seed);
+        lastSavedRef.current = seed;
+    }, [submission?.zdbID, formData]);
 
     // Mutations live on the server; the React Query cache is authoritative.
     // When the parent refetches (after an Add or Delete) we mirror the new
@@ -146,23 +158,22 @@ export function SchemaForm({ submission, onCreated }: Props) {
     // Other fields stay locally-owned to preserve unsaved keystrokes.
     const mutationsKey = JSON.stringify(submission?.mutations ?? []);
     React.useEffect(() => {
-        if (!submission) {return;}
+        if (!submission || formData === null) {return;}
         const next = submission.mutations ?? [];
-        setFormData((d) => ({ ...d, mutations: next }));
-        lastSavedRef.current = { ...lastSavedRef.current, mutations: next };
+        setFormData((d) => (d == null ? d : { ...d, mutations: next }));
+        if (lastSavedRef.current != null) {
+            lastSavedRef.current = { ...lastSavedRef.current, mutations: next };
+        }
     }, [mutationsKey]);
 
     const [status, setStatus] = React.useState<SaveStatus>('idle');
     const [errorMessage, setErrorMessage] = React.useState<string | null>(null);
-    const firstRender = React.useRef(true);
 
-    const formDataKey = JSON.stringify(formData);
+    const formDataKey = formData == null ? 'null' : JSON.stringify(formData);
 
     React.useEffect(() => {
-        if (firstRender.current) {
-            firstRender.current = false;
-            return;
-        }
+        // No autosave until the seed has applied.
+        if (formData == null || lastSavedRef.current == null) {return;}
 
         const handle = window.setTimeout(async () => {
             const changes = diffLeaves(lastSavedRef.current, formData)
@@ -204,6 +215,9 @@ export function SchemaForm({ submission, onCreated }: Props) {
     if (schemaLoading) {return <p className='text-muted'>Loading form schema…</p>;}
     if (schemaError || !schemaResponse) {
         return <div className='alert alert-danger'>Failed to load form schema.</div>;
+    }
+    if (formData == null) {
+        return <p className='text-muted'>Loading…</p>;
     }
 
     return (
