@@ -14,6 +14,7 @@ import org.zfin.zirc.api.ZircAssayFormSchema;
 import org.zfin.zirc.api.ZircFormSchema;
 import org.zfin.zirc.api.ZircMutationFormSchema;
 import org.zfin.zirc.dto.FieldUpdate;
+import org.zfin.zirc.entity.AuditEntry;
 import org.zfin.zirc.entity.GenotypingAssay;
 import org.zfin.zirc.entity.GenotypingAssayFile;
 import org.zfin.zirc.entity.LineSubmission;
@@ -95,14 +96,8 @@ public class ZircSubmissionService {
         JsonNode oldValue = descriptor.read().apply(submission);
         HibernateUtil.createTransaction();
         descriptor.write().accept(submission, update.value());
+        writeAudit("submission", zdbID, "update", update.path(), oldValue, update.value());
         HibernateUtil.flushAndCommitCurrentSession();
-
-        Person currentUser = ProfileService.getCurrentSecurityUser();
-        String userId = currentUser == null ? "anonymous" : currentUser.getZdbID();
-        log.info("ZIRC_AUDIT user={} submission={} path={} old={} new={}",
-                userId, zdbID, update.path(),
-                safeJson(oldValue),
-                safeJson(update.value()));
 
         return submission;
     }
@@ -127,14 +122,9 @@ public class ZircSubmissionService {
         JsonNode oldValue = descriptor.read().apply(mutation);
         HibernateUtil.createTransaction();
         descriptor.write().accept(mutation, update.value());
+        writeAudit("mutation", String.valueOf(mutationId), "update",
+                update.path(), oldValue, update.value());
         HibernateUtil.flushAndCommitCurrentSession();
-
-        Person currentUser = ProfileService.getCurrentSecurityUser();
-        String userId = currentUser == null ? "anonymous" : currentUser.getZdbID();
-        log.info("ZIRC_AUDIT user={} mutation={} path={} old={} new={}",
-                userId, mutationId, update.path(),
-                safeJson(oldValue),
-                safeJson(update.value()));
 
         return mutation;
     }
@@ -182,14 +172,9 @@ public class ZircSubmissionService {
         JsonNode oldValue = descriptor.read().apply(assay);
         HibernateUtil.createTransaction();
         descriptor.write().accept(assay, update.value());
+        writeAudit("assay", String.valueOf(assayId), "update",
+                update.path(), oldValue, update.value());
         HibernateUtil.flushAndCommitCurrentSession();
-
-        Person currentUser = ProfileService.getCurrentSecurityUser();
-        String userId = currentUser == null ? "anonymous" : currentUser.getZdbID();
-        log.info("ZIRC_AUDIT user={} assay={} path={} old={} new={}",
-                userId, assayId, update.path(),
-                safeJson(oldValue),
-                safeJson(update.value()));
 
         return assay;
     }
@@ -202,6 +187,40 @@ public class ZircSubmissionService {
         }
     }
 
+    /**
+     * Persist a row in {@code zirc.audit} and emit the legacy {@code ZIRC_AUDIT}
+     * log line so existing log-based pipelines keep working. The insert is
+     * invoked inside whatever transaction the caller has already opened so
+     * the audit reflects committed state precisely; if the main commit fails
+     * the audit row rolls back with it.
+     */
+    private void writeAudit(
+            String entityKind,
+            String entityId,
+            String action,
+            String path,
+            JsonNode oldValue,
+            JsonNode newValue) {
+        Person currentUser = ProfileService.getCurrentSecurityUser();
+        String actor = currentUser == null ? "anonymous" : currentUser.getZdbID();
+
+        AuditEntry entry = new AuditEntry();
+        entry.setActor(actor);
+        entry.setEntityKind(entityKind);
+        entry.setEntityId(entityId);
+        entry.setAction(action);
+        entry.setPath(path);
+        entry.setOldValue(safeJson(oldValue));
+        entry.setNewValue(safeJson(newValue));
+        repository.save(entry);
+
+        log.info("ZIRC_AUDIT user={} {}={} action={} path={} old={} new={}",
+                actor, entityKind, entityId, action,
+                path == null ? "-" : path,
+                safeJson(oldValue),
+                safeJson(newValue));
+    }
+
     public Mutation addMutation(String submissionId) {
         LineSubmission submission = getRequiredLineSubmission(submissionId);
         HibernateUtil.createTransaction();
@@ -209,6 +228,10 @@ public class ZircSubmissionService {
         mutation.setLineSubmission(submission);
         mutation.setSortOrder(nextMutationSortOrder(submission));
         repository.save(mutation);
+        HibernateUtil.currentSession().flush();
+        writeAudit("submission", submissionId, "create-mutation", null,
+                null, AUDIT_MAPPER.valueToTree(
+                        java.util.Map.of("mutationId", mutation.getId())));
         HibernateUtil.flushAndCommitCurrentSession();
         return mutation;
     }
@@ -217,6 +240,9 @@ public class ZircSubmissionService {
         Mutation mutation = getRequiredMutation(submissionId, mutationId);
         HibernateUtil.createTransaction();
         repository.delete(mutation);
+        writeAudit("submission", submissionId, "delete-mutation", null,
+                AUDIT_MAPPER.valueToTree(java.util.Map.of("mutationId", mutationId)),
+                null);
         HibernateUtil.flushAndCommitCurrentSession();
     }
 
@@ -234,14 +260,23 @@ public class ZircSubmissionService {
         assay.setSortOrder(nextAssaySortOrder(mutation));
         repository.save(assay);
         mutation.getGenotypingAssays().add(assay);
+        HibernateUtil.currentSession().flush();
+        writeAudit("mutation", String.valueOf(mutationId), "create-assay", null,
+                null, AUDIT_MAPPER.valueToTree(
+                        java.util.Map.of("assayId", assay.getId())));
         HibernateUtil.flushAndCommitCurrentSession();
         return mutation;
     }
 
     public void deleteAssay(Long assayId) {
         GenotypingAssay assay = getRequiredAssayById(assayId);
+        Long mutationId = assay.getMutation() == null ? null : assay.getMutation().getId();
         HibernateUtil.createTransaction();
         repository.delete(assay);
+        writeAudit("mutation", mutationId == null ? "?" : String.valueOf(mutationId),
+                "delete-assay", null,
+                AUDIT_MAPPER.valueToTree(java.util.Map.of("assayId", assayId)),
+                null);
         HibernateUtil.flushAndCommitCurrentSession();
     }
 
@@ -368,12 +403,14 @@ public class ZircSubmissionService {
         upload.transferTo(stored.toFile());
         file.setStoredPath(stored.toString());
 
-        HibernateUtil.flushAndCommitCurrentSession();
+        // Audit the upload — old=null, new={file id + original name + size}
+        JsonNode meta = AUDIT_MAPPER.valueToTree(java.util.Map.of(
+                "fileId", file.getId(),
+                "originalFilename", upload.getOriginalFilename(),
+                "bytes", upload.getSize()));
+        writeAudit("assay", String.valueOf(assayId), "upload", null, null, meta);
 
-        Person currentUser = ProfileService.getCurrentSecurityUser();
-        String userId = currentUser == null ? "anonymous" : currentUser.getZdbID();
-        log.info("ZIRC_AUDIT user={} assay={} action=upload file={} name=\"{}\" bytes={}",
-                userId, assayId, file.getId(), upload.getOriginalFilename(), upload.getSize());
+        HibernateUtil.flushAndCommitCurrentSession();
 
         return assay;
     }
@@ -382,9 +419,17 @@ public class ZircSubmissionService {
         GenotypingAssayFile file = getRequiredAssayFile(fileId);
         Long assayId = file.getAssay() == null ? null : file.getAssay().getId();
         String storedPath = file.getStoredPath();
+        String originalFilename = file.getOriginalFilename();
 
         HibernateUtil.createTransaction();
         repository.delete(file);
+        // Audit captures the about-to-be-removed file's metadata as "old".
+        JsonNode meta = AUDIT_MAPPER.valueToTree(java.util.Map.of(
+                "fileId", fileId,
+                "originalFilename", originalFilename == null ? "" : originalFilename,
+                "storedPath", storedPath == null ? "" : storedPath));
+        writeAudit("assay", assayId == null ? "?" : String.valueOf(assayId),
+                "delete-file", null, meta, null);
         HibernateUtil.flushAndCommitCurrentSession();
 
         // Best-effort unlink of the on-disk file. We've already committed
@@ -396,11 +441,6 @@ public class ZircSubmissionService {
                 log.warn("ZIRC attachment delete: failed to remove file on disk: {}", storedPath, e);
             }
         }
-
-        Person currentUser = ProfileService.getCurrentSecurityUser();
-        String userId = currentUser == null ? "anonymous" : currentUser.getZdbID();
-        log.info("ZIRC_AUDIT user={} assay={} action=delete-file file={} path={}",
-                userId, assayId, fileId, storedPath);
     }
 
     /**
