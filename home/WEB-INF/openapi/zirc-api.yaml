@@ -1,0 +1,471 @@
+openapi: 3.0.3
+info:
+  title: ZIRC Line Submission API
+  version: 1.0.0
+  description: |
+    JSON API backing the ZIRC line-submission curator workflow. Three
+    aggregates, each with its own field-path PATCH endpoint:
+
+      - line submission       /api/zirc/line-submissions/{zdbID}
+      - mutation              /api/zirc/mutations/{mutationId}
+      - genotyping assay      /api/zirc/assays/{assayId}
+
+    Writes are per-field: clients send `{path, value}` with a JSON Pointer
+    and the server applies the change atomically and writes one audit row.
+    Form schemas (JSON Schema + JSON Forms uiSchema) are served from a
+    parallel `*/form-schema` endpoint per aggregate.
+
+    Errors are returned as RFC 7807 `application/problem+json`.
+servers:
+  - url: /action/api/zirc
+    description: ZIRC API base path under the Tomcat /action prefix
+
+tags:
+  - name: form-schema
+  - name: line-submission
+  - name: mutation
+  - name: assay
+  - name: attachment
+
+paths:
+  /form-schema:
+    get:
+      tags: [form-schema]
+      summary: JSON Schema + uiSchema for the line-submission form.
+      responses:
+        '200':
+          description: OK
+          content:
+            application/json:
+              schema: { $ref: '#/components/schemas/FormSchemaResponse' }
+
+  /line-submissions:
+    post:
+      tags: [line-submission]
+      summary: Create a new draft line submission for the current user.
+      responses:
+        '200':
+          description: OK
+          content:
+            application/json:
+              schema: { $ref: '#/components/schemas/LineSubmissionResponse' }
+
+  /line-submissions/{zdbID}:
+    parameters:
+      - $ref: '#/components/parameters/SubmissionZdbId'
+    get:
+      tags: [line-submission]
+      summary: Fetch a line submission by ZDB ID.
+      responses:
+        '200':
+          description: OK
+          content:
+            application/json:
+              schema: { $ref: '#/components/schemas/LineSubmissionResponse' }
+        '404': { $ref: '#/components/responses/NotFound' }
+    patch:
+      tags: [line-submission]
+      summary: Apply a single field-path change. Paths and value types are constrained by the form schema; unknown paths are rejected.
+      requestBody:
+        required: true
+        content:
+          application/json:
+            schema: { $ref: '#/components/schemas/FieldUpdate' }
+      responses:
+        '200':
+          description: Updated submission.
+          content:
+            application/json:
+              schema: { $ref: '#/components/schemas/LineSubmissionResponse' }
+        '400': { $ref: '#/components/responses/BadRequest' }
+        '404': { $ref: '#/components/responses/NotFound' }
+        '422': { $ref: '#/components/responses/ValidationFailed' }
+
+  /line-submissions/{zdbID}/mutations:
+    parameters:
+      - $ref: '#/components/parameters/SubmissionZdbId'
+    post:
+      tags: [mutation]
+      summary: Add an empty mutation row to a submission.
+      responses:
+        '200':
+          description: Newly-created mutation (parent submission's mutations list now contains it).
+          content:
+            application/json:
+              schema: { $ref: '#/components/schemas/MutationResponse' }
+        '404': { $ref: '#/components/responses/NotFound' }
+
+  /line-submissions/{zdbID}/mutations/{mutationId}:
+    parameters:
+      - $ref: '#/components/parameters/SubmissionZdbId'
+      - $ref: '#/components/parameters/MutationId'
+    delete:
+      tags: [mutation]
+      summary: Remove a mutation from a submission.
+      responses:
+        '204': { description: Deleted }
+        '404': { $ref: '#/components/responses/NotFound' }
+
+  /mutations/form-schema:
+    get:
+      tags: [form-schema]
+      summary: JSON Schema + uiSchema for the per-mutation edit form.
+      responses:
+        '200':
+          description: OK
+          content:
+            application/json:
+              schema: { $ref: '#/components/schemas/FormSchemaResponse' }
+
+  /mutations/{mutationId}:
+    parameters:
+      - $ref: '#/components/parameters/MutationId'
+    get:
+      tags: [mutation]
+      summary: Fetch a mutation by id.
+      responses:
+        '200':
+          description: OK
+          content:
+            application/json:
+              schema: { $ref: '#/components/schemas/MutationResponse' }
+        '404': { $ref: '#/components/responses/NotFound' }
+    patch:
+      tags: [mutation]
+      summary: Apply a single field-path change to the mutation.
+      requestBody:
+        required: true
+        content:
+          application/json:
+            schema: { $ref: '#/components/schemas/FieldUpdate' }
+      responses:
+        '200':
+          description: Updated mutation.
+          content:
+            application/json:
+              schema: { $ref: '#/components/schemas/MutationResponse' }
+        '400': { $ref: '#/components/responses/BadRequest' }
+        '404': { $ref: '#/components/responses/NotFound' }
+        '422': { $ref: '#/components/responses/ValidationFailed' }
+
+  /mutations/{mutationId}/assays:
+    parameters:
+      - $ref: '#/components/parameters/MutationId'
+    post:
+      tags: [assay]
+      summary: Add an empty genotyping assay row to a mutation.
+      responses:
+        '200':
+          description: Refreshed parent mutation (its assays list now contains the new row).
+          content:
+            application/json:
+              schema: { $ref: '#/components/schemas/MutationResponse' }
+        '404': { $ref: '#/components/responses/NotFound' }
+
+  /assays/form-schema:
+    get:
+      tags: [form-schema]
+      summary: JSON Schema + uiSchema for the per-assay edit form (drives the assay-type field matrix).
+      responses:
+        '200':
+          description: OK
+          content:
+            application/json:
+              schema: { $ref: '#/components/schemas/FormSchemaResponse' }
+
+  /assays/{assayId}:
+    parameters:
+      - $ref: '#/components/parameters/AssayId'
+    get:
+      tags: [assay]
+      summary: Fetch an assay by id (returns every column; visibility is decided by the uiSchema rules).
+      responses:
+        '200':
+          description: OK
+          content:
+            application/json:
+              schema: { $ref: '#/components/schemas/AssayResponse' }
+        '404': { $ref: '#/components/responses/NotFound' }
+    patch:
+      tags: [assay]
+      summary: Apply a single field-path change to the assay.
+      requestBody:
+        required: true
+        content:
+          application/json:
+            schema: { $ref: '#/components/schemas/FieldUpdate' }
+      responses:
+        '200':
+          description: Updated assay.
+          content:
+            application/json:
+              schema: { $ref: '#/components/schemas/AssayResponse' }
+        '400': { $ref: '#/components/responses/BadRequest' }
+        '404': { $ref: '#/components/responses/NotFound' }
+        '422': { $ref: '#/components/responses/ValidationFailed' }
+    delete:
+      tags: [assay]
+      summary: Remove an assay (and its attachments via DB cascade).
+      responses:
+        '204': { description: Deleted }
+        '404': { $ref: '#/components/responses/NotFound' }
+
+  /assays/{assayId}/attachments:
+    parameters:
+      - $ref: '#/components/parameters/AssayId'
+    post:
+      tags: [attachment]
+      summary: Upload an attachment to an assay (multipart).
+      description: |
+        Capped at 20 MB. Content-type allowlist:
+        `image/jpeg`, `image/png`, `image/gif`, `image/svg+xml`, `image/tiff`,
+        `application/pdf`, `text/plain`, `text/csv`.
+      requestBody:
+        required: true
+        content:
+          multipart/form-data:
+            schema:
+              type: object
+              required: [file]
+              properties:
+                file:
+                  type: string
+                  format: binary
+      responses:
+        '200':
+          description: Refreshed parent assay (its attachments list now contains the new file).
+          content:
+            application/json:
+              schema: { $ref: '#/components/schemas/AssayResponse' }
+        '400': { $ref: '#/components/responses/BadRequest' }
+        '404': { $ref: '#/components/responses/NotFound' }
+
+  /assays/attachments/{fileId}:
+    parameters:
+      - $ref: '#/components/parameters/FileId'
+    delete:
+      tags: [attachment]
+      summary: Remove an attachment from an assay (also unlinks the on-disk file best-effort).
+      responses:
+        '204': { description: Deleted }
+        '404': { $ref: '#/components/responses/NotFound' }
+
+  /assays/attachments/{fileId}/content:
+    parameters:
+      - $ref: '#/components/parameters/FileId'
+    get:
+      tags: [attachment]
+      summary: Stream the on-disk content of an attachment with Content-Disposition matching the original filename.
+      responses:
+        '200':
+          description: Raw file bytes.
+          content:
+            '*/*':
+              schema:
+                type: string
+                format: binary
+        '404': { $ref: '#/components/responses/NotFound' }
+
+  /openapi.yaml:
+    get:
+      tags: [form-schema]
+      summary: This document.
+      responses:
+        '200':
+          description: The OpenAPI 3 spec for the ZIRC API.
+          content:
+            application/yaml:
+              schema:
+                type: string
+
+components:
+  parameters:
+    SubmissionZdbId:
+      name: zdbID
+      in: path
+      required: true
+      description: ZFIN active-data ID for a line submission.
+      schema:
+        type: string
+        example: ZDB-LINESUBMISSION-260515-7
+    MutationId:
+      name: mutationId
+      in: path
+      required: true
+      schema: { type: integer, format: int64 }
+    AssayId:
+      name: assayId
+      in: path
+      required: true
+      schema: { type: integer, format: int64 }
+    FileId:
+      name: fileId
+      in: path
+      required: true
+      schema: { type: integer, format: int64 }
+
+  responses:
+    BadRequest:
+      description: Invalid request (rejected before persistence).
+      content:
+        application/problem+json:
+          schema: { $ref: '#/components/schemas/ProblemDetail' }
+    NotFound:
+      description: Aggregate not found by the given id.
+      content:
+        application/problem+json:
+          schema: { $ref: '#/components/schemas/ProblemDetail' }
+    ValidationFailed:
+      description: Body failed Jakarta Bean Validation. The problem detail's `errors` extension carries field → message.
+      content:
+        application/problem+json:
+          schema: { $ref: '#/components/schemas/ProblemDetail' }
+
+  schemas:
+    FieldUpdate:
+      type: object
+      required: [path]
+      description: A single change to one form-schema path. `path` is a JSON Pointer rooted at the aggregate (`/name`, `/acceptance/reasons`, etc.). `value` is whatever the corresponding FieldDescriptor accepts — string, boolean, null, array of strings, or array of objects depending on the field.
+      properties:
+        path:
+          type: string
+          example: '/acceptance/reasons'
+        value:
+          nullable: true
+          description: Permitted shape varies by `path`; see the form schema for that aggregate.
+
+    FormSchemaResponse:
+      type: object
+      required: [schema, uiSchema]
+      description: JSON Schema for the form data plus a JSON Forms uiSchema describing layout and per-control widget hints.
+      properties:
+        schema:
+          type: object
+          additionalProperties: true
+          description: A JSON Schema document.
+        uiSchema:
+          type: object
+          additionalProperties: true
+          description: "A JSON Forms uiSchema (`type: VerticalLayout` or similar)."
+
+    ProblemDetail:
+      type: object
+      description: RFC 7807 problem detail. Returned by ZircApiExceptionHandler for known-bad inputs and missing entities.
+      properties:
+        type: { type: string, format: uri }
+        title: { type: string }
+        status: { type: integer }
+        detail: { type: string }
+        instance: { type: string }
+        errors:
+          type: object
+          additionalProperties: { type: string }
+          description: Field → message map; present on 422 ValidationFailed only.
+
+    LineSubmissionResponse:
+      type: object
+      properties:
+        zdbID: { type: string }
+        name: { type: string, nullable: true }
+        abbreviation: { type: string, nullable: true }
+        previousNames: { type: string, nullable: true }
+        singleAllelic: { type: boolean, nullable: true }
+        maternalBackground: { type: string, nullable: true }
+        paternalBackground: { type: string, nullable: true }
+        backgroundChangeable: { type: boolean, nullable: true }
+        backgroundChangeConcerns: { type: string, nullable: true }
+        unreportedFeaturesDetails: { type: string, nullable: true }
+        husbandryInfo: { type: string, nullable: true }
+        additionalInfo: { type: string, nullable: true }
+        reasons:
+          type: array
+          items: { type: string }
+        reasonsOther: { type: string, nullable: true }
+        mutations:
+          type: array
+          items: { $ref: '#/components/schemas/MutationResponse' }
+        draft: { type: boolean }
+
+    MutationResponse:
+      type: object
+      properties:
+        id: { type: integer, format: int64 }
+        lineSubmissionId: { type: string }
+        sortOrder: { type: integer }
+        alleleDesignation: { type: string, nullable: true }
+        alleleInZfin: { type: boolean, nullable: true }
+        mutationType: { type: string, nullable: true }
+        mutationDiscoverer: { type: string, nullable: true }
+        mutationInstitution: { type: string, nullable: true }
+        mutagenesisStage: { type: string, nullable: true }
+        mutagenesisProtocol: { type: string, nullable: true }
+        molecularlyCharacterized: { type: boolean, nullable: true }
+        homozygousLethal: { type: boolean, nullable: true }
+        lethalityStageTypical: { type: string, nullable: true }
+        lethalitySpecificTimepoint: { type: string, nullable: true }
+        lethalityWindowStart: { type: string, nullable: true }
+        lethalityWindowEnd: { type: string, nullable: true }
+        lethalityAdditionalInfo: { type: string, nullable: true }
+        publications:
+          type: array
+          items: { type: string }
+        assays:
+          type: array
+          items: { $ref: '#/components/schemas/AssaySummary' }
+
+    AssaySummary:
+      type: object
+      description: Compact row used inside MutationResponse.assays; full fields fetched separately via /assays/{id}.
+      properties:
+        id: { type: integer, format: int64 }
+        sortOrder: { type: integer }
+        assayType: { type: string, nullable: true }
+
+    AssayResponse:
+      type: object
+      description: Every column for one genotyping assay. Which fields are *visible* in the form depends on the uiSchema rules keyed on `assayType` — persistence ignores those rules.
+      properties:
+        id: { type: integer, format: int64 }
+        mutationId: { type: integer, format: int64, nullable: true }
+        sortOrder: { type: integer }
+        assayType: { type: string, nullable: true }
+        forwardPrimer: { type: string, nullable: true }
+        reversePrimer: { type: string, nullable: true }
+        expectedWtPcr: { type: string, nullable: true }
+        expectedMutPcr: { type: string, nullable: true }
+        sequencingPrimer: { type: string, nullable: true }
+        dcapsMismatchPrimer: { type: string, nullable: true }
+        wtSpecificPrimer: { type: string, nullable: true }
+        mutSpecificPrimer: { type: string, nullable: true }
+        commonPrimer: { type: string, nullable: true }
+        kaspGenomicSequence: { type: string, nullable: true }
+        restrictionEnzymeName: { type: string, nullable: true }
+        restrictionEnzymeCatalog: { type: string, nullable: true }
+        enzymeCleaves:
+          type: array
+          items: { type: string }
+        expectedWtDigest: { type: string, nullable: true }
+        expectedMutDigest: { type: string, nullable: true }
+        sslpMarkerName: { type: string, nullable: true }
+        sslpDistance: { type: string, nullable: true }
+        sslpGenomicLocation: { type: string, nullable: true }
+        sslpInducedBackground: { type: string, nullable: true }
+        sslpOutcrossedBackground: { type: string, nullable: true }
+        sslpInducedPcr: { type: string, nullable: true }
+        sslpOutcrossedPcr: { type: string, nullable: true }
+        additionalInfo: { type: string, nullable: true }
+        attachments:
+          type: array
+          items: { $ref: '#/components/schemas/AssayFileResponse' }
+
+    AssayFileResponse:
+      type: object
+      properties:
+        id: { type: integer, format: int64 }
+        originalFilename: { type: string }
+        contentType: { type: string, nullable: true }
+        fileSize: { type: integer, format: int64, nullable: true }
+        uploadedAt:
+          type: string
+          format: date-time
+          nullable: true
