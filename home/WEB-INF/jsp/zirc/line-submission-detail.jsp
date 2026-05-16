@@ -11,6 +11,15 @@
 <z:dataPage sections="${sections}" title="Line Submission: ${submission.name}">
 
     <jsp:attribute name="entityName">${submission.name}</jsp:attribute>
+    <jsp:attribute name="pageBar">
+        <%-- Mirror the edit page's nav so Detail/Edit toggle reads both ways.
+             Detail is the current page (span), Edit is the link. --%>
+        <nav class="navbar navbar-light admin text-center border-bottom">
+            <a class="col-sm" href="/action/zirc/dashboard">Dashboard</a>
+            <span class="col-sm">Detail</span>
+            <a class="col-sm" href="/action/zirc/line-submission/${submission.zdbID}/edit">Edit</a>
+        </nav>
+    </jsp:attribute>
 
     <jsp:body>
 
@@ -21,10 +30,6 @@
             /* Bootstrap 4 modal sits at z-index 1050; lift the autocomplete menu above it. */
             .ui-autocomplete { z-index: 1100 !important; }
         </style>
-
-        <p>
-            <a href="/action/zirc/dashboard" class="btn btn-light btn-sm">&laquo; Back to Dashboard</a>
-        </p>
 
         <div class="small text-uppercase text-muted">Line Submission</div>
         <h1>${submission.name}</h1>
