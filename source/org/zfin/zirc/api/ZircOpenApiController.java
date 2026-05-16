@@ -26,6 +26,7 @@ import java.io.InputStream;
 public class ZircOpenApiController {
 
     private static final String SPEC_PATH = "/WEB-INF/openapi/zirc-api.yaml";
+    private static final String UI_PATH   = "/WEB-INF/openapi/swagger-ui.html";
     private static final MediaType APPLICATION_YAML = MediaType.parseMediaType("application/yaml");
 
     @Autowired
@@ -33,12 +34,26 @@ public class ZircOpenApiController {
 
     @GetMapping(value = "/openapi.yaml", produces = "application/yaml")
     public ResponseEntity<InputStreamResource> getOpenApiSpec() {
-        InputStream stream = servletContext.getResourceAsStream(SPEC_PATH);
+        return streamWebInfResource(SPEC_PATH, APPLICATION_YAML);
+    }
+
+    /**
+     * Renders a Swagger UI shell that loads the YAML above. The UI assets
+     * themselves come from a CDN for now — see the swagger-ui.html comment
+     * for the vendoring follow-up.
+     */
+    @GetMapping(value = "/docs", produces = "text/html")
+    public ResponseEntity<InputStreamResource> getDocsUi() {
+        return streamWebInfResource(UI_PATH, MediaType.TEXT_HTML);
+    }
+
+    private ResponseEntity<InputStreamResource> streamWebInfResource(String path, MediaType type) {
+        InputStream stream = servletContext.getResourceAsStream(path);
         if (stream == null) {
             return ResponseEntity.status(HttpStatus.NOT_FOUND).build();
         }
         return ResponseEntity.ok()
-                .contentType(APPLICATION_YAML)
+                .contentType(type)
                 .body(new InputStreamResource(stream));
     }
 }

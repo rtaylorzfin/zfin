@@ -278,6 +278,18 @@ paths:
               schema:
                 type: string
 
+  /docs:
+    get:
+      tags: [form-schema]
+      summary: Swagger UI shell rendering this spec.
+      responses:
+        '200':
+          description: HTML page that loads Swagger UI against `/openapi.yaml`.
+          content:
+            text/html:
+              schema:
+                type: string
+
 components:
   parameters:
     SubmissionZdbId:

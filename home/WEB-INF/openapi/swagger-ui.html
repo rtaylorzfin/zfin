@@ -1,0 +1,33 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+  <meta charset="UTF-8">
+  <title>ZIRC API — Swagger UI</title>
+  <!--
+    Swagger UI assets are loaded from a CDN for now. Vendoring the dist
+    into home/static-assets/ is a noted follow-up; the trade-off is build
+    complexity vs. needing internet access on dev machines.
+    -->
+  <link rel="stylesheet" href="https://cdn.jsdelivr.net/npm/swagger-ui-dist@5/swagger-ui.css">
+  <style>
+    html, body { margin: 0; padding: 0; }
+    .topbar { display: none; }
+  </style>
+</head>
+<body>
+<div id="swagger-ui"></div>
+<script src="https://cdn.jsdelivr.net/npm/swagger-ui-dist@5/swagger-ui-bundle.js"></script>
+<script>
+  window.addEventListener('load', () => {
+    window.ui = SwaggerUIBundle({
+      url: '/action/api/zirc/openapi.yaml',
+      dom_id: '#swagger-ui',
+      deepLinking: true,
+      docExpansion: 'list',
+      tagsSorter: 'alpha',
+      operationsSorter: 'method',
+    });
+  });
+</script>
+</body>
+</html>
