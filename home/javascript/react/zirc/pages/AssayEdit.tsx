@@ -3,7 +3,7 @@ import { useQuery, useQueryClient } from '@tanstack/react-query';
 import { JsonForms } from '@jsonforms/react';
 import type { JsonSchema, UISchemaElement } from '@jsonforms/core';
 import { api } from '../api/client';
-import { AssayResponse } from '../api/types';
+import { AssayFileResponse, AssayResponse } from '../api/types';
 import { assayKey, mutationKey, useAssayById } from '../api/queries';
 import { SaveStatusBadge, SaveStatus } from '../components/SaveStatusBadge';
 import { sectionRendererEntry } from '../schemaForm/renderers/SectionRenderer';
@@ -12,6 +12,7 @@ import { verticalLayoutRendererEntry } from '../schemaForm/renderers/VerticalLay
 import { textareaRowRendererEntry } from '../schemaForm/renderers/TextareaRowRenderer';
 import { selectWithOtherRendererEntry } from '../schemaForm/renderers/SelectWithOtherRenderer';
 import { publicationsListRendererEntry } from '../schemaForm/renderers/PublicationsListRenderer';
+import { attachmentsRendererEntry } from '../schemaForm/renderers/AttachmentsRenderer';
 
 export type AssayEditProps = {
     assayId: number;
@@ -31,9 +32,14 @@ const renderers = [
     textareaRowRendererEntry,
     selectWithOtherRendererEntry,
     publicationsListRendererEntry,
+    attachmentsRendererEntry,
 ];
 
 type FormDataShape = Omit<AssayResponse, 'id' | 'mutationId' | 'sortOrder'>;
+
+// Server-managed: uploads/deletes go through dedicated endpoints, not the
+// field-path PATCH. AssayEdit must skip /attachments in its leaf diff.
+const EXTERNALLY_MANAGED_PATHS = new Set<string>(['/attachments']);
 
 function initialDataFromAssay(a: AssayResponse): FormDataShape {
     return {
@@ -61,6 +67,7 @@ function initialDataFromAssay(a: AssayResponse): FormDataShape {
         sslpOutcrossedBackground: a.sslpOutcrossedBackground ?? '',
         sslpInducedPcr: a.sslpInducedPcr ?? '',
         sslpOutcrossedPcr: a.sslpOutcrossedPcr ?? '',
+        attachments: a.attachments ?? [],
     };
 }
 
@@ -122,6 +129,19 @@ export function AssayEdit({ assayId, mutationId }: AssayEditProps) {
         lastSavedRef.current = seed;
     }, [assay?.id, formData]);
 
+    // Mirror server-managed attachments after each refetch (upload/delete)
+    // so the renderer sees the new list. Same idiom as the mutations sync
+    // in SchemaForm and the assays sync in MutationEdit.
+    const attachmentsKey = JSON.stringify(assay?.attachments ?? []);
+    React.useEffect(() => {
+        if (!assay || formData == null) {return;}
+        const next: AssayFileResponse[] = assay.attachments ?? [];
+        setFormData((d) => (d == null ? d : { ...d, attachments: next }));
+        if (lastSavedRef.current != null) {
+            lastSavedRef.current = { ...lastSavedRef.current, attachments: next };
+        }
+    }, [attachmentsKey]);
+
     const [status, setStatus] = React.useState<SaveStatus>('idle');
     const [errorMessage, setErrorMessage] = React.useState<string | null>(null);
 
@@ -131,7 +151,8 @@ export function AssayEdit({ assayId, mutationId }: AssayEditProps) {
         if (formData == null || lastSavedRef.current == null) {return;}
 
         const handle = window.setTimeout(async () => {
-            const changes = diffLeaves(lastSavedRef.current, formData);
+            const changes = diffLeaves(lastSavedRef.current, formData)
+                .filter(([path]) => !EXTERNALLY_MANAGED_PATHS.has(path));
             if (changes.length === 0) {return;}
 
             setStatus('saving');

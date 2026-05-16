@@ -5,22 +5,31 @@ import com.fasterxml.jackson.databind.ObjectMapper;
 import lombok.extern.log4j.Log4j2;
 import org.springframework.beans.factory.annotation.Autowired;
 import org.springframework.stereotype.Service;
+import org.springframework.web.multipart.MultipartFile;
 import org.zfin.framework.HibernateUtil;
 import org.zfin.profile.Person;
 import org.zfin.profile.service.ProfileService;
+import org.zfin.properties.ZfinPropertiesEnum;
 import org.zfin.zirc.api.ZircAssayFormSchema;
 import org.zfin.zirc.api.ZircFormSchema;
 import org.zfin.zirc.api.ZircMutationFormSchema;
 import org.zfin.zirc.dto.FieldUpdate;
 import org.zfin.zirc.entity.GenotypingAssay;
+import org.zfin.zirc.entity.GenotypingAssayFile;
 import org.zfin.zirc.entity.LineSubmission;
 import org.zfin.zirc.entity.LineSubmissionPerson;
 import org.zfin.zirc.entity.Mutation;
 import org.zfin.zirc.repository.ZircSubmissionRepository;
 
+import java.io.File;
+import java.io.IOException;
+import java.nio.file.Files;
+import java.nio.file.Path;
+import java.nio.file.Paths;
 import java.util.Collections;
 import java.util.Comparator;
 import java.util.List;
+import java.util.Set;
 
 @Service
 @Log4j2
@@ -284,6 +293,137 @@ public class ZircSubmissionService {
                 .filter(java.util.Objects::nonNull)
                 .max(Comparator.naturalOrder())
                 .orElse(0) + 1;
+    }
+
+    // ─── Attachments (M4.3) ─────────────────────────────────────────────────
+
+    /** Hard upper bound on a single uploaded attachment. */
+    public static final long MAX_ATTACHMENT_BYTES = 20L * 1024 * 1024;
+
+    /**
+     * Content-types we'll accept. Starter list — internal-curator workflow.
+     * For richer formats (e.g. CSV chromatograms) extend this list.
+     */
+    private static final Set<String> ALLOWED_CONTENT_TYPES = Set.of(
+            "image/jpeg", "image/png", "image/gif", "image/svg+xml", "image/tiff",
+            "application/pdf",
+            "text/plain", "text/csv");
+
+    public GenotypingAssayFile getRequiredAssayFile(Long fileId) {
+        GenotypingAssayFile file = repository.getAssayFile(fileId);
+        if (file == null) {
+            throw new ZircEntityNotFoundException("Assay file " + fileId + " not found");
+        }
+        return file;
+    }
+
+    /**
+     * Persist an uploaded {@link MultipartFile} as an attachment on the
+     * given assay. Layout per the schema comment:
+     * {@code $TARGETROOT/server_apps/data_transfer/ZIRC/<submission zdb id>/
+     *  assay-<assay id>-<file id>-<sanitized filename>}.
+     *
+     * <p>Returns the parent assay so callers can return a refreshed
+     * AssayResponse in one round trip.
+     */
+    public GenotypingAssay storeAttachment(Long assayId, MultipartFile upload) throws IOException {
+        if (upload == null || upload.isEmpty()) {
+            throw new IllegalArgumentException("No file uploaded");
+        }
+        if (upload.getSize() > MAX_ATTACHMENT_BYTES) {
+            throw new IllegalArgumentException(
+                    "Attachment exceeds size limit (" + MAX_ATTACHMENT_BYTES + " bytes)");
+        }
+        String contentType = upload.getContentType();
+        if (contentType == null || !ALLOWED_CONTENT_TYPES.contains(contentType)) {
+            throw new IllegalArgumentException(
+                    "Content type not allowed: " + contentType);
+        }
+
+        GenotypingAssay assay = getRequiredAssayById(assayId);
+        String submissionId = assay.getMutation().getLineSubmission().getZdbID();
+        String safeName = sanitizeFilename(upload.getOriginalFilename());
+
+        HibernateUtil.createTransaction();
+
+        // Insert first to obtain the generated file id, then we can build
+        // a deterministic on-disk name. storedPath stays placeholder until
+        // the file is actually written; we update it below.
+        GenotypingAssayFile file = new GenotypingAssayFile();
+        file.setAssay(assay);
+        file.setOriginalFilename(upload.getOriginalFilename());
+        file.setContentType(contentType);
+        file.setFileSize(upload.getSize());
+        file.setStoredPath("__pending__");
+        repository.save(file);
+        HibernateUtil.currentSession().flush();
+
+        Path dir = Paths.get(
+                ZfinPropertiesEnum.TARGETROOT.value(),
+                "server_apps", "data_transfer", "ZIRC", submissionId);
+        Files.createDirectories(dir);
+
+        String storedName = "assay-" + assayId + "-" + file.getId() + "-" + safeName;
+        Path stored = dir.resolve(storedName);
+        upload.transferTo(stored.toFile());
+        file.setStoredPath(stored.toString());
+
+        HibernateUtil.flushAndCommitCurrentSession();
+
+        Person currentUser = ProfileService.getCurrentSecurityUser();
+        String userId = currentUser == null ? "anonymous" : currentUser.getZdbID();
+        log.info("ZIRC_AUDIT user={} assay={} action=upload file={} name=\"{}\" bytes={}",
+                userId, assayId, file.getId(), upload.getOriginalFilename(), upload.getSize());
+
+        return assay;
+    }
+
+    public void deleteAttachment(Long fileId) {
+        GenotypingAssayFile file = getRequiredAssayFile(fileId);
+        Long assayId = file.getAssay() == null ? null : file.getAssay().getId();
+        String storedPath = file.getStoredPath();
+
+        HibernateUtil.createTransaction();
+        repository.delete(file);
+        HibernateUtil.flushAndCommitCurrentSession();
+
+        // Best-effort unlink of the on-disk file. We've already committed
+        // the DB delete, so a missing file is not an error condition.
+        if (storedPath != null) {
+            try {
+                Files.deleteIfExists(Paths.get(storedPath));
+            } catch (IOException e) {
+                log.warn("ZIRC attachment delete: failed to remove file on disk: {}", storedPath, e);
+            }
+        }
+
+        Person currentUser = ProfileService.getCurrentSecurityUser();
+        String userId = currentUser == null ? "anonymous" : currentUser.getZdbID();
+        log.info("ZIRC_AUDIT user={} assay={} action=delete-file file={} path={}",
+                userId, assayId, fileId, storedPath);
+    }
+
+    /**
+     * Strip path separators, control characters, and leading dots from a
+     * caller-supplied filename so it's safe to use as the suffix of a
+     * server-constructed path. Returns {@code "file"} as a fallback when
+     * the result would otherwise be empty.
+     */
+    static String sanitizeFilename(String name) {
+        if (name == null) {return "file";}
+        String trimmed = name.replaceAll("[\\\\/\\u0000-\\u001F]", "_");
+        // Collapse path traversal segments to underscores too.
+        trimmed = trimmed.replace("..", "_");
+        // Strip leading dots so we don't create hidden files.
+        while (trimmed.startsWith(".")) {trimmed = trimmed.substring(1);}
+        if (trimmed.isBlank()) {return "file";}
+        // Cap length so very long names don't blow up file systems.
+        if (trimmed.length() > 200) {trimmed = trimmed.substring(0, 200);}
+        return trimmed;
+    }
+
+    public File resolveAttachmentPath(GenotypingAssayFile file) {
+        return new File(file.getStoredPath());
     }
 
 }

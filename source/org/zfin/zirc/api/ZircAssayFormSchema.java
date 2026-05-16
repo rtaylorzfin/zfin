@@ -98,6 +98,10 @@ public final class ZircAssayFormSchema {
         properties.put("sslpOutcrossedBackground", stringProp(255, "SSLP Outcrossed Background"));
         properties.put("sslpInducedPcr",           stringProp(2000, "SSLP Induced PCR"));
         properties.put("sslpOutcrossedPcr",        stringProp(2000, "SSLP Outcrossed PCR"));
+        // Attachments — summary rows; uploads happen through a dedicated
+        // multipart endpoint, not the field-path PATCH (AssayEdit's diff
+        // filter must skip /attachments).
+        properties.put("attachments",              attachmentsArrayProp());
 
         Map<String, Object> root = new LinkedHashMap<>();
         root.put("type", "object");
@@ -151,7 +155,13 @@ public final class ZircAssayFormSchema {
                         control("#/properties/sslpOutcrossedBackground"),
                         control("#/properties/sslpInducedPcr"),
                         control("#/properties/sslpOutcrossedPcr")
-                ))
+                )),
+                // Attachments is always shown — kind matrix is intentionally
+                // collapsed to a single "Files" affordance for now.
+                groupWithOptions("Attachments",
+                        Map.of("layout", "plain"),
+                        List.of(controlWithOptions("#/properties/attachments",
+                                Map.of("widget", "attachmentsList"))))
         ));
     }
 
@@ -208,6 +218,30 @@ public final class ZircAssayFormSchema {
         return p;
     }
 
+    /**
+     * Mirror of {@link org.zfin.zirc.dto.AssayFileResponse}; the renderer
+     * reads the summary fields. File content is fetched via the streaming
+     * endpoint, not as part of the form data.
+     */
+    private static Map<String, Object> attachmentsArrayProp() {
+        Map<String, Object> itemProps = new LinkedHashMap<>();
+        itemProps.put("id",               Map.of("type", "number"));
+        itemProps.put("originalFilename", Map.of("type", "string"));
+        itemProps.put("contentType",      Map.of("type", List.of("string", "null")));
+        itemProps.put("fileSize",         Map.of("type", List.of("number", "null")));
+        itemProps.put("uploadedAt",       Map.of("type", List.of("string", "null")));
+
+        Map<String, Object> item = new LinkedHashMap<>();
+        item.put("type", "object");
+        item.put("properties", itemProps);
+
+        Map<String, Object> arr = new LinkedHashMap<>();
+        arr.put("type", "array");
+        arr.put("title", "Attachments");
+        arr.put("items", item);
+        return arr;
+    }
+
     // ─── uiSchema builders ──────────────────────────────────────────────────
 
     private static Map<String, Object> verticalLayout(List<Map<String, Object>> elements) {
@@ -222,6 +256,15 @@ public final class ZircAssayFormSchema {
         g.put("type", "Group");
         g.put("label", label);
         g.put("elements", elements);
+        return g;
+    }
+
+    private static Map<String, Object> groupWithOptions(
+            String label,
+            Map<String, Object> options,
+            List<Map<String, Object>> elements) {
+        Map<String, Object> g = group(label, elements);
+        g.put("options", options);
         return g;
     }
 

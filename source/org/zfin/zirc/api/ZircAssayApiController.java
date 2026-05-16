@@ -1,9 +1,13 @@
 package org.zfin.zirc.api;
 
+import jakarta.servlet.http.HttpServletResponse;
 import jakarta.validation.Valid;
 import org.springframework.beans.factory.annotation.Autowired;
+import org.springframework.core.io.FileSystemResource;
+import org.springframework.http.HttpHeaders;
 import org.springframework.http.HttpStatus;
 import org.springframework.http.MediaType;
+import org.springframework.http.ResponseEntity;
 import org.springframework.web.bind.annotation.DeleteMapping;
 import org.springframework.web.bind.annotation.GetMapping;
 import org.springframework.web.bind.annotation.PatchMapping;
@@ -11,13 +15,19 @@ import org.springframework.web.bind.annotation.PathVariable;
 import org.springframework.web.bind.annotation.PostMapping;
 import org.springframework.web.bind.annotation.RequestBody;
 import org.springframework.web.bind.annotation.RequestMapping;
+import org.springframework.web.bind.annotation.RequestParam;
 import org.springframework.web.bind.annotation.ResponseStatus;
 import org.springframework.web.bind.annotation.RestController;
+import org.springframework.web.multipart.MultipartFile;
 import org.zfin.zirc.dto.AssayResponse;
 import org.zfin.zirc.dto.FieldUpdate;
 import org.zfin.zirc.dto.FormSchemaResponse;
 import org.zfin.zirc.dto.MutationResponse;
+import org.zfin.zirc.entity.GenotypingAssayFile;
 import org.zfin.zirc.service.ZircSubmissionService;
+
+import java.io.File;
+import java.io.IOException;
 
 /**
  * Endpoints for the genotyping-assay collection under a mutation.
@@ -65,5 +75,46 @@ public class ZircAssayApiController {
             @PathVariable Long assayId,
             @Valid @RequestBody FieldUpdate update) {
         return AssayResponse.of(zircSubmissionService.updateAssayField(assayId, update));
+    }
+
+    /**
+     * Multipart upload — returns the refreshed AssayResponse so the client
+     * can update both its attachments list and the local React Query cache
+     * in one round trip.
+     */
+    @PostMapping(
+            value = "/api/zirc/assays/{assayId}/attachments",
+            consumes = MediaType.MULTIPART_FORM_DATA_VALUE)
+    public AssayResponse uploadAttachment(
+            @PathVariable Long assayId,
+            @RequestParam("file") MultipartFile file) throws IOException {
+        return AssayResponse.of(zircSubmissionService.storeAttachment(assayId, file));
+    }
+
+    @DeleteMapping("/api/zirc/assays/attachments/{fileId}")
+    @ResponseStatus(HttpStatus.NO_CONTENT)
+    public void deleteAttachment(@PathVariable Long fileId) {
+        zircSubmissionService.deleteAttachment(fileId);
+    }
+
+    /**
+     * Stream the file contents. Browser uses this to render image previews
+     * and to download via {@code &lt;a download&gt;}. Content-Disposition uses
+     * the original filename, not the on-disk name.
+     */
+    @GetMapping("/api/zirc/assays/attachments/{fileId}/content")
+    public ResponseEntity<FileSystemResource> getAttachmentContent(
+            @PathVariable Long fileId,
+            HttpServletResponse response) {
+        GenotypingAssayFile meta = zircSubmissionService.getRequiredAssayFile(fileId);
+        File onDisk = zircSubmissionService.resolveAttachmentPath(meta);
+        MediaType type = meta.getContentType() == null
+                ? MediaType.APPLICATION_OCTET_STREAM
+                : MediaType.parseMediaType(meta.getContentType());
+        return ResponseEntity.ok()
+                .contentType(type)
+                .header(HttpHeaders.CONTENT_DISPOSITION,
+                        "inline; filename=\"" + meta.getOriginalFilename() + "\"")
+                .body(new FileSystemResource(onDisk));
     }
 }

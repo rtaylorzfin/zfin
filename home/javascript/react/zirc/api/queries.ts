@@ -86,3 +86,28 @@ export function useAssayById(id: number | null) {
         enabled: !!id,
     });
 }
+
+export function useUploadAttachment() {
+    const qc = useQueryClient();
+    return useMutation({
+        mutationFn: ({ assayId, file }: { assayId: number; file: File }) => {
+            const form = new FormData();
+            form.append('file', file);
+            return api.upload<AssayResponse>(`/assays/${assayId}/attachments`, form);
+        },
+        onSuccess: (_data, vars) => {
+            qc.invalidateQueries({ queryKey: assayKey(vars.assayId) });
+        },
+    });
+}
+
+export function useDeleteAttachment() {
+    const qc = useQueryClient();
+    return useMutation({
+        mutationFn: ({ fileId }: { assayId: number; fileId: number }) =>
+            api.delete<void>(`/assays/attachments/${fileId}`),
+        onSuccess: (_data, vars) => {
+            qc.invalidateQueries({ queryKey: assayKey(vars.assayId) });
+        },
+    });
+}

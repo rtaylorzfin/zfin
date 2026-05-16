@@ -4,6 +4,7 @@ import org.springframework.stereotype.Repository;
 import org.zfin.framework.HibernateUtil;
 import org.zfin.profile.Person;
 import org.zfin.zirc.entity.GenotypingAssay;
+import org.zfin.zirc.entity.GenotypingAssayFile;
 import org.zfin.zirc.entity.LineSubmission;
 import org.zfin.zirc.entity.Mutation;
 
@@ -32,6 +33,11 @@ public class HibernateZircSubmissionRepository implements ZircSubmissionReposito
     @Override
     public GenotypingAssay getAssay(Long assayId) {
         return HibernateUtil.currentSession().get(GenotypingAssay.class, assayId);
+    }
+
+    @Override
+    public GenotypingAssayFile getAssayFile(Long fileId) {
+        return HibernateUtil.currentSession().get(GenotypingAssayFile.class, fileId);
     }
 
     @Override

@@ -1,8 +1,10 @@
 package org.zfin.zirc.dto;
 
 import org.zfin.zirc.entity.GenotypingAssay;
+import org.zfin.zirc.entity.GenotypingAssayFile;
 
 import java.util.Arrays;
+import java.util.Comparator;
 import java.util.List;
 
 /**
@@ -46,10 +48,20 @@ public record AssayResponse(
         String sslpInducedPcr,
         String sslpOutcrossedPcr,
         // Catch-all
-        String additionalInfo) {
+        String additionalInfo,
+        // Attachments (M4.3) — summary rows; full content is fetched via
+        // GET /api/zirc/assays/attachments/{id}/content
+        List<AssayFileResponse> attachments) {
 
     public static AssayResponse of(GenotypingAssay a) {
         String[] cleaves = a.getEnzymeCleaves();
+        List<AssayFileResponse> files = a.getFiles() == null ? List.of() :
+                a.getFiles().stream()
+                        .sorted(Comparator.comparing(
+                                GenotypingAssayFile::getUploadedAt,
+                                Comparator.nullsLast(Comparator.naturalOrder())))
+                        .map(AssayFileResponse::of)
+                        .toList();
         return new AssayResponse(
                 a.getId(),
                 a.getMutation() == null ? null : a.getMutation().getId(),
@@ -77,6 +89,7 @@ public record AssayResponse(
                 a.getSslpOutcrossedBackground(),
                 a.getSslpInducedPcr(),
                 a.getSslpOutcrossedPcr(),
-                a.getAdditionalInfo());
+                a.getAdditionalInfo(),
+                files);
     }
 }

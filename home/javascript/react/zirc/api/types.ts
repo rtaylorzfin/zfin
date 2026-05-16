@@ -92,6 +92,16 @@ export interface AssayResponse {
     sslpOutcrossedPcr: string | null;
     // Catch-all
     additionalInfo: string | null;
+    // Attachments (M4.3) — summary; content streamed separately.
+    attachments: AssayFileResponse[];
+}
+
+export interface AssayFileResponse {
+    id: number;
+    originalFilename: string;
+    contentType: string | null;
+    fileSize: number | null;
+    uploadedAt: string | null;
 }
 
 // RFC 7807 problem detail returned by ZircApiExceptionHandler.

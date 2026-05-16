@@ -17,6 +17,8 @@ public interface ZircSubmissionRepository {
 
     GenotypingAssay getAssay(Long assayId);
 
+    org.zfin.zirc.entity.GenotypingAssayFile getAssayFile(Long fileId);
+
     Person getPerson(String personZdbID);
 
     Person getPersonReference(String personZdbID);
