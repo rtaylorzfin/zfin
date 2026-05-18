@@ -223,6 +223,12 @@ public class ZircSubmissionService {
 
     public Mutation addMutation(String submissionId) {
         LineSubmission submission = getRequiredLineSubmission(submissionId);
+        int existing = submission.getMutations() == null ? 0 : submission.getMutations().size();
+        if (existing >= ZircFormSchema.MAX_MUTATIONS_PER_SUBMISSION) {
+            throw new IllegalArgumentException(
+                    "Maximum " + ZircFormSchema.MAX_MUTATIONS_PER_SUBMISSION
+                            + " mutations per submission.");
+        }
         HibernateUtil.createTransaction();
         Mutation mutation = new Mutation();
         mutation.setLineSubmission(submission);
@@ -254,6 +260,13 @@ public class ZircSubmissionService {
      */
     public Mutation addAssay(Long mutationId) {
         Mutation mutation = getRequiredMutationById(mutationId);
+        int existing = mutation.getGenotypingAssays() == null ? 0
+                : mutation.getGenotypingAssays().size();
+        if (existing >= ZircMutationFormSchema.MAX_ASSAYS_PER_MUTATION) {
+            throw new IllegalArgumentException(
+                    "Maximum " + ZircMutationFormSchema.MAX_ASSAYS_PER_MUTATION
+                            + " genotyping assays per mutation.");
+        }
         HibernateUtil.createTransaction();
         GenotypingAssay assay = new GenotypingAssay();
         assay.setMutation(mutation);
@@ -376,6 +389,12 @@ public class ZircSubmissionService {
         }
 
         GenotypingAssay assay = getRequiredAssayById(assayId);
+        int existing = assay.getFiles() == null ? 0 : assay.getFiles().size();
+        if (existing >= ZircAssayFormSchema.MAX_ATTACHMENTS_PER_ASSAY) {
+            throw new IllegalArgumentException(
+                    "Maximum " + ZircAssayFormSchema.MAX_ATTACHMENTS_PER_ASSAY
+                            + " attachments per assay.");
+        }
         String submissionId = assay.getMutation().getLineSubmission().getZdbID();
         String safeName = sanitizeFilename(upload.getOriginalFilename());
 

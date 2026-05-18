@@ -119,18 +119,30 @@ public final class ZircAssayFormSchema {
                                 Map.of("multi", true))
                 )),
                 groupWithRule("PCR Primers", PCR_PRIMER_TYPES, List.of(
-                        control("#/properties/forwardPrimer"),
-                        control("#/properties/reversePrimer"),
-                        control("#/properties/expectedWtPcr"),
-                        control("#/properties/expectedMutPcr")
+                        controlWithOptions("#/properties/forwardPrimer",
+                                Map.of("placeholder", "5′ → 3′ sequence")),
+                        controlWithOptions("#/properties/reversePrimer",
+                                Map.of("placeholder", "5′ → 3′ sequence")),
+                        controlWithOptions("#/properties/expectedWtPcr",
+                                Map.of("suffix",   "bp",
+                                       "helpText", "Expected amplicon size on a wild-type template.")),
+                        controlWithOptions("#/properties/expectedMutPcr",
+                                Map.of("suffix",   "bp",
+                                       "helpText", "Expected amplicon size on a mutant template."))
                 )),
                 groupWithRule("Restriction Digest", DIGEST_TYPES, List.of(
-                        control("#/properties/restrictionEnzymeName"),
-                        control("#/properties/restrictionEnzymeCatalog"),
+                        controlWithOptions("#/properties/restrictionEnzymeName",
+                                Map.of("placeholder", "e.g. BsmBI")),
+                        controlWithOptions("#/properties/restrictionEnzymeCatalog",
+                                Map.of("placeholder", "vendor + cat #",
+                                       "infoHref",    "https://international.neb.com/")),
                         controlWithOptions("#/properties/enzymeCleaves",
-                                Map.of("widget", "stringList")),
-                        control("#/properties/expectedWtDigest"),
-                        control("#/properties/expectedMutDigest")
+                                Map.of("widget",   "stringList",
+                                       "helpText", "One sequence per row; positions where the enzyme cuts.")),
+                        controlWithOptions("#/properties/expectedWtDigest",
+                                Map.of("suffix", "bp")),
+                        controlWithOptions("#/properties/expectedMutDigest",
+                                Map.of("suffix", "bp"))
                 )),
                 groupWithRule("Sequencing", SEQUENCING_TYPES, List.of(
                         control("#/properties/sequencingPrimer")
@@ -223,6 +235,9 @@ public final class ZircAssayFormSchema {
      * reads the summary fields. File content is fetched via the streaming
      * endpoint, not as part of the form data.
      */
+    /** Hard cap on attachments per assay; same MAX_CHILD_ROWS_PER_MUTATION shape from the alt branch. */
+    public static final int MAX_ATTACHMENTS_PER_ASSAY = 10;
+
     private static Map<String, Object> attachmentsArrayProp() {
         Map<String, Object> itemProps = new LinkedHashMap<>();
         itemProps.put("id",               Map.of("type", "number"));
@@ -239,6 +254,7 @@ public final class ZircAssayFormSchema {
         arr.put("type", "array");
         arr.put("title", "Attachments");
         arr.put("items", item);
+        arr.put("maxItems", MAX_ATTACHMENTS_PER_ASSAY);
         return arr;
     }
 

@@ -20,7 +20,7 @@ import { useUploadAttachment, useDeleteAttachment } from '../../api/queries';
  *
  * assayId arrives via JsonForms' config prop.
  */
-function AttachmentsRenderer({ data, config }: ControlProps) {
+function AttachmentsRenderer({ data, schema, config }: ControlProps) {
     const files = (data as AssayFileResponse[] | undefined) ?? [];
     const assayId = (config as { assayId?: number } | undefined)?.assayId;
     const upload = useUploadAttachment();
@@ -28,6 +28,13 @@ function AttachmentsRenderer({ data, config }: ControlProps) {
     const inputRef = React.useRef<HTMLInputElement | null>(null);
 
     const [errorMsg, setErrorMsg] = React.useState<string | null>(null);
+
+    // Server-published MAX_ATTACHMENTS_PER_ASSAY via JSON Schema maxItems.
+    const maxItems = (schema as { maxItems?: number } | undefined)?.maxItems;
+    const atCapacity = maxItems != null && files.length >= maxItems;
+    const capTitle = atCapacity
+        ? `Maximum ${maxItems} attachments per assay.`
+        : undefined;
 
     const handlePick = (e: React.ChangeEvent<HTMLInputElement>) => {
         const file = e.target.files?.[0];
@@ -101,7 +108,8 @@ function AttachmentsRenderer({ data, config }: ControlProps) {
                     ref={inputRef}
                     type='file'
                     onChange={handlePick}
-                    disabled={!assayId || upload.isPending}
+                    disabled={!assayId || upload.isPending || atCapacity}
+                    title={capTitle}
                 />
                 {upload.isPending && (
                     <span className='text-muted small ml-2'>Uploading…</span>

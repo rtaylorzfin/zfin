@@ -87,12 +87,16 @@ public final class ZircMutationFormSchema {
 
         return verticalLayout(List.of(
                 group("General", List.of(
-                        control("#/properties/alleleDesignation"),
+                        controlWithOptions("#/properties/alleleDesignation",
+                                Map.of("placeholder", "e.g. zf123",
+                                       "helpText",    "ZFIN allele designation; leave blank if not yet assigned.")),
                         controlWithOptions("#/properties/alleleInZfin",
                                 Map.of("widget", "yesNoRadio")),
                         control("#/properties/mutationType"),
-                        control("#/properties/mutationDiscoverer"),
-                        control("#/properties/mutationInstitution")
+                        controlWithOptions("#/properties/mutationDiscoverer",
+                                Map.of("placeholder", "Person who first identified the mutation")),
+                        controlWithOptions("#/properties/mutationInstitution",
+                                Map.of("placeholder", "Lab / institution"))
                 )),
                 group("Mutagenesis", List.of(
                         controlWithOptions("#/properties/mutagenesisStage",
@@ -112,11 +116,13 @@ public final class ZircMutationFormSchema {
                                        "standardValues", LETHALITY_STAGES),
                                 showWhenLethal),
                         controlWithRule("#/properties/lethalitySpecificTimepoint",
-                                Map.of(), showWhenLethal),
+                                Map.of("placeholder", "e.g. 48 hpf",
+                                       "helpText",    "Single timepoint when most homozygotes die. Use the window fields below for a range."),
+                                showWhenLethal),
                         controlWithRule("#/properties/lethalityWindowStart",
-                                Map.of(), showWhenLethal),
+                                Map.of("placeholder", "e.g. 24 hpf"), showWhenLethal),
                         controlWithRule("#/properties/lethalityWindowEnd",
-                                Map.of(), showWhenLethal),
+                                Map.of("placeholder", "e.g. 72 hpf"), showWhenLethal),
                         controlWithRule("#/properties/lethalityAdditionalInfo",
                                 Map.of("multi", true), showWhenLethal)
                 )),
@@ -218,6 +224,9 @@ public final class ZircMutationFormSchema {
      * header reads from this. Full assay fields come from a dedicated
      * /api/zirc/assays/{id} endpoint when a card is expanded (M4.2).
      */
+    /** Hard cap mirroring the alt-branch (ZFIN-10265) MAX_CHILD_ROWS_PER_MUTATION. */
+    public static final int MAX_ASSAYS_PER_MUTATION = 10;
+
     private static Map<String, Object> assaysSummaryArrayProp() {
         Map<String, Object> itemProps = new LinkedHashMap<>();
         itemProps.put("id",        Map.of("type", "number"));
@@ -232,6 +241,7 @@ public final class ZircMutationFormSchema {
         arr.put("type", "array");
         arr.put("title", "Genotyping Assays");
         arr.put("items", item);
+        arr.put("maxItems", MAX_ASSAYS_PER_MUTATION);
         return arr;
     }
 

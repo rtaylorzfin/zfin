@@ -84,8 +84,12 @@ public final class ZircFormSchema {
     public static Map<String, Object> uiSchema() {
         return verticalLayout(List.of(
                 group("Overview", List.of(
-                        control("#/properties/name"),
-                        control("#/properties/previousNames")
+                        controlWithOptions("#/properties/name",
+                                Map.of("placeholder", "e.g. nasl1<sup>zf123</sup>",
+                                       "helpText",    "Line name as it should appear in publications.")),
+                        controlWithOptions("#/properties/previousNames",
+                                Map.of("placeholder", "Comma-separated former names",
+                                       "helpText",    "Useful when this line was previously known by a different designation."))
                 )),
                 group("Acceptance Reasons", List.of(
                         controlWithOptions("#/properties/acceptance", Map.of(
@@ -169,6 +173,9 @@ public final class ZircFormSchema {
         return p;
     }
 
+    /** Hard cap mirroring the alt-branch (ZFIN-10265) form spec. */
+    public static final int MAX_MUTATIONS_PER_SUBMISSION = 5;
+
     /**
      * Schema for the mutations summary list shown on the submission page.
      * Items are read-only summaries — editing happens on the per-mutation
@@ -191,6 +198,7 @@ public final class ZircFormSchema {
         arr.put("type", "array");
         arr.put("title", "Mutations");
         arr.put("items", item);
+        arr.put("maxItems", MAX_MUTATIONS_PER_SUBMISSION);
         return arr;
     }
 

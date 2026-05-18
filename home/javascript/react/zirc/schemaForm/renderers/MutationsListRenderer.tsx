@@ -23,11 +23,20 @@ import { useAddMutation, useDeleteMutation } from '../../api/queries';
  * The submission id needed for the endpoints comes through JsonForms'
  * `config` prop, which SchemaForm threads through.
  */
-function MutationsListRenderer({ data, config }: ControlProps) {
+function MutationsListRenderer({ data, schema, config }: ControlProps) {
     const mutations = (data as MutationResponse[] | undefined) ?? [];
     const submissionId = (config as { submissionId?: string } | undefined)?.submissionId;
     const addMutation = useAddMutation();
     const deleteMutation = useDeleteMutation();
+
+    // JSON Schema maxItems on the array — server publishes the curator-spec
+    // cap (MAX_MUTATIONS_PER_SUBMISSION); we honor it client-side so the
+    // "+ Add" button is disabled once the curator hits the limit.
+    const maxItems = (schema as { maxItems?: number } | undefined)?.maxItems;
+    const atCapacity = maxItems != null && mutations.length >= maxItems;
+    const capTitle = atCapacity
+        ? `Maximum ${maxItems} mutations per submission.`
+        : undefined;
 
     const handleAdd = () => {
         if (!submissionId) {return;}
@@ -49,7 +58,8 @@ function MutationsListRenderer({ data, config }: ControlProps) {
                     type='button'
                     className='btn btn-sm btn-outline-secondary'
                     onClick={handleAdd}
-                    disabled={!submissionId || addMutation.isPending}
+                    disabled={!submissionId || addMutation.isPending || atCapacity}
+                    title={capTitle}
                 >
                     + Add mutation
                 </button>
@@ -91,7 +101,8 @@ function MutationsListRenderer({ data, config }: ControlProps) {
                 type='button'
                 className='btn btn-sm btn-outline-secondary'
                 onClick={handleAdd}
-                disabled={!submissionId || addMutation.isPending}
+                disabled={!submissionId || addMutation.isPending || atCapacity}
+                title={capTitle}
             >
                 + Add mutation
             </button>

@@ -28,12 +28,19 @@ import { AssayEdit } from '../../pages/AssayEdit';
  * The mutation id needed for Add/Delete + the AssayEdit's parent-summary
  * invalidate comes through JsonForms' `config` prop.
  */
-function AssaysListRenderer({ data, config }: ControlProps) {
+function AssaysListRenderer({ data, schema, config }: ControlProps) {
     const assays = (data as AssaySummary[] | undefined) ?? [];
     const mutationId = (config as { mutationId?: number } | undefined)?.mutationId;
     const addAssay = useAddAssay();
     const deleteAssay = useDeleteAssay();
     const [expanded, setExpanded] = React.useState<Set<number>>(new Set());
+
+    // Server-published MAX_ASSAYS_PER_MUTATION via JSON Schema maxItems.
+    const maxItems = (schema as { maxItems?: number } | undefined)?.maxItems;
+    const atCapacity = maxItems != null && assays.length >= maxItems;
+    const capTitle = atCapacity
+        ? `Maximum ${maxItems} genotyping assays per mutation.`
+        : undefined;
 
     const toggle = (id: number) => {
         setExpanded((prev) => {
@@ -74,7 +81,8 @@ function AssaysListRenderer({ data, config }: ControlProps) {
                     type='button'
                     className='btn btn-sm btn-outline-secondary'
                     onClick={handleAdd}
-                    disabled={!mutationId || addAssay.isPending}
+                    disabled={!mutationId || addAssay.isPending || atCapacity}
+                    title={capTitle}
                 >
                     + Add assay
                 </button>
@@ -119,7 +127,8 @@ function AssaysListRenderer({ data, config }: ControlProps) {
                 type='button'
                 className='btn btn-sm btn-outline-secondary'
                 onClick={handleAdd}
-                disabled={!mutationId || addAssay.isPending}
+                disabled={!mutationId || addAssay.isPending || atCapacity}
+                title={capTitle}
             >
                 + Add assay
             </button>
