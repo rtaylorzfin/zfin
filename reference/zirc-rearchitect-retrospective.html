@@ -75,7 +75,7 @@
 <strong>Contents</strong>
 <ol>
   <li><a href="#tldr">TL;DR</a></li>
-  <li><a href="#starting-point">Where we started</a></li>
+  <li><a href="#starting-point">Where we started (and the alternate-universe branch)</a></li>
   <li><a href="#libraries">A quick library glossary (Zod, RHF, rjsf, JSON Forms, React Query)</a></li>
   <li><a href="#m1-m2">M1 / M2: per-section autosave with Zod + RHF</a></li>
   <li><a href="#pivot">The pivot: schema-driven forms</a></li>
@@ -101,13 +101,46 @@
 </ul>
 
 <h2 id="starting-point">Where we started</h2>
+
 <p>
-  The pre-rebuild ZIRC submission form was a single tall page of fields, each saved through a section-scoped POST that wrote a full subdocument back to the server. It worked, but it had three shapes of pain:
+  The starting state on <code>zirc-rearchitect</code> (commit <code>5ca8ea9fa9</code>,
+  branched from PR #1845's tip) was almost a blank slate:
+</p>
+
+<ul>
+  <li><strong>Backend entities and DB schema</strong> — <code>LineSubmission</code>, <code>Mutation</code>, <code>GenotypingAssay</code>, <code>GenotypingAssayFile</code>, the 1182 Liquibase migrations — already landed from PR #1845.</li>
+  <li><strong>JSP shell with an empty React mount</strong> — <code>line-submission-edit.jsp</code> had <code>&lt;div class="__react-root" id="LineSubmissionEdit"&gt;</code> with <em>nothing to mount</em>. No <code>LineSubmissionEdit.tsx</code>, no form code, no DTO, no service.</li>
+  <li><strong>Detail page with inline editing</strong> — <code>line-submission-detail.jsp</code> used <code>editable-field</code> spans (the trunk-style "click a span, it turns into an input, save on blur" idiom).</li>
+</ul>
+
+<p>
+  So the rearchitect wasn't replacing a prior form architecture — it was building the edit experience from a clean slate, on top of an existing entity/DB layer.
+</p>
+
+<div class="callout warn">
+  <strong>The alternate-universe version.</strong> A parallel implementation
+  for the same blank slate (ZFIN-10265 / PR #1864) landed on
+  <code>main</code> a day before this branch's starting marker. It lives
+  at <code>zfin-10265-zirc-line-submission-react-re-architect-squash</code>.
+  That version built a <em>hand-rolled</em> form renderer
+  (<code>section()</code>/<code>field()</code>/<code>array()</code>/<code>custom()</code>
+  schema builders with a <code>useAutosavedForm</code> hook + per-path PATCH +
+  a <code>SaveToast</code>) plus a <code>LineSubmissionDTO</code> and
+  <code>LineSubmissionService</code>. Some of the things this retrospective
+  treats as "what we built" — per-field PATCH, save-on-blur, the
+  assay-type field matrix idea, even the save toast — already existed in
+  that parallel branch. Our distinguishing bet was schema-as-data
+  published by the server (JSON Forms + uiSchema rules) instead of
+  schema-as-code authored in the client.
+</div>
+
+<p>
+  What we wanted from the rebuild, beyond "fill in the empty React mount":
 </p>
 <ul>
-  <li><strong>No audit trail.</strong> Curators wanted to know who changed which field and when. The section-scoped writes meant we couldn't distinguish "you renamed the line" from "you also touched four other fields in that section while you were there."</li>
-  <li><strong>Cross-section lost updates.</strong> Two tabs writing the same row would clobber each other's columns even when they touched different fields, because Hibernate's default is to UPDATE every column.</li>
-  <li><strong>Drifting truth.</strong> The Java entity, the Zod schema, the JSP, and the reference HTML all had to agree on field names, max lengths, and which fields were required. They didn't.</li>
+  <li><strong>Per-field audit trail.</strong> Curators wanted to know who changed which field and when. Section-scoped writes can't distinguish "you renamed the line" from "you re-saved the section while you were there."</li>
+  <li><strong>No cross-field lost updates.</strong> Two tabs writing the same row would clobber each other's columns even when they touched different fields, because Hibernate's default UPDATE writes every column.</li>
+  <li><strong>One source of truth for shape and constraints.</strong> The Java entity, any client-side schema, the JSP, and the reference HTML otherwise drift on field names, max lengths, and required-ness. The hand-rolled-FormRenderer path (ZFIN-10265) put the schema in TypeScript; we wanted it in Java so it couldn't get out of sync with the entity.</li>
 </ul>
 
 <h2 id="libraries">A quick library glossary</h2>
@@ -139,7 +172,13 @@
 
 <h2 id="m1-m2">M1 / M2: per-section autosave with Zod + RHF</h2>
 
-<p>The first cut split the form into four sections and rebuilt them with RHF + Zod. Each section had its own component, its own Zod schema, and its own autosave hook:</p>
+<p>
+  Filling the empty React mount, our first cut split the form into four
+  sections and built each with React Hook Form + Zod. Each section had its
+  own component, its own Zod schema, and its own autosave hook. The save
+  endpoint was section-scoped: <code>POST /api/zirc/line-submissions/{id}/overview</code>
+  with the section's whole subdocument as the body.
+</p>
 
 <pre><code>// home/javascript/react/zirc/hooks/useSectionAutosave.ts (M2 era)
 export function useSectionAutosave&lt;T extends FieldValues&gt;({
@@ -160,19 +199,30 @@ export function useSectionAutosave&lt;T extends FieldValues&gt;({
   return form;
 }</code></pre>
 
-<p>This worked, but two limits showed up fast:</p>
+<p>This worked, but three limits showed up fast:</p>
 
 <ol>
-  <li><strong>Field-level audit is awkward.</strong> The save endpoint takes a whole section; the audit log can't easily distinguish "user changed the line name" from "user re-saved an unchanged section."</li>
-  <li><strong>Drift was still there.</strong> We had a Zod schema in TS <em>and</em> Jakarta Bean Validation in Java <em>and</em> the entity column lengths in SQL. Any of the three could disagree.</li>
+  <li><strong>Field-level audit is awkward.</strong> Section-scoped writes can't distinguish "user changed the line name" from "user re-saved an unchanged section."</li>
+  <li><strong>Schema drift was still there.</strong> The Zod schema in TS, Jakarta Bean Validation in Java, and the entity column lengths in SQL could all disagree.</li>
+  <li><strong>Parallel evidence.</strong> ZFIN-10265 had already arrived at per-field PATCH the hard way — through a hand-rolled <code>useAutosavedForm</code> hook with a save queue, path-keyed commits, and DTO-shaped save responses. That branch's existence was a useful signal: per-field is the right granularity, and we should adopt it without re-inventing the renderer.</li>
 </ol>
 
 <h2 id="pivot">The pivot: schema-driven forms</h2>
 
 <p>
-  The pivot was: <strong>the server owns the form schema</strong>. The React app fetches <code>{ schema, uiSchema }</code> from
-  <code>GET /api/zirc/form-schema</code> and just renders it. The client doesn't know what fields exist
-  until the server tells it.
+  Two pivots at once, looking sideways at the alternate-universe branch:
+</p>
+
+<ol>
+  <li><strong>Per-field, not per-section.</strong> Both the alt branch and our own M1/M2 lessons pointed here.</li>
+  <li><strong>Server-published schema instead of client-authored.</strong> This is where we diverge from ZFIN-10265. They authored the schema in TypeScript with a builder DSL; we publish it from Java as JSON Schema + a JSON Forms uiSchema.</li>
+</ol>
+
+<p>
+  The result: <strong>the server owns the form schema</strong>. The React app fetches
+  <code>{ schema, uiSchema }</code> from <code>GET /api/zirc/form-schema</code>
+  and just renders it. The client doesn't know what fields exist until the
+  server tells it.
 </p>
 
 <p>
@@ -716,11 +766,21 @@ React.useEffect(() =&gt; {
 
 <h3>Wins</h3>
 <ul>
-  <li><strong>Backend as source of truth was the right call.</strong> Once we landed it, every new section (3 in M3.3, 7 cluster-groups in M4.2) was almost no client work — just a new entry in <code>FIELDS</code> and the uiSchema group.</li>
+  <li><strong>Backend as source of truth was the right call.</strong> This is our actual divergence from the alt branch — they kept schema authoring in TypeScript. Once we landed the server-published schema, every new section (3 in M3.3, 7 cluster-groups in M4.2) was almost no client work — just a new entry in <code>FIELDS</code> and the uiSchema group.</li>
   <li><strong>The FieldDescriptor pattern absorbed an "audit-capture switch" we never had to add.</strong> Audit, validation, and dispatch all share the same map.</li>
   <li><strong>Per-aggregate flat paths sidestep a real problem.</strong> JSON-pointer array-index resolution (<code>/mutations/0/alleleDesignation</code>) is solvable but adds a layer; we haven't needed it.</li>
-  <li><strong>The seed-vs-autosave null gate is a one-line idiom</strong> that future-proofs any new aggregate against the same race. Comment + memory both point to it.</li>
+  <li><strong>The seed-vs-autosave null gate is a one-line idiom</strong> that future-proofs any new aggregate against the same race.</li>
 </ul>
+
+<h3>Credit where due</h3>
+<p>
+  Several ideas in this branch existed first on
+  <code>zfin-10265-zirc-line-submission-react-re-architect-squash</code>:
+  per-field PATCH, a save-on-blur autosave loop, the save-status toast,
+  the assay-type field-matrix idea, the DTO shape we ended up keeping.
+  Worth saying out loud — both branches reached similar UX conclusions
+  independently; the difference is where the schema lives.
+</p>
 
 <h3>Regrets / things to revisit</h3>
 <ul>
