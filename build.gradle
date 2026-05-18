@@ -1235,6 +1235,7 @@ test {
             includeTestsMatching "org.zfin.zirc.api.ZircOpenApiDriftTest"
             includeTestsMatching "org.zfin.zirc.api.FormSchemaSnapshotTest"
             includeTestsMatching "org.zfin.zirc.api.uischema.UiSchemaSerializationTest"
+            includeTestsMatching "org.zfin.zirc.api.jsonschema.JsonSchemaSerializationTest"
 
             /*need to figure out ..all tests fail here
         includeTestsMatching "org.zfin.figure.service.FigureViewServiceSpec"*/
