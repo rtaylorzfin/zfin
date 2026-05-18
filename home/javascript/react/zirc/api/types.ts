@@ -104,6 +104,13 @@ export interface AssayFileDTO {
     uploadedAt: string | null;
 }
 
+// One row in an autocomplete result. label is the display string with
+// the ZDB-ID in parens; value is the canonical id stored back in the form.
+export interface AutocompleteItemDTO {
+    label: string;
+    value: string;
+}
+
 // RFC 7807 problem detail returned by ZircApiExceptionHandler.
 export interface ProblemDetail {
     type?: string;

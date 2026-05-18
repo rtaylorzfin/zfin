@@ -1,6 +1,7 @@
+import * as React from 'react';
 import { useMutation, useQuery, useQueryClient } from '@tanstack/react-query';
 import { api } from './client';
-import { AssayDTO, LineSubmissionDTO, MutationDTO } from './types';
+import { AssayDTO, AutocompleteItemDTO, LineSubmissionDTO, MutationDTO } from './types';
 
 export const lineSubmissionKey = (id: string) => ['zirc', 'lineSubmission', id] as const;
 
@@ -110,4 +111,44 @@ export function useDeleteAttachment() {
             qc.invalidateQueries({ queryKey: assayKey(vars.assayId) });
         },
     });
+}
+
+// ─── Autocomplete (M5.2) ────────────────────────────────────────────────────
+
+export type AutocompleteEndpoint = 'markers' | 'features' | 'persons';
+
+/**
+ * Type-ahead lookup against {@code /api/zirc/autocomplete/{endpoint}}.
+ * The {@code term} state should already be debounced by the caller —
+ * see {@link useDebouncedValue}. Empty/whitespace-only terms short-
+ * circuit to an empty list without firing a request.
+ */
+export function useAutocomplete(endpoint: AutocompleteEndpoint, term: string) {
+    const trimmed = term.trim();
+    return useQuery({
+        queryKey: ['zirc', 'autocomplete', endpoint, trimmed],
+        queryFn: () =>
+            api.get<AutocompleteItemDTO[]>(
+                `/autocomplete/${endpoint}?term=${encodeURIComponent(trimmed)}`,
+            ),
+        enabled: trimmed.length > 0,
+        // The server hard-caps at 20 results; cache aggressively so re-
+        // typing the same prefix doesn't re-fetch.
+        staleTime: 60_000,
+    });
+}
+
+/**
+ * Debounces a fast-changing value (e.g. a search-input keystroke
+ * stream) so downstream effects see at most one value per {@code delay}
+ * window. Used with {@link useAutocomplete} to keep request volume
+ * sane during typing.
+ */
+export function useDebouncedValue<T>(value: T, delay = 200): T {
+    const [debounced, setDebounced] = React.useState(value);
+    React.useEffect(() => {
+        const t = window.setTimeout(() => setDebounced(value), delay);
+        return () => window.clearTimeout(t);
+    }, [value, delay]);
+    return debounced;
 }
