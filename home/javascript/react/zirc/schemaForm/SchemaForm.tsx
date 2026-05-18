@@ -14,6 +14,7 @@ import { yesNoRadioRendererEntry } from './renderers/YesNoRadioRenderer';
 import { multipleChoiceWithOtherRendererEntry } from './renderers/MultipleChoiceWithOtherRenderer';
 import { selectWithOtherRendererEntry } from './renderers/SelectWithOtherRenderer';
 import { mutationsListRendererEntry } from './renderers/MutationsListRenderer';
+import { linkedFeaturesListRendererEntry } from './renderers/LinkedFeaturesListRenderer';
 import { publicationsListRendererEntry } from './renderers/PublicationsListRenderer';
 
 type FormData = Record<string, unknown>;
@@ -36,13 +37,14 @@ const renderers = [
     multipleChoiceWithOtherRendererEntry,
     selectWithOtherRendererEntry,
     mutationsListRendererEntry,
+    linkedFeaturesListRendererEntry,
     publicationsListRendererEntry,
 ];
 
 // Paths whose changes flow through dedicated endpoints (POST/DELETE), not the
 // field-path PATCH. SchemaForm's diff filters these out so an Add/Delete in
 // the mutations list doesn't trigger a spurious PATCH /mutations attempt.
-const EXTERNALLY_MANAGED_PATHS = new Set<string>(['/mutations']);
+const EXTERNALLY_MANAGED_PATHS = new Set<string>(['/mutations', '/linkedFeatures']);
 
 function initialDataFromSubmission(submission: LineSubmissionDTO | null): FormData {
     if (!submission) {
@@ -51,6 +53,7 @@ function initialDataFromSubmission(submission: LineSubmissionDTO | null): FormDa
             previousNames: '',
             acceptance: { reasons: [], reasonsOther: '' },
             mutations: [],
+            linkedFeatures: [],
             background: {
                 singleAllelic: null,
                 maternalBackground: '',
@@ -72,6 +75,7 @@ function initialDataFromSubmission(submission: LineSubmissionDTO | null): FormDa
             reasonsOther: submission.reasonsOther ?? '',
         },
         mutations: submission.mutations ?? [],
+        linkedFeatures: submission.linkedFeatures ?? [],
         background: {
             singleAllelic: submission.singleAllelic,
             maternalBackground: submission.maternalBackground ?? '',
@@ -166,6 +170,18 @@ export function SchemaForm({ submission, onCreated }: Props) {
         }
     }, [mutationsKey]);
 
+    // Same mirror pattern for linkedFeatures — Add/Delete/PATCH go through
+    // their own endpoints; the React Query refetch is authoritative.
+    const linkedFeaturesKey = JSON.stringify(submission?.linkedFeatures ?? []);
+    React.useEffect(() => {
+        if (!submission || formData === null) {return;}
+        const next = submission.linkedFeatures ?? [];
+        setFormData((d) => (d == null ? d : { ...d, linkedFeatures: next }));
+        if (lastSavedRef.current != null) {
+            lastSavedRef.current = { ...lastSavedRef.current, linkedFeatures: next };
+        }
+    }, [linkedFeaturesKey]);
+
     const [status, setStatus] = React.useState<SaveStatus>('idle');
     const [errorMessage, setErrorMessage] = React.useState<string | null>(null);
 
@@ -231,7 +247,10 @@ export function SchemaForm({ submission, onCreated }: Props) {
                 data={formData}
                 renderers={renderers}
                 cells={[]}
-                config={{ submissionId: submissionIdRef.current ?? submission?.zdbID }}
+                config={{
+                    submissionId: submissionIdRef.current ?? submission?.zdbID,
+                    mutations: submission?.mutations ?? [],
+                }}
                 onChange={({ data }) => setFormData(data as FormData)}
             />
         </div>

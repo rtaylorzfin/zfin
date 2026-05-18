@@ -89,6 +89,33 @@
         "title" : "Background",
         "type" : "object"
       },
+      "linkedFeatures" : {
+        "items" : {
+          "properties" : {
+            "additionalInfo" : {
+              "type" : [ "string", "null" ]
+            },
+            "distanceCentimorgans" : {
+              "type" : [ "number", "null" ]
+            },
+            "distanceKnown" : {
+              "type" : [ "boolean", "null" ]
+            },
+            "distanceMegabases" : {
+              "type" : [ "number", "null" ]
+            },
+            "mutationAId" : {
+              "type" : "number"
+            },
+            "mutationBId" : {
+              "type" : "number"
+            }
+          },
+          "type" : "object"
+        },
+        "title" : "Linked Features",
+        "type" : "array"
+      },
       "mutations" : {
         "items" : {
           "properties" : {
@@ -169,6 +196,19 @@
         "type" : "Control"
       } ],
       "label" : "Mutations",
+      "options" : {
+        "layout" : "plain"
+      },
+      "type" : "Group"
+    }, {
+      "elements" : [ {
+        "options" : {
+          "widget" : "linkedFeaturesList"
+        },
+        "scope" : "#/properties/linkedFeatures",
+        "type" : "Control"
+      } ],
+      "label" : "Linked Features",
       "options" : {
         "layout" : "plain"
       },

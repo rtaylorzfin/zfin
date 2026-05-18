@@ -16,6 +16,7 @@ import org.springframework.web.bind.annotation.RestController;
 import org.zfin.zirc.dto.FieldUpdate;
 import org.zfin.zirc.dto.FormSchemaDTO;
 import org.zfin.zirc.dto.LineSubmissionDTO;
+import org.zfin.zirc.dto.LinkedFeatureDTO;
 import org.zfin.zirc.dto.MutationDTO;
 import org.zfin.zirc.service.ZircSubmissionService;
 
@@ -63,5 +64,42 @@ public class ZircSubmissionApiController {
     @ResponseStatus(HttpStatus.NO_CONTENT)
     public void deleteMutation(@PathVariable String zdbID, @PathVariable Long mutationId) {
         zircSubmissionService.deleteMutation(zdbID, mutationId);
+    }
+
+    // ─── Linked Features (M5.3) ─────────────────────────────────────────────
+
+    /**
+     * Add a linkage between two mutations on this submission. The body
+     * carries the pair so the URL doesn't have to commit to an order;
+     * the service normalizes to (min, max) before save.
+     */
+    public record AddLinkedFeatureRequest(Long mutationAId, Long mutationBId) {}
+
+    @PostMapping("/line-submissions/{zdbID}/linked-features")
+    @ResponseStatus(HttpStatus.CREATED)
+    public LineSubmissionDTO addLinkedFeature(
+            @PathVariable String zdbID,
+            @RequestBody AddLinkedFeatureRequest body) {
+        return LineSubmissionDTO.of(
+                zircSubmissionService.addLinkedFeature(zdbID, body.mutationAId(), body.mutationBId()));
+    }
+
+    @DeleteMapping("/line-submissions/{zdbID}/linked-features/{aId}/{bId}")
+    @ResponseStatus(HttpStatus.NO_CONTENT)
+    public void deleteLinkedFeature(
+            @PathVariable String zdbID,
+            @PathVariable Long aId,
+            @PathVariable Long bId) {
+        zircSubmissionService.deleteLinkedFeature(zdbID, aId, bId);
+    }
+
+    @PatchMapping("/line-submissions/{zdbID}/linked-features/{aId}/{bId}")
+    public LinkedFeatureDTO updateLinkedFeatureField(
+            @PathVariable String zdbID,
+            @PathVariable Long aId,
+            @PathVariable Long bId,
+            @Valid @RequestBody FieldUpdate update) {
+        return LinkedFeatureDTO.of(
+                zircSubmissionService.updateLinkedFeatureField(zdbID, aId, bId, update));
     }
 }

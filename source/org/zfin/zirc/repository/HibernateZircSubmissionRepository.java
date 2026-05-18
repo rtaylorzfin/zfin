@@ -6,6 +6,8 @@ import org.zfin.profile.Person;
 import org.zfin.zirc.entity.GenotypingAssay;
 import org.zfin.zirc.entity.GenotypingAssayFile;
 import org.zfin.zirc.entity.LineSubmission;
+import org.zfin.zirc.entity.LinkedFeature;
+import org.zfin.zirc.entity.LinkedFeatureId;
 import org.zfin.zirc.entity.Mutation;
 
 import java.util.List;
@@ -38,6 +40,12 @@ public class HibernateZircSubmissionRepository implements ZircSubmissionReposito
     @Override
     public GenotypingAssayFile getAssayFile(Long fileId) {
         return HibernateUtil.currentSession().get(GenotypingAssayFile.class, fileId);
+    }
+
+    @Override
+    public LinkedFeature getLinkedFeature(String submissionId, Long mutationAId, Long mutationBId) {
+        return HibernateUtil.currentSession().get(LinkedFeature.class,
+                new LinkedFeatureId(submissionId, mutationAId, mutationBId));
     }
 
     @Override

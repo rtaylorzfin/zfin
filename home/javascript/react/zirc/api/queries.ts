@@ -1,7 +1,7 @@
 import * as React from 'react';
 import { useMutation, useQuery, useQueryClient } from '@tanstack/react-query';
 import { api } from './client';
-import { AssayDTO, AutocompleteItemDTO, LineSubmissionDTO, MutationDTO } from './types';
+import { AssayDTO, AutocompleteItemDTO, LineSubmissionDTO, LinkedFeatureDTO, MutationDTO } from './types';
 
 export const lineSubmissionKey = (id: string) => ['zirc', 'lineSubmission', id] as const;
 
@@ -40,6 +40,54 @@ export function useDeleteMutation() {
     return useMutation({
         mutationFn: ({ submissionId, mutationId }: { submissionId: string; mutationId: number }) =>
             api.delete<void>(`/line-submissions/${submissionId}/mutations/${mutationId}`),
+        onSuccess: (_data, vars) => {
+            qc.invalidateQueries({ queryKey: lineSubmissionKey(vars.submissionId) });
+        },
+    });
+}
+
+// ─── Linked Features (M5.3) ─────────────────────────────────────────────────
+
+export function useAddLinkedFeature() {
+    const qc = useQueryClient();
+    return useMutation({
+        mutationFn: ({ submissionId, mutationAId, mutationBId }:
+                { submissionId: string; mutationAId: number; mutationBId: number }) =>
+            api.post<LineSubmissionDTO>(
+                `/line-submissions/${submissionId}/linked-features`,
+                { mutationAId, mutationBId }),
+        onSuccess: (_data, vars) => {
+            qc.invalidateQueries({ queryKey: lineSubmissionKey(vars.submissionId) });
+        },
+    });
+}
+
+export function useDeleteLinkedFeature() {
+    const qc = useQueryClient();
+    return useMutation({
+        mutationFn: ({ submissionId, aId, bId }:
+                { submissionId: string; aId: number; bId: number }) =>
+            api.delete<void>(
+                `/line-submissions/${submissionId}/linked-features/${aId}/${bId}`),
+        onSuccess: (_data, vars) => {
+            qc.invalidateQueries({ queryKey: lineSubmissionKey(vars.submissionId) });
+        },
+    });
+}
+
+/**
+ * Inline-edit PATCH for one linked feature. The renderer drives this
+ * per-field via the same {path, value} shape used for the parent
+ * aggregates; the URL pins the composite PK.
+ */
+export function usePatchLinkedFeature() {
+    const qc = useQueryClient();
+    return useMutation({
+        mutationFn: ({ submissionId, aId, bId, path, value }:
+                { submissionId: string; aId: number; bId: number; path: string; value: unknown }) =>
+            api.patch<LinkedFeatureDTO>(
+                `/line-submissions/${submissionId}/linked-features/${aId}/${bId}`,
+                { path, value }),
         onSuccess: (_data, vars) => {
             qc.invalidateQueries({ queryKey: lineSubmissionKey(vars.submissionId) });
         },

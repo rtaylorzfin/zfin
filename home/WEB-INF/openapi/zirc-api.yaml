@@ -107,6 +107,65 @@ paths:
         '204': { description: Deleted }
         '404': { $ref: '#/components/responses/NotFound' }
 
+  /line-submissions/{zdbID}/linked-features:
+    parameters:
+      - $ref: '#/components/parameters/SubmissionZdbId'
+    post:
+      tags: [line-submission]
+      summary: Link two mutations on the same submission. Composite PK is (mutationAId, mutationBId); the service normalizes to (min, max).
+      requestBody:
+        required: true
+        content:
+          application/json:
+            schema:
+              type: object
+              required: [mutationAId, mutationBId]
+              properties:
+                mutationAId: { type: integer, format: int64 }
+                mutationBId: { type: integer, format: int64 }
+      responses:
+        '201':
+          description: Refreshed line submission (linkedFeatures list contains the new row).
+          content:
+            application/json:
+              schema: { $ref: '#/components/schemas/LineSubmissionDTO' }
+        '400': { $ref: '#/components/responses/BadRequest' }
+        '404': { $ref: '#/components/responses/NotFound' }
+
+  /line-submissions/{zdbID}/linked-features/{aId}/{bId}:
+    parameters:
+      - $ref: '#/components/parameters/SubmissionZdbId'
+      - name: aId
+        in: path
+        required: true
+        schema: { type: integer, format: int64 }
+      - name: bId
+        in: path
+        required: true
+        schema: { type: integer, format: int64 }
+    patch:
+      tags: [line-submission]
+      summary: Field-path PATCH on a linkage row.
+      requestBody:
+        required: true
+        content:
+          application/json:
+            schema: { $ref: '#/components/schemas/FieldUpdate' }
+      responses:
+        '200':
+          description: Updated linkage.
+          content:
+            application/json:
+              schema: { $ref: '#/components/schemas/LinkedFeatureDTO' }
+        '400': { $ref: '#/components/responses/BadRequest' }
+        '404': { $ref: '#/components/responses/NotFound' }
+    delete:
+      tags: [line-submission]
+      summary: Remove a linkage between two mutations.
+      responses:
+        '204': { description: Deleted }
+        '404': { $ref: '#/components/responses/NotFound' }
+
   /mutations/form-schema:
     get:
       tags: [form-schema]
@@ -470,7 +529,21 @@ components:
         mutations:
           type: array
           items: { $ref: '#/components/schemas/MutationDTO' }
+        linkedFeatures:
+          type: array
+          items: { $ref: '#/components/schemas/LinkedFeatureDTO' }
         draft: { type: boolean }
+
+    LinkedFeatureDTO:
+      type: object
+      description: One pairwise linkage between two mutations on the same submission. Distance is stored as two separate columns (centimorgans, megabases); exactly one is non-null at a time.
+      properties:
+        mutationAId: { type: integer, format: int64 }
+        mutationBId: { type: integer, format: int64 }
+        distanceKnown: { type: boolean, nullable: true }
+        distanceCentimorgans: { type: number, format: double, nullable: true }
+        distanceMegabases: { type: number, format: double, nullable: true }
+        additionalInfo: { type: string, nullable: true }
 
     MutationDTO:
       type: object

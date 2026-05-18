@@ -19,6 +19,8 @@ public interface ZircSubmissionRepository {
 
     org.zfin.zirc.entity.GenotypingAssayFile getAssayFile(Long fileId);
 
+    org.zfin.zirc.entity.LinkedFeature getLinkedFeature(String submissionId, Long mutationAId, Long mutationBId);
+
     Person getPerson(String personZdbID);
 
     Person getPersonReference(String personZdbID);

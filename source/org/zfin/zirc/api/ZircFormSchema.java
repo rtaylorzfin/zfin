@@ -78,12 +78,13 @@ public final class ZircFormSchema {
         additionalInfo.put("additionalInfo",            StringSchema.of("Additional Info", 5000));
 
         Map<String, JsonSchema> properties = new LinkedHashMap<>();
-        properties.put("name",           StringSchema.of("Name", 255));
-        properties.put("previousNames",  StringSchema.of("Previous Names", 2000));
-        properties.put("acceptance",     ObjectSchema.of("Acceptance Reasons", acceptance));
-        properties.put("mutations",      mutationsSummaryArrayProp());
-        properties.put("background",     ObjectSchema.of("Background", background));
-        properties.put("additionalInfo", ObjectSchema.of("Additional Info", additionalInfo));
+        properties.put("name",            StringSchema.of("Name", 255));
+        properties.put("previousNames",   StringSchema.of("Previous Names", 2000));
+        properties.put("acceptance",      ObjectSchema.of("Acceptance Reasons", acceptance));
+        properties.put("mutations",       mutationsSummaryArrayProp());
+        properties.put("linkedFeatures",  linkedFeaturesArrayProp());
+        properties.put("background",      ObjectSchema.of("Background", background));
+        properties.put("additionalInfo",  ObjectSchema.of("Additional Info", additionalInfo));
         return ObjectSchema.of(properties);
     }
 
@@ -120,6 +121,14 @@ public final class ZircFormSchema {
                 new Group("Mutations",
                         List.of(new Control("#/properties/mutations",
                                 Options.of().widget("mutationsList"),
+                                null)),
+                        Options.of().layout("plain"),
+                        null),
+                // Linked features: pairwise links between mutations on the
+                // same submission. List-of-cards layout like Mutations.
+                new Group("Linked Features",
+                        List.of(new Control("#/properties/linkedFeatures",
+                                Options.of().widget("linkedFeaturesList"),
                                 null)),
                         Options.of().layout("plain"),
                         null),
@@ -200,6 +209,24 @@ public final class ZircFormSchema {
     private static ArraySchema reasonsArrayProp() {
         return new ArraySchema(null, StringSchema.withOneOf(CANONICAL_REASONS),
                 null, Boolean.TRUE);
+    }
+
+    /**
+     * Schema for the linked-features list on the submission page. Items
+     * mirror {@link org.zfin.zirc.dto.LinkedFeatureDTO}. Editing happens
+     * inline via the LinkedFeaturesListRenderer; Add/Delete + per-field
+     * PATCH go through dedicated endpoints under
+     * {@code /line-submissions/{zdbID}/linked-features/...}.
+     */
+    private static ArraySchema linkedFeaturesArrayProp() {
+        Map<String, JsonSchema> itemProps = new LinkedHashMap<>();
+        itemProps.put("mutationAId",          NumberSchema.of());
+        itemProps.put("mutationBId",          NumberSchema.of());
+        itemProps.put("distanceKnown",        new BooleanSchema(null, Boolean.TRUE));
+        itemProps.put("distanceCentimorgans", new NumberSchema(null, Boolean.TRUE));
+        itemProps.put("distanceMegabases",    new NumberSchema(null, Boolean.TRUE));
+        itemProps.put("additionalInfo",       StringSchema.nullable());
+        return new ArraySchema("Linked Features", ObjectSchema.of(itemProps), null, null);
     }
 
     // ─── uiSchema builders ──────────────────────────────────────────────────

@@ -12,6 +12,7 @@ import org.zfin.profile.service.ProfileService;
 import org.zfin.properties.ZfinPropertiesEnum;
 import org.zfin.zirc.api.ZircAssayFormSchema;
 import org.zfin.zirc.api.ZircFormSchema;
+import org.zfin.zirc.api.ZircLinkedFeatureFormSchema;
 import org.zfin.zirc.api.ZircMutationFormSchema;
 import org.zfin.zirc.dto.FieldUpdate;
 import org.zfin.zirc.entity.AuditEntry;
@@ -19,6 +20,7 @@ import org.zfin.zirc.entity.GenotypingAssay;
 import org.zfin.zirc.entity.GenotypingAssayFile;
 import org.zfin.zirc.entity.LineSubmission;
 import org.zfin.zirc.entity.LineSubmissionPerson;
+import org.zfin.zirc.entity.LinkedFeature;
 import org.zfin.zirc.entity.Mutation;
 import org.zfin.zirc.repository.ZircSubmissionRepository;
 
@@ -483,6 +485,114 @@ public class ZircSubmissionService {
 
     public File resolveAttachmentPath(GenotypingAssayFile file) {
         return new File(file.getStoredPath());
+    }
+
+    // ─── Linked Features (M5.3) ─────────────────────────────────────────────
+
+    /**
+     * Look up one linkage row by its composite PK. The path-segments
+     * (a,b) come from the URL in their as-submitted order; we normalize
+     * to (min,max) here to match the storage invariant enforced by the
+     * DB CHECK constraint.
+     */
+    public LinkedFeature getRequiredLinkedFeature(String submissionId, Long aId, Long bId) {
+        long lo = Math.min(aId, bId);
+        long hi = Math.max(aId, bId);
+        LinkedFeature lf = repository.getLinkedFeature(submissionId, lo, hi);
+        if (lf == null) {
+            throw new ZircEntityNotFoundException(
+                    "Linked feature (" + lo + ", " + hi + ") not found on submission " + submissionId);
+        }
+        return lf;
+    }
+
+    /**
+     * Create a linkage row between two mutations on the same submission.
+     * The DB CHECK constraint enforces {@code mutationA.id < mutationB.id};
+     * we normalize the pair here so callers can pass either order.
+     * Returns the parent submission so the response carries the refreshed
+     * linkedFeatures list.
+     */
+    public LineSubmission addLinkedFeature(String submissionId, Long aId, Long bId) {
+        if (aId == null || bId == null || aId.equals(bId)) {
+            throw new IllegalArgumentException(
+                    "A linkage requires two distinct mutations on the same submission.");
+        }
+        long lo = Math.min(aId, bId);
+        long hi = Math.max(aId, bId);
+
+        LineSubmission submission = getRequiredLineSubmission(submissionId);
+        Mutation mutationA = ensureMutationOnSubmission(submission, lo);
+        Mutation mutationB = ensureMutationOnSubmission(submission, hi);
+
+        if (repository.getLinkedFeature(submissionId, lo, hi) != null) {
+            throw new IllegalArgumentException(
+                    "Mutations " + lo + " and " + hi + " are already linked on this submission.");
+        }
+
+        HibernateUtil.createTransaction();
+        LinkedFeature lf = new LinkedFeature();
+        lf.setLineSubmission(submission);
+        lf.setMutationA(mutationA);
+        lf.setMutationB(mutationB);
+        repository.save(lf);
+        submission.getLinkedFeatures().add(lf);
+        writeAudit("submission", submissionId, "create-linked-feature", null,
+                null, AUDIT_MAPPER.valueToTree(
+                        java.util.Map.of("mutationAId", lo, "mutationBId", hi)));
+        HibernateUtil.flushAndCommitCurrentSession();
+        return submission;
+    }
+
+    public void deleteLinkedFeature(String submissionId, Long aId, Long bId) {
+        LinkedFeature lf = getRequiredLinkedFeature(submissionId, aId, bId);
+        long lo = Math.min(aId, bId);
+        long hi = Math.max(aId, bId);
+        HibernateUtil.createTransaction();
+        repository.delete(lf);
+        writeAudit("submission", submissionId, "delete-linked-feature", null,
+                AUDIT_MAPPER.valueToTree(
+                        java.util.Map.of("mutationAId", lo, "mutationBId", hi)),
+                null);
+        HibernateUtil.flushAndCommitCurrentSession();
+    }
+
+    /**
+     * Field-path PATCH on a linkage row. Path/value flow mirrors the
+     * other three updateField methods; the composite-PK lookup happens
+     * up front.
+     */
+    public LinkedFeature updateLinkedFeatureField(
+            String submissionId, Long aId, Long bId, FieldUpdate update) {
+        LinkedFeature lf = getRequiredLinkedFeature(submissionId, aId, bId);
+
+        ZircLinkedFeatureFormSchema.FieldDescriptor descriptor =
+                ZircLinkedFeatureFormSchema.FIELDS.get(update.path());
+        if (descriptor == null) {
+            throw new IllegalArgumentException("Unknown linked-feature field path: " + update.path());
+        }
+
+        JsonNode oldValue = descriptor.read().apply(lf);
+        HibernateUtil.createTransaction();
+        descriptor.write().accept(lf, update.value());
+        // Audit entity-id is the (submission,a,b) tuple flattened — keeps
+        // (entity_kind, entity_id, at) queries simple.
+        long lo = Math.min(aId, bId);
+        long hi = Math.max(aId, bId);
+        writeAudit("linked-feature",
+                submissionId + ":" + lo + ":" + hi,
+                "update", update.path(), oldValue, update.value());
+        HibernateUtil.flushAndCommitCurrentSession();
+        return lf;
+    }
+
+    /** Throws if {@code mutationId} isn't a mutation on this submission. */
+    private static Mutation ensureMutationOnSubmission(LineSubmission s, Long mutationId) {
+        return s.getMutations().stream()
+                .filter(m -> mutationId.equals(m.getId()))
+                .findFirst()
+                .orElseThrow(() -> new IllegalArgumentException(
+                        "Mutation " + mutationId + " is not on submission " + s.getZdbID()));
     }
 
 }

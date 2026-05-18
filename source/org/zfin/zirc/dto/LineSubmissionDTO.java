@@ -22,6 +22,7 @@ public record LineSubmissionDTO(
         String[] reasons,
         String reasonsOther,
         List<MutationDTO> mutations,
+        List<LinkedFeatureDTO> linkedFeatures,
         boolean draft) {
 
     public static LineSubmissionDTO of(LineSubmission s) {
@@ -31,6 +32,16 @@ public record LineSubmissionDTO(
                                 Mutation::getSortOrder,
                                 Comparator.nullsLast(Comparator.naturalOrder())))
                         .map(MutationDTO::of)
+                        .toList();
+        List<LinkedFeatureDTO> links = s.getLinkedFeatures() == null ? List.of() :
+                s.getLinkedFeatures().stream()
+                        .sorted(Comparator
+                                .comparing((org.zfin.zirc.entity.LinkedFeature lf)
+                                        -> lf.getMutationA() == null ? null : lf.getMutationA().getId(),
+                                        Comparator.nullsLast(Comparator.naturalOrder()))
+                                .thenComparing(lf -> lf.getMutationB() == null ? null : lf.getMutationB().getId(),
+                                        Comparator.nullsLast(Comparator.naturalOrder())))
+                        .map(LinkedFeatureDTO::of)
                         .toList();
         return new LineSubmissionDTO(
                 s.getZdbID(),
@@ -48,6 +59,7 @@ public record LineSubmissionDTO(
                 s.getReasons(),
                 s.getReasonsOther(),
                 muts,
+                links,
                 Boolean.TRUE.equals(s.getIsDraft()));
     }
 }

@@ -17,7 +17,21 @@ export interface LineSubmissionDTO {
     reasons: string[];
     reasonsOther: string | null;
     mutations: MutationDTO[];
+    linkedFeatures: LinkedFeatureDTO[];
     draft: boolean;
+}
+
+// One pairwise linkage between two mutations on the same submission.
+// distance is stored across two underlying columns (centimorgans vs
+// megabases) — exactly one is non-null at a time. The renderer
+// combines them into a single (value, unit) widget.
+export interface LinkedFeatureDTO {
+    mutationAId: number;
+    mutationBId: number;
+    distanceKnown: boolean | null;
+    distanceCentimorgans: number | null;
+    distanceMegabases: number | null;
+    additionalInfo: string | null;
 }
 
 export interface MutationDTO {
