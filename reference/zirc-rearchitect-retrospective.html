@@ -86,6 +86,7 @@
   <li><a href="#audit">DB-backed audit trail</a></li>
   <li><a href="#openapi">OpenAPI 3 spec + drift test + Swagger UI</a></li>
   <li><a href="#pitfalls">Pitfalls and how we resolved them</a></li>
+  <li><a href="#alt-comparison">Head-to-head: this branch vs ZFIN-10265</a></li>
   <li><a href="#wins-regrets">What went well, what we'd do differently</a></li>
   <li><a href="#dev-practice">Dev-practice debt worth paying down</a></li>
 </ol>
@@ -762,6 +763,233 @@ React.useEffect(() =&gt; {
   <strong>Fix:</strong> One-liner in the row renderer: <code>const id = `fr-${path.split('.').pop()}`</code>. The collision risk between leaves of different objects is real but hasn't bitten us yet.
 </div>
 
+<h2 id="alt-comparison">Head-to-head: this branch vs ZFIN-10265</h2>
+
+<p>
+  The starting-point section flagged that
+  <code>zfin-10265-zirc-line-submission-react-re-architect-squash</code>
+  is a parallel implementation of the same blank slate. With everything
+  this branch built now on the table, here's a head-to-head on the
+  axes where the two branches actually differ.
+</p>
+
+<h3>Schema authoring location</h3>
+
+<table>
+  <thead><tr><th></th><th>This branch — server-published JSON Schema + uiSchema</th><th>ZFIN-10265 — TypeScript schema builders</th></tr></thead>
+  <tbody>
+  <tr><th>Pros</th><td>
+    One source of truth in Java, where the entity already lives. Drift
+    is essentially impossible — adding a column means editing
+    <code>FIELDS</code> and the uiSchema in the same file. Curators can
+    change enums and labels without a frontend deploy.
+  </td><td>
+    TypeScript catches a missing path at compile time. Per-field metadata
+    (<code>helpText</code>, <code>infoHref</code>, <code>placeholder</code>,
+    <code>suffix</code>) is expressive without abusing JSON Forms
+    <code>options</code>. Form renders immediately — no schema fetch.
+  </td></tr>
+  <tr><th>Cons</th><td>
+    Pre-render flash: until the schema response lands, the form is just
+    "Loading…". Schema builders are imperative <code>LinkedHashMap</code>s
+    — forgetting to register a path that the uiSchema references blows
+    up at runtime when the user types in the field. No compile-time
+    cross-check between the schema and the FIELDS map.
+  </td><td>
+    Drift surface: the Java entity and the TS schema can disagree on
+    max lengths and required-ness without anything failing. New
+    aggregates need parallel TS schema files; the server doesn't know
+    what the client is showing. Curator-driven changes require a deploy.
+  </td></tr>
+  </tbody>
+</table>
+
+<h3>Form rendering</h3>
+
+<table>
+  <thead><tr><th></th><th>This branch — JSON Forms with ~10 custom renderers</th><th>ZFIN-10265 — hand-rolled <code>FormRenderer</code></th></tr></thead>
+  <tbody>
+  <tr><th>Pros</th><td>
+    Battle-tested library; conditional reveal via uiSchema <code>rule</code>
+    blocks is declarative and inherits accessibility, focus management,
+    transitions for free. Adding new control types is a
+    <code>rankWith(20, ...)</code> registration.
+  </td><td>
+    No external forms-library dependency. Plain TypeScript schema is
+    debuggable in any tooling that understands TS. Direct control over
+    markup — no library-imposed structural choices to fight.
+  </td></tr>
+  <tr><th>Cons</th><td>
+    We still wrote ~10 custom renderers because the default Bootstrap
+    theme didn't match trunk markup; the "free library" still cost LOC.
+    JSON Forms' tester/rank dispatch is obscure for newcomers — debugging
+    "why is the default renderer winning" needs library familiarity.
+    <code>props.visible</code> from rules works automatically for
+    Controls but not for layouts (we hit this — SectionRenderer was
+    silently ignoring rules until we added the early return).
+  </td><td>
+    Every concern (conditional reveal, validation, focus, accessibility)
+    has to be reimplemented. Rendering, validation, and layout are
+    coupled in the same component — extending is more invasive than a
+    library renderer registration. The renderer grows with the form;
+    ours stays roughly constant.
+  </td></tr>
+  </tbody>
+</table>
+
+<h3>Concurrency / lost-update prevention</h3>
+
+<table>
+  <thead><tr><th></th><th>This branch — Hibernate <code>@DynamicUpdate</code></th><th>ZFIN-10265 — client save queue</th></tr></thead>
+  <tbody>
+  <tr><th>Pros</th><td>
+    Solves the problem at the persistence layer — works no matter how
+    many client tabs are open, no matter how the client batches writes.
+    Zero client complexity.
+  </td><td>
+    Serializes saves within one tab — no two PATCHes in flight
+    simultaneously. Avoids out-of-order response problems where a later
+    save's response races a prior save's. Reduces wire chatter by
+    batching section writes.
+  </td></tr>
+  <tr><th>Cons</th><td>
+    Per-field UPDATE statements (one PATCH = one UPDATE of one column)
+    are chattier on the wire than batched writes. Forgetting
+    <code>@DynamicUpdate</code> on a new entity silently re-introduces
+    lost updates — no test catches it.
+  </td><td>
+    Doesn't help across tabs/sessions — two curators editing the same
+    row from different machines can still clobber each other. Adds
+    careful but easy-to-break client state (in-flight queue, monotonic
+    seq, <code>dtoRef</code> vs <code>setDtoState</code> mirror). The
+    section-scoped writes that the batching enables also re-introduce
+    the audit-granularity problem.
+  </td></tr>
+  </tbody>
+</table>
+
+<p>
+  Honest take: <code>@DynamicUpdate</code> is structurally stronger.
+  The save queue is a useful client-side optimization but doesn't
+  replace it — they're complementary, not alternatives.
+</p>
+
+<h3>Endpoint shape and service complexity</h3>
+
+<table>
+  <thead><tr><th></th><th>This branch — per-aggregate field-path PATCH</th><th>ZFIN-10265 — domain-specific save methods</th></tr></thead>
+  <tbody>
+  <tr><th>Shape</th><td>
+    17 endpoints across 4 controllers. ~400-line
+    <code>ZircSubmissionService</code>. One write path per aggregate;
+    new fields plug into a <code>FIELDS</code> map.
+  </td><td>
+    ~25 endpoints in one controller. 844-line
+    <code>LineSubmissionService</code>. Mix of per-field
+    (<code>/patch</code>) and per-section (<code>saveReasons</code>,
+    <code>saveLinkedFeatures</code>, <code>saveGenes</code>,
+    <code>saveLesions</code>, <code>saveGenotypingAssays</code>,
+    <code>savePhenotypes</code>, <code>savePublications</code>,
+    <code>addAssayFile</code>, <code>removeAssayFile</code>, …) writes.
+  </td></tr>
+  <tr><th>Pros</th><td>
+    Adding a new field is a one-line <code>FIELDS</code> map entry.
+    Audit log is uniform — one row per change, regardless of which
+    field.
+  </td><td>
+    Section-scoped methods can validate the section atomically (e.g.,
+    "reasons[] and reasonsOther must be consistent"). Domain methods
+    read more like business logic.
+  </td></tr>
+  <tr><th>Cons</th><td>
+    The path-as-key indirection costs some readability vs. an explicit
+    <code>saveReasons(...)</code>. Field-path PATCH can't express
+    "validate this whole section as a unit" — each path is validated in
+    isolation.
+  </td><td>
+    Per-section endpoints scale linearly with structured data types.
+    Linked features, genes, lesions, phenotypes, publications each
+    needed their own method. The service file is twice as long as ours
+    and growing.
+  </td></tr>
+  </tbody>
+</table>
+
+<h3>Feature completeness (the asymmetric one)</h3>
+
+<p>
+  This dimension is the elephant in the room: the alt branch covers
+  more of the curator workflow than we do.
+</p>
+
+<table>
+  <thead><tr><th>Feature</th><th>ZFIN-10265</th><th>This branch</th></tr></thead>
+  <tbody>
+  <tr><td>Overview / Acceptance / Background / Additional Info</td><td>✅</td><td>✅</td></tr>
+  <tr><td>Mutations list + per-mutation edit</td><td>✅</td><td>✅</td></tr>
+  <tr><td>Genotyping assays + per-type field matrix</td><td>✅ (with help text + info links + placeholders)</td><td>✅ (uiSchema rules, plainer)</td></tr>
+  <tr><td>Attachments</td><td>✅</td><td>✅</td></tr>
+  <tr><td>Linked features (mutation A × mutation B distance)</td><td>✅</td><td>❌</td></tr>
+  <tr><td>Genes per mutation</td><td>✅</td><td>❌</td></tr>
+  <tr><td>Lesions per mutation (point/deletion/insertion/indel/transgene + HGVS + flanking)</td><td>✅</td><td>❌</td></tr>
+  <tr><td>Phenotypes per mutation (timing, image consent)</td><td>✅</td><td>❌</td></tr>
+  <tr><td>Person/marker/feature autocomplete</td><td>✅</td><td>❌</td></tr>
+  <tr><td>Max-rows caps surfaced via <code>/caps</code></td><td>✅</td><td>❌</td></tr>
+  </tbody>
+</table>
+
+<p>
+  We covered ~60% of the curator workflow; the alt branch is closer to
+  100%. If "ship to curators" is the bar, the alt branch is further
+  along.
+</p>
+
+<h3>Polish and operations</h3>
+
+<table>
+  <thead><tr><th></th><th>This branch</th><th>ZFIN-10265</th></tr></thead>
+  <tbody>
+  <tr><th>Audit</th><td>DB-backed <code>zirc.audit</code> table with JSONB old/new, queryable from psql.</td><td>log4j lines only.</td></tr>
+  <tr><th>API documentation</th><td>Hand-curated OpenAPI 3 spec at <code>/api/zirc/openapi.yaml</code> + Swagger UI at <code>/api/zirc/docs</code> + drift test.</td><td>None.</td></tr>
+  <tr><th>Error responses</th><td>RFC 7807 ProblemDetail with <code>IllegalArgumentException</code> mapping.</td><td>Bare <code>ResponseStatusException</code>.</td></tr>
+  <tr><th>Tests</th><td>One drift test (JUnit 4 Java). No service tests.</td><td>Service-level integration tests (<code>LineSubmissionServiceTest.java</code>) — though see the Spock-dormant finding for why those may not actually be running.</td></tr>
+  <tr><th>Save toast</th><td>Floating bottom-right with auto-dismiss.</td><td>Inline toast component (shipped from the start, we re-implemented it as polish).</td></tr>
+  </tbody>
+</table>
+
+<h3>Net assessment</h3>
+
+<p>
+  <strong>This branch is better at</strong>:
+</p>
+<ul>
+  <li>Long-run schema drift control — server-published JSON Schema beats anything in the alt branch.</li>
+  <li>Audit and observability — DB-backed audit + OpenAPI + drift test gives a queryable, contract-tested API.</li>
+  <li>Concurrency safety at the persistence layer — <code>@DynamicUpdate</code> is structurally stronger than a per-tab queue.</li>
+  <li>Library leverage — JSON Forms gives us conditional reveal almost for free.</li>
+</ul>
+
+<p>
+  <strong>ZFIN-10265 is better at</strong>:
+</p>
+<ul>
+  <li>Feature breadth — covers linked features, genes, lesions, phenotypes, autocomplete; we covered only the spine.</li>
+  <li>Per-field UX expressiveness — <code>typeMatrices.ts</code> carries help text, info links, placeholders, suffixes that are awkward to express in JSON Forms <code>options</code>.</li>
+  <li>Render-without-server — schema is local, so first paint doesn't wait on a fetch.</li>
+  <li>Existing test coverage — service-layer tests we don't have.</li>
+</ul>
+
+<p>
+  <strong>Honest verdict</strong>: if these were two PRs to evaluate
+  side-by-side, the right answer is probably "take the alt branch's
+  feature breadth and tests, replace its schema/render with our
+  server-published JSON Forms approach, keep our audit table + OpenAPI
+  + drift test." This branch's architectural bets are the right
+  long-run direction; the alt branch's domain coverage is the right
+  short-run answer. Treating them as competing rather than
+  complementary is the false choice.
+</p>
+
 <h2 id="wins-regrets">What went well, what we'd do differently</h2>
 
 <h3>Wins</h3>
@@ -774,12 +1002,13 @@ React.useEffect(() =&gt; {
 
 <h3>Credit where due</h3>
 <p>
-  Several ideas in this branch existed first on
-  <code>zfin-10265-zirc-line-submission-react-re-architect-squash</code>:
-  per-field PATCH, a save-on-blur autosave loop, the save-status toast,
-  the assay-type field-matrix idea, the DTO shape we ended up keeping.
-  Worth saying out loud — both branches reached similar UX conclusions
-  independently; the difference is where the schema lives.
+  Per-field PATCH, save-on-blur autosave, the save-status toast, the
+  assay-type field-matrix idea, and the DTO shape we ended up keeping
+  all existed first on ZFIN-10265. The full comparison is in the
+  <a href="#alt-comparison">head-to-head section above</a>; the short
+  version is "both branches reached similar UX conclusions
+  independently; our distinguishing bet is where the schema lives, not
+  the UX it produces."
 </p>
 
 <h3>Regrets / things to revisit</h3>
