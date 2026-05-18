@@ -11,16 +11,16 @@ import java.util.Date;
  * fetch the file via {@code GET /api/zirc/assays/attachments/{id}/content}
  * rather than hand-rolling a path.
  */
-public record AssayFileResponse(
+public record AssayFileDTO(
         Long id,
         String originalFilename,
         String contentType,
         Long fileSize,
         Instant uploadedAt) {
 
-    public static AssayFileResponse of(GenotypingAssayFile f) {
+    public static AssayFileDTO of(GenotypingAssayFile f) {
         Date d = f.getUploadedAt();
-        return new AssayFileResponse(
+        return new AssayFileDTO(
                 f.getId(),
                 f.getOriginalFilename(),
                 f.getContentType(),

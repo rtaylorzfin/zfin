@@ -10,8 +10,8 @@ import org.springframework.web.bind.annotation.RequestBody;
 import org.springframework.web.bind.annotation.RequestMapping;
 import org.springframework.web.bind.annotation.RestController;
 import org.zfin.zirc.dto.FieldUpdate;
-import org.zfin.zirc.dto.FormSchemaResponse;
-import org.zfin.zirc.dto.MutationResponse;
+import org.zfin.zirc.dto.FormSchemaDTO;
+import org.zfin.zirc.dto.MutationDTO;
 import org.zfin.zirc.service.ZircSubmissionService;
 
 /**
@@ -28,21 +28,21 @@ public class ZircMutationApiController {
     private ZircSubmissionService zircSubmissionService;
 
     @GetMapping("/form-schema")
-    public FormSchemaResponse getFormSchema() {
-        return new FormSchemaResponse(
+    public FormSchemaDTO getFormSchema() {
+        return new FormSchemaDTO(
                 ZircMutationFormSchema.schema(),
                 ZircMutationFormSchema.uiSchema());
     }
 
     @GetMapping("/{mutationId}")
-    public MutationResponse getMutation(@PathVariable Long mutationId) {
-        return MutationResponse.of(zircSubmissionService.getRequiredMutationById(mutationId));
+    public MutationDTO getMutation(@PathVariable Long mutationId) {
+        return MutationDTO.of(zircSubmissionService.getRequiredMutationById(mutationId));
     }
 
     @PatchMapping("/{mutationId}")
-    public MutationResponse updateField(
+    public MutationDTO updateField(
             @PathVariable Long mutationId,
             @Valid @RequestBody FieldUpdate update) {
-        return MutationResponse.of(zircSubmissionService.updateMutationField(mutationId, update));
+        return MutationDTO.of(zircSubmissionService.updateMutationField(mutationId, update));
     }
 }

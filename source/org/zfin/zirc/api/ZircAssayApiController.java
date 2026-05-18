@@ -19,10 +19,10 @@ import org.springframework.web.bind.annotation.RequestParam;
 import org.springframework.web.bind.annotation.ResponseStatus;
 import org.springframework.web.bind.annotation.RestController;
 import org.springframework.web.multipart.MultipartFile;
-import org.zfin.zirc.dto.AssayResponse;
+import org.zfin.zirc.dto.AssayDTO;
 import org.zfin.zirc.dto.FieldUpdate;
-import org.zfin.zirc.dto.FormSchemaResponse;
-import org.zfin.zirc.dto.MutationResponse;
+import org.zfin.zirc.dto.FormSchemaDTO;
+import org.zfin.zirc.dto.MutationDTO;
 import org.zfin.zirc.entity.GenotypingAssayFile;
 import org.zfin.zirc.service.ZircSubmissionService;
 
@@ -33,7 +33,7 @@ import java.io.IOException;
  * Endpoints for the genotyping-assay collection under a mutation.
  *
  * <p>Add lives under the parent: {@code POST /api/zirc/mutations/{mutationId}/assays}
- * returns the updated MutationResponse so the React Query cache can
+ * returns the updated MutationDTO so the React Query cache can
  * refresh in one round trip (matches how POST /mutations works for the
  * submission aggregate).
  *
@@ -48,8 +48,8 @@ public class ZircAssayApiController {
     private ZircSubmissionService zircSubmissionService;
 
     @PostMapping("/api/zirc/mutations/{mutationId}/assays")
-    public MutationResponse addAssay(@PathVariable Long mutationId) {
-        return MutationResponse.of(zircSubmissionService.addAssay(mutationId));
+    public MutationDTO addAssay(@PathVariable Long mutationId) {
+        return MutationDTO.of(zircSubmissionService.addAssay(mutationId));
     }
 
     @DeleteMapping("/api/zirc/assays/{assayId}")
@@ -59,36 +59,36 @@ public class ZircAssayApiController {
     }
 
     @GetMapping("/api/zirc/assays/form-schema")
-    public FormSchemaResponse getFormSchema() {
-        return new FormSchemaResponse(
+    public FormSchemaDTO getFormSchema() {
+        return new FormSchemaDTO(
                 ZircAssayFormSchema.schema(),
                 ZircAssayFormSchema.uiSchema());
     }
 
     @GetMapping("/api/zirc/assays/{assayId}")
-    public AssayResponse getAssay(@PathVariable Long assayId) {
-        return AssayResponse.of(zircSubmissionService.getRequiredAssayById(assayId));
+    public AssayDTO getAssay(@PathVariable Long assayId) {
+        return AssayDTO.of(zircSubmissionService.getRequiredAssayById(assayId));
     }
 
     @PatchMapping("/api/zirc/assays/{assayId}")
-    public AssayResponse updateField(
+    public AssayDTO updateField(
             @PathVariable Long assayId,
             @Valid @RequestBody FieldUpdate update) {
-        return AssayResponse.of(zircSubmissionService.updateAssayField(assayId, update));
+        return AssayDTO.of(zircSubmissionService.updateAssayField(assayId, update));
     }
 
     /**
-     * Multipart upload — returns the refreshed AssayResponse so the client
+     * Multipart upload — returns the refreshed AssayDTO so the client
      * can update both its attachments list and the local React Query cache
      * in one round trip.
      */
     @PostMapping(
             value = "/api/zirc/assays/{assayId}/attachments",
             consumes = MediaType.MULTIPART_FORM_DATA_VALUE)
-    public AssayResponse uploadAttachment(
+    public AssayDTO uploadAttachment(
             @PathVariable Long assayId,
             @RequestParam("file") MultipartFile file) throws IOException {
-        return AssayResponse.of(zircSubmissionService.storeAttachment(assayId, file));
+        return AssayDTO.of(zircSubmissionService.storeAttachment(assayId, file));
     }
 
     @DeleteMapping("/api/zirc/assays/attachments/{fileId}")

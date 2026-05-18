@@ -226,7 +226,7 @@ public final class ZircMutationFormSchema {
     }
 
     /**
-     * Mirror of {@link org.zfin.zirc.dto.AssaySummary}; the per-card
+     * Mirror of {@link org.zfin.zirc.dto.AssaySummaryDTO}; the per-card
      * header reads from this. Full assay fields come from a dedicated
      * /api/zirc/assays/{id} endpoint when a card is expanded (M4.2).
      */

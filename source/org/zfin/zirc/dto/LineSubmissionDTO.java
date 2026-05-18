@@ -6,7 +6,7 @@ import org.zfin.zirc.entity.Mutation;
 import java.util.Comparator;
 import java.util.List;
 
-public record LineSubmissionResponse(
+public record LineSubmissionDTO(
         String zdbID,
         String name,
         String abbreviation,
@@ -21,18 +21,18 @@ public record LineSubmissionResponse(
         String additionalInfo,
         String[] reasons,
         String reasonsOther,
-        List<MutationResponse> mutations,
+        List<MutationDTO> mutations,
         boolean draft) {
 
-    public static LineSubmissionResponse of(LineSubmission s) {
-        List<MutationResponse> muts = s.getMutations() == null ? List.of() :
+    public static LineSubmissionDTO of(LineSubmission s) {
+        List<MutationDTO> muts = s.getMutations() == null ? List.of() :
                 s.getMutations().stream()
                         .sorted(Comparator.comparing(
                                 Mutation::getSortOrder,
                                 Comparator.nullsLast(Comparator.naturalOrder())))
-                        .map(MutationResponse::of)
+                        .map(MutationDTO::of)
                         .toList();
-        return new LineSubmissionResponse(
+        return new LineSubmissionDTO(
                 s.getZdbID(),
                 s.getName(),
                 s.getAbbreviation(),

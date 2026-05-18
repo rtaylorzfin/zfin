@@ -3,7 +3,7 @@ import { useQuery } from '@tanstack/react-query';
 import { JsonForms } from '@jsonforms/react';
 import type { JsonSchema, UISchemaElement } from '@jsonforms/core';
 import { api } from '../api/client';
-import { LineSubmissionResponse } from '../api/types';
+import { LineSubmissionDTO } from '../api/types';
 import { useCreateLineSubmission } from '../api/queries';
 import { SaveStatusBadge, SaveStatus } from '../components/SaveStatusBadge';
 import { sectionRendererEntry } from './renderers/SectionRenderer';
@@ -18,11 +18,11 @@ import { publicationsListRendererEntry } from './renderers/PublicationsListRende
 
 type FormData = Record<string, unknown>;
 
-type FormSchemaResponse = { schema: JsonSchema; uiSchema: UISchemaElement };
+type FormSchemaDTO = { schema: JsonSchema; uiSchema: UISchemaElement };
 
 type Props = {
-    submission: LineSubmissionResponse | null;
-    onCreated: (s: LineSubmissionResponse) => void;
+    submission: LineSubmissionDTO | null;
+    onCreated: (s: LineSubmissionDTO) => void;
 };
 
 const AUTOSAVE_DEBOUNCE_MS = 800;
@@ -44,7 +44,7 @@ const renderers = [
 // the mutations list doesn't trigger a spurious PATCH /mutations attempt.
 const EXTERNALLY_MANAGED_PATHS = new Set<string>(['/mutations']);
 
-function initialDataFromSubmission(submission: LineSubmissionResponse | null): FormData {
+function initialDataFromSubmission(submission: LineSubmissionDTO | null): FormData {
     if (!submission) {
         return {
             name: '',
@@ -128,9 +128,9 @@ function diffLeaves(
  */
 export function SchemaForm({ submission, onCreated }: Props) {
     const { data: schemaResponse, isLoading: schemaLoading, isError: schemaError } =
-        useQuery<FormSchemaResponse>({
+        useQuery<FormSchemaDTO>({
             queryKey: ['zirc', 'form-schema'],
-            queryFn: () => api.get<FormSchemaResponse>('/form-schema'),
+            queryFn: () => api.get<FormSchemaDTO>('/form-schema'),
             staleTime: Infinity,
         });
 
@@ -196,7 +196,7 @@ export function SchemaForm({ submission, onCreated }: Props) {
                     );
                 }
                 for (const [path, value] of changes) {
-                    await api.patch<LineSubmissionResponse>(
+                    await api.patch<LineSubmissionDTO>(
                         `/line-submissions/${id}`,
                         { path, value },
                     );

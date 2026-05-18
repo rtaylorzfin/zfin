@@ -35,13 +35,13 @@ a JSON Pointer array-index resolver.
 Each aggregate has:
 
 - An **entity class** in `source/org/zfin/zirc/entity/`
-- A **response DTO record** in `source/org/zfin/zirc/dto/` (e.g. `MutationResponse.of(entity)`)
+- A **response DTO record** in `source/org/zfin/zirc/dto/` (e.g. `MutationDTO.of(entity)`)
 - A **form schema class** in `source/org/zfin/zirc/api/` (`ZircFormSchema`, `ZircMutationFormSchema`, `ZircAssayFormSchema`) holding `schema()`, `uiSchema()`, and `FIELDS`
 - A **controller** with GET / GET form-schema / PATCH / (optionally) child-row endpoints
 
 Child aggregates appear as **summary lists** inside the parent's
-response (`MutationResponse.assays`, `LineSubmissionResponse.mutations`,
-`AssayResponse.attachments`). The summary carries enough for the
+response (`MutationDTO.assays`, `LineSubmissionDTO.mutations`,
+`AssayDTO.attachments`). The summary carries enough for the
 parent UI to render a card; the full record is fetched separately when
 that child is being edited.
 
@@ -377,7 +377,7 @@ got wrong.
 ```
 source/org/zfin/zirc/
 ├── entity/             Hibernate entities (Lombok @Getter @Setter, @DynamicUpdate)
-├── dto/                Response records: AssayResponse, MutationResponse, ...
+├── dto/                Response records: AssayDTO, MutationDTO, ...
 ├── repository/         ZircSubmissionRepository + Hibernate impl
 ├── service/            ZircSubmissionService (the only mutator)
 └── api/                Form schemas + controllers + exception advice

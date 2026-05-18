@@ -14,9 +14,9 @@ import org.springframework.web.bind.annotation.RequestMapping;
 import org.springframework.web.bind.annotation.ResponseStatus;
 import org.springframework.web.bind.annotation.RestController;
 import org.zfin.zirc.dto.FieldUpdate;
-import org.zfin.zirc.dto.FormSchemaResponse;
-import org.zfin.zirc.dto.LineSubmissionResponse;
-import org.zfin.zirc.dto.MutationResponse;
+import org.zfin.zirc.dto.FormSchemaDTO;
+import org.zfin.zirc.dto.LineSubmissionDTO;
+import org.zfin.zirc.dto.MutationDTO;
 import org.zfin.zirc.service.ZircSubmissionService;
 
 @RestController
@@ -27,19 +27,19 @@ public class ZircSubmissionApiController {
     private ZircSubmissionService zircSubmissionService;
 
     @GetMapping("/form-schema")
-    public FormSchemaResponse getFormSchema() {
-        return new FormSchemaResponse(ZircFormSchema.schema(), ZircFormSchema.uiSchema());
+    public FormSchemaDTO getFormSchema() {
+        return new FormSchemaDTO(ZircFormSchema.schema(), ZircFormSchema.uiSchema());
     }
 
     @PostMapping("/line-submissions")
     @ResponseStatus(HttpStatus.CREATED)
-    public LineSubmissionResponse createLineSubmission() {
-        return LineSubmissionResponse.of(zircSubmissionService.createDraftForCurrentUser());
+    public LineSubmissionDTO createLineSubmission() {
+        return LineSubmissionDTO.of(zircSubmissionService.createDraftForCurrentUser());
     }
 
     @GetMapping("/line-submissions/{zdbID}")
-    public LineSubmissionResponse getLineSubmission(@PathVariable String zdbID) {
-        return LineSubmissionResponse.of(zircSubmissionService.getRequiredLineSubmission(zdbID));
+    public LineSubmissionDTO getLineSubmission(@PathVariable String zdbID) {
+        return LineSubmissionDTO.of(zircSubmissionService.getRequiredLineSubmission(zdbID));
     }
 
     /**
@@ -47,16 +47,16 @@ public class ZircSubmissionApiController {
      * {@link ZircFormSchema#FIELDS}; unknown paths reject with 400.
      */
     @PatchMapping("/line-submissions/{zdbID}")
-    public LineSubmissionResponse updateField(
+    public LineSubmissionDTO updateField(
             @PathVariable String zdbID,
             @Valid @RequestBody FieldUpdate update) {
-        return LineSubmissionResponse.of(zircSubmissionService.updateField(zdbID, update));
+        return LineSubmissionDTO.of(zircSubmissionService.updateField(zdbID, update));
     }
 
     @PostMapping("/line-submissions/{zdbID}/mutations")
     @ResponseStatus(HttpStatus.CREATED)
-    public MutationResponse addMutation(@PathVariable String zdbID) {
-        return MutationResponse.of(zircSubmissionService.addMutation(zdbID));
+    public MutationDTO addMutation(@PathVariable String zdbID) {
+        return MutationDTO.of(zircSubmissionService.addMutation(zdbID));
     }
 
     @DeleteMapping("/line-submissions/{zdbID}/mutations/{mutationId}")

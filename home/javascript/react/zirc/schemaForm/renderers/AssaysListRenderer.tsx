@@ -8,7 +8,7 @@ import {
     rankWith,
 } from '@jsonforms/core';
 import { withJsonFormsControlProps } from '@jsonforms/react';
-import { AssaySummary } from '../../api/types';
+import { AssaySummaryDTO } from '../../api/types';
 import { useAddAssay, useDeleteAssay } from '../../api/queries';
 import { AssayEdit } from '../../pages/AssayEdit';
 
@@ -29,7 +29,7 @@ import { AssayEdit } from '../../pages/AssayEdit';
  * invalidate comes through JsonForms' `config` prop.
  */
 function AssaysListRenderer({ data, schema, config }: ControlProps) {
-    const assays = (data as AssaySummary[] | undefined) ?? [];
+    const assays = (data as AssaySummaryDTO[] | undefined) ?? [];
     const mutationId = (config as { mutationId?: number } | undefined)?.mutationId;
     const addAssay = useAddAssay();
     const deleteAssay = useDeleteAssay();
@@ -55,7 +55,7 @@ function AssaysListRenderer({ data, schema, config }: ControlProps) {
         addAssay.mutate(mutationId, {
             // Open the newly-created card so the user can fill it in right away.
             onSuccess: (mutation) => {
-                const newest = (mutation.assays ?? []).reduce<AssaySummary | null>(
+                const newest = (mutation.assays ?? []).reduce<AssaySummaryDTO | null>(
                     (best, a) => (best == null || a.id > best.id ? a : best),
                     null,
                 );

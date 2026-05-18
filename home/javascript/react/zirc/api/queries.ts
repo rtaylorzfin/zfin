@@ -1,13 +1,13 @@
 import { useMutation, useQuery, useQueryClient } from '@tanstack/react-query';
 import { api } from './client';
-import { AssayResponse, LineSubmissionResponse, MutationResponse } from './types';
+import { AssayDTO, LineSubmissionDTO, MutationDTO } from './types';
 
 export const lineSubmissionKey = (id: string) => ['zirc', 'lineSubmission', id] as const;
 
 export function useLineSubmission(id: string | null) {
     return useQuery({
         queryKey: lineSubmissionKey(id ?? ''),
-        queryFn: () => api.get<LineSubmissionResponse>(`/line-submissions/${id}`),
+        queryFn: () => api.get<LineSubmissionDTO>(`/line-submissions/${id}`),
         enabled: !!id,
     });
 }
@@ -15,7 +15,7 @@ export function useLineSubmission(id: string | null) {
 export function useCreateLineSubmission() {
     const qc = useQueryClient();
     return useMutation({
-        mutationFn: () => api.post<LineSubmissionResponse>('/line-submissions'),
+        mutationFn: () => api.post<LineSubmissionDTO>('/line-submissions'),
         // Seed the cache so the post-create GET is a hit, not a loading flash.
         onSuccess: (data) => {
             qc.setQueryData(lineSubmissionKey(data.zdbID), data);
@@ -27,7 +27,7 @@ export function useAddMutation() {
     const qc = useQueryClient();
     return useMutation({
         mutationFn: (submissionId: string) =>
-            api.post<MutationResponse>(`/line-submissions/${submissionId}/mutations`),
+            api.post<MutationDTO>(`/line-submissions/${submissionId}/mutations`),
         onSuccess: (_data, submissionId) => {
             qc.invalidateQueries({ queryKey: lineSubmissionKey(submissionId) });
         },
@@ -50,7 +50,7 @@ export const mutationKey = (id: number) => ['zirc', 'mutation', id] as const;
 export function useMutationById(id: number | null) {
     return useQuery({
         queryKey: mutationKey(id ?? 0),
-        queryFn: () => api.get<MutationResponse>(`/mutations/${id}`),
+        queryFn: () => api.get<MutationDTO>(`/mutations/${id}`),
         enabled: !!id,
     });
 }
@@ -59,7 +59,7 @@ export function useAddAssay() {
     const qc = useQueryClient();
     return useMutation({
         mutationFn: (mutationId: number) =>
-            api.post<MutationResponse>(`/mutations/${mutationId}/assays`),
+            api.post<MutationDTO>(`/mutations/${mutationId}/assays`),
         onSuccess: (_data, mutationId) => {
             qc.invalidateQueries({ queryKey: mutationKey(mutationId) });
         },
@@ -82,7 +82,7 @@ export const assayKey = (id: number) => ['zirc', 'assay', id] as const;
 export function useAssayById(id: number | null) {
     return useQuery({
         queryKey: assayKey(id ?? 0),
-        queryFn: () => api.get<AssayResponse>(`/assays/${id}`),
+        queryFn: () => api.get<AssayDTO>(`/assays/${id}`),
         enabled: !!id,
     });
 }
@@ -93,7 +93,7 @@ export function useUploadAttachment() {
         mutationFn: ({ assayId, file }: { assayId: number; file: File }) => {
             const form = new FormData();
             form.append('file', file);
-            return api.upload<AssayResponse>(`/assays/${assayId}/attachments`, form);
+            return api.upload<AssayDTO>(`/assays/${assayId}/attachments`, form);
         },
         onSuccess: (_data, vars) => {
             qc.invalidateQueries({ queryKey: assayKey(vars.assayId) });

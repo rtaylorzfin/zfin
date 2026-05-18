@@ -3,7 +3,7 @@ import { useQuery, useQueryClient } from '@tanstack/react-query';
 import { JsonForms } from '@jsonforms/react';
 import type { JsonSchema, UISchemaElement } from '@jsonforms/core';
 import { api } from '../api/client';
-import { AssayFileResponse, AssayResponse } from '../api/types';
+import { AssayFileDTO, AssayDTO } from '../api/types';
 import { assayKey, mutationKey, useAssayById } from '../api/queries';
 import { SaveStatusBadge, SaveStatus } from '../components/SaveStatusBadge';
 import { sectionRendererEntry } from '../schemaForm/renderers/SectionRenderer';
@@ -21,7 +21,7 @@ export type AssayEditProps = {
     mutationId?: number;
 };
 
-type FormSchemaResponse = { schema: JsonSchema; uiSchema: UISchemaElement };
+type FormSchemaDTO = { schema: JsonSchema; uiSchema: UISchemaElement };
 
 const AUTOSAVE_DEBOUNCE_MS = 800;
 
@@ -35,13 +35,13 @@ const renderers = [
     attachmentsRendererEntry,
 ];
 
-type FormDataShape = Omit<AssayResponse, 'id' | 'mutationId' | 'sortOrder'>;
+type FormDataShape = Omit<AssayDTO, 'id' | 'mutationId' | 'sortOrder'>;
 
 // Server-managed: uploads/deletes go through dedicated endpoints, not the
 // field-path PATCH. AssayEdit must skip /attachments in its leaf diff.
 const EXTERNALLY_MANAGED_PATHS = new Set<string>(['/attachments']);
 
-function initialDataFromAssay(a: AssayResponse): FormDataShape {
+function initialDataFromAssay(a: AssayDTO): FormDataShape {
     return {
         assayType: a.assayType ?? '',
         additionalInfo: a.additionalInfo ?? '',
@@ -111,9 +111,9 @@ function diffLeaves(
 export function AssayEdit({ assayId, mutationId }: AssayEditProps) {
     const qc = useQueryClient();
 
-    const schemaQuery = useQuery<FormSchemaResponse>({
+    const schemaQuery = useQuery<FormSchemaDTO>({
         queryKey: ['zirc', 'assay-form-schema'],
-        queryFn: () => api.get<FormSchemaResponse>('/assays/form-schema'),
+        queryFn: () => api.get<FormSchemaDTO>('/assays/form-schema'),
         staleTime: Infinity,
     });
     const assayQuery = useAssayById(assayId);
@@ -135,7 +135,7 @@ export function AssayEdit({ assayId, mutationId }: AssayEditProps) {
     const attachmentsKey = JSON.stringify(assay?.attachments ?? []);
     React.useEffect(() => {
         if (!assay || formData == null) {return;}
-        const next: AssayFileResponse[] = assay.attachments ?? [];
+        const next: AssayFileDTO[] = assay.attachments ?? [];
         setFormData((d) => (d == null ? d : { ...d, attachments: next }));
         if (lastSavedRef.current != null) {
             lastSavedRef.current = { ...lastSavedRef.current, attachments: next };
@@ -161,7 +161,7 @@ export function AssayEdit({ assayId, mutationId }: AssayEditProps) {
                 let assayTypeChanged = false;
                 for (const [path, value] of changes) {
                     if (path === '/assayType') {assayTypeChanged = true;}
-                    await api.patch<AssayResponse>(
+                    await api.patch<AssayDTO>(
                         `/assays/${assayId}`,
                         { path, value },
                     );

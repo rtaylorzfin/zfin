@@ -189,7 +189,7 @@ public final class ZircFormSchema {
     /**
      * Schema for the mutations summary list shown on the submission page.
      * Items are read-only summaries — editing happens on the per-mutation
-     * page. The shape mirrors {@link org.zfin.zirc.dto.MutationResponse}.
+     * page. The shape mirrors {@link org.zfin.zirc.dto.MutationDTO}.
      */
     private static Map<String, Object> mutationsSummaryArrayProp() {
         Map<String, Object> itemProps = new LinkedHashMap<>();

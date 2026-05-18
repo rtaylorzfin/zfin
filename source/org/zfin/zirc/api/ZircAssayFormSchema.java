@@ -256,7 +256,7 @@ public final class ZircAssayFormSchema {
     }
 
     /**
-     * Mirror of {@link org.zfin.zirc.dto.AssayFileResponse}; the renderer
+     * Mirror of {@link org.zfin.zirc.dto.AssayFileDTO}; the renderer
      * reads the summary fields. File content is fetched via the streaming
      * endpoint, not as part of the form data.
      */

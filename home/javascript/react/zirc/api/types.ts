@@ -1,7 +1,7 @@
-// Hand-typed mirror of org.zfin.zirc.dto.LineSubmissionResponse, used by the
+// Hand-typed mirror of org.zfin.zirc.dto.LineSubmissionDTO, used by the
 // React Query cache and as the seed for the schema-driven form's initial data.
 
-export interface LineSubmissionResponse {
+export interface LineSubmissionDTO {
     zdbID: string;
     name: string | null;
     abbreviation: string | null;
@@ -16,11 +16,11 @@ export interface LineSubmissionResponse {
     additionalInfo: string | null;
     reasons: string[];
     reasonsOther: string | null;
-    mutations: MutationResponse[];
+    mutations: MutationDTO[];
     draft: boolean;
 }
 
-export interface MutationResponse {
+export interface MutationDTO {
     id: number;
     lineSubmissionId: string;
     sortOrder: number;
@@ -44,10 +44,10 @@ export interface MutationResponse {
     // Publications
     publications: string[];
     // Genotyping assays — summary rows only, surfaced as collapsed cards.
-    assays: AssaySummary[];
+    assays: AssaySummaryDTO[];
 }
 
-export interface AssaySummary {
+export interface AssaySummaryDTO {
     id: number;
     sortOrder: number;
     assayType: string | null;
@@ -56,7 +56,7 @@ export interface AssaySummary {
 // Full per-assay payload — used by the inline assay editor (M4.2). Field
 // visibility is decided by the uiSchema's conditional rules, not by which
 // fields are populated, so every column shows up here regardless of type.
-export interface AssayResponse {
+export interface AssayDTO {
     id: number;
     mutationId: number | null;
     sortOrder: number;
@@ -93,10 +93,10 @@ export interface AssayResponse {
     // Catch-all
     additionalInfo: string | null;
     // Attachments (M4.3) — summary; content streamed separately.
-    attachments: AssayFileResponse[];
+    attachments: AssayFileDTO[];
 }
 
-export interface AssayFileResponse {
+export interface AssayFileDTO {
     id: number;
     originalFilename: string;
     contentType: string | null;

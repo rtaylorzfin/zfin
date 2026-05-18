@@ -13,7 +13,7 @@ import java.util.List;
  * editor (M4.2) can read & write any field; the uiSchema's conditional-show
  * rules decide what's <em>visible</em>, the persistence layer doesn't.
  */
-public record AssayResponse(
+public record AssayDTO(
         Long id,
         Long mutationId,
         Integer sortOrder,
@@ -51,18 +51,18 @@ public record AssayResponse(
         String additionalInfo,
         // Attachments (M4.3) — summary rows; full content is fetched via
         // GET /api/zirc/assays/attachments/{id}/content
-        List<AssayFileResponse> attachments) {
+        List<AssayFileDTO> attachments) {
 
-    public static AssayResponse of(GenotypingAssay a) {
+    public static AssayDTO of(GenotypingAssay a) {
         String[] cleaves = a.getEnzymeCleaves();
-        List<AssayFileResponse> files = a.getFiles() == null ? List.of() :
+        List<AssayFileDTO> files = a.getFiles() == null ? List.of() :
                 a.getFiles().stream()
                         .sorted(Comparator.comparing(
                                 GenotypingAssayFile::getUploadedAt,
                                 Comparator.nullsLast(Comparator.naturalOrder())))
-                        .map(AssayFileResponse::of)
+                        .map(AssayFileDTO::of)
                         .toList();
-        return new AssayResponse(
+        return new AssayDTO(
                 a.getId(),
                 a.getMutation() == null ? null : a.getMutation().getId(),
                 a.getSortOrder(),

@@ -6,7 +6,7 @@ import org.zfin.zirc.entity.Mutation;
 import java.util.Comparator;
 import java.util.List;
 
-public record MutationResponse(
+public record MutationDTO(
         Long id,
         String lineSubmissionId,
         Integer sortOrder,
@@ -31,17 +31,17 @@ public record MutationResponse(
         List<String> publications,
         // Genotyping assays — summary rows only; full per-assay fields are
         // fetched separately when a card is expanded.
-        List<AssaySummary> assays) {
+        List<AssaySummaryDTO> assays) {
 
-    public static MutationResponse of(Mutation m) {
-        List<AssaySummary> assays = m.getGenotypingAssays() == null ? List.of() :
+    public static MutationDTO of(Mutation m) {
+        List<AssaySummaryDTO> assays = m.getGenotypingAssays() == null ? List.of() :
                 m.getGenotypingAssays().stream()
                         .sorted(Comparator.comparing(
                                 GenotypingAssay::getSortOrder,
                                 Comparator.nullsLast(Comparator.naturalOrder())))
-                        .map(AssaySummary::of)
+                        .map(AssaySummaryDTO::of)
                         .toList();
-        return new MutationResponse(
+        return new MutationDTO(
                 m.getId(),
                 m.getLineSubmission().getZdbID(),
                 m.getSortOrder(),

@@ -89,9 +89,9 @@ then.
 ## Concrete next steps (filed as the implementation task)
 
 1. Author `home/WEB-INF/openapi/zirc-api.yaml`. Endpoints to cover:
-   - `GET /api/zirc/form-schema` — submission form schema (response: FormSchemaResponse)
+   - `GET /api/zirc/form-schema` — submission form schema (response: FormSchemaDTO)
    - `GET /api/zirc/line-submissions/{zdbID}` — fetch submission
-   - `POST /api/zirc/line-submissions` — create draft (returns LineSubmissionResponse)
+   - `POST /api/zirc/line-submissions` — create draft (returns LineSubmissionDTO)
    - `PATCH /api/zirc/line-submissions/{zdbID}` — field-path update (body: FieldUpdate)
    - `POST /api/zirc/line-submissions/{zdbID}/mutations` — add mutation
    - `DELETE /api/zirc/line-submissions/{zdbID}/mutations/{mutationId}` — delete mutation
@@ -106,9 +106,9 @@ then.
    - `POST /api/zirc/assays/{assayId}/attachments` — multipart
    - `DELETE /api/zirc/assays/attachments/{fileId}`
    - `GET /api/zirc/assays/attachments/{fileId}/content` — streaming
-2. Capture DTO schemas in `components.schemas` (LineSubmissionResponse,
-   MutationResponse, AssayResponse, AssaySummary, AssayFileResponse,
-   FieldUpdate, FormSchemaResponse, ProblemDetail).
+2. Capture DTO schemas in `components.schemas` (LineSubmissionDTO,
+   MutationDTO, AssayDTO, AssaySummaryDTO, AssayFileDTO,
+   FieldUpdate, FormSchemaDTO, ProblemDetail).
 3. Document error responses per endpoint (400 / 404 / 422 — all
    `application/problem+json`).
 4. Add `ZircOpenApiController` that streams the YAML at

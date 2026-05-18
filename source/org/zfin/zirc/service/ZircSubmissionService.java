@@ -256,7 +256,7 @@ public class ZircSubmissionService {
      * Create a new {@link GenotypingAssay} under the given mutation. Mirrors
      * {@link #addMutation} — assigns the next sort order so cards stay
      * stably ordered. Returns the parent mutation so callers can refresh the
-     * MutationResponse in one round trip.
+     * MutationDTO in one round trip.
      */
     public Mutation addAssay(Long mutationId) {
         Mutation mutation = getRequiredMutationById(mutationId);
@@ -372,7 +372,7 @@ public class ZircSubmissionService {
      *  assay-<assay id>-<file id>-<sanitized filename>}.
      *
      * <p>Returns the parent assay so callers can return a refreshed
-     * AssayResponse in one round trip.
+     * AssayDTO in one round trip.
      */
     public GenotypingAssay storeAttachment(Long assayId, MultipartFile upload) throws IOException {
         if (upload == null || upload.isEmpty()) {

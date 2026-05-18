@@ -3,7 +3,7 @@ import { QueryClientProvider } from '@tanstack/react-query';
 import { queryClient } from '../queryClient';
 import { useLineSubmission } from '../api/queries';
 import { SchemaForm } from '../schemaForm/SchemaForm';
-import { LineSubmissionResponse } from '../api/types';
+import { LineSubmissionDTO } from '../api/types';
 
 export type LineSubmissionEditProps = {
     // From data-submission-id on the JSP mount. Empty string for /new.
@@ -21,7 +21,7 @@ export default function LineSubmissionEdit(props: LineSubmissionEditProps) {
 function LineSubmissionEditInner({ submissionId }: LineSubmissionEditProps) {
     const initialId = submissionId && submissionId.length > 0 ? submissionId : null;
     const [createdSubmission, setCreatedSubmission] =
-        React.useState<LineSubmissionResponse | null>(null);
+        React.useState<LineSubmissionDTO | null>(null);
 
     const effectiveId = createdSubmission?.zdbID ?? initialId;
     const query = useLineSubmission(effectiveId);

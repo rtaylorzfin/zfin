@@ -4,7 +4,7 @@ import { JsonForms } from '@jsonforms/react';
 import type { JsonSchema, UISchemaElement } from '@jsonforms/core';
 import { queryClient } from '../queryClient';
 import { api } from '../api/client';
-import { AssaySummary, MutationResponse } from '../api/types';
+import { AssaySummaryDTO, MutationDTO } from '../api/types';
 import { useMutationById } from '../api/queries';
 import { SaveStatusBadge, SaveStatus } from '../components/SaveStatusBadge';
 import { sectionRendererEntry } from '../schemaForm/renderers/SectionRenderer';
@@ -53,10 +53,10 @@ type FormDataShape = {
     // Genotyping assays — server-managed, like /mutations on the
     // submission. Mirrored into local state so the renderer sees
     // post-Add/Delete updates; never PATCH'd (see EXTERNALLY_MANAGED_PATHS).
-    assays?: AssaySummary[];
+    assays?: AssaySummaryDTO[];
 };
 
-type FormSchemaResponse = { schema: JsonSchema; uiSchema: UISchemaElement };
+type FormSchemaDTO = { schema: JsonSchema; uiSchema: UISchemaElement };
 
 const AUTOSAVE_DEBOUNCE_MS = 800;
 
@@ -71,7 +71,7 @@ const renderers = [
     assaysListRendererEntry,
 ];
 
-function initialDataFromMutation(m: MutationResponse): FormDataShape {
+function initialDataFromMutation(m: MutationDTO): FormDataShape {
     return {
         alleleDesignation: m.alleleDesignation ?? '',
         alleleInZfin: m.alleleInZfin,
@@ -127,9 +127,9 @@ function diffLeaves(
 function MutationEditInner({ mutationId, submissionId }: MutationEditProps) {
     const idNum = mutationId ? Number(mutationId) : null;
 
-    const schemaQuery = useQuery<FormSchemaResponse>({
+    const schemaQuery = useQuery<FormSchemaDTO>({
         queryKey: ['zirc', 'mutation-form-schema'],
-        queryFn: () => api.get<FormSchemaResponse>('/mutations/form-schema'),
+        queryFn: () => api.get<FormSchemaDTO>('/mutations/form-schema'),
         staleTime: Infinity,
     });
     const mutationQuery = useMutationById(idNum);
@@ -185,7 +185,7 @@ function MutationEditInner({ mutationId, submissionId }: MutationEditProps) {
             setErrorMessage(null);
             try {
                 for (const [path, value] of changes) {
-                    await api.patch<MutationResponse>(
+                    await api.patch<MutationDTO>(
                         `/mutations/${idNum}`,
                         { path, value },
                     );

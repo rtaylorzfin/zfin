@@ -76,7 +76,7 @@ order:
    `@Getter @Setter` Hibernate entity. Mostly columns. Notice
    `@DynamicUpdate` and the column-default boilerplate.
 
-2. **`source/org/zfin/zirc/dto/LineSubmissionResponse.java`** — Java
+2. **`source/org/zfin/zirc/dto/LineSubmissionDTO.java`** — Java
    record. The `of(entity)` static factory is the only thing here;
    read it to see how nested children (`mutations`) map.
 

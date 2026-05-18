@@ -8,7 +8,7 @@ import {
     rankWith,
 } from '@jsonforms/core';
 import { withJsonFormsControlProps } from '@jsonforms/react';
-import { AssayFileResponse } from '../../api/types';
+import { AssayFileDTO } from '../../api/types';
 import { useUploadAttachment, useDeleteAttachment } from '../../api/queries';
 
 /**
@@ -21,7 +21,7 @@ import { useUploadAttachment, useDeleteAttachment } from '../../api/queries';
  * assayId arrives via JsonForms' config prop.
  */
 function AttachmentsRenderer({ data, schema, config }: ControlProps) {
-    const files = (data as AssayFileResponse[] | undefined) ?? [];
+    const files = (data as AssayFileDTO[] | undefined) ?? [];
     const assayId = (config as { assayId?: number } | undefined)?.assayId;
     const upload = useUploadAttachment();
     const remove = useDeleteAttachment();

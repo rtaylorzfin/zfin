@@ -8,7 +8,7 @@ import {
     rankWith,
 } from '@jsonforms/core';
 import { withJsonFormsControlProps } from '@jsonforms/react';
-import { MutationResponse } from '../../api/types';
+import { MutationDTO } from '../../api/types';
 import { useAddMutation, useDeleteMutation } from '../../api/queries';
 
 /**
@@ -24,7 +24,7 @@ import { useAddMutation, useDeleteMutation } from '../../api/queries';
  * `config` prop, which SchemaForm threads through.
  */
 function MutationsListRenderer({ data, schema, config }: ControlProps) {
-    const mutations = (data as MutationResponse[] | undefined) ?? [];
+    const mutations = (data as MutationDTO[] | undefined) ?? [];
     const submissionId = (config as { submissionId?: string } | undefined)?.submissionId;
     const addMutation = useAddMutation();
     const deleteMutation = useDeleteMutation();
