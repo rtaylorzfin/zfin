@@ -1111,6 +1111,18 @@ test {
     // runtime; without this Gradle won't know to invalidate :test when only
     // the spec changes.
     inputs.file('home/WEB-INF/openapi/zirc-api.yaml')
+    // FormSchemaSnapshotTest baselines — same idea.
+    inputs.dir('test/resources/zirc/snapshot')
+
+    // Forward the snapshot-update flag through to the test JVM so callers can
+    // do `gradle test -Dzirc.snapshot.update=true ...` to regenerate the
+    // FormSchemaSnapshotTest baselines.
+    if (project.hasProperty('zirc.snapshot.update') ||
+            System.getProperty('zirc.snapshot.update') != null) {
+        systemProperty 'zirc.snapshot.update',
+                project.findProperty('zirc.snapshot.update') ?:
+                System.getProperty('zirc.snapshot.update')
+    }
 
 //    useJUnitPlatform() //do we want this (junit 4 specific)
 
@@ -1221,6 +1233,7 @@ test {
 
             // ZIRC drift checks (no DB, pure reflection)
             includeTestsMatching "org.zfin.zirc.api.ZircOpenApiDriftTest"
+            includeTestsMatching "org.zfin.zirc.api.FormSchemaSnapshotTest"
 
             /*need to figure out ..all tests fail here
         includeTestsMatching "org.zfin.figure.service.FigureViewServiceSpec"*/
