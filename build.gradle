@@ -1234,6 +1234,7 @@ test {
             // ZIRC drift checks (no DB, pure reflection)
             includeTestsMatching "org.zfin.zirc.api.ZircOpenApiDriftTest"
             includeTestsMatching "org.zfin.zirc.api.FormSchemaSnapshotTest"
+            includeTestsMatching "org.zfin.zirc.api.uischema.UiSchemaSerializationTest"
 
             /*need to figure out ..all tests fail here
         includeTestsMatching "org.zfin.figure.service.FigureViewServiceSpec"*/

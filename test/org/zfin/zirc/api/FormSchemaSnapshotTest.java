@@ -1,5 +1,6 @@
 package org.zfin.zirc.api;
 
+import com.fasterxml.jackson.databind.MapperFeature;
 import com.fasterxml.jackson.databind.ObjectMapper;
 import com.fasterxml.jackson.databind.SerializationFeature;
 import com.fasterxml.jackson.databind.json.JsonMapper;
@@ -36,16 +37,25 @@ public class FormSchemaSnapshotTest {
             Boolean.getBoolean("zirc.snapshot.update");
 
     /**
-     * Pretty-printed + alphabetically-keyed JSON. The current Map-based
-     * builders use {@code Map.of(...)}, which doesn't preserve insertion
-     * order (>1 entry); without sorting the snapshot files would flap
-     * between runs. We're testing for structural equivalence, not
-     * byte-identical wire output — JSON Forms reads by key name, not
-     * position, and clients don't care about key order.
+     * Pretty-printed + alphabetically-keyed JSON. Two reasons:
+     *
+     * <ol>
+     *   <li>The current Map-based builders use {@code Map.of(...)}, which
+     *     doesn't preserve insertion order (>1 entry); ORDER_MAP_ENTRIES_BY_KEYS
+     *     locks the output down.
+     *   <li>The Path 2 migration replaces Maps with records, which Jackson
+     *     serializes in declaration order. SORT_PROPERTIES_ALPHABETICALLY
+     *     makes record fields sort alphabetically too, so the migration
+     *     can be wire-equivalent step-by-step without re-snapshotting.
+     * </ol>
+     *
+     * We're testing for structural equivalence, not byte-identical wire
+     * output — JSON Forms reads by key name, not position.
      */
     private static final ObjectMapper MAPPER = JsonMapper.builder()
             .enable(SerializationFeature.INDENT_OUTPUT)
             .enable(SerializationFeature.ORDER_MAP_ENTRIES_BY_KEYS)
+            .enable(MapperFeature.SORT_PROPERTIES_ALPHABETICALLY)
             .build();
 
     @Test
