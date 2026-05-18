@@ -26,6 +26,7 @@ tags:
   - name: mutation
   - name: assay
   - name: attachment
+  - name: autocomplete
 
 paths:
   /form-schema:
@@ -266,6 +267,51 @@ paths:
                 format: binary
         '404': { $ref: '#/components/responses/NotFound' }
 
+  /autocomplete/markers:
+    get:
+      tags: [autocomplete]
+      summary: Marker (gene/clone) name lookup for the M6 genes section.
+      parameters:
+        - $ref: '#/components/parameters/AutocompleteTerm'
+      responses:
+        '200':
+          description: Up to 20 matches.
+          content:
+            application/json:
+              schema:
+                type: array
+                items: { $ref: '#/components/schemas/AutocompleteItemDTO' }
+
+  /autocomplete/features:
+    get:
+      tags: [autocomplete]
+      summary: Feature (allele) name lookup for M7 lesions and related sections.
+      parameters:
+        - $ref: '#/components/parameters/AutocompleteTerm'
+      responses:
+        '200':
+          description: Up to 20 matches.
+          content:
+            application/json:
+              schema:
+                type: array
+                items: { $ref: '#/components/schemas/AutocompleteItemDTO' }
+
+  /autocomplete/persons:
+    get:
+      tags: [autocomplete]
+      summary: Person name lookup for the add-submitter modal.
+      parameters:
+        - $ref: '#/components/parameters/AutocompleteTerm'
+      responses:
+        '200':
+          description: Up to 20 matches.
+          content:
+            application/json:
+              schema:
+                type: array
+                items: { $ref: '#/components/schemas/AutocompleteItemDTO' }
+
   /openapi.yaml:
     get:
       tags: [form-schema]
@@ -332,6 +378,12 @@ components:
       in: path
       required: true
       schema: { type: integer, format: int64 }
+    AutocompleteTerm:
+      name: term
+      in: query
+      required: false
+      description: Case-insensitive substring match. Empty/missing returns an empty list.
+      schema: { type: string }
     FileId:
       name: fileId
       in: path
@@ -503,3 +555,10 @@ components:
           type: string
           format: date-time
           nullable: true
+
+    AutocompleteItemDTO:
+      type: object
+      description: One row in an autocomplete result. `label` is shown in the dropdown; `value` is the canonical id (ZDB-ID) stored in the form.
+      properties:
+        label: { type: string }
+        value: { type: string }
