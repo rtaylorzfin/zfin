@@ -2,6 +2,11 @@ package org.zfin.zirc.api;
 
 import com.fasterxml.jackson.databind.JsonNode;
 import com.fasterxml.jackson.databind.ObjectMapper;
+import org.zfin.zirc.api.jsonschema.ArraySchema;
+import org.zfin.zirc.api.jsonschema.JsonSchema;
+import org.zfin.zirc.api.jsonschema.NumberSchema;
+import org.zfin.zirc.api.jsonschema.ObjectSchema;
+import org.zfin.zirc.api.jsonschema.StringSchema;
 import org.zfin.zirc.api.uischema.Control;
 import org.zfin.zirc.api.uischema.Group;
 import org.zfin.zirc.api.uischema.Options;
@@ -70,49 +75,47 @@ public final class ZircAssayFormSchema {
     private static final List<String> SSLP_TYPES =
             List.of("SSLP");
 
-    public static Map<String, Object> schema() {
-        Map<String, Object> properties = new LinkedHashMap<>();
+    public static JsonSchema schema() {
+        Map<String, JsonSchema> properties = new LinkedHashMap<>();
         // General
-        properties.put("assayType",                stringProp(255, "Assay Type"));
-        properties.put("additionalInfo",           stringProp(5000, "Additional Info"));
+        properties.put("assayType",                  StringSchema.of("Assay Type", 255));
+        properties.put("additionalInfo",             StringSchema.of("Additional Info", 5000));
         // PCR primers
-        properties.put("forwardPrimer",            stringProp(2000, "Forward Primer"));
-        properties.put("reversePrimer",            stringProp(2000, "Reverse Primer"));
-        properties.put("expectedWtPcr",            stringProp(2000, "Expected WT PCR"));
-        properties.put("expectedMutPcr",           stringProp(2000, "Expected Mutant PCR"));
+        properties.put("forwardPrimer",              StringSchema.of("Forward Primer", 2000));
+        properties.put("reversePrimer",              StringSchema.of("Reverse Primer", 2000));
+        properties.put("expectedWtPcr",              StringSchema.of("Expected WT PCR", 2000));
+        properties.put("expectedMutPcr",             StringSchema.of("Expected Mutant PCR", 2000));
         // Sequencing
-        properties.put("sequencingPrimer",         stringProp(2000, "Sequencing Primer"));
+        properties.put("sequencingPrimer",           StringSchema.of("Sequencing Primer", 2000));
         // dCAPS
-        properties.put("dcapsMismatchPrimer",      stringProp(2000, "dCAPS Mismatch Primer"));
+        properties.put("dcapsMismatchPrimer",        StringSchema.of("dCAPS Mismatch Primer", 2000));
         // Allele-specific PCR
-        properties.put("wtSpecificPrimer",         stringProp(2000, "WT-Specific Primer"));
-        properties.put("mutSpecificPrimer",        stringProp(2000, "Mutant-Specific Primer"));
-        properties.put("commonPrimer",             stringProp(2000, "Common Primer"));
+        properties.put("wtSpecificPrimer",           StringSchema.of("WT-Specific Primer", 2000));
+        properties.put("mutSpecificPrimer",          StringSchema.of("Mutant-Specific Primer", 2000));
+        properties.put("commonPrimer",               StringSchema.of("Common Primer", 2000));
         // KASP
-        properties.put("kaspGenomicSequence",      stringProp(5000, "KASP Genomic Sequence"));
+        properties.put("kaspGenomicSequence",        StringSchema.of("KASP Genomic Sequence", 5000));
         // RFLP
-        properties.put("restrictionEnzymeName",    stringProp(255, "Restriction Enzyme Name"));
-        properties.put("restrictionEnzymeCatalog", stringProp(255, "Restriction Enzyme Catalog #"));
-        properties.put("enzymeCleaves",            stringListProp("Enzyme Cleaves At"));
-        properties.put("expectedWtDigest",         stringProp(2000, "Expected WT Digest"));
-        properties.put("expectedMutDigest",        stringProp(2000, "Expected Mutant Digest"));
+        properties.put("restrictionEnzymeName",      StringSchema.of("Restriction Enzyme Name", 255));
+        properties.put("restrictionEnzymeCatalog",   StringSchema.of("Restriction Enzyme Catalog #", 255));
+        properties.put("enzymeCleaves",              new ArraySchema("Enzyme Cleaves At",
+                                                            new StringSchema(null, null, null, null),
+                                                            null, null));
+        properties.put("expectedWtDigest",           StringSchema.of("Expected WT Digest", 2000));
+        properties.put("expectedMutDigest",          StringSchema.of("Expected Mutant Digest", 2000));
         // SSLP
-        properties.put("sslpMarkerName",           stringProp(255, "SSLP Marker Name"));
-        properties.put("sslpDistance",             stringProp(255, "SSLP Distance"));
-        properties.put("sslpGenomicLocation",      stringProp(255, "SSLP Genomic Location"));
-        properties.put("sslpInducedBackground",    stringProp(255, "SSLP Induced Background"));
-        properties.put("sslpOutcrossedBackground", stringProp(255, "SSLP Outcrossed Background"));
-        properties.put("sslpInducedPcr",           stringProp(2000, "SSLP Induced PCR"));
-        properties.put("sslpOutcrossedPcr",        stringProp(2000, "SSLP Outcrossed PCR"));
+        properties.put("sslpMarkerName",             StringSchema.of("SSLP Marker Name", 255));
+        properties.put("sslpDistance",               StringSchema.of("SSLP Distance", 255));
+        properties.put("sslpGenomicLocation",        StringSchema.of("SSLP Genomic Location", 255));
+        properties.put("sslpInducedBackground",      StringSchema.of("SSLP Induced Background", 255));
+        properties.put("sslpOutcrossedBackground",   StringSchema.of("SSLP Outcrossed Background", 255));
+        properties.put("sslpInducedPcr",             StringSchema.of("SSLP Induced PCR", 2000));
+        properties.put("sslpOutcrossedPcr",          StringSchema.of("SSLP Outcrossed PCR", 2000));
         // Attachments — summary rows; uploads happen through a dedicated
         // multipart endpoint, not the field-path PATCH (AssayEdit's diff
         // filter must skip /attachments).
-        properties.put("attachments",              attachmentsArrayProp());
-
-        Map<String, Object> root = new LinkedHashMap<>();
-        root.put("type", "object");
-        root.put("properties", properties);
-        return root;
+        properties.put("attachments",                attachmentsArrayProp());
+        return ObjectSchema.of(properties);
     }
 
     public static UiSchemaElement uiSchema() {
@@ -236,51 +239,26 @@ public final class ZircAssayFormSchema {
     );
 
     // ─── schema builders ────────────────────────────────────────────────────
+    // (Schema records live in org.zfin.zirc.api.jsonschema; helpers below
+    //  return the typed records directly.)
 
-    private static Map<String, Object> stringProp(int maxLength, String title) {
-        Map<String, Object> p = new LinkedHashMap<>();
-        p.put("type", "string");
-        p.put("title", title);
-        p.put("maxLength", maxLength);
-        return p;
-    }
-
-    private static Map<String, Object> stringListProp(String title) {
-        Map<String, Object> items = new LinkedHashMap<>();
-        items.put("type", "string");
-        Map<String, Object> p = new LinkedHashMap<>();
-        p.put("type", "array");
-        p.put("title", title);
-        p.put("items", items);
-        return p;
-    }
-
-    /**
-     * Mirror of {@link org.zfin.zirc.dto.AssayFileDTO}; the renderer
-     * reads the summary fields. File content is fetched via the streaming
-     * endpoint, not as part of the form data.
-     */
     /** Hard cap on attachments per assay; same MAX_CHILD_ROWS_PER_MUTATION shape from the alt branch. */
     public static final int MAX_ATTACHMENTS_PER_ASSAY = 10;
 
-    private static Map<String, Object> attachmentsArrayProp() {
-        Map<String, Object> itemProps = new LinkedHashMap<>();
-        itemProps.put("id",               Map.of("type", "number"));
-        itemProps.put("originalFilename", Map.of("type", "string"));
-        itemProps.put("contentType",      Map.of("type", List.of("string", "null")));
-        itemProps.put("fileSize",         Map.of("type", List.of("number", "null")));
-        itemProps.put("uploadedAt",       Map.of("type", List.of("string", "null")));
-
-        Map<String, Object> item = new LinkedHashMap<>();
-        item.put("type", "object");
-        item.put("properties", itemProps);
-
-        Map<String, Object> arr = new LinkedHashMap<>();
-        arr.put("type", "array");
-        arr.put("title", "Attachments");
-        arr.put("items", item);
-        arr.put("maxItems", MAX_ATTACHMENTS_PER_ASSAY);
-        return arr;
+    /**
+     * Mirror of {@link org.zfin.zirc.dto.AssayFileDTO}; the renderer reads
+     * the summary fields. File content is fetched via the streaming
+     * endpoint, not as part of the form data.
+     */
+    private static ArraySchema attachmentsArrayProp() {
+        Map<String, JsonSchema> itemProps = new LinkedHashMap<>();
+        itemProps.put("id",               NumberSchema.of());
+        itemProps.put("originalFilename", new StringSchema(null, null, null, null));
+        itemProps.put("contentType",      StringSchema.nullable());
+        itemProps.put("fileSize",         new NumberSchema(null, Boolean.TRUE));
+        itemProps.put("uploadedAt",       StringSchema.nullable());
+        return new ArraySchema("Attachments", ObjectSchema.of(itemProps),
+                MAX_ATTACHMENTS_PER_ASSAY, null);
     }
 
     // ─── uiSchema builders ──────────────────────────────────────────────────

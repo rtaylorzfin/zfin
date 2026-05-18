@@ -2,6 +2,13 @@ package org.zfin.zirc.api;
 
 import com.fasterxml.jackson.databind.JsonNode;
 import com.fasterxml.jackson.databind.ObjectMapper;
+import org.zfin.zirc.api.jsonschema.ArraySchema;
+import org.zfin.zirc.api.jsonschema.BooleanSchema;
+import org.zfin.zirc.api.jsonschema.ConstSchema;
+import org.zfin.zirc.api.jsonschema.JsonSchema;
+import org.zfin.zirc.api.jsonschema.NumberSchema;
+import org.zfin.zirc.api.jsonschema.ObjectSchema;
+import org.zfin.zirc.api.jsonschema.StringSchema;
 import org.zfin.zirc.api.uischema.Control;
 import org.zfin.zirc.api.uischema.Group;
 import org.zfin.zirc.api.uischema.Options;
@@ -43,42 +50,41 @@ public final class ZircFormSchema {
      * change; renaming a value requires a data migration because existing
      * rows in line_submission.ls_reasons store the old value.
      */
-    private static final List<Map<String, String>> CANONICAL_REASONS = List.of(
-            entry("frequently_requested",      "Currently frequently requested"),
-            entry("expect_high_demand",        "Expect high demand"),
-            entry("interesting_gene",          "Interesting gene"),
-            entry("community_resource",        "Community resource/tool"),
-            entry("mutant_gene_cloned",        "Mutant gene cloned"),
-            entry("danger_of_losing",          "Danger of losing line"),
-            entry("lack_of_space_or_funding",  "Lack of space or funding to maintain line"),
-            entry("other",                     "Other")
+    private static final List<ConstSchema> CANONICAL_REASONS = List.of(
+            new ConstSchema("frequently_requested",      "Currently frequently requested"),
+            new ConstSchema("expect_high_demand",        "Expect high demand"),
+            new ConstSchema("interesting_gene",          "Interesting gene"),
+            new ConstSchema("community_resource",        "Community resource/tool"),
+            new ConstSchema("mutant_gene_cloned",        "Mutant gene cloned"),
+            new ConstSchema("danger_of_losing",          "Danger of losing line"),
+            new ConstSchema("lack_of_space_or_funding",  "Lack of space or funding to maintain line"),
+            new ConstSchema("other",                     "Other")
     );
 
-    public static Map<String, Object> schema() {
-        Map<String, Object> properties = new LinkedHashMap<>();
-        properties.put("name",          stringProp(255, "Name"));
-        properties.put("previousNames", stringProp(2000, "Previous Names"));
-        properties.put("acceptance", obj("Acceptance Reasons", Map.of(
-                "reasons", reasonsArrayProp(),
-                "reasonsOther", stringProp(2000, "Other reason")
-        )));
-        properties.put("mutations", mutationsSummaryArrayProp());
-        properties.put("background", obj("Background", linkedMap(
-                "singleAllelic",        nullableBoolProp("Single-allelic submission"),
-                "maternalBackground",   stringProp(255, "Maternal"),
-                "paternalBackground",   stringProp(255, "Paternal"),
-                "backgroundChangeable", nullableBoolProp("Background Changeable")
-        )));
-        properties.put("additionalInfo", obj("Additional Info", linkedMap(
-                "unreportedFeaturesDetails", stringProp(5000, "Unreported Features Details"),
-                "husbandryInfo",             stringProp(5000, "Husbandry Info"),
-                "additionalInfo",            stringProp(5000, "Additional Info")
-        )));
+    public static JsonSchema schema() {
+        Map<String, JsonSchema> acceptance = new LinkedHashMap<>();
+        acceptance.put("reasons", reasonsArrayProp());
+        acceptance.put("reasonsOther", StringSchema.of("Other reason", 2000));
 
-        Map<String, Object> root = new LinkedHashMap<>();
-        root.put("type", "object");
-        root.put("properties", properties);
-        return root;
+        Map<String, JsonSchema> background = new LinkedHashMap<>();
+        background.put("singleAllelic",        BooleanSchema.nullable("Single-allelic submission"));
+        background.put("maternalBackground",   StringSchema.of("Maternal", 255));
+        background.put("paternalBackground",   StringSchema.of("Paternal", 255));
+        background.put("backgroundChangeable", BooleanSchema.nullable("Background Changeable"));
+
+        Map<String, JsonSchema> additionalInfo = new LinkedHashMap<>();
+        additionalInfo.put("unreportedFeaturesDetails", StringSchema.of("Unreported Features Details", 5000));
+        additionalInfo.put("husbandryInfo",             StringSchema.of("Husbandry Info", 5000));
+        additionalInfo.put("additionalInfo",            StringSchema.of("Additional Info", 5000));
+
+        Map<String, JsonSchema> properties = new LinkedHashMap<>();
+        properties.put("name",           StringSchema.of("Name", 255));
+        properties.put("previousNames",  StringSchema.of("Previous Names", 2000));
+        properties.put("acceptance",     ObjectSchema.of("Acceptance Reasons", acceptance));
+        properties.put("mutations",      mutationsSummaryArrayProp());
+        properties.put("background",     ObjectSchema.of("Background", background));
+        properties.put("additionalInfo", ObjectSchema.of("Additional Info", additionalInfo));
+        return ObjectSchema.of(properties);
     }
 
     /**
@@ -167,21 +173,9 @@ public final class ZircFormSchema {
     );
 
     // ─── schema builders ────────────────────────────────────────────────────
-
-    private static Map<String, Object> stringProp(int maxLength, String title) {
-        Map<String, Object> p = new LinkedHashMap<>();
-        p.put("type", "string");
-        p.put("title", title);
-        p.put("maxLength", maxLength);
-        return p;
-    }
-
-    private static Map<String, Object> nullableBoolProp(String title) {
-        Map<String, Object> p = new LinkedHashMap<>();
-        p.put("type", List.of("boolean", "null"));
-        p.put("title", title);
-        return p;
-    }
+    // (Schema records live in org.zfin.zirc.api.jsonschema; helpers below
+    //  return the typed records directly. StringSchema.of / BooleanSchema.nullable
+    //  / ObjectSchema.of are the everyday factories.)
 
     /** Hard cap mirroring the alt-branch (ZFIN-10265) form spec. */
     public static final int MAX_MUTATIONS_PER_SUBMISSION = 5;
@@ -191,52 +185,21 @@ public final class ZircFormSchema {
      * Items are read-only summaries — editing happens on the per-mutation
      * page. The shape mirrors {@link org.zfin.zirc.dto.MutationDTO}.
      */
-    private static Map<String, Object> mutationsSummaryArrayProp() {
-        Map<String, Object> itemProps = new LinkedHashMap<>();
-        itemProps.put("id",                Map.of("type", "number"));
-        itemProps.put("lineSubmissionId",  Map.of("type", "string"));
-        itemProps.put("sortOrder",         Map.of("type", "number"));
-        itemProps.put("alleleDesignation", Map.of("type", List.of("string", "null")));
-        itemProps.put("alleleInZfin",      Map.of("type", List.of("boolean", "null")));
-        itemProps.put("mutationType",      Map.of("type", List.of("string", "null")));
-
-        Map<String, Object> item = new LinkedHashMap<>();
-        item.put("type", "object");
-        item.put("properties", itemProps);
-
-        Map<String, Object> arr = new LinkedHashMap<>();
-        arr.put("type", "array");
-        arr.put("title", "Mutations");
-        arr.put("items", item);
-        arr.put("maxItems", MAX_MUTATIONS_PER_SUBMISSION);
-        return arr;
+    private static ArraySchema mutationsSummaryArrayProp() {
+        Map<String, JsonSchema> itemProps = new LinkedHashMap<>();
+        itemProps.put("id",                NumberSchema.of());
+        itemProps.put("lineSubmissionId",  new StringSchema(null, null, null, null));
+        itemProps.put("sortOrder",         NumberSchema.of());
+        itemProps.put("alleleDesignation", StringSchema.nullable());
+        itemProps.put("alleleInZfin",      new BooleanSchema(null, Boolean.TRUE));
+        itemProps.put("mutationType",      StringSchema.nullable());
+        return new ArraySchema("Mutations", ObjectSchema.of(itemProps),
+                MAX_MUTATIONS_PER_SUBMISSION, null);
     }
 
-    private static Map<String, Object> reasonsArrayProp() {
-        Map<String, Object> items = new LinkedHashMap<>();
-        items.put("type", "string");
-        items.put("oneOf", CANONICAL_REASONS);
-        Map<String, Object> arr = new LinkedHashMap<>();
-        arr.put("type", "array");
-        arr.put("uniqueItems", true);
-        arr.put("items", items);
-        return arr;
-    }
-
-    private static Map<String, Object> obj(String title, Map<String, Object> properties) {
-        Map<String, Object> o = new LinkedHashMap<>();
-        o.put("type", "object");
-        o.put("title", title);
-        o.put("properties", properties);
-        return o;
-    }
-
-    private static Map<String, Object> linkedMap(Object... kv) {
-        Map<String, Object> m = new LinkedHashMap<>();
-        for (int i = 0; i < kv.length; i += 2) {
-            m.put((String) kv[i], kv[i + 1]);
-        }
-        return m;
+    private static ArraySchema reasonsArrayProp() {
+        return new ArraySchema(null, StringSchema.withOneOf(CANONICAL_REASONS),
+                null, Boolean.TRUE);
     }
 
     // ─── uiSchema builders ──────────────────────────────────────────────────

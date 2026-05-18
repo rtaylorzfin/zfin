@@ -2,6 +2,12 @@ package org.zfin.zirc.api;
 
 import com.fasterxml.jackson.databind.JsonNode;
 import com.fasterxml.jackson.databind.ObjectMapper;
+import org.zfin.zirc.api.jsonschema.ArraySchema;
+import org.zfin.zirc.api.jsonschema.BooleanSchema;
+import org.zfin.zirc.api.jsonschema.JsonSchema;
+import org.zfin.zirc.api.jsonschema.NumberSchema;
+import org.zfin.zirc.api.jsonschema.ObjectSchema;
+import org.zfin.zirc.api.jsonschema.StringSchema;
 import org.zfin.zirc.api.uischema.Control;
 import org.zfin.zirc.api.uischema.Group;
 import org.zfin.zirc.api.uischema.Options;
@@ -50,36 +56,34 @@ public final class ZircMutationFormSchema {
     private static final List<String> LETHALITY_STAGES = List.of(
             "embryonic", "larval", "juvenile", "adult", "unknown");
 
-    public static Map<String, Object> schema() {
-        Map<String, Object> properties = new LinkedHashMap<>();
+    public static JsonSchema schema() {
+        Map<String, JsonSchema> properties = new LinkedHashMap<>();
         // General
-        properties.put("alleleDesignation",        stringProp(255, "Allele Designation"));
-        properties.put("alleleInZfin",             nullableBoolProp("Allele already in ZFIN"));
-        properties.put("mutationType",             stringProp(255, "Mutation Type"));
-        properties.put("mutationDiscoverer",       stringProp(255, "Discoverer"));
-        properties.put("mutationInstitution",      stringProp(255, "Institution"));
+        properties.put("alleleDesignation",          StringSchema.of("Allele Designation", 255));
+        properties.put("alleleInZfin",               BooleanSchema.nullable("Allele already in ZFIN"));
+        properties.put("mutationType",               StringSchema.of("Mutation Type", 255));
+        properties.put("mutationDiscoverer",         StringSchema.of("Discoverer", 255));
+        properties.put("mutationInstitution",        StringSchema.of("Institution", 255));
         // Mutagenesis
-        properties.put("mutagenesisStage",         stringProp(255, "Mutagenesis Stage"));
-        properties.put("mutagenesisProtocol",      stringProp(255, "Mutagenesis Protocol"));
-        properties.put("molecularlyCharacterized", nullableBoolProp("Molecularly Characterized"));
+        properties.put("mutagenesisStage",           StringSchema.of("Mutagenesis Stage", 255));
+        properties.put("mutagenesisProtocol",        StringSchema.of("Mutagenesis Protocol", 255));
+        properties.put("molecularlyCharacterized",   BooleanSchema.nullable("Molecularly Characterized"));
         // Lethality
-        properties.put("homozygousLethal",         nullableBoolProp("Homozygous Lethal"));
-        properties.put("lethalityStageTypical",    stringProp(255, "Typical Lethality Stage"));
-        properties.put("lethalitySpecificTimepoint", stringProp(255, "Specific Timepoint"));
-        properties.put("lethalityWindowStart",     stringProp(255, "Lethality Window Start"));
-        properties.put("lethalityWindowEnd",       stringProp(255, "Lethality Window End"));
-        properties.put("lethalityAdditionalInfo",  stringProp(5000, "Lethality Additional Info"));
+        properties.put("homozygousLethal",           BooleanSchema.nullable("Homozygous Lethal"));
+        properties.put("lethalityStageTypical",      StringSchema.of("Typical Lethality Stage", 255));
+        properties.put("lethalitySpecificTimepoint", StringSchema.of("Specific Timepoint", 255));
+        properties.put("lethalityWindowStart",       StringSchema.of("Lethality Window Start", 255));
+        properties.put("lethalityWindowEnd",         StringSchema.of("Lethality Window End", 255));
+        properties.put("lethalityAdditionalInfo",    StringSchema.of("Lethality Additional Info", 5000));
         // Publications
-        properties.put("publications",             stringListProp("Publications"));
+        properties.put("publications",               new ArraySchema("Publications",
+                                                            new StringSchema(null, null, null, null),
+                                                            null, null));
         // Genotyping assays — summary rows that the AssaysListRenderer
         // turns into expandable cards. Add/Delete go through dedicated
         // endpoints, so MutationEdit's diff filter must skip /assays.
-        properties.put("assays",                   assaysSummaryArrayProp());
-
-        Map<String, Object> root = new LinkedHashMap<>();
-        root.put("type", "object");
-        root.put("properties", properties);
-        return root;
+        properties.put("assays",                     assaysSummaryArrayProp());
+        return ObjectSchema.of(properties);
     }
 
     public static UiSchemaElement uiSchema() {
@@ -199,56 +203,24 @@ public final class ZircMutationFormSchema {
     );
 
     // ─── schema builders ────────────────────────────────────────────────────
+    // (Schema records live in org.zfin.zirc.api.jsonschema; helpers below
+    //  return the typed records directly.)
 
-    private static Map<String, Object> stringProp(int maxLength, String title) {
-        Map<String, Object> p = new LinkedHashMap<>();
-        p.put("type", "string");
-        p.put("title", title);
-        p.put("maxLength", maxLength);
-        return p;
-    }
-
-    private static Map<String, Object> nullableBoolProp(String title) {
-        Map<String, Object> p = new LinkedHashMap<>();
-        p.put("type", List.of("boolean", "null"));
-        p.put("title", title);
-        return p;
-    }
-
-    private static Map<String, Object> stringListProp(String title) {
-        Map<String, Object> items = new LinkedHashMap<>();
-        items.put("type", "string");
-        Map<String, Object> p = new LinkedHashMap<>();
-        p.put("type", "array");
-        p.put("title", title);
-        p.put("items", items);
-        return p;
-    }
+    /** Hard cap mirroring the alt-branch (ZFIN-10265) MAX_CHILD_ROWS_PER_MUTATION. */
+    public static final int MAX_ASSAYS_PER_MUTATION = 10;
 
     /**
      * Mirror of {@link org.zfin.zirc.dto.AssaySummaryDTO}; the per-card
      * header reads from this. Full assay fields come from a dedicated
      * /api/zirc/assays/{id} endpoint when a card is expanded (M4.2).
      */
-    /** Hard cap mirroring the alt-branch (ZFIN-10265) MAX_CHILD_ROWS_PER_MUTATION. */
-    public static final int MAX_ASSAYS_PER_MUTATION = 10;
-
-    private static Map<String, Object> assaysSummaryArrayProp() {
-        Map<String, Object> itemProps = new LinkedHashMap<>();
-        itemProps.put("id",        Map.of("type", "number"));
-        itemProps.put("sortOrder", Map.of("type", "number"));
-        itemProps.put("assayType", Map.of("type", List.of("string", "null")));
-
-        Map<String, Object> item = new LinkedHashMap<>();
-        item.put("type", "object");
-        item.put("properties", itemProps);
-
-        Map<String, Object> arr = new LinkedHashMap<>();
-        arr.put("type", "array");
-        arr.put("title", "Genotyping Assays");
-        arr.put("items", item);
-        arr.put("maxItems", MAX_ASSAYS_PER_MUTATION);
-        return arr;
+    private static ArraySchema assaysSummaryArrayProp() {
+        Map<String, JsonSchema> itemProps = new LinkedHashMap<>();
+        itemProps.put("id",        NumberSchema.of());
+        itemProps.put("sortOrder", NumberSchema.of());
+        itemProps.put("assayType", StringSchema.nullable());
+        return new ArraySchema("Genotyping Assays", ObjectSchema.of(itemProps),
+                MAX_ASSAYS_PER_MUTATION, null);
     }
 
     // ─── uiSchema builders ──────────────────────────────────────────────────

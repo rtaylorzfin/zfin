@@ -1,18 +1,24 @@
 package org.zfin.zirc.dto;
 
+import org.zfin.zirc.api.jsonschema.JsonSchema;
 import org.zfin.zirc.api.uischema.UiSchemaElement;
 
-import java.util.Map;
-
 /**
- * Wire DTO for the three {@code /form-schema} endpoints.
+ * Wire DTO for the three {@code /form-schema} endpoints. Both sides are
+ * now typed:
  *
- * <p>The {@code uiSchema} side migrated to typed records in M5.1
- * (task #93); {@code schema} stays untyped until the parallel migration
- * lands in #94. Once both sides are typed, the DTO becomes
- * {@code FormSchemaDTO(JsonSchema, UiSchemaElement)}.
+ * <ul>
+ *   <li>{@code schema}   — {@link JsonSchema} tree under
+ *       {@code org.zfin.zirc.api.jsonschema}</li>
+ *   <li>{@code uiSchema} — {@link UiSchemaElement} tree under
+ *       {@code org.zfin.zirc.api.uischema}</li>
+ * </ul>
+ *
+ * <p>Jackson serializes both as JSON Forms-shaped JSON via each record's
+ * {@code @JsonProperty("type")} accessor; the client reads the regular
+ * keys by name.
  */
 public record FormSchemaDTO(
-        Map<String, Object> schema,
+        JsonSchema schema,
         UiSchemaElement uiSchema) {
 }

@@ -32,8 +32,8 @@
               } ],
               "type" : "string"
             },
-            "type" : "array",
-            "uniqueItems" : true
+            "uniqueItems" : true,
+            "type" : "array"
           },
           "reasonsOther" : {
             "maxLength" : 2000,
