@@ -290,6 +290,28 @@ paths:
               schema:
                 type: string
 
+  /docs/swagger-ui.css:
+    get:
+      tags: [form-schema]
+      summary: Vendored Swagger UI stylesheet.
+      responses:
+        '200':
+          description: CSS asset bundled into the webapp (no CDN dependency).
+          content:
+            text/css:
+              schema: { type: string }
+
+  /docs/swagger-ui-bundle.js:
+    get:
+      tags: [form-schema]
+      summary: Vendored Swagger UI JS bundle.
+      responses:
+        '200':
+          description: JS asset bundled into the webapp (no CDN dependency).
+          content:
+            application/javascript:
+              schema: { type: string }
+
 components:
   parameters:
     SubmissionZdbId:

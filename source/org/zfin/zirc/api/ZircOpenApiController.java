@@ -25,8 +25,10 @@ import java.io.InputStream;
 @RequestMapping("/api/zirc")
 public class ZircOpenApiController {
 
-    private static final String SPEC_PATH = "/WEB-INF/openapi/zirc-api.yaml";
-    private static final String UI_PATH   = "/WEB-INF/openapi/swagger-ui.html";
+    private static final String SPEC_PATH    = "/WEB-INF/openapi/zirc-api.yaml";
+    private static final String UI_PATH      = "/WEB-INF/openapi/swagger-ui.html";
+    private static final String UI_CSS_PATH  = "/WEB-INF/openapi/swagger-ui/swagger-ui.css";
+    private static final String UI_JS_PATH   = "/WEB-INF/openapi/swagger-ui/swagger-ui-bundle.js";
     private static final MediaType APPLICATION_YAML = MediaType.parseMediaType("application/yaml");
 
     @Autowired
@@ -45,6 +47,16 @@ public class ZircOpenApiController {
     @GetMapping(value = "/docs", produces = "text/html")
     public ResponseEntity<InputStreamResource> getDocsUi() {
         return streamWebInfResource(UI_PATH, MediaType.TEXT_HTML);
+    }
+
+    @GetMapping(value = "/docs/swagger-ui.css", produces = "text/css")
+    public ResponseEntity<InputStreamResource> getSwaggerUiCss() {
+        return streamWebInfResource(UI_CSS_PATH, MediaType.parseMediaType("text/css"));
+    }
+
+    @GetMapping(value = "/docs/swagger-ui-bundle.js", produces = "application/javascript")
+    public ResponseEntity<InputStreamResource> getSwaggerUiBundle() {
+        return streamWebInfResource(UI_JS_PATH, MediaType.parseMediaType("application/javascript"));
     }
 
     private ResponseEntity<InputStreamResource> streamWebInfResource(String path, MediaType type) {
