@@ -2,6 +2,12 @@ package org.zfin.zirc.api;
 
 import com.fasterxml.jackson.databind.JsonNode;
 import com.fasterxml.jackson.databind.ObjectMapper;
+import org.zfin.zirc.api.uischema.Control;
+import org.zfin.zirc.api.uischema.Group;
+import org.zfin.zirc.api.uischema.Options;
+import org.zfin.zirc.api.uischema.Rule;
+import org.zfin.zirc.api.uischema.UiSchemaElement;
+import org.zfin.zirc.api.uischema.VerticalLayout;
 import org.zfin.zirc.entity.GenotypingAssay;
 
 import java.util.LinkedHashMap;
@@ -109,72 +115,91 @@ public final class ZircAssayFormSchema {
         return root;
     }
 
-    public static Map<String, Object> uiSchema() {
-        return verticalLayout(List.of(
-                group("General", List.of(
-                        controlWithOptions("#/properties/assayType",
-                                Map.of("widget", "selectWithOther",
-                                       "standardValues", ASSAY_TYPES)),
-                        controlWithOptions("#/properties/additionalInfo",
-                                Map.of("multi", true))
+    public static UiSchemaElement uiSchema() {
+        return new VerticalLayout(List.of(
+                Group.of("General", List.of(
+                        new Control("#/properties/assayType",
+                                Options.of().widget("selectWithOther").standardValues(ASSAY_TYPES),
+                                null),
+                        new Control("#/properties/additionalInfo",
+                                Options.of().multi(true), null)
                 )),
-                groupWithRule("PCR Primers", PCR_PRIMER_TYPES, List.of(
-                        controlWithOptions("#/properties/forwardPrimer",
-                                Map.of("placeholder", "5′ → 3′ sequence")),
-                        controlWithOptions("#/properties/reversePrimer",
-                                Map.of("placeholder", "5′ → 3′ sequence")),
-                        controlWithOptions("#/properties/expectedWtPcr",
-                                Map.of("suffix",   "bp",
-                                       "helpText", "Expected amplicon size on a wild-type template.")),
-                        controlWithOptions("#/properties/expectedMutPcr",
-                                Map.of("suffix",   "bp",
-                                       "helpText", "Expected amplicon size on a mutant template."))
+                groupRevealedFor("PCR Primers", PCR_PRIMER_TYPES, List.of(
+                        new Control("#/properties/forwardPrimer",
+                                Options.of().placeholder("5′ → 3′ sequence"), null),
+                        new Control("#/properties/reversePrimer",
+                                Options.of().placeholder("5′ → 3′ sequence"), null),
+                        new Control("#/properties/expectedWtPcr",
+                                Options.of()
+                                        .suffix("bp")
+                                        .helpText("Expected amplicon size on a wild-type template."),
+                                null),
+                        new Control("#/properties/expectedMutPcr",
+                                Options.of()
+                                        .suffix("bp")
+                                        .helpText("Expected amplicon size on a mutant template."),
+                                null)
                 )),
-                groupWithRule("Restriction Digest", DIGEST_TYPES, List.of(
-                        controlWithOptions("#/properties/restrictionEnzymeName",
-                                Map.of("placeholder", "e.g. BsmBI")),
-                        controlWithOptions("#/properties/restrictionEnzymeCatalog",
-                                Map.of("placeholder", "vendor + cat #",
-                                       "infoHref",    "https://international.neb.com/")),
-                        controlWithOptions("#/properties/enzymeCleaves",
-                                Map.of("widget",   "stringList",
-                                       "helpText", "One sequence per row; positions where the enzyme cuts.")),
-                        controlWithOptions("#/properties/expectedWtDigest",
-                                Map.of("suffix", "bp")),
-                        controlWithOptions("#/properties/expectedMutDigest",
-                                Map.of("suffix", "bp"))
+                groupRevealedFor("Restriction Digest", DIGEST_TYPES, List.of(
+                        new Control("#/properties/restrictionEnzymeName",
+                                Options.of().placeholder("e.g. BsmBI"), null),
+                        new Control("#/properties/restrictionEnzymeCatalog",
+                                Options.of()
+                                        .placeholder("vendor + cat #")
+                                        .infoHref("https://international.neb.com/"),
+                                null),
+                        new Control("#/properties/enzymeCleaves",
+                                Options.of()
+                                        .widget("stringList")
+                                        .helpText("One sequence per row; positions where the enzyme cuts."),
+                                null),
+                        new Control("#/properties/expectedWtDigest",
+                                Options.of().suffix("bp"), null),
+                        new Control("#/properties/expectedMutDigest",
+                                Options.of().suffix("bp"), null)
                 )),
-                groupWithRule("Sequencing", SEQUENCING_TYPES, List.of(
-                        control("#/properties/sequencingPrimer")
+                groupRevealedFor("Sequencing", SEQUENCING_TYPES, List.of(
+                        Control.of("#/properties/sequencingPrimer")
                 )),
-                groupWithRule("dCAPS Mismatch", DCAPS_TYPES, List.of(
-                        control("#/properties/dcapsMismatchPrimer")
+                groupRevealedFor("dCAPS Mismatch", DCAPS_TYPES, List.of(
+                        Control.of("#/properties/dcapsMismatchPrimer")
                 )),
-                groupWithRule("Allele-Specific PCR", ASPCR_TYPES, List.of(
-                        control("#/properties/wtSpecificPrimer"),
-                        control("#/properties/mutSpecificPrimer"),
-                        control("#/properties/commonPrimer")
+                groupRevealedFor("Allele-Specific PCR", ASPCR_TYPES, List.of(
+                        Control.of("#/properties/wtSpecificPrimer"),
+                        Control.of("#/properties/mutSpecificPrimer"),
+                        Control.of("#/properties/commonPrimer")
                 )),
-                groupWithRule("KASP", KASP_TYPES, List.of(
-                        controlWithOptions("#/properties/kaspGenomicSequence",
-                                Map.of("multi", true))
+                groupRevealedFor("KASP", KASP_TYPES, List.of(
+                        new Control("#/properties/kaspGenomicSequence",
+                                Options.of().multi(true), null)
                 )),
-                groupWithRule("SSLP", SSLP_TYPES, List.of(
-                        control("#/properties/sslpMarkerName"),
-                        control("#/properties/sslpDistance"),
-                        control("#/properties/sslpGenomicLocation"),
-                        control("#/properties/sslpInducedBackground"),
-                        control("#/properties/sslpOutcrossedBackground"),
-                        control("#/properties/sslpInducedPcr"),
-                        control("#/properties/sslpOutcrossedPcr")
+                groupRevealedFor("SSLP", SSLP_TYPES, List.of(
+                        Control.of("#/properties/sslpMarkerName"),
+                        Control.of("#/properties/sslpDistance"),
+                        Control.of("#/properties/sslpGenomicLocation"),
+                        Control.of("#/properties/sslpInducedBackground"),
+                        Control.of("#/properties/sslpOutcrossedBackground"),
+                        Control.of("#/properties/sslpInducedPcr"),
+                        Control.of("#/properties/sslpOutcrossedPcr")
                 )),
                 // Attachments is always shown — kind matrix is intentionally
                 // collapsed to a single "Files" affordance for now.
-                groupWithOptions("Attachments",
-                        Map.of("layout", "plain"),
-                        List.of(controlWithOptions("#/properties/attachments",
-                                Map.of("widget", "attachmentsList"))))
+                new Group("Attachments",
+                        List.of(new Control("#/properties/attachments",
+                                Options.of().widget("attachmentsList"), null)),
+                        Options.of().layout("plain"),
+                        null)
         ));
+    }
+
+    /**
+     * Tiny helper specific to the assay-type matrix: a Group revealed
+     * when {@code assayType} is one of the listed values.
+     */
+    private static Group groupRevealedFor(
+            String label, List<String> assayTypes, List<UiSchemaElement> elements) {
+        return new Group(label, elements, null,
+                Rule.showWhenIn("#/properties/assayType", assayTypes));
     }
 
     /**
@@ -259,61 +284,9 @@ public final class ZircAssayFormSchema {
     }
 
     // ─── uiSchema builders ──────────────────────────────────────────────────
-
-    private static Map<String, Object> verticalLayout(List<Map<String, Object>> elements) {
-        Map<String, Object> v = new LinkedHashMap<>();
-        v.put("type", "VerticalLayout");
-        v.put("elements", elements);
-        return v;
-    }
-
-    private static Map<String, Object> group(String label, List<Map<String, Object>> elements) {
-        Map<String, Object> g = new LinkedHashMap<>();
-        g.put("type", "Group");
-        g.put("label", label);
-        g.put("elements", elements);
-        return g;
-    }
-
-    private static Map<String, Object> groupWithOptions(
-            String label,
-            Map<String, Object> options,
-            List<Map<String, Object>> elements) {
-        Map<String, Object> g = group(label, elements);
-        g.put("options", options);
-        return g;
-    }
-
-    /**
-     * Group that's only visible when {@code assayType} is one of the given
-     * values. JSON Forms' SHOW rule honors {@code schema.enum} as a
-     * membership test against the scoped field.
-     */
-    private static Map<String, Object> groupWithRule(
-            String label, List<String> visibleForAssayTypes, List<Map<String, Object>> elements) {
-        Map<String, Object> g = group(label, elements);
-        g.put("rule", Map.of(
-                "effect", "SHOW",
-                "condition", Map.of(
-                        "scope", "#/properties/assayType",
-                        "schema", Map.of("enum", visibleForAssayTypes))));
-        return g;
-    }
-
-    private static Map<String, Object> control(String scope) {
-        Map<String, Object> c = new LinkedHashMap<>();
-        c.put("type", "Control");
-        c.put("scope", scope);
-        return c;
-    }
-
-    private static Map<String, Object> controlWithOptions(String scope, Map<String, Object> options) {
-        Map<String, Object> c = control(scope);
-        if (!options.isEmpty()) {
-            c.put("options", options);
-        }
-        return c;
-    }
+    // (now in org.zfin.zirc.api.uischema; construct VerticalLayout/Group/Control
+    //  records directly above. groupRevealedFor is the local helper for the
+    //  assay-type matrix's repeated "SHOW when assayType in […]" pattern.)
 
     // ─── descriptor builders ────────────────────────────────────────────────
 

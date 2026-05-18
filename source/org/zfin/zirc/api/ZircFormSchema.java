@@ -2,6 +2,11 @@ package org.zfin.zirc.api;
 
 import com.fasterxml.jackson.databind.JsonNode;
 import com.fasterxml.jackson.databind.ObjectMapper;
+import org.zfin.zirc.api.uischema.Control;
+import org.zfin.zirc.api.uischema.Group;
+import org.zfin.zirc.api.uischema.Options;
+import org.zfin.zirc.api.uischema.UiSchemaElement;
+import org.zfin.zirc.api.uischema.VerticalLayout;
 import org.zfin.zirc.entity.LineSubmission;
 
 import java.util.LinkedHashMap;
@@ -81,53 +86,58 @@ public final class ZircFormSchema {
      * Controls that need custom rendering (radios, selects, multi-field
      * composites, multi-line textareas).
      */
-    public static Map<String, Object> uiSchema() {
-        return verticalLayout(List.of(
-                group("Overview", List.of(
-                        controlWithOptions("#/properties/name",
-                                Map.of("placeholder", "e.g. nasl1<sup>zf123</sup>",
-                                       "helpText",    "Line name as it should appear in publications.")),
-                        controlWithOptions("#/properties/previousNames",
-                                Map.of("placeholder", "Comma-separated former names",
-                                       "helpText",    "Useful when this line was previously known by a different designation."))
+    public static UiSchemaElement uiSchema() {
+        List<String> backgroundValues = List.of("AB", "TU", "WIK", "AB/TU", "unknown");
+        return new VerticalLayout(List.of(
+                Group.of("Overview", List.of(
+                        new Control("#/properties/name",
+                                Options.of()
+                                        .placeholder("e.g. nasl1<sup>zf123</sup>")
+                                        .helpText("Line name as it should appear in publications."),
+                                null),
+                        new Control("#/properties/previousNames",
+                                Options.of()
+                                        .placeholder("Comma-separated former names")
+                                        .helpText("Useful when this line was previously known by a different designation."),
+                                null)
                 )),
-                group("Acceptance Reasons", List.of(
-                        controlWithOptions("#/properties/acceptance", Map.of(
-                                "widget", "multipleChoiceWithOther",
-                                "label", "Why ZIRC should accept this line"
-                        ))
+                Group.of("Acceptance Reasons", List.of(
+                        new Control("#/properties/acceptance",
+                                Options.of()
+                                        .widget("multipleChoiceWithOther")
+                                        .label("Why ZIRC should accept this line"),
+                                null)
                 )),
                 // Mutations is structurally different from the field sections —
                 // a list of child rows, edited on their own pages. The "plain"
                 // layout option tells SectionRenderer to drop the table wrapper.
-                groupWithOptions("Mutations",
-                        Map.of("layout", "plain"),
-                        List.of(controlWithOptions("#/properties/mutations",
-                                Map.of("widget", "mutationsList")))),
-                group("Background", List.of(
-                        controlWithOptions("#/properties/background/properties/singleAllelic",
-                                Map.of("widget", "yesNoRadio")),
-                        controlWithOptions("#/properties/background/properties/maternalBackground",
-                                Map.of("widget", "selectWithOther",
-                                       "standardValues", List.of("AB", "TU", "WIK", "AB/TU", "unknown"))),
-                        controlWithOptions("#/properties/background/properties/paternalBackground",
-                                Map.of("widget", "selectWithOther",
-                                       "standardValues", List.of("AB", "TU", "WIK", "AB/TU", "unknown"))),
-                        controlWithOptions("#/properties/background/properties/backgroundChangeable",
-                                Map.of("widget", "yesNoRadio"))
+                new Group("Mutations",
+                        List.of(new Control("#/properties/mutations",
+                                Options.of().widget("mutationsList"),
+                                null)),
+                        Options.of().layout("plain"),
+                        null),
+                Group.of("Background", List.of(
+                        new Control("#/properties/background/properties/singleAllelic",
+                                Options.of().widget("yesNoRadio"), null),
+                        new Control("#/properties/background/properties/maternalBackground",
+                                Options.of().widget("selectWithOther").standardValues(backgroundValues),
+                                null),
+                        new Control("#/properties/background/properties/paternalBackground",
+                                Options.of().widget("selectWithOther").standardValues(backgroundValues),
+                                null),
+                        new Control("#/properties/background/properties/backgroundChangeable",
+                                Options.of().widget("yesNoRadio"), null)
                 )),
-                group("Additional Info", List.of(
-                        controlWithOptions(
-                                "#/properties/additionalInfo/properties/unreportedFeaturesDetails",
-                                Map.of("multi", true)),
-                        controlWithOptions(
-                                "#/properties/additionalInfo/properties/husbandryInfo",
-                                Map.of("multi", true,
-                                       "placeholder",
-                                       "Husbandry-specific information, e.g. special feeding regime")),
-                        controlWithOptions(
-                                "#/properties/additionalInfo/properties/additionalInfo",
-                                Map.of("multi", true))
+                Group.of("Additional Info", List.of(
+                        new Control("#/properties/additionalInfo/properties/unreportedFeaturesDetails",
+                                Options.of().multi(true), null),
+                        new Control("#/properties/additionalInfo/properties/husbandryInfo",
+                                Options.of().multi(true)
+                                        .placeholder("Husbandry-specific information, e.g. special feeding regime"),
+                                null),
+                        new Control("#/properties/additionalInfo/properties/additionalInfo",
+                                Options.of().multi(true), null)
                 ))
         ));
     }
@@ -230,43 +240,8 @@ public final class ZircFormSchema {
     }
 
     // ─── uiSchema builders ──────────────────────────────────────────────────
-
-    private static Map<String, Object> verticalLayout(List<Map<String, Object>> elements) {
-        Map<String, Object> v = new LinkedHashMap<>();
-        v.put("type", "VerticalLayout");
-        v.put("elements", elements);
-        return v;
-    }
-
-    private static Map<String, Object> group(String label, List<Map<String, Object>> elements) {
-        Map<String, Object> g = new LinkedHashMap<>();
-        g.put("type", "Group");
-        g.put("label", label);
-        g.put("elements", elements);
-        return g;
-    }
-
-    private static Map<String, Object> groupWithOptions(
-            String label,
-            Map<String, Object> options,
-            List<Map<String, Object>> elements) {
-        Map<String, Object> g = group(label, elements);
-        g.put("options", options);
-        return g;
-    }
-
-    private static Map<String, Object> control(String scope) {
-        Map<String, Object> c = new LinkedHashMap<>();
-        c.put("type", "Control");
-        c.put("scope", scope);
-        return c;
-    }
-
-    private static Map<String, Object> controlWithOptions(String scope, Map<String, Object> options) {
-        Map<String, Object> c = control(scope);
-        c.put("options", options);
-        return c;
-    }
+    // (now in org.zfin.zirc.api.uischema; construct VerticalLayout/Group/Control
+    //  records directly above, using Group.of / Control.of for the shorthand cases.)
 
     private static Map<String, String> entry(String value, String label) {
         Map<String, String> e = new LinkedHashMap<>();

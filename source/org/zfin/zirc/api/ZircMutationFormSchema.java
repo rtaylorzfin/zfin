@@ -2,6 +2,12 @@ package org.zfin.zirc.api;
 
 import com.fasterxml.jackson.databind.JsonNode;
 import com.fasterxml.jackson.databind.ObjectMapper;
+import org.zfin.zirc.api.uischema.Control;
+import org.zfin.zirc.api.uischema.Group;
+import org.zfin.zirc.api.uischema.Options;
+import org.zfin.zirc.api.uischema.Rule;
+import org.zfin.zirc.api.uischema.UiSchemaElement;
+import org.zfin.zirc.api.uischema.VerticalLayout;
 import org.zfin.zirc.entity.Mutation;
 
 import java.util.ArrayList;
@@ -76,66 +82,66 @@ public final class ZircMutationFormSchema {
         return root;
     }
 
-    public static Map<String, Object> uiSchema() {
+    public static UiSchemaElement uiSchema() {
         // Conditional reveal: lethality detail fields only render when
         // homozygousLethal is exactly true.
-        Map<String, Object> showWhenLethal = Map.of(
-                "effect", "SHOW",
-                "condition", Map.of(
-                        "scope", "#/properties/homozygousLethal",
-                        "schema", Map.of("const", true)));
+        Rule showWhenLethal = Rule.showWhenTrue("#/properties/homozygousLethal");
 
-        return verticalLayout(List.of(
-                group("General", List.of(
-                        controlWithOptions("#/properties/alleleDesignation",
-                                Map.of("placeholder", "e.g. zf123",
-                                       "helpText",    "ZFIN allele designation; leave blank if not yet assigned.")),
-                        controlWithOptions("#/properties/alleleInZfin",
-                                Map.of("widget", "yesNoRadio")),
-                        control("#/properties/mutationType"),
-                        controlWithOptions("#/properties/mutationDiscoverer",
-                                Map.of("placeholder", "Person who first identified the mutation")),
-                        controlWithOptions("#/properties/mutationInstitution",
-                                Map.of("placeholder", "Lab / institution"))
+        return new VerticalLayout(List.of(
+                Group.of("General", List.of(
+                        new Control("#/properties/alleleDesignation",
+                                Options.of()
+                                        .placeholder("e.g. zf123")
+                                        .helpText("ZFIN allele designation; leave blank if not yet assigned."),
+                                null),
+                        new Control("#/properties/alleleInZfin",
+                                Options.of().widget("yesNoRadio"), null),
+                        Control.of("#/properties/mutationType"),
+                        new Control("#/properties/mutationDiscoverer",
+                                Options.of().placeholder("Person who first identified the mutation"),
+                                null),
+                        new Control("#/properties/mutationInstitution",
+                                Options.of().placeholder("Lab / institution"), null)
                 )),
-                group("Mutagenesis", List.of(
-                        controlWithOptions("#/properties/mutagenesisStage",
-                                Map.of("widget", "selectWithOther",
-                                       "standardValues", MUTAGENESIS_STAGES)),
-                        controlWithOptions("#/properties/mutagenesisProtocol",
-                                Map.of("widget", "selectWithOther",
-                                       "standardValues", MUTAGENESIS_PROTOCOLS)),
-                        controlWithOptions("#/properties/molecularlyCharacterized",
-                                Map.of("widget", "yesNoRadio"))
+                Group.of("Mutagenesis", List.of(
+                        new Control("#/properties/mutagenesisStage",
+                                Options.of().widget("selectWithOther").standardValues(MUTAGENESIS_STAGES),
+                                null),
+                        new Control("#/properties/mutagenesisProtocol",
+                                Options.of().widget("selectWithOther").standardValues(MUTAGENESIS_PROTOCOLS),
+                                null),
+                        new Control("#/properties/molecularlyCharacterized",
+                                Options.of().widget("yesNoRadio"), null)
                 )),
-                group("Lethality", List.of(
-                        controlWithOptions("#/properties/homozygousLethal",
-                                Map.of("widget", "yesNoRadio")),
-                        controlWithRule("#/properties/lethalityStageTypical",
-                                Map.of("widget", "selectWithOther",
-                                       "standardValues", LETHALITY_STAGES),
+                Group.of("Lethality", List.of(
+                        new Control("#/properties/homozygousLethal",
+                                Options.of().widget("yesNoRadio"), null),
+                        new Control("#/properties/lethalityStageTypical",
+                                Options.of().widget("selectWithOther").standardValues(LETHALITY_STAGES),
                                 showWhenLethal),
-                        controlWithRule("#/properties/lethalitySpecificTimepoint",
-                                Map.of("placeholder", "e.g. 48 hpf",
-                                       "helpText",    "Single timepoint when most homozygotes die. Use the window fields below for a range."),
+                        new Control("#/properties/lethalitySpecificTimepoint",
+                                Options.of()
+                                        .placeholder("e.g. 48 hpf")
+                                        .helpText("Single timepoint when most homozygotes die. Use the window fields below for a range."),
                                 showWhenLethal),
-                        controlWithRule("#/properties/lethalityWindowStart",
-                                Map.of("placeholder", "e.g. 24 hpf"), showWhenLethal),
-                        controlWithRule("#/properties/lethalityWindowEnd",
-                                Map.of("placeholder", "e.g. 72 hpf"), showWhenLethal),
-                        controlWithRule("#/properties/lethalityAdditionalInfo",
-                                Map.of("multi", true), showWhenLethal)
+                        new Control("#/properties/lethalityWindowStart",
+                                Options.of().placeholder("e.g. 24 hpf"), showWhenLethal),
+                        new Control("#/properties/lethalityWindowEnd",
+                                Options.of().placeholder("e.g. 72 hpf"), showWhenLethal),
+                        new Control("#/properties/lethalityAdditionalInfo",
+                                Options.of().multi(true), showWhenLethal)
                 )),
-                group("Publications", List.of(
-                        controlWithOptions("#/properties/publications",
-                                Map.of("widget", "stringList"))
+                Group.of("Publications", List.of(
+                        new Control("#/properties/publications",
+                                Options.of().widget("stringList"), null)
                 )),
                 // Genotyping Assays is a list of child rows like the
                 // submission's Mutations section — drop the table wrapper.
-                groupWithOptions("Genotyping Assays",
-                        Map.of("layout", "plain"),
-                        List.of(controlWithOptions("#/properties/assays",
-                                Map.of("widget", "assaysList"))))
+                new Group("Genotyping Assays",
+                        List.of(new Control("#/properties/assays",
+                                Options.of().widget("assaysList"), null)),
+                        Options.of().layout("plain"),
+                        null)
         ));
     }
 
@@ -246,52 +252,8 @@ public final class ZircMutationFormSchema {
     }
 
     // ─── uiSchema builders ──────────────────────────────────────────────────
-
-    private static Map<String, Object> verticalLayout(List<Map<String, Object>> elements) {
-        Map<String, Object> v = new LinkedHashMap<>();
-        v.put("type", "VerticalLayout");
-        v.put("elements", elements);
-        return v;
-    }
-
-    private static Map<String, Object> group(String label, List<Map<String, Object>> elements) {
-        Map<String, Object> g = new LinkedHashMap<>();
-        g.put("type", "Group");
-        g.put("label", label);
-        g.put("elements", elements);
-        return g;
-    }
-
-    private static Map<String, Object> groupWithOptions(
-            String label,
-            Map<String, Object> options,
-            List<Map<String, Object>> elements) {
-        Map<String, Object> g = group(label, elements);
-        g.put("options", options);
-        return g;
-    }
-
-    private static Map<String, Object> control(String scope) {
-        Map<String, Object> c = new LinkedHashMap<>();
-        c.put("type", "Control");
-        c.put("scope", scope);
-        return c;
-    }
-
-    private static Map<String, Object> controlWithOptions(String scope, Map<String, Object> options) {
-        Map<String, Object> c = control(scope);
-        if (!options.isEmpty()) {
-            c.put("options", options);
-        }
-        return c;
-    }
-
-    private static Map<String, Object> controlWithRule(
-            String scope, Map<String, Object> options, Map<String, Object> rule) {
-        Map<String, Object> c = controlWithOptions(scope, options);
-        c.put("rule", rule);
-        return c;
-    }
+    // (now in org.zfin.zirc.api.uischema; construct VerticalLayout/Group/Control
+    //  records directly above, using Group.of / Control.of for the shorthand cases.)
 
     // ─── descriptor builders ────────────────────────────────────────────────
 
