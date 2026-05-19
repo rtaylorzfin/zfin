@@ -83,6 +83,9 @@ public final class ZircMutationFormSchema {
         // turns into expandable cards. Add/Delete go through dedicated
         // endpoints, so MutationEdit's diff filter must skip /assays.
         properties.put("assays",                     assaysSummaryArrayProp());
+        // Genes — per-mutation gene records. Same external-managed
+        // pattern as assays; MutationEdit must skip /genes in its diff.
+        properties.put("genes",                      genesArrayProp());
         return ObjectSchema.of(properties);
     }
 
@@ -144,6 +147,12 @@ public final class ZircMutationFormSchema {
                 new Group("Genotyping Assays",
                         List.of(new Control("#/properties/assays",
                                 Options.of().widget("assaysList"), null)),
+                        Options.of().layout("plain"),
+                        null),
+                // Genes: same inline-expand pattern as assays.
+                new Group("Genes",
+                        List.of(new Control("#/properties/genes",
+                                Options.of().widget("genesList"), null)),
                         Options.of().layout("plain"),
                         null)
         ));
@@ -221,6 +230,22 @@ public final class ZircMutationFormSchema {
         itemProps.put("assayType", StringSchema.nullable());
         return new ArraySchema("Genotyping Assays", ObjectSchema.of(itemProps),
                 MAX_ASSAYS_PER_MUTATION, null);
+    }
+
+    /**
+     * Mirror of {@link org.zfin.zirc.dto.GeneDTO}; the GenesListRenderer
+     * shows a card per row with the mutatedGeneAbbreviation as the
+     * header. The full per-gene fields are PATCHed via
+     * {@code /api/zirc/genes/{id}} when a card is expanded.
+     */
+    private static ArraySchema genesArrayProp() {
+        Map<String, JsonSchema> itemProps = new LinkedHashMap<>();
+        itemProps.put("id",                      NumberSchema.of());
+        itemProps.put("sortOrder",               NumberSchema.of());
+        itemProps.put("mutatedGeneZdbID",        StringSchema.nullable());
+        itemProps.put("mutatedGeneAbbreviation", StringSchema.nullable());
+        return new ArraySchema("Genes", ObjectSchema.of(itemProps),
+                10, null);
     }
 
     // ─── uiSchema builders ──────────────────────────────────────────────────

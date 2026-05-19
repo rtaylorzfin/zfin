@@ -1,7 +1,7 @@
 import * as React from 'react';
 import { useMutation, useQuery, useQueryClient } from '@tanstack/react-query';
 import { api } from './client';
-import { AssayDTO, AutocompleteItemDTO, LineSubmissionDTO, LinkedFeatureDTO, MutationDTO } from './types';
+import { AssayDTO, AutocompleteItemDTO, GeneDTO, LineSubmissionDTO, LinkedFeatureDTO, MutationDTO } from './types';
 
 export const lineSubmissionKey = (id: string) => ['zirc', 'lineSubmission', id] as const;
 
@@ -157,6 +157,40 @@ export function useDeleteAttachment() {
             api.delete<void>(`/assays/attachments/${fileId}`),
         onSuccess: (_data, vars) => {
             qc.invalidateQueries({ queryKey: assayKey(vars.assayId) });
+        },
+    });
+}
+
+// ─── Genes (M6.1) ───────────────────────────────────────────────────────────
+
+export const geneKey = (id: number) => ['zirc', 'gene', id] as const;
+
+export function useGeneById(id: number | null) {
+    return useQuery({
+        queryKey: geneKey(id ?? 0),
+        queryFn: () => api.get<GeneDTO>(`/genes/${id}`),
+        enabled: !!id,
+    });
+}
+
+export function useAddGene() {
+    const qc = useQueryClient();
+    return useMutation({
+        mutationFn: (mutationId: number) =>
+            api.post<MutationDTO>(`/mutations/${mutationId}/genes`),
+        onSuccess: (_data, mutationId) => {
+            qc.invalidateQueries({ queryKey: mutationKey(mutationId) });
+        },
+    });
+}
+
+export function useDeleteGene() {
+    const qc = useQueryClient();
+    return useMutation({
+        mutationFn: ({ geneId }: { mutationId: number; geneId: number }) =>
+            api.delete<void>(`/genes/${geneId}`),
+        onSuccess: (_data, vars) => {
+            qc.invalidateQueries({ queryKey: mutationKey(vars.mutationId) });
         },
     });
 }

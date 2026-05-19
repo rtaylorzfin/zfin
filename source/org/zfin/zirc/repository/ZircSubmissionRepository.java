@@ -21,6 +21,8 @@ public interface ZircSubmissionRepository {
 
     org.zfin.zirc.entity.LinkedFeature getLinkedFeature(String submissionId, Long mutationAId, Long mutationBId);
 
+    org.zfin.zirc.entity.Gene getGene(Long geneId);
+
     Person getPerson(String personZdbID);
 
     Person getPersonReference(String personZdbID);

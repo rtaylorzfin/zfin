@@ -59,6 +59,22 @@ export interface MutationDTO {
     publications: string[];
     // Genotyping assays — summary rows only, surfaced as collapsed cards.
     assays: AssaySummaryDTO[];
+    // Per-mutation genes — full records (small enough that there's no
+    // separate summary type).
+    genes: GeneDTO[];
+}
+
+// One per-mutation gene record. mutatedGeneZdbID is the marker FK; the
+// abbreviation is denormalized for display.
+export interface GeneDTO {
+    id: number;
+    mutationId: number | null;
+    sortOrder: number;
+    mutatedGeneZdbID: string | null;
+    mutatedGeneAbbreviation: string | null;
+    linkageGroup: string | null;
+    genbankGenomicDna: string | null;
+    genbankCdna: string | null;
 }
 
 export interface AssaySummaryDTO {

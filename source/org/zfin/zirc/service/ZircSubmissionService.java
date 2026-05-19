@@ -12,10 +12,12 @@ import org.zfin.profile.service.ProfileService;
 import org.zfin.properties.ZfinPropertiesEnum;
 import org.zfin.zirc.api.ZircAssayFormSchema;
 import org.zfin.zirc.api.ZircFormSchema;
+import org.zfin.zirc.api.ZircGeneFormSchema;
 import org.zfin.zirc.api.ZircLinkedFeatureFormSchema;
 import org.zfin.zirc.api.ZircMutationFormSchema;
 import org.zfin.zirc.dto.FieldUpdate;
 import org.zfin.zirc.entity.AuditEntry;
+import org.zfin.zirc.entity.Gene;
 import org.zfin.zirc.entity.GenotypingAssay;
 import org.zfin.zirc.entity.GenotypingAssayFile;
 import org.zfin.zirc.entity.LineSubmission;
@@ -584,6 +586,76 @@ public class ZircSubmissionService {
                 "update", update.path(), oldValue, update.value());
         HibernateUtil.flushAndCommitCurrentSession();
         return lf;
+    }
+
+    // ─── Genes (M6.1) ───────────────────────────────────────────────────────
+
+    /** Hard cap to keep card list manageable; same as MAX_ASSAYS_PER_MUTATION. */
+    public static final int MAX_GENES_PER_MUTATION = 10;
+
+    public Gene getRequiredGeneById(Long geneId) {
+        Gene gene = repository.getGene(geneId);
+        if (gene == null) {
+            throw new ZircEntityNotFoundException("Gene " + geneId + " not found");
+        }
+        return gene;
+    }
+
+    public Mutation addGene(Long mutationId) {
+        Mutation mutation = getRequiredMutationById(mutationId);
+        int existing = mutation.getGenes() == null ? 0 : mutation.getGenes().size();
+        if (existing >= MAX_GENES_PER_MUTATION) {
+            throw new IllegalArgumentException(
+                    "Maximum " + MAX_GENES_PER_MUTATION + " genes per mutation.");
+        }
+        HibernateUtil.createTransaction();
+        Gene gene = new Gene();
+        gene.setMutation(mutation);
+        gene.setSortOrder(nextGeneSortOrder(mutation));
+        repository.save(gene);
+        mutation.getGenes().add(gene);
+        HibernateUtil.currentSession().flush();
+        writeAudit("mutation", String.valueOf(mutationId), "create-gene", null,
+                null, AUDIT_MAPPER.valueToTree(
+                        java.util.Map.of("geneId", gene.getId())));
+        HibernateUtil.flushAndCommitCurrentSession();
+        return mutation;
+    }
+
+    public void deleteGene(Long geneId) {
+        Gene gene = getRequiredGeneById(geneId);
+        Long mutationId = gene.getMutation() == null ? null : gene.getMutation().getId();
+        HibernateUtil.createTransaction();
+        repository.delete(gene);
+        writeAudit("mutation", mutationId == null ? "?" : String.valueOf(mutationId),
+                "delete-gene", null,
+                AUDIT_MAPPER.valueToTree(java.util.Map.of("geneId", geneId)),
+                null);
+        HibernateUtil.flushAndCommitCurrentSession();
+    }
+
+    public Gene updateGeneField(Long geneId, FieldUpdate update) {
+        Gene gene = getRequiredGeneById(geneId);
+        ZircGeneFormSchema.FieldDescriptor descriptor =
+                ZircGeneFormSchema.FIELDS.get(update.path());
+        if (descriptor == null) {
+            throw new IllegalArgumentException("Unknown gene field path: " + update.path());
+        }
+        JsonNode oldValue = descriptor.read().apply(gene);
+        HibernateUtil.createTransaction();
+        descriptor.write().accept(gene, update.value());
+        writeAudit("gene", String.valueOf(geneId), "update",
+                update.path(), oldValue, update.value());
+        HibernateUtil.flushAndCommitCurrentSession();
+        return gene;
+    }
+
+    private static int nextGeneSortOrder(Mutation mutation) {
+        return mutation.getGenes().stream()
+                .map(Gene::getSortOrder)
+                .filter(java.util.Objects::nonNull)
+                .max(Comparator.naturalOrder())
+                .orElse(0) + 1;
     }
 
     /** Throws if {@code mutationId} isn't a mutation on this submission. */

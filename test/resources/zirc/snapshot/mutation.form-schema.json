@@ -29,6 +29,28 @@
         "title" : "Genotyping Assays",
         "type" : "array"
       },
+      "genes" : {
+        "items" : {
+          "properties" : {
+            "id" : {
+              "type" : "number"
+            },
+            "mutatedGeneAbbreviation" : {
+              "type" : [ "string", "null" ]
+            },
+            "mutatedGeneZdbID" : {
+              "type" : [ "string", "null" ]
+            },
+            "sortOrder" : {
+              "type" : "number"
+            }
+          },
+          "type" : "object"
+        },
+        "maxItems" : 10,
+        "title" : "Genes",
+        "type" : "array"
+      },
       "homozygousLethal" : {
         "title" : "Homozygous Lethal",
         "type" : [ "boolean", "null" ]
@@ -260,6 +282,19 @@
         "type" : "Control"
       } ],
       "label" : "Genotyping Assays",
+      "options" : {
+        "layout" : "plain"
+      },
+      "type" : "Group"
+    }, {
+      "elements" : [ {
+        "options" : {
+          "widget" : "genesList"
+        },
+        "scope" : "#/properties/genes",
+        "type" : "Control"
+      } ],
+      "label" : "Genes",
       "options" : {
         "layout" : "plain"
       },

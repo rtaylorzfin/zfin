@@ -48,6 +48,7 @@ public class ZircOpenApiDriftTest {
             ZircMutationApiController.class,
             ZircAssayApiController.class,
             ZircAutocompleteApiController.class,
+            ZircGeneApiController.class,
             ZircOpenApiController.class);
 
     /** HTTP-method annotations Spring uses on handler methods. */

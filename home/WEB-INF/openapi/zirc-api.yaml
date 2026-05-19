@@ -27,6 +27,7 @@ tags:
   - name: assay
   - name: attachment
   - name: autocomplete
+  - name: gene
 
 paths:
   /form-schema:
@@ -220,6 +221,71 @@ paths:
           content:
             application/json:
               schema: { $ref: '#/components/schemas/MutationDTO' }
+        '404': { $ref: '#/components/responses/NotFound' }
+
+  /mutations/{mutationId}/genes:
+    parameters:
+      - $ref: '#/components/parameters/MutationId'
+    post:
+      tags: [gene]
+      summary: Add an empty per-mutation gene row.
+      responses:
+        '201':
+          description: Refreshed parent mutation (its genes list now contains the new row).
+          content:
+            application/json:
+              schema: { $ref: '#/components/schemas/MutationDTO' }
+        '400': { $ref: '#/components/responses/BadRequest' }
+        '404': { $ref: '#/components/responses/NotFound' }
+
+  /genes/form-schema:
+    get:
+      tags: [form-schema]
+      summary: JSON Schema + uiSchema for the per-gene edit form.
+      responses:
+        '200':
+          description: OK
+          content:
+            application/json:
+              schema: { $ref: '#/components/schemas/FormSchemaDTO' }
+
+  /genes/{geneId}:
+    parameters:
+      - name: geneId
+        in: path
+        required: true
+        schema: { type: integer, format: int64 }
+    get:
+      tags: [gene]
+      summary: Fetch a per-mutation gene by id.
+      responses:
+        '200':
+          description: OK
+          content:
+            application/json:
+              schema: { $ref: '#/components/schemas/GeneDTO' }
+        '404': { $ref: '#/components/responses/NotFound' }
+    patch:
+      tags: [gene]
+      summary: Apply a single field-path change to the gene.
+      requestBody:
+        required: true
+        content:
+          application/json:
+            schema: { $ref: '#/components/schemas/FieldUpdate' }
+      responses:
+        '200':
+          description: Updated gene.
+          content:
+            application/json:
+              schema: { $ref: '#/components/schemas/GeneDTO' }
+        '400': { $ref: '#/components/responses/BadRequest' }
+        '404': { $ref: '#/components/responses/NotFound' }
+    delete:
+      tags: [gene]
+      summary: Remove a per-mutation gene.
+      responses:
+        '204': { description: Deleted }
         '404': { $ref: '#/components/responses/NotFound' }
 
   /assays/form-schema:
@@ -571,6 +637,9 @@ components:
         assays:
           type: array
           items: { $ref: '#/components/schemas/AssaySummaryDTO' }
+        genes:
+          type: array
+          items: { $ref: '#/components/schemas/GeneDTO' }
 
     AssaySummaryDTO:
       type: object
@@ -579,6 +648,19 @@ components:
         id: { type: integer, format: int64 }
         sortOrder: { type: integer }
         assayType: { type: string, nullable: true }
+
+    GeneDTO:
+      type: object
+      description: Per-mutation gene record. mutatedGeneZdbID is a marker ZDB-ID; mutatedGeneAbbreviation is denormalized for display.
+      properties:
+        id: { type: integer, format: int64 }
+        mutationId: { type: integer, format: int64, nullable: true }
+        sortOrder: { type: integer }
+        mutatedGeneZdbID: { type: string, nullable: true }
+        mutatedGeneAbbreviation: { type: string, nullable: true }
+        linkageGroup: { type: string, nullable: true }
+        genbankGenomicDna: { type: string, nullable: true }
+        genbankCdna: { type: string, nullable: true }
 
     AssayDTO:
       type: object

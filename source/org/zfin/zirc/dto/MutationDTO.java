@@ -1,5 +1,6 @@
 package org.zfin.zirc.dto;
 
+import org.zfin.zirc.entity.Gene;
 import org.zfin.zirc.entity.GenotypingAssay;
 import org.zfin.zirc.entity.Mutation;
 
@@ -31,7 +32,10 @@ public record MutationDTO(
         List<String> publications,
         // Genotyping assays — summary rows only; full per-assay fields are
         // fetched separately when a card is expanded.
-        List<AssaySummaryDTO> assays) {
+        List<AssaySummaryDTO> assays,
+        // Per-mutation genes — full records (only ~5 fields, no point in
+        // a summary slice). Inline-expand card pattern same as assays.
+        List<GeneDTO> genes) {
 
     public static MutationDTO of(Mutation m) {
         List<AssaySummaryDTO> assays = m.getGenotypingAssays() == null ? List.of() :
@@ -40,6 +44,13 @@ public record MutationDTO(
                                 GenotypingAssay::getSortOrder,
                                 Comparator.nullsLast(Comparator.naturalOrder())))
                         .map(AssaySummaryDTO::of)
+                        .toList();
+        List<GeneDTO> genes = m.getGenes() == null ? List.of() :
+                m.getGenes().stream()
+                        .sorted(Comparator.comparing(
+                                Gene::getSortOrder,
+                                Comparator.nullsLast(Comparator.naturalOrder())))
+                        .map(GeneDTO::of)
                         .toList();
         return new MutationDTO(
                 m.getId(),
@@ -60,6 +71,7 @@ public record MutationDTO(
                 m.getLethalityWindowEnd(),
                 m.getLethalityAdditionalInfo(),
                 List.copyOf(m.getPublications() == null ? List.of() : m.getPublications()),
-                assays);
+                assays,
+                genes);
     }
 }
