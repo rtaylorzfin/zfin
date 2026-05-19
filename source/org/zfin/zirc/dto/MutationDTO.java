@@ -2,6 +2,7 @@ package org.zfin.zirc.dto;
 
 import org.zfin.zirc.entity.Gene;
 import org.zfin.zirc.entity.GenotypingAssay;
+import org.zfin.zirc.entity.Lesion;
 import org.zfin.zirc.entity.Mutation;
 
 import java.util.Comparator;
@@ -35,7 +36,10 @@ public record MutationDTO(
         List<AssaySummaryDTO> assays,
         // Per-mutation genes — full records (only ~5 fields, no point in
         // a summary slice). Inline-expand card pattern same as assays.
-        List<GeneDTO> genes) {
+        List<GeneDTO> genes,
+        // Per-mutation lesions — summary rows only; full per-lesion fields
+        // come from /api/zirc/lesions/{id} when a card expands.
+        List<LesionSummaryDTO> lesions) {
 
     public static MutationDTO of(Mutation m) {
         List<AssaySummaryDTO> assays = m.getGenotypingAssays() == null ? List.of() :
@@ -51,6 +55,13 @@ public record MutationDTO(
                                 Gene::getSortOrder,
                                 Comparator.nullsLast(Comparator.naturalOrder())))
                         .map(GeneDTO::of)
+                        .toList();
+        List<LesionSummaryDTO> lesions = m.getLesions() == null ? List.of() :
+                m.getLesions().stream()
+                        .sorted(Comparator.comparing(
+                                Lesion::getSortOrder,
+                                Comparator.nullsLast(Comparator.naturalOrder())))
+                        .map(LesionSummaryDTO::of)
                         .toList();
         return new MutationDTO(
                 m.getId(),
@@ -72,6 +83,7 @@ public record MutationDTO(
                 m.getLethalityAdditionalInfo(),
                 List.copyOf(m.getPublications() == null ? List.of() : m.getPublications()),
                 assays,
-                genes);
+                genes,
+                lesions);
     }
 }

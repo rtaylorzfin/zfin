@@ -62,6 +62,42 @@ export interface MutationDTO {
     // Per-mutation genes — full records (small enough that there's no
     // separate summary type).
     genes: GeneDTO[];
+    // Per-mutation lesions — summary rows only, surfaced as collapsed
+    // cards. Full per-lesion fields fetched via /api/zirc/lesions/{id}.
+    lesions: LesionSummaryDTO[];
+}
+
+export interface LesionSummaryDTO {
+    id: number;
+    sortOrder: number;
+    lesionType: string | null;
+}
+
+// Full per-lesion payload. Field visibility is decided by the uiSchema
+// rules on lesionType, not by which fields are populated.
+export interface LesionDTO {
+    id: number;
+    mutationId: number | null;
+    sortOrder: number;
+    lesionType: string | null;
+    // Sizing
+    lesionSizeBp: number | null;
+    insertionSizeBp: number | null;
+    // Sequence specifics
+    nucleotideChange: string | null;
+    deletedSequence: string | null;
+    insertedSequence: string | null;
+    transgeneSequence: string | null;
+    // Location
+    locationInline: string | null;
+    fivePrimeFlank: string | null;
+    threePrimeFlank: string | null;
+    hasLargeVariant: boolean | null;
+    // Protein-level
+    mutatedAminoAcids: string | null;
+    mutatedAminoAcidsHgvs: string | null;
+    // Catch-all
+    additionalInfo: string | null;
 }
 
 // One per-mutation gene record. mutatedGeneZdbID is the marker FK; the

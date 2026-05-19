@@ -6,6 +6,7 @@ import org.zfin.profile.Person;
 import org.zfin.zirc.entity.Gene;
 import org.zfin.zirc.entity.GenotypingAssay;
 import org.zfin.zirc.entity.GenotypingAssayFile;
+import org.zfin.zirc.entity.Lesion;
 import org.zfin.zirc.entity.LineSubmission;
 import org.zfin.zirc.entity.LinkedFeature;
 import org.zfin.zirc.entity.LinkedFeatureId;
@@ -52,6 +53,11 @@ public class HibernateZircSubmissionRepository implements ZircSubmissionReposito
     @Override
     public Gene getGene(Long geneId) {
         return HibernateUtil.currentSession().get(Gene.class, geneId);
+    }
+
+    @Override
+    public Lesion getLesion(Long lesionId) {
+        return HibernateUtil.currentSession().get(Lesion.class, lesionId);
     }
 
     @Override

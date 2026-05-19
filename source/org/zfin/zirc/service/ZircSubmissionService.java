@@ -13,6 +13,7 @@ import org.zfin.properties.ZfinPropertiesEnum;
 import org.zfin.zirc.api.ZircAssayFormSchema;
 import org.zfin.zirc.api.ZircFormSchema;
 import org.zfin.zirc.api.ZircGeneFormSchema;
+import org.zfin.zirc.api.ZircLesionFormSchema;
 import org.zfin.zirc.api.ZircLinkedFeatureFormSchema;
 import org.zfin.zirc.api.ZircMutationFormSchema;
 import org.zfin.zirc.dto.FieldUpdate;
@@ -20,6 +21,7 @@ import org.zfin.zirc.entity.AuditEntry;
 import org.zfin.zirc.entity.Gene;
 import org.zfin.zirc.entity.GenotypingAssay;
 import org.zfin.zirc.entity.GenotypingAssayFile;
+import org.zfin.zirc.entity.Lesion;
 import org.zfin.zirc.entity.LineSubmission;
 import org.zfin.zirc.entity.LineSubmissionPerson;
 import org.zfin.zirc.entity.LinkedFeature;
@@ -653,6 +655,76 @@ public class ZircSubmissionService {
     private static int nextGeneSortOrder(Mutation mutation) {
         return mutation.getGenes().stream()
                 .map(Gene::getSortOrder)
+                .filter(java.util.Objects::nonNull)
+                .max(Comparator.naturalOrder())
+                .orElse(0) + 1;
+    }
+
+    // ─── Lesions (M7.1) ─────────────────────────────────────────────────────
+
+    /** Hard cap on lesions per mutation; same shape as MAX_GENES_PER_MUTATION. */
+    public static final int MAX_LESIONS_PER_MUTATION = 10;
+
+    public Lesion getRequiredLesionById(Long lesionId) {
+        Lesion lesion = repository.getLesion(lesionId);
+        if (lesion == null) {
+            throw new ZircEntityNotFoundException("Lesion " + lesionId + " not found");
+        }
+        return lesion;
+    }
+
+    public Mutation addLesion(Long mutationId) {
+        Mutation mutation = getRequiredMutationById(mutationId);
+        int existing = mutation.getLesions() == null ? 0 : mutation.getLesions().size();
+        if (existing >= MAX_LESIONS_PER_MUTATION) {
+            throw new IllegalArgumentException(
+                    "Maximum " + MAX_LESIONS_PER_MUTATION + " lesions per mutation.");
+        }
+        HibernateUtil.createTransaction();
+        Lesion lesion = new Lesion();
+        lesion.setMutation(mutation);
+        lesion.setSortOrder(nextLesionSortOrder(mutation));
+        repository.save(lesion);
+        mutation.getLesions().add(lesion);
+        HibernateUtil.currentSession().flush();
+        writeAudit("mutation", String.valueOf(mutationId), "create-lesion", null,
+                null, AUDIT_MAPPER.valueToTree(
+                        java.util.Map.of("lesionId", lesion.getId())));
+        HibernateUtil.flushAndCommitCurrentSession();
+        return mutation;
+    }
+
+    public void deleteLesion(Long lesionId) {
+        Lesion lesion = getRequiredLesionById(lesionId);
+        Long mutationId = lesion.getMutation() == null ? null : lesion.getMutation().getId();
+        HibernateUtil.createTransaction();
+        repository.delete(lesion);
+        writeAudit("mutation", mutationId == null ? "?" : String.valueOf(mutationId),
+                "delete-lesion", null,
+                AUDIT_MAPPER.valueToTree(java.util.Map.of("lesionId", lesionId)),
+                null);
+        HibernateUtil.flushAndCommitCurrentSession();
+    }
+
+    public Lesion updateLesionField(Long lesionId, FieldUpdate update) {
+        Lesion lesion = getRequiredLesionById(lesionId);
+        ZircLesionFormSchema.FieldDescriptor descriptor =
+                ZircLesionFormSchema.FIELDS.get(update.path());
+        if (descriptor == null) {
+            throw new IllegalArgumentException("Unknown lesion field path: " + update.path());
+        }
+        JsonNode oldValue = descriptor.read().apply(lesion);
+        HibernateUtil.createTransaction();
+        descriptor.write().accept(lesion, update.value());
+        writeAudit("lesion", String.valueOf(lesionId), "update",
+                update.path(), oldValue, update.value());
+        HibernateUtil.flushAndCommitCurrentSession();
+        return lesion;
+    }
+
+    private static int nextLesionSortOrder(Mutation mutation) {
+        return mutation.getLesions().stream()
+                .map(Lesion::getSortOrder)
                 .filter(java.util.Objects::nonNull)
                 .max(Comparator.naturalOrder())
                 .orElse(0) + 1;

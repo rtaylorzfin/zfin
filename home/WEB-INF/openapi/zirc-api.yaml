@@ -28,6 +28,7 @@ tags:
   - name: attachment
   - name: autocomplete
   - name: gene
+  - name: lesion
 
 paths:
   /form-schema:
@@ -284,6 +285,71 @@ paths:
     delete:
       tags: [gene]
       summary: Remove a per-mutation gene.
+      responses:
+        '204': { description: Deleted }
+        '404': { $ref: '#/components/responses/NotFound' }
+
+  /mutations/{mutationId}/lesions:
+    parameters:
+      - $ref: '#/components/parameters/MutationId'
+    post:
+      tags: [lesion]
+      summary: Add an empty per-mutation lesion row.
+      responses:
+        '201':
+          description: Refreshed parent mutation (its lesions list now contains the new row).
+          content:
+            application/json:
+              schema: { $ref: '#/components/schemas/MutationDTO' }
+        '400': { $ref: '#/components/responses/BadRequest' }
+        '404': { $ref: '#/components/responses/NotFound' }
+
+  /lesions/form-schema:
+    get:
+      tags: [form-schema]
+      summary: JSON Schema + uiSchema for the per-lesion edit form (drives the lesion-type field matrix).
+      responses:
+        '200':
+          description: OK
+          content:
+            application/json:
+              schema: { $ref: '#/components/schemas/FormSchemaDTO' }
+
+  /lesions/{lesionId}:
+    parameters:
+      - name: lesionId
+        in: path
+        required: true
+        schema: { type: integer, format: int64 }
+    get:
+      tags: [lesion]
+      summary: Fetch a per-mutation lesion by id (returns every column; visibility is decided by the uiSchema rules).
+      responses:
+        '200':
+          description: OK
+          content:
+            application/json:
+              schema: { $ref: '#/components/schemas/LesionDTO' }
+        '404': { $ref: '#/components/responses/NotFound' }
+    patch:
+      tags: [lesion]
+      summary: Apply a single field-path change to the lesion.
+      requestBody:
+        required: true
+        content:
+          application/json:
+            schema: { $ref: '#/components/schemas/FieldUpdate' }
+      responses:
+        '200':
+          description: Updated lesion.
+          content:
+            application/json:
+              schema: { $ref: '#/components/schemas/LesionDTO' }
+        '400': { $ref: '#/components/responses/BadRequest' }
+        '404': { $ref: '#/components/responses/NotFound' }
+    delete:
+      tags: [lesion]
+      summary: Remove a per-mutation lesion.
       responses:
         '204': { description: Deleted }
         '404': { $ref: '#/components/responses/NotFound' }
@@ -640,6 +706,9 @@ components:
         genes:
           type: array
           items: { $ref: '#/components/schemas/GeneDTO' }
+        lesions:
+          type: array
+          items: { $ref: '#/components/schemas/LesionSummaryDTO' }
 
     AssaySummaryDTO:
       type: object
@@ -661,6 +730,36 @@ components:
         linkageGroup: { type: string, nullable: true }
         genbankGenomicDna: { type: string, nullable: true }
         genbankCdna: { type: string, nullable: true }
+
+    LesionSummaryDTO:
+      type: object
+      description: Compact row used inside MutationDTO.lesions; full fields fetched separately via /lesions/{id}.
+      properties:
+        id: { type: integer, format: int64 }
+        sortOrder: { type: integer }
+        lesionType: { type: string, nullable: true }
+
+    LesionDTO:
+      type: object
+      description: Every column for one per-mutation lesion. Which fields are *visible* in the form depends on the uiSchema rules keyed on `lesionType` — persistence ignores those rules.
+      properties:
+        id: { type: integer, format: int64 }
+        mutationId: { type: integer, format: int64, nullable: true }
+        sortOrder: { type: integer }
+        lesionType: { type: string, nullable: true }
+        lesionSizeBp: { type: integer, nullable: true }
+        insertionSizeBp: { type: integer, nullable: true }
+        nucleotideChange: { type: string, nullable: true }
+        deletedSequence: { type: string, nullable: true }
+        insertedSequence: { type: string, nullable: true }
+        transgeneSequence: { type: string, nullable: true }
+        locationInline: { type: string, nullable: true }
+        fivePrimeFlank: { type: string, nullable: true }
+        threePrimeFlank: { type: string, nullable: true }
+        hasLargeVariant: { type: boolean, nullable: true }
+        mutatedAminoAcids: { type: string, nullable: true }
+        mutatedAminoAcidsHgvs: { type: string, nullable: true }
+        additionalInfo: { type: string, nullable: true }
 
     AssayDTO:
       type: object

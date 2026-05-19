@@ -86,6 +86,9 @@ public final class ZircMutationFormSchema {
         // Genes — per-mutation gene records. Same external-managed
         // pattern as assays; MutationEdit must skip /genes in its diff.
         properties.put("genes",                      genesArrayProp());
+        // Lesions — same shape as assays/genes, with a lesion-type
+        // matrix that drives conditional reveal on the per-lesion form.
+        properties.put("lesions",                    lesionsSummaryArrayProp());
         return ObjectSchema.of(properties);
     }
 
@@ -153,6 +156,13 @@ public final class ZircMutationFormSchema {
                 new Group("Genes",
                         List.of(new Control("#/properties/genes",
                                 Options.of().widget("genesList"), null)),
+                        Options.of().layout("plain"),
+                        null),
+                // Lesions: same inline-expand pattern; the per-lesion
+                // form has the lesion-type matrix.
+                new Group("Lesions",
+                        List.of(new Control("#/properties/lesions",
+                                Options.of().widget("lesionsList"), null)),
                         Options.of().layout("plain"),
                         null)
         ));
@@ -245,6 +255,20 @@ public final class ZircMutationFormSchema {
         itemProps.put("mutatedGeneZdbID",        StringSchema.nullable());
         itemProps.put("mutatedGeneAbbreviation", StringSchema.nullable());
         return new ArraySchema("Genes", ObjectSchema.of(itemProps),
+                10, null);
+    }
+
+    /**
+     * Mirror of {@link org.zfin.zirc.dto.LesionSummaryDTO}; the
+     * LesionsListRenderer card header reads {@code lesionType} (which
+     * doubles as the discriminator on the inline-expanded form).
+     */
+    private static ArraySchema lesionsSummaryArrayProp() {
+        Map<String, JsonSchema> itemProps = new LinkedHashMap<>();
+        itemProps.put("id",         NumberSchema.of());
+        itemProps.put("sortOrder",  NumberSchema.of());
+        itemProps.put("lesionType", StringSchema.nullable());
+        return new ArraySchema("Lesions", ObjectSchema.of(itemProps),
                 10, null);
     }
 

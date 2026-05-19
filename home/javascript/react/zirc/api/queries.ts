@@ -1,7 +1,7 @@
 import * as React from 'react';
 import { useMutation, useQuery, useQueryClient } from '@tanstack/react-query';
 import { api } from './client';
-import { AssayDTO, AutocompleteItemDTO, GeneDTO, LineSubmissionDTO, LinkedFeatureDTO, MutationDTO } from './types';
+import { AssayDTO, AutocompleteItemDTO, GeneDTO, LesionDTO, LineSubmissionDTO, LinkedFeatureDTO, MutationDTO } from './types';
 
 export const lineSubmissionKey = (id: string) => ['zirc', 'lineSubmission', id] as const;
 
@@ -189,6 +189,40 @@ export function useDeleteGene() {
     return useMutation({
         mutationFn: ({ geneId }: { mutationId: number; geneId: number }) =>
             api.delete<void>(`/genes/${geneId}`),
+        onSuccess: (_data, vars) => {
+            qc.invalidateQueries({ queryKey: mutationKey(vars.mutationId) });
+        },
+    });
+}
+
+// ─── Lesions (M7.1) ─────────────────────────────────────────────────────────
+
+export const lesionKey = (id: number) => ['zirc', 'lesion', id] as const;
+
+export function useLesionById(id: number | null) {
+    return useQuery({
+        queryKey: lesionKey(id ?? 0),
+        queryFn: () => api.get<LesionDTO>(`/lesions/${id}`),
+        enabled: !!id,
+    });
+}
+
+export function useAddLesion() {
+    const qc = useQueryClient();
+    return useMutation({
+        mutationFn: (mutationId: number) =>
+            api.post<MutationDTO>(`/mutations/${mutationId}/lesions`),
+        onSuccess: (_data, mutationId) => {
+            qc.invalidateQueries({ queryKey: mutationKey(mutationId) });
+        },
+    });
+}
+
+export function useDeleteLesion() {
+    const qc = useQueryClient();
+    return useMutation({
+        mutationFn: ({ lesionId }: { mutationId: number; lesionId: number }) =>
+            api.delete<void>(`/lesions/${lesionId}`),
         onSuccess: (_data, vars) => {
             qc.invalidateQueries({ queryKey: mutationKey(vars.mutationId) });
         },

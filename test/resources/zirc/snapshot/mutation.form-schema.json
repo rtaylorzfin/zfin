@@ -55,6 +55,25 @@
         "title" : "Homozygous Lethal",
         "type" : [ "boolean", "null" ]
       },
+      "lesions" : {
+        "items" : {
+          "properties" : {
+            "id" : {
+              "type" : "number"
+            },
+            "lesionType" : {
+              "type" : [ "string", "null" ]
+            },
+            "sortOrder" : {
+              "type" : "number"
+            }
+          },
+          "type" : "object"
+        },
+        "maxItems" : 10,
+        "title" : "Lesions",
+        "type" : "array"
+      },
       "lethalityAdditionalInfo" : {
         "maxLength" : 5000,
         "title" : "Lethality Additional Info",
@@ -295,6 +314,19 @@
         "type" : "Control"
       } ],
       "label" : "Genes",
+      "options" : {
+        "layout" : "plain"
+      },
+      "type" : "Group"
+    }, {
+      "elements" : [ {
+        "options" : {
+          "widget" : "lesionsList"
+        },
+        "scope" : "#/properties/lesions",
+        "type" : "Control"
+      } ],
+      "label" : "Lesions",
       "options" : {
         "layout" : "plain"
       },

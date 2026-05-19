@@ -23,6 +23,8 @@ public interface ZircSubmissionRepository {
 
     org.zfin.zirc.entity.Gene getGene(Long geneId);
 
+    org.zfin.zirc.entity.Lesion getLesion(Long lesionId);
+
     Person getPerson(String personZdbID);
 
     Person getPersonReference(String personZdbID);
