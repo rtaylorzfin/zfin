@@ -18,32 +18,45 @@ renders the form. Writes are **per-field**: the client emits one PATCH
 per leaf change with a JSON Pointer path and value. The server looks
 the path up in a `FieldDescriptor` map, captures the old value, applies
 the new value, writes one audit row, and commits — all inside the same
-Hibernate transaction. Three aggregates each get their own flat-path
-namespace (submission, mutation, assay), which sidesteps the need for
-a JSON Pointer array-index resolver.
+Hibernate transaction. Each aggregate gets its own flat-path namespace
+(submission, mutation, assay, gene, lesion, phenotype, linked-feature),
+which sidesteps the need for a JSON Pointer array-index resolver.
 
 ---
 
 ## 2. Aggregates
 
-| Aggregate          | DB table                 | Form schema                                   | PATCH endpoint                                 |
-|--------------------|--------------------------|-----------------------------------------------|------------------------------------------------|
-| `LineSubmission`   | `zirc.line_submission`   | `GET /api/zirc/form-schema`                   | `PATCH /api/zirc/line-submissions/{zdbID}`     |
-| `Mutation`         | `zirc.mutation`          | `GET /api/zirc/mutations/form-schema`         | `PATCH /api/zirc/mutations/{mutationId}`       |
-| `GenotypingAssay`  | `zirc.genotyping_assay`  | `GET /api/zirc/assays/form-schema`            | `PATCH /api/zirc/assays/{assayId}`             |
+| Aggregate          | DB table                 | Form schema                                   | PATCH endpoint                                                          |
+|--------------------|--------------------------|-----------------------------------------------|-------------------------------------------------------------------------|
+| `LineSubmission`   | `zirc.line_submission`   | `GET /api/zirc/form-schema`                   | `PATCH /api/zirc/line-submissions/{zdbID}`                              |
+| `Mutation`         | `zirc.mutation`          | `GET /api/zirc/mutations/form-schema`         | `PATCH /api/zirc/mutations/{mutationId}`                                |
+| `GenotypingAssay`  | `zirc.genotyping_assay`  | `GET /api/zirc/assays/form-schema`            | `PATCH /api/zirc/assays/{assayId}`                                      |
+| `Gene`             | `zirc.gene`              | `GET /api/zirc/genes/form-schema`             | `PATCH /api/zirc/genes/{geneId}`                                        |
+| `Lesion`           | `zirc.lesion`            | `GET /api/zirc/lesions/form-schema`           | `PATCH /api/zirc/lesions/{lesionId}`                                    |
+| `Phenotype`        | `zirc.phenotype`         | `GET /api/zirc/phenotypes/form-schema`        | `PATCH /api/zirc/phenotypes/{phenotypeId}`                              |
+| `LinkedFeature`    | `zirc.linked_feature`    | (no per-row form-schema — inline edit)        | `PATCH /api/zirc/line-submissions/{zdbID}/linked-features/{aId}/{bId}`  |
 
 Each aggregate has:
 
 - An **entity class** in `source/org/zfin/zirc/entity/`
-- A **response DTO record** in `source/org/zfin/zirc/dto/` (e.g. `MutationDTO.of(entity)`)
-- A **form schema class** in `source/org/zfin/zirc/api/` (`ZircFormSchema`, `ZircMutationFormSchema`, `ZircAssayFormSchema`) holding `schema()`, `uiSchema()`, and `FIELDS`
+- A **DTO record** in `source/org/zfin/zirc/dto/` (e.g. `MutationDTO.of(entity)`)
+- A **form schema class** in `source/org/zfin/zirc/api/` (`ZircFormSchema`,
+  `ZircMutationFormSchema`, `ZircAssayFormSchema`, `ZircGeneFormSchema`,
+  `ZircLesionFormSchema`, `ZircPhenotypeFormSchema`, `ZircLinkedFeatureFormSchema`)
+  holding `schema()`, `uiSchema()`, and `FIELDS`
 - A **controller** with GET / GET form-schema / PATCH / (optionally) child-row endpoints
 
 Child aggregates appear as **summary lists** inside the parent's
-response (`MutationDTO.assays`, `LineSubmissionDTO.mutations`,
-`AssayDTO.attachments`). The summary carries enough for the
-parent UI to render a card; the full record is fetched separately when
-that child is being edited.
+response (`MutationDTO.assays`, `MutationDTO.genes`, `MutationDTO.lesions`,
+`MutationDTO.phenotypes`, `LineSubmissionDTO.mutations`,
+`LineSubmissionDTO.linkedFeatures`, `AssayDTO.attachments`). The
+summary carries enough for the parent UI to render a card; the full
+record is fetched separately when that child is being edited.
+
+`LinkedFeature` is the outlier — it sits on the submission (not a
+mutation) and uses a composite PK `(submissionId, mutationAId,
+mutationBId)`. The URL pins the pair as path segments; audit
+`entity_id` flattens them as `"{submissionId}:{aId}:{bId}"`.
 
 ---
 
@@ -84,7 +97,7 @@ This one map gives us four things at once:
 1. **Authorization gate** — unknown paths are rejected at the controller. Clients can't write columns the form doesn't expose.
 2. **Audit log capture** — the same descriptor's `read()` produces the pre-update value, so `old`/`new` round-trip through Jackson consistently.
 3. **Persistence** — `write()` applies typed coercion (trim, null-on-blank, etc.) before Hibernate sees the entity.
-4. **Schema generation reference** — the `FIELDS` keys are the legal paths; if a uiSchema Control references a scope that isn't in `FIELDS`, the client's PATCH will 400 at runtime (we have a drift test for the public API shape but not for this internal cross-check; see "Gotchas").
+4. **Schema generation reference** — the `FIELDS` keys are the legal paths; if a uiSchema Control references a scope that isn't in `FIELDS`, the client's PATCH will 400 at runtime. The `FormSchemaSnapshotTest` locks down the serialized form-schema for submission / mutation / assay / gene / lesion / phenotype — drift trips the test before reaching the client.
 
 **Rule**: if you add a column to an entity that should be editable, you add a `FIELDS` entry, a `schema()` property, and a uiSchema Control. Forgetting any one is the most common bug pattern.
 
@@ -94,40 +107,49 @@ This one map gives us four things at once:
 
 JSON Schema (`schema()`) describes **shape and constraints**. JSON
 Forms uiSchema (`uiSchema()`) describes **layout and per-control
-rendering hints**. Both are emitted as `Map<String, Object>` from Java
-and serialized to JSON by Jackson.
+rendering hints**. Both are emitted as **typed records** from Java and
+serialized to JSON by Jackson. JSON Schema records live under
+`org.zfin.zirc.api.jsonschema` (`ObjectSchema`, `StringSchema`,
+`BooleanSchema`, `NumberSchema`, `ArraySchema`, `ConstSchema`); uiSchema
+records live under `org.zfin.zirc.api.uischema` (`VerticalLayout`,
+`Group`, `Control`, `Options`, `Rule`). The `type` discriminator is
+emitted via a `@JsonProperty("type")` accessor on each record so
+Jackson's `SORT_PROPERTIES_ALPHABETICALLY` keeps the snapshot stable.
 
 ```java
-public static Map<String, Object> schema() {
-    Map<String, Object> properties = new LinkedHashMap<>();
-    properties.put("alleleDesignation", stringProp(255, "Allele Designation"));
-    properties.put("homozygousLethal",  nullableBoolProp("Homozygous Lethal"));
+public static JsonSchema schema() {
+    Map<String, JsonSchema> properties = new LinkedHashMap<>();
+    properties.put("alleleDesignation", StringSchema.of("Allele Designation", 255));
+    properties.put("homozygousLethal",  BooleanSchema.nullable("Homozygous Lethal"));
     ...
-    return Map.of("type", "object", "properties", properties);
+    return ObjectSchema.of(properties);
 }
 
-public static Map<String, Object> uiSchema() {
-    return verticalLayout(List.of(
-        group("General", List.of(
-            control("#/properties/alleleDesignation"),
-            controlWithOptions("#/properties/homozygousLethal",
-                    Map.of("widget", "yesNoRadio"))
+public static UiSchemaElement uiSchema() {
+    Rule showWhenLethal = Rule.showWhenTrue("#/properties/homozygousLethal");
+    return new VerticalLayout(List.of(
+        Group.of("General", List.of(
+            Control.of("#/properties/alleleDesignation"),
+            new Control("#/properties/homozygousLethal",
+                    Options.of().widget("yesNoRadio"), null)
         )),
-        group("Lethality", List.of(
-            controlWithRule("#/properties/lethalityStageTypical",
-                    Map.of("widget", "selectWithOther",
-                           "standardValues", LETHALITY_STAGES),
+        Group.of("Lethality", List.of(
+            new Control("#/properties/lethalityStageTypical",
+                    Options.of().widget("selectWithOther").standardValues(LETHALITY_STAGES),
                     showWhenLethal)
         ))
     ));
 }
 ```
 
-Use the builder helpers (`control`, `controlWithOptions`,
-`controlWithRule`, `group`, `groupWithRule`, `verticalLayout`,
-`stringProp`, `nullableBoolProp`, `stringListProp`) rather than
-hand-rolling maps. They've been refined to handle the corner cases
-(boolean-or-null type, options-only-if-non-empty, etc.).
+Use the static factories (`StringSchema.of`, `BooleanSchema.nullable`,
+`NumberSchema.of`, `ArraySchema.of`, `ObjectSchema.of`, `Group.of`,
+`Control.of`, `Options.of`, `Rule.showWhenTrue`, `Rule.showWhenIn`)
+for the common shapes; reach for the canonical constructors only when
+you need to set fields the factories don't cover. Records that
+combine multiple fluent options (`Options.of().widget(...).placeholder(...).helpText(...)`)
+read top-to-bottom and serialize to the same JSON shape the older
+Map-based builders did.
 
 ---
 
@@ -159,32 +181,29 @@ are for how the form looks. Keep them on the right side of the line.
 ## 6. Conditional reveal
 
 JSON Forms' `rule` blocks on uiSchema elements gate visibility on the
-form's current data. Two patterns we use:
+form's current data. The typed `Rule` record exposes two factories:
 
 **Boolean reveal** — show fields only when a flag is true:
 
 ```java
-Map<String, Object> showWhenLethal = Map.of(
-    "effect", "SHOW",
-    "condition", Map.of(
-        "scope",  "#/properties/homozygousLethal",
-        "schema", Map.of("const", true)));
+Rule showWhenLethal = Rule.showWhenTrue("#/properties/homozygousLethal");
 ```
 
 **Enum-membership reveal** — show a group when a discriminator is one of N values:
 
 ```java
-Map<String, Object> showFor = Map.of(
-    "effect", "SHOW",
-    "condition", Map.of(
-        "scope",  "#/properties/assayType",
-        "schema", Map.of("enum", List.of("PCR", "RFLP", "dCAPS"))));
+Rule showForPcrTypes = Rule.showWhenIn(
+        "#/properties/assayType",
+        List.of("PCR", "RFLP", "dCAPS"));
 ```
 
-The assay-type field matrix is just N enum-membership rules — one per
-field cluster. Authoring the inverse (type → [field-list]) is fine in
-Java if it reads better; transpose to per-field rules at uiSchema
-build time.
+The assay-type and lesion-type field matrices are just N
+enum-membership rules — one per field cluster. The local
+`groupRevealedFor(label, types, elements)` helper on
+`ZircAssayFormSchema` / `ZircLesionFormSchema` wraps the pattern;
+authoring the inverse (type → [field-list]) is fine in Java if it
+reads better, and the helper transposes it to per-field rules at
+uiSchema build time.
 
 **Important**: Controls inherit rule-driven `visible` automatically
 through `withJsonFormsControlProps`. Layout renderers
@@ -203,13 +222,13 @@ attachments per assay) ride on standard JSON Schema `maxItems` in the
 array property:
 
 ```java
-private static Map<String, Object> mutationsSummaryArrayProp() {
-    Map<String, Object> arr = new LinkedHashMap<>();
-    arr.put("type", "array");
-    arr.put("title", "Mutations");
-    arr.put("items", item);
-    arr.put("maxItems", 5);
-    return arr;
+private static ArraySchema mutationsSummaryArrayProp() {
+    Map<String, JsonSchema> itemProps = new LinkedHashMap<>();
+    itemProps.put("id",        NumberSchema.of());
+    itemProps.put("sortOrder", NumberSchema.of());
+    itemProps.put("alleleDesignation", StringSchema.nullable());
+    return new ArraySchema("Mutations", ObjectSchema.of(itemProps),
+            MAX_MUTATIONS_PER_SUBMISSION, null);
 }
 ```
 
@@ -279,8 +298,9 @@ column on every commit; with `@DynamicUpdate` it UPDATEs only the
 modified columns. Without this, two near-simultaneous PATCHes against
 different fields of the same row would clobber each other.
 
-**Required on**: `LineSubmission`, `Mutation`, `GenotypingAssay`.
-Forgetting it on a new entity silently re-introduces lost updates.
+**Required on**: `LineSubmission`, `Mutation`, `GenotypingAssay`,
+`Gene`, `Lesion`, `Phenotype`, `LinkedFeature`. Forgetting it on a new
+entity silently re-introduces lost updates.
 
 **At the client**: no save queue today. The autosave fires PATCHes
 serially within one debounce window. Across debounce windows there's
@@ -297,8 +317,8 @@ Every user-driven change writes one row to `zirc.audit`:
 CREATE TABLE zirc.audit (
     ae_id          BIGINT GENERATED BY DEFAULT AS IDENTITY PRIMARY KEY,
     ae_actor       TEXT NOT NULL,
-    ae_entity_kind TEXT NOT NULL,    -- submission|mutation|assay
-    ae_entity_id   TEXT NOT NULL,
+    ae_entity_kind TEXT NOT NULL,    -- submission|mutation|assay|gene|lesion|phenotype|linked-feature
+    ae_entity_id   TEXT NOT NULL,    -- entity id; "{sub}:{aId}:{bId}" for linked-feature
     ae_action      TEXT NOT NULL,    -- update|create-*|delete-*|upload|delete-file
     ae_path        TEXT,             -- JSON pointer for update; NULL for whole-row events
     ae_old_value   JSONB,
@@ -321,13 +341,18 @@ so existing log-grepping tooling still works.
 Children are edited **inline**, not by navigating to a separate page:
 
 - The submission edit page has a "Mutations" section. Each mutation is a card with an Edit button that opens a separate `/zirc/mutation/{id}/edit` page (the one exception — the mutation deserved its own route given the volume of fields).
-- The mutation edit page has a "Genotyping Assays" section. Each assay is a card that **expands inline** to mount a per-assay schema-driven editor.
+- The submission edit page also has a "Linked Features" section — pairwise links between mutations, edited inline via a row-level renderer that PATCHes the composite-PK URL.
+- The mutation edit page has four child sections: **Genotyping Assays**, **Genes**, **Lesions**, **Phenotypes**. Each row is a card that **expands inline** to mount a per-aggregate schema-driven editor (`AssayEdit`, `GeneEdit`, `LesionEdit`, `PhenotypeEdit`).
 - Each expanded card's editor PATCHes its own aggregate's endpoint with flat paths. No array-index path resolver is needed because each card runs its own form scope.
 
-The parent form's autosave diff filters out the child-list path
-(`/mutations`, `/assays`, `/attachments`) via
-`EXTERNALLY_MANAGED_PATHS` so Add/Delete (which use dedicated
-POST/DELETE endpoints) don't get spuriously PATCHed.
+The parent form's autosave diff filters out child-list paths
+(`/mutations`, `/linkedFeatures`, `/assays`, `/genes`, `/lesions`,
+`/phenotypes`, `/attachments`) via `EXTERNALLY_MANAGED_PATHS` so
+Add/Delete (which use dedicated POST/DELETE endpoints) don't get
+spuriously PATCHed. React Query refetches are then mirrored back
+into local form state via per-list `JSON.stringify(...)`-keyed
+effects, so the list renderers see the post-Add/Delete updates
+without triggering autosave.
 
 ---
 
@@ -377,13 +402,20 @@ got wrong.
 ```
 source/org/zfin/zirc/
 ├── entity/             Hibernate entities (Lombok @Getter @Setter, @DynamicUpdate)
-├── dto/                Response records: AssayDTO, MutationDTO, ...
+├── dto/                DTO records: AssayDTO, MutationDTO, GeneDTO, LesionDTO, PhenotypeDTO, …
 ├── repository/         ZircSubmissionRepository + Hibernate impl
 ├── service/            ZircSubmissionService (the only mutator)
 └── api/                Form schemas + controllers + exception advice
+    ├── jsonschema/                   — typed JSON Schema records (ObjectSchema, StringSchema, …)
+    ├── uischema/                     — typed uiSchema records (VerticalLayout, Group, Control, Options, Rule)
     ├── ZircFormSchema.java           — submission form: schema + uiSchema + FIELDS
     ├── ZircMutationFormSchema.java   — mutation form
-    ├── ZircAssayFormSchema.java      — per-assay form (with type-matrix rules)
+    ├── ZircAssayFormSchema.java      — per-assay form (with assay-type matrix rules)
+    ├── ZircGeneFormSchema.java       — per-gene form (marker autocomplete)
+    ├── ZircLesionFormSchema.java     — per-lesion form (lesion-type matrix rules)
+    ├── ZircPhenotypeFormSchema.java  — per-phenotype form (hpf/dpf timing widget)
+    ├── ZircLinkedFeatureFormSchema.java — per-linkage form (composite PK)
+    ├── ZircAutocompleteApiController.java — markers / features / persons type-ahead
     ├── Zirc*ApiController.java       — Spring MVC controllers
     ├── ZircApiExceptionHandler.java  — RFC 7807 advice
     └── ZircOpenApiController.java    — /openapi.yaml + /docs + vendored UI
@@ -391,8 +423,11 @@ source/org/zfin/zirc/
 home/javascript/react/zirc/
 ├── api/                              client + types + React Query hooks
 ├── pages/                            top-level page components
-│   ├── MutationEdit.tsx
-│   └── AssayEdit.tsx
+│   ├── MutationEdit.tsx              — mutation page (mounts 4 inline-expand child sections)
+│   ├── AssayEdit.tsx                 — inline per-assay editor
+│   ├── GeneEdit.tsx                  — inline per-gene editor
+│   ├── LesionEdit.tsx                — inline per-lesion editor
+│   └── PhenotypeEdit.tsx             — inline per-phenotype editor
 ├── components/                       small reusable bits
 │   └── SaveStatusBadge.tsx           floating bottom-right toast
 └── schemaForm/                       JSON Forms wrapper + renderers
@@ -400,6 +435,13 @@ home/javascript/react/zirc/
     └── renderers/                    custom Control + Layout renderers
         ├── SectionRenderer.tsx       Group → <section class="section">
         ├── RowControlRenderer.tsx    Control → table row in default layout
+        ├── AssaysListRenderer.tsx    — server-managed inline-expand list (assays)
+        ├── GenesListRenderer.tsx     — server-managed inline-expand list (genes)
+        ├── LesionsListRenderer.tsx   — server-managed inline-expand list (lesions)
+        ├── PhenotypesListRenderer.tsx — server-managed inline-expand list (phenotypes)
+        ├── LinkedFeaturesListRenderer.tsx — submission-scope pairwise links
+        ├── AutocompleteRenderer.tsx  — type-ahead ZDB-ID resolver
+        ├── PhenotypeTimingRenderer.tsx — hpf/dpf unit toggle (UI-only)
         ├── ...
 
 home/WEB-INF/openapi/
@@ -408,7 +450,16 @@ home/WEB-INF/openapi/
 └── swagger-ui/                       vendored swagger-ui-dist
 
 test/org/zfin/zirc/api/
-└── ZircOpenApiDriftTest.java         JUnit 4 reflection drift test
+├── ZircOpenApiDriftTest.java         JUnit 4 reflection drift test
+├── FormSchemaSnapshotTest.java       JUnit 4 byte-level snapshot test
+└── ...
+test/resources/zirc/snapshot/
+├── submission.form-schema.json
+├── mutation.form-schema.json
+├── assay.form-schema.json
+├── gene.form-schema.json
+├── lesion.form-schema.json
+└── phenotype.form-schema.json
 
 source/org/zfin/db/postGmakePostloaddb/
 ├── 1182/migrations/zirc-line-submission.sql               original schema (PR #1845)
@@ -438,13 +489,21 @@ You almost always touch six places. In this order:
 
 1. **DB**: Liquibase changeset under `source/org/zfin/db/postGmakePostloaddb/{version}/migrations/`. Run via `gradle liquibasePostBuild` (or `psql` for local).
 2. **Entity**: column in the relevant `@Entity` class.
-3. **DTO**: field in the `Response` record + the `of(entity)` mapping.
+3. **DTO**: field in the relevant DTO record + the `of(entity)` mapping.
 4. **FIELDS map**: an entry in the relevant `Zirc*FormSchema.FIELDS` with `(getter, setter)`.
-5. **JSON Schema**: a property in `Zirc*FormSchema.schema()`.
+5. **JSON Schema**: a property in `Zirc*FormSchema.schema()` (typed record under `org.zfin.zirc.api.jsonschema`).
 6. **uiSchema**: a Control (with options) in the appropriate Group in `Zirc*FormSchema.uiSchema()`.
 7. **TS type**: mirror in `home/javascript/react/zirc/api/types.ts`.
 8. **OpenAPI**: if the new field changes the response shape, update `home/WEB-INF/openapi/zirc-api.yaml` (drift test only covers paths, not field-level schemas).
+9. **Snapshot**: rerun `gradle test --tests org.zfin.zirc.api.FormSchemaSnapshotTest -Pzirc.snapshot.update=true`, then review the diff under `test/resources/zirc/snapshot/` before committing.
 
 That's it. If the field is editable, no React change is needed —
 JSON Forms picks it up from the schema. If it needs a custom renderer
 (e.g., a new widget type), register it in the page's `renderers` array.
+
+**Adding a new child aggregate** is the same checklist times two: do
+it for the new aggregate (one row in §2), and add a summary-list
+property + uiSchema Group to the parent's form schema with
+`widget: "<aggregate>List"`. The recent M6.1 (genes) / M7.1
+(lesions) / M8.1 (phenotypes) commits are worked examples on this
+branch.

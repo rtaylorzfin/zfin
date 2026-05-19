@@ -119,7 +119,7 @@ order:
 4. **`home/javascript/react/zirc/schemaForm/SchemaForm.tsx`** — covered
    above. Re-read with the API client in mind now.
 
-5. **`home/javascript/react/zirc/schemaForm/renderers/`** — eight
+5. **`home/javascript/react/zirc/schemaForm/renderers/`** — fifteen
    custom JSON Forms renderers. Don't read all of them; pick:
    - `RowControlRenderer.tsx` — the workhorse table-row Control for
      string fields. Shows the `options` vocabulary
@@ -129,6 +129,20 @@ order:
      rules silently don't apply.
    - `MutationsListRenderer.tsx` — the pattern for server-managed list
      widgets with `maxItems` caps.
+   - `LesionsListRenderer.tsx` (or `GenesListRenderer` /
+     `PhenotypesListRenderer`) — the same pattern applied to
+     per-mutation children with inline-expand cards.
+   - `AutocompleteRenderer.tsx` — type-ahead ZDB-ID resolver used by
+     M5.3 (linked features), M6.1 (gene → marker), M7.1 (lesion).
+   - `PhenotypeTimingRenderer.tsx` — escape-hatch for the hpf/dpf
+     unit toggle that needs sibling-field access via `useJsonForms`.
+
+6. **`home/javascript/react/zirc/pages/`** — five page-level form
+   components, all the same shape: `MutationEdit`, `AssayEdit`,
+   `GeneEdit`, `LesionEdit`, `PhenotypeEdit`. Reading one is enough;
+   `MutationEdit.tsx` is the most complete and shows how the four
+   inline-expand child sections are wired (`EXTERNALLY_MANAGED_PATHS`
+   filter + per-list mirror-sync `useEffect`).
 
 ### Step 4 — Pitfalls section of the retrospective (10 min)
 
@@ -157,28 +171,51 @@ last step.
 
 ### "Add a new aggregate (new child entity under Mutation)"
 
-Mirror the existing M4.2 pattern. The skeleton is:
+Mirror the existing inline-expand pattern. The skeleton is:
 
 1. DB migration: new table with FK to `zirc.mutation`
-2. New entity in `source/org/zfin/zirc/entity/`
-3. New response record in `source/org/zfin/zirc/dto/`
-4. Add to `hibernate.cfg.xml`
-5. Service methods: `getRequired*ById`, `add*`, `delete*`, `update*Field`
-6. New `Zirc*FormSchema` class with schema/uiSchema/FIELDS
-7. New `Zirc*ApiController` with `/form-schema`, `/{id}`, PATCH, POST, DELETE
-8. New React Query hooks in `api/queries.ts`
-9. New page component if the aggregate gets its own route
-   (`MutationEdit.tsx` shape) OR inline expansion via a renderer
-   (`AssaysListRenderer` + `AssayEdit.tsx` shape)
-10. Update the OpenAPI YAML with all new paths
+2. New entity in `source/org/zfin/zirc/entity/` (with `@DynamicUpdate`)
+3. New full-record DTO + summary DTO in `source/org/zfin/zirc/dto/`
+   (summary if the aggregate has many fields and the list card only
+   shows a header; full record is fine for small aggregates like
+   `GeneDTO`)
+4. Add the entity to `hibernate.cfg.xml`
+5. Add `phenotypes`/`lesions`/etc. summary list to `MutationDTO`
+6. Service methods: `getRequired*ById`, `add*`, `delete*`, `update*Field`,
+   `next*SortOrder` (mirror the methods in `ZircSubmissionService`
+   under "Lesions (M7.1)" or "Phenotypes (M8.1)")
+7. Repository: `get*` interface + Hibernate impl
+8. New `Zirc*FormSchema` class with schema/uiSchema/FIELDS — schemas
+   are typed records under `org.zfin.zirc.api.jsonschema` and
+   `org.zfin.zirc.api.uischema`, **not** `Map<String, Object>`
+9. New `Zirc*ApiController` with `/form-schema`, `/{id}`, PATCH, POST, DELETE
+10. Wire summary list into the parent's `ZircMutationFormSchema`
+    (`*SummaryArrayProp()` helper + a uiSchema Group with
+    `widget: "<aggregate>List"`)
+11. New React Query hooks in `api/queries.ts`
+12. New page component if the aggregate gets its own route
+    (`MutationEdit.tsx` shape) OR inline expansion via a renderer
+    (`AssaysListRenderer` + `AssayEdit.tsx` shape)
+13. Wire renderer into `MutationEdit.tsx`: add to `renderers`, add
+    summary list to `FormDataShape` + `initialDataFromMutation`,
+    add path to `EXTERNALLY_MANAGED_PATHS`, add mirror-sync `useEffect`
+14. Add `Zirc*ApiController.class` to `ZircOpenApiDriftTest.CONTROLLERS`
+15. Add a `*SchemaMatchesSnapshot` test in `FormSchemaSnapshotTest`
+16. Update the OpenAPI YAML with all new paths + DTO schemas
+17. Regenerate snapshots: `gradle test --tests org.zfin.zirc.api.FormSchemaSnapshotTest -Pzirc.snapshot.update=true`
 
-Look at the M4.x commit chain for a worked example:
+The M6.1 → M7.1 → M8.1 commit chain on `zirc-rearchitect` is the
+canonical worked example — three nearly-identical aggregate adds in a
+row, each ~1000 lines, mostly copy-paste:
 
 ```
-af40bb58c6  M4.1: list on parent
-f16ef7ed89  M4.2: per-aggregate schema + edit page
-0b77dcdf5f  M4.3: multipart attachments (if the aggregate has files)
+b47e34441  M7.1: Lesions per mutation (inline cards with lesion-type matrix)
+517c7a136  M8.1: Phenotypes per mutation (inline cards with hpf/dpf timing widget)
+76550adbc  M6.1: Genes per mutation (inline cards with marker autocomplete)
 ```
+
+(M4.1–M4.3 — `af40bb58c6` / `f16ef7ed89` / `0b77dcdf5f` — are the
+original assay-aggregate pattern, predating typed records.)
 
 ### "Change a conditional reveal rule"
 
@@ -205,12 +242,14 @@ For Control-level rules, JSON Forms handles it automatically.
 
 ### "I hit a bug related to autosave"
 
-The autosave story is centralized in three places — all behave the
-same way:
+The autosave story is centralized — all behave the same way:
 
-- `home/javascript/react/zirc/schemaForm/SchemaForm.tsx`
+- `home/javascript/react/zirc/schemaForm/SchemaForm.tsx` (submission)
 - `home/javascript/react/zirc/pages/MutationEdit.tsx`
 - `home/javascript/react/zirc/pages/AssayEdit.tsx`
+- `home/javascript/react/zirc/pages/GeneEdit.tsx`
+- `home/javascript/react/zirc/pages/LesionEdit.tsx`
+- `home/javascript/react/zirc/pages/PhenotypeEdit.tsx`
 
 The shared idioms are:
 - `formData: T | null` starts null; we don't render `<JsonForms>` until

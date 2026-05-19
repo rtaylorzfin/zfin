@@ -78,13 +78,23 @@ equivalent) to render YAML at build time. Commit the YAML output.
 
 ## Decision: Option B — hand-curated YAML, served by a small controller
 
-Rationale: the ZIRC API has stabilized at ~12 endpoints across 3
-controllers; the cost of writing the YAML once is bounded, and the spec
-gets us 80% of the value of springdoc with 5% of the risk. The drift
-concern is real but tractable with a single integration test as
-documented above. The Spring Boot migration is a known future direction;
-when that lands, switching to Option A becomes near-trivial — revisit
-then.
+Rationale: when this decision was taken the ZIRC API had ~12 endpoints
+across 3 controllers; the cost of writing the YAML once was bounded,
+and the spec got us 80% of the value of springdoc with 5% of the risk.
+The drift concern is real but tractable with a single drift test as
+documented above. The Spring Boot migration is a known future
+direction; when that lands, switching to Option A becomes near-trivial
+— revisit then.
+
+**Update (M5–M8, May 2026)**: the API has grown to **31 paths across
+8 controllers** (submission, mutation, assay, gene, lesion, phenotype,
+autocomplete, openapi). The YAML maintenance load has stayed manageable
+because (a) every new endpoint is a near-copy of a sibling, (b) the
+JUnit 4 `ZircOpenApiDriftTest` fails CI the moment a controller method
+lacks a matching YAML entry, and (c) `FormSchemaSnapshotTest` separately
+locks down the form-schema response bodies. We're past the original
+"~30 endpoint" revisit threshold but the cost/risk math still favours
+Option B; reconsider when the next aggregate lands.
 
 ## Concrete next steps (filed as the implementation task)
 
@@ -116,9 +126,12 @@ then.
 5. Optional follow-up: drop `swagger-ui-dist` into `home/static-assets/`
    and add a `GET /api/zirc/docs` route that renders Swagger UI against
    the YAML.
-6. Add a Groovy integration test that walks the YAML and round-trips a
-   minimum-viable request against each path; fail if a path is in the
-   YAML but the controller returns 404, or vice versa.
+6. Add a drift test that walks the YAML and asserts every
+   `(method, path)` pair in both the YAML and the controllers matches;
+   fail CI if a path is in the YAML but no `@*Mapping` covers it, or
+   vice versa. *(Implemented as the JUnit 4 `ZircOpenApiDriftTest`;
+   Spock specs were not used because they are silently dormant in CI
+   — see `zirc-architecture.md` §15.)*
 
 ## When to revisit Option A
 
