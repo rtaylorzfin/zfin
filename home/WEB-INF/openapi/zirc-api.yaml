@@ -29,6 +29,7 @@ tags:
   - name: autocomplete
   - name: gene
   - name: lesion
+  - name: phenotype
 
 paths:
   /form-schema:
@@ -350,6 +351,71 @@ paths:
     delete:
       tags: [lesion]
       summary: Remove a per-mutation lesion.
+      responses:
+        '204': { description: Deleted }
+        '404': { $ref: '#/components/responses/NotFound' }
+
+  /mutations/{mutationId}/phenotypes:
+    parameters:
+      - $ref: '#/components/parameters/MutationId'
+    post:
+      tags: [phenotype]
+      summary: Add an empty per-mutation phenotype row.
+      responses:
+        '201':
+          description: Refreshed parent mutation (its phenotypes list now contains the new row).
+          content:
+            application/json:
+              schema: { $ref: '#/components/schemas/MutationDTO' }
+        '400': { $ref: '#/components/responses/BadRequest' }
+        '404': { $ref: '#/components/responses/NotFound' }
+
+  /phenotypes/form-schema:
+    get:
+      tags: [form-schema]
+      summary: JSON Schema + uiSchema for the per-phenotype edit form.
+      responses:
+        '200':
+          description: OK
+          content:
+            application/json:
+              schema: { $ref: '#/components/schemas/FormSchemaDTO' }
+
+  /phenotypes/{phenotypeId}:
+    parameters:
+      - name: phenotypeId
+        in: path
+        required: true
+        schema: { type: integer, format: int64 }
+    get:
+      tags: [phenotype]
+      summary: Fetch a per-mutation phenotype by id.
+      responses:
+        '200':
+          description: OK
+          content:
+            application/json:
+              schema: { $ref: '#/components/schemas/PhenotypeDTO' }
+        '404': { $ref: '#/components/responses/NotFound' }
+    patch:
+      tags: [phenotype]
+      summary: Apply a single field-path change to the phenotype.
+      requestBody:
+        required: true
+        content:
+          application/json:
+            schema: { $ref: '#/components/schemas/FieldUpdate' }
+      responses:
+        '200':
+          description: Updated phenotype.
+          content:
+            application/json:
+              schema: { $ref: '#/components/schemas/PhenotypeDTO' }
+        '400': { $ref: '#/components/responses/BadRequest' }
+        '404': { $ref: '#/components/responses/NotFound' }
+    delete:
+      tags: [phenotype]
+      summary: Remove a per-mutation phenotype.
       responses:
         '204': { description: Deleted }
         '404': { $ref: '#/components/responses/NotFound' }
@@ -709,6 +775,9 @@ components:
         lesions:
           type: array
           items: { $ref: '#/components/schemas/LesionSummaryDTO' }
+        phenotypes:
+          type: array
+          items: { $ref: '#/components/schemas/PhenotypeSummaryDTO' }
 
     AssaySummaryDTO:
       type: object
@@ -738,6 +807,36 @@ components:
         id: { type: integer, format: int64 }
         sortOrder: { type: integer }
         lesionType: { type: string, nullable: true }
+
+    PhenotypeSummaryDTO:
+      type: object
+      description: Compact row used inside MutationDTO.phenotypes; full fields fetched separately via /phenotypes/{id}.
+      properties:
+        id: { type: integer, format: int64 }
+        sortOrder: { type: integer }
+        description: { type: string, nullable: true }
+
+    PhenotypeDTO:
+      type: object
+      description: Every column for one per-mutation phenotype. `segregation` and `type` are PostgreSQL text[] columns surfaced as JSON arrays of strings. Wire format for timing is always integer hpf; the hpf/dpf unit toggle in the renderer is UI state only.
+      properties:
+        id: { type: integer, format: int64 }
+        mutationId: { type: integer, format: int64, nullable: true }
+        sortOrder: { type: integer }
+        description: { type: string, nullable: true }
+        hpfStart: { type: integer, nullable: true }
+        hpfEnd: { type: integer, nullable: true }
+        stage: { type: string, nullable: true }
+        zfinImagePermission: { type: boolean, nullable: true }
+        zircImagePermission: { type: boolean, nullable: true }
+        nonMendelianPercentage: { type: number, format: double, nullable: true }
+        nonMendelianComment: { type: string, nullable: true }
+        segregation:
+          type: array
+          items: { type: string }
+        type:
+          type: array
+          items: { type: string }
 
     LesionDTO:
       type: object

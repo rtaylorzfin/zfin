@@ -65,12 +65,41 @@ export interface MutationDTO {
     // Per-mutation lesions — summary rows only, surfaced as collapsed
     // cards. Full per-lesion fields fetched via /api/zirc/lesions/{id}.
     lesions: LesionSummaryDTO[];
+    // Per-mutation phenotypes — summary rows only, surfaced as collapsed
+    // cards. Full per-phenotype fields fetched via /api/zirc/phenotypes/{id}.
+    phenotypes: PhenotypeSummaryDTO[];
 }
 
 export interface LesionSummaryDTO {
     id: number;
     sortOrder: number;
     lesionType: string | null;
+}
+
+export interface PhenotypeSummaryDTO {
+    id: number;
+    sortOrder: number;
+    description: string | null;
+}
+
+// Full per-phenotype payload. segregation and type are PostgreSQL text[]
+// columns surfaced as JSON string arrays. Wire format for timing is
+// always integer hpf; the hpf/dpf unit toggle in the renderer is UI
+// state only.
+export interface PhenotypeDTO {
+    id: number;
+    mutationId: number | null;
+    sortOrder: number;
+    description: string | null;
+    hpfStart: number | null;
+    hpfEnd: number | null;
+    stage: string | null;
+    zfinImagePermission: boolean | null;
+    zircImagePermission: boolean | null;
+    nonMendelianPercentage: number | null;
+    nonMendelianComment: string | null;
+    segregation: string[];
+    type: string[];
 }
 
 // Full per-lesion payload. Field visibility is decided by the uiSchema

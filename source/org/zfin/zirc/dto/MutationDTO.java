@@ -4,6 +4,7 @@ import org.zfin.zirc.entity.Gene;
 import org.zfin.zirc.entity.GenotypingAssay;
 import org.zfin.zirc.entity.Lesion;
 import org.zfin.zirc.entity.Mutation;
+import org.zfin.zirc.entity.Phenotype;
 
 import java.util.Comparator;
 import java.util.List;
@@ -39,7 +40,10 @@ public record MutationDTO(
         List<GeneDTO> genes,
         // Per-mutation lesions — summary rows only; full per-lesion fields
         // come from /api/zirc/lesions/{id} when a card expands.
-        List<LesionSummaryDTO> lesions) {
+        List<LesionSummaryDTO> lesions,
+        // Per-mutation phenotypes — summary rows only; full per-phenotype
+        // fields come from /api/zirc/phenotypes/{id} when a card expands.
+        List<PhenotypeSummaryDTO> phenotypes) {
 
     public static MutationDTO of(Mutation m) {
         List<AssaySummaryDTO> assays = m.getGenotypingAssays() == null ? List.of() :
@@ -63,6 +67,13 @@ public record MutationDTO(
                                 Comparator.nullsLast(Comparator.naturalOrder())))
                         .map(LesionSummaryDTO::of)
                         .toList();
+        List<PhenotypeSummaryDTO> phenotypes = m.getPhenotypes() == null ? List.of() :
+                m.getPhenotypes().stream()
+                        .sorted(Comparator.comparing(
+                                Phenotype::getSortOrder,
+                                Comparator.nullsLast(Comparator.naturalOrder())))
+                        .map(PhenotypeSummaryDTO::of)
+                        .toList();
         return new MutationDTO(
                 m.getId(),
                 m.getLineSubmission().getZdbID(),
@@ -84,6 +95,7 @@ public record MutationDTO(
                 List.copyOf(m.getPublications() == null ? List.of() : m.getPublications()),
                 assays,
                 genes,
-                lesions);
+                lesions,
+                phenotypes);
     }
 }

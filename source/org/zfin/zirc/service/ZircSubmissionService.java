@@ -16,6 +16,7 @@ import org.zfin.zirc.api.ZircGeneFormSchema;
 import org.zfin.zirc.api.ZircLesionFormSchema;
 import org.zfin.zirc.api.ZircLinkedFeatureFormSchema;
 import org.zfin.zirc.api.ZircMutationFormSchema;
+import org.zfin.zirc.api.ZircPhenotypeFormSchema;
 import org.zfin.zirc.dto.FieldUpdate;
 import org.zfin.zirc.entity.AuditEntry;
 import org.zfin.zirc.entity.Gene;
@@ -26,6 +27,7 @@ import org.zfin.zirc.entity.LineSubmission;
 import org.zfin.zirc.entity.LineSubmissionPerson;
 import org.zfin.zirc.entity.LinkedFeature;
 import org.zfin.zirc.entity.Mutation;
+import org.zfin.zirc.entity.Phenotype;
 import org.zfin.zirc.repository.ZircSubmissionRepository;
 
 import java.io.File;
@@ -725,6 +727,76 @@ public class ZircSubmissionService {
     private static int nextLesionSortOrder(Mutation mutation) {
         return mutation.getLesions().stream()
                 .map(Lesion::getSortOrder)
+                .filter(java.util.Objects::nonNull)
+                .max(Comparator.naturalOrder())
+                .orElse(0) + 1;
+    }
+
+    // ─── Phenotypes (M8.1) ──────────────────────────────────────────────────
+
+    /** Hard cap on phenotypes per mutation; same shape as MAX_LESIONS_PER_MUTATION. */
+    public static final int MAX_PHENOTYPES_PER_MUTATION = 10;
+
+    public Phenotype getRequiredPhenotypeById(Long phenotypeId) {
+        Phenotype phenotype = repository.getPhenotype(phenotypeId);
+        if (phenotype == null) {
+            throw new ZircEntityNotFoundException("Phenotype " + phenotypeId + " not found");
+        }
+        return phenotype;
+    }
+
+    public Mutation addPhenotype(Long mutationId) {
+        Mutation mutation = getRequiredMutationById(mutationId);
+        int existing = mutation.getPhenotypes() == null ? 0 : mutation.getPhenotypes().size();
+        if (existing >= MAX_PHENOTYPES_PER_MUTATION) {
+            throw new IllegalArgumentException(
+                    "Maximum " + MAX_PHENOTYPES_PER_MUTATION + " phenotypes per mutation.");
+        }
+        HibernateUtil.createTransaction();
+        Phenotype phenotype = new Phenotype();
+        phenotype.setMutation(mutation);
+        phenotype.setSortOrder(nextPhenotypeSortOrder(mutation));
+        repository.save(phenotype);
+        mutation.getPhenotypes().add(phenotype);
+        HibernateUtil.currentSession().flush();
+        writeAudit("mutation", String.valueOf(mutationId), "create-phenotype", null,
+                null, AUDIT_MAPPER.valueToTree(
+                        java.util.Map.of("phenotypeId", phenotype.getId())));
+        HibernateUtil.flushAndCommitCurrentSession();
+        return mutation;
+    }
+
+    public void deletePhenotype(Long phenotypeId) {
+        Phenotype phenotype = getRequiredPhenotypeById(phenotypeId);
+        Long mutationId = phenotype.getMutation() == null ? null : phenotype.getMutation().getId();
+        HibernateUtil.createTransaction();
+        repository.delete(phenotype);
+        writeAudit("mutation", mutationId == null ? "?" : String.valueOf(mutationId),
+                "delete-phenotype", null,
+                AUDIT_MAPPER.valueToTree(java.util.Map.of("phenotypeId", phenotypeId)),
+                null);
+        HibernateUtil.flushAndCommitCurrentSession();
+    }
+
+    public Phenotype updatePhenotypeField(Long phenotypeId, FieldUpdate update) {
+        Phenotype phenotype = getRequiredPhenotypeById(phenotypeId);
+        ZircPhenotypeFormSchema.FieldDescriptor descriptor =
+                ZircPhenotypeFormSchema.FIELDS.get(update.path());
+        if (descriptor == null) {
+            throw new IllegalArgumentException("Unknown phenotype field path: " + update.path());
+        }
+        JsonNode oldValue = descriptor.read().apply(phenotype);
+        HibernateUtil.createTransaction();
+        descriptor.write().accept(phenotype, update.value());
+        writeAudit("phenotype", String.valueOf(phenotypeId), "update",
+                update.path(), oldValue, update.value());
+        HibernateUtil.flushAndCommitCurrentSession();
+        return phenotype;
+    }
+
+    private static int nextPhenotypeSortOrder(Mutation mutation) {
+        return mutation.getPhenotypes().stream()
+                .map(Phenotype::getSortOrder)
                 .filter(java.util.Objects::nonNull)
                 .max(Comparator.naturalOrder())
                 .orElse(0) + 1;

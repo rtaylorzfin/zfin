@@ -4,7 +4,7 @@ import { JsonForms } from '@jsonforms/react';
 import type { JsonSchema, UISchemaElement } from '@jsonforms/core';
 import { queryClient } from '../queryClient';
 import { api } from '../api/client';
-import { AssaySummaryDTO, GeneDTO, LesionSummaryDTO, MutationDTO } from '../api/types';
+import { AssaySummaryDTO, GeneDTO, LesionSummaryDTO, MutationDTO, PhenotypeSummaryDTO } from '../api/types';
 import { useMutationById } from '../api/queries';
 import { SaveStatusBadge, SaveStatus } from '../components/SaveStatusBadge';
 import { sectionRendererEntry } from '../schemaForm/renderers/SectionRenderer';
@@ -17,6 +17,7 @@ import { publicationsListRendererEntry } from '../schemaForm/renderers/Publicati
 import { assaysListRendererEntry } from '../schemaForm/renderers/AssaysListRenderer';
 import { genesListRendererEntry } from '../schemaForm/renderers/GenesListRenderer';
 import { lesionsListRendererEntry } from '../schemaForm/renderers/LesionsListRenderer';
+import { phenotypesListRendererEntry } from '../schemaForm/renderers/PhenotypesListRenderer';
 
 export type MutationEditProps = {
     // From data-mutation-id on the JSP mount.
@@ -60,6 +61,8 @@ type FormDataShape = {
     genes?: GeneDTO[];
     // Lesions — same server-managed pattern as assays.
     lesions?: LesionSummaryDTO[];
+    // Phenotypes — same server-managed pattern as assays.
+    phenotypes?: PhenotypeSummaryDTO[];
 };
 
 type FormSchemaDTO = { schema: JsonSchema; uiSchema: UISchemaElement };
@@ -77,6 +80,7 @@ const renderers = [
     assaysListRendererEntry,
     genesListRendererEntry,
     lesionsListRendererEntry,
+    phenotypesListRendererEntry,
 ];
 
 function initialDataFromMutation(m: MutationDTO): FormDataShape {
@@ -99,13 +103,14 @@ function initialDataFromMutation(m: MutationDTO): FormDataShape {
         assays: m.assays ?? [],
         genes: m.genes ?? [],
         lesions: m.lesions ?? [],
+        phenotypes: m.phenotypes ?? [],
     };
 }
 
 // Paths whose changes flow through dedicated endpoints (POST/DELETE), not
 // the field-path PATCH. Without this filter, an Add/Delete on the assays
 // list would emit a spurious PATCH /assays trying to write an array.
-const EXTERNALLY_MANAGED_PATHS = new Set<string>(['/assays', '/genes', '/lesions']);
+const EXTERNALLY_MANAGED_PATHS = new Set<string>(['/assays', '/genes', '/lesions', '/phenotypes']);
 
 function diffLeaves(
     prev: unknown,
@@ -197,6 +202,17 @@ function MutationEditInner({ mutationId, submissionId }: MutationEditProps) {
             lastSavedRef.current = { ...lastSavedRef.current, lesions: next };
         }
     }, [lesionsKey]);
+
+    // Same mirror pattern for /phenotypes.
+    const phenotypesKey = JSON.stringify(mutation?.phenotypes ?? []);
+    React.useEffect(() => {
+        if (!mutation || formData == null) {return;}
+        const next = mutation.phenotypes ?? [];
+        setFormData((d) => (d == null ? d : { ...d, phenotypes: next }));
+        if (lastSavedRef.current != null) {
+            lastSavedRef.current = { ...lastSavedRef.current, phenotypes: next };
+        }
+    }, [phenotypesKey]);
 
     const [status, setStatus] = React.useState<SaveStatus>('idle');
     const [errorMessage, setErrorMessage] = React.useState<string | null>(null);

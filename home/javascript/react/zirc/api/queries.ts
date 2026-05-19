@@ -1,7 +1,7 @@
 import * as React from 'react';
 import { useMutation, useQuery, useQueryClient } from '@tanstack/react-query';
 import { api } from './client';
-import { AssayDTO, AutocompleteItemDTO, GeneDTO, LesionDTO, LineSubmissionDTO, LinkedFeatureDTO, MutationDTO } from './types';
+import { AssayDTO, AutocompleteItemDTO, GeneDTO, LesionDTO, LineSubmissionDTO, LinkedFeatureDTO, MutationDTO, PhenotypeDTO } from './types';
 
 export const lineSubmissionKey = (id: string) => ['zirc', 'lineSubmission', id] as const;
 
@@ -223,6 +223,40 @@ export function useDeleteLesion() {
     return useMutation({
         mutationFn: ({ lesionId }: { mutationId: number; lesionId: number }) =>
             api.delete<void>(`/lesions/${lesionId}`),
+        onSuccess: (_data, vars) => {
+            qc.invalidateQueries({ queryKey: mutationKey(vars.mutationId) });
+        },
+    });
+}
+
+// ─── Phenotypes (M8.1) ──────────────────────────────────────────────────────
+
+export const phenotypeKey = (id: number) => ['zirc', 'phenotype', id] as const;
+
+export function usePhenotypeById(id: number | null) {
+    return useQuery({
+        queryKey: phenotypeKey(id ?? 0),
+        queryFn: () => api.get<PhenotypeDTO>(`/phenotypes/${id}`),
+        enabled: !!id,
+    });
+}
+
+export function useAddPhenotype() {
+    const qc = useQueryClient();
+    return useMutation({
+        mutationFn: (mutationId: number) =>
+            api.post<MutationDTO>(`/mutations/${mutationId}/phenotypes`),
+        onSuccess: (_data, mutationId) => {
+            qc.invalidateQueries({ queryKey: mutationKey(mutationId) });
+        },
+    });
+}
+
+export function useDeletePhenotype() {
+    const qc = useQueryClient();
+    return useMutation({
+        mutationFn: ({ phenotypeId }: { mutationId: number; phenotypeId: number }) =>
+            api.delete<void>(`/phenotypes/${phenotypeId}`),
         onSuccess: (_data, vars) => {
             qc.invalidateQueries({ queryKey: mutationKey(vars.mutationId) });
         },

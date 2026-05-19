@@ -89,6 +89,8 @@ public final class ZircMutationFormSchema {
         // Lesions — same shape as assays/genes, with a lesion-type
         // matrix that drives conditional reveal on the per-lesion form.
         properties.put("lesions",                    lesionsSummaryArrayProp());
+        // Phenotypes — same inline-expand pattern; no type matrix.
+        properties.put("phenotypes",                 phenotypesSummaryArrayProp());
         return ObjectSchema.of(properties);
     }
 
@@ -163,6 +165,12 @@ public final class ZircMutationFormSchema {
                 new Group("Lesions",
                         List.of(new Control("#/properties/lesions",
                                 Options.of().widget("lesionsList"), null)),
+                        Options.of().layout("plain"),
+                        null),
+                // Phenotypes: same inline-expand pattern; no type matrix.
+                new Group("Phenotypes",
+                        List.of(new Control("#/properties/phenotypes",
+                                Options.of().widget("phenotypesList"), null)),
                         Options.of().layout("plain"),
                         null)
         ));
@@ -269,6 +277,21 @@ public final class ZircMutationFormSchema {
         itemProps.put("sortOrder",  NumberSchema.of());
         itemProps.put("lesionType", StringSchema.nullable());
         return new ArraySchema("Lesions", ObjectSchema.of(itemProps),
+                10, null);
+    }
+
+    /**
+     * Mirror of {@link org.zfin.zirc.dto.PhenotypeSummaryDTO}; the
+     * PhenotypesListRenderer card header reads the truncated
+     * {@code description}. Full per-phenotype fields come back from
+     * {@code /api/zirc/phenotypes/{id}} on expand.
+     */
+    private static ArraySchema phenotypesSummaryArrayProp() {
+        Map<String, JsonSchema> itemProps = new LinkedHashMap<>();
+        itemProps.put("id",          NumberSchema.of());
+        itemProps.put("sortOrder",   NumberSchema.of());
+        itemProps.put("description", StringSchema.nullable());
+        return new ArraySchema("Phenotypes", ObjectSchema.of(itemProps),
                 10, null);
     }
 

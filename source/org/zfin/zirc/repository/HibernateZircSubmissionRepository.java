@@ -11,6 +11,7 @@ import org.zfin.zirc.entity.LineSubmission;
 import org.zfin.zirc.entity.LinkedFeature;
 import org.zfin.zirc.entity.LinkedFeatureId;
 import org.zfin.zirc.entity.Mutation;
+import org.zfin.zirc.entity.Phenotype;
 
 import java.util.List;
 
@@ -58,6 +59,11 @@ public class HibernateZircSubmissionRepository implements ZircSubmissionReposito
     @Override
     public Lesion getLesion(Long lesionId) {
         return HibernateUtil.currentSession().get(Lesion.class, lesionId);
+    }
+
+    @Override
+    public Phenotype getPhenotype(Long phenotypeId) {
+        return HibernateUtil.currentSession().get(Phenotype.class, phenotypeId);
     }
 
     @Override

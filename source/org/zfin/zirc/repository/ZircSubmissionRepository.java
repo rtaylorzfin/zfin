@@ -25,6 +25,8 @@ public interface ZircSubmissionRepository {
 
     org.zfin.zirc.entity.Lesion getLesion(Long lesionId);
 
+    org.zfin.zirc.entity.Phenotype getPhenotype(Long phenotypeId);
+
     Person getPerson(String personZdbID);
 
     Person getPersonReference(String personZdbID);
