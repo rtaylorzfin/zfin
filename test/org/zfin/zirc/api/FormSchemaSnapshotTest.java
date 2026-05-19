@@ -79,6 +79,27 @@ public class FormSchemaSnapshotTest {
                 ZircAssayFormSchema.uiSchema());
     }
 
+    @Test
+    public void geneSchemaMatchesSnapshot() throws Exception {
+        assertSnapshot("gene",
+                ZircGeneFormSchema.schema(),
+                ZircGeneFormSchema.uiSchema());
+    }
+
+    @Test
+    public void lesionSchemaMatchesSnapshot() throws Exception {
+        assertSnapshot("lesion",
+                ZircLesionFormSchema.schema(),
+                ZircLesionFormSchema.uiSchema());
+    }
+
+    @Test
+    public void phenotypeSchemaMatchesSnapshot() throws Exception {
+        assertSnapshot("phenotype",
+                ZircPhenotypeFormSchema.schema(),
+                ZircPhenotypeFormSchema.uiSchema());
+    }
+
     private void assertSnapshot(String name, Object schema, Object uiSchema) throws Exception {
         // LinkedHashMap to lock down ordering of the wrapper, so snapshots
         // are stable across runs.
