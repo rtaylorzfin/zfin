@@ -1,5 +1,9 @@
 -- Churn-excluded before/after diff of the GAF-GOA load.
 --
+-- TODO(ZFIN-8948): this logical diff was built to investigate id/protein churn.
+-- Going forward only the DB-level csvDiff of two snapshot_mgte.sh CSVs is needed,
+-- so this file (and diff_mgte.sh) is expected to be removed once that flow settles.
+--
 -- Consumes the staging tables from snapshot_mgte.sql (tmp_gaf_mgoe_before /
 -- tmp_gaf_mgoe_after) and builds two result tables of the GENUINE changes at the
 -- LOGICAL-annotation level. "Logical" = the identity key EXCLUDING the two churn

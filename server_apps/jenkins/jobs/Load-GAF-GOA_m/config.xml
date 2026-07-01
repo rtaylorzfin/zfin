@@ -69,7 +69,7 @@ OUT=$TARGETROOT/server_apps/DB_maintenance/gafLoad/Load-GAF-GOA_m
 SQL=$SOURCEROOT/server_apps/DB_maintenance/gafLoad
 mkdir -p "$OUT"
 PSQL="psql -v ON_ERROR_STOP=1 -h $PGHOST -d $DBNAME"
-$PSQL -v stage=tmp_gaf_mgoe_before -f $SQL/snapshot_mgte.sql
+$PSQL -v org=GOA -v stage=tmp_gaf_mgoe_before -f $SQL/snapshot_mgte.sql
 $PSQL -c "\copy (SELECT * FROM tmp_gaf_mgoe_before ORDER BY zdb_id) TO STDOUT CSV HEADER" > "$OUT/mgoe_before.csv"
 echo "BEFORE snapshot rows: $(( $(wc -l < "$OUT/mgoe_before.csv") - 1 ))"
 ]]></command>
@@ -99,7 +99,7 @@ set -e
 OUT=$TARGETROOT/server_apps/DB_maintenance/gafLoad/Load-GAF-GOA_m
 SQL=$SOURCEROOT/server_apps/DB_maintenance/gafLoad
 PSQL="psql -v ON_ERROR_STOP=1 -h $PGHOST -d $DBNAME"
-$PSQL -v stage=tmp_gaf_mgoe_after -f $SQL/snapshot_mgte.sql
+$PSQL -v org=GOA -v stage=tmp_gaf_mgoe_after -f $SQL/snapshot_mgte.sql
 $PSQL -c "\copy (SELECT * FROM tmp_gaf_mgoe_after ORDER BY zdb_id) TO STDOUT CSV HEADER" > "$OUT/mgoe_after.csv"
 
 # SECONDARY diff: logical (churn-excluded) rollup for curators -- collapses protein
@@ -117,7 +117,7 @@ cd $SOURCEROOT
 # add+delete. CSVDIFF_XLSX_ONLY -> single mgoe_dbdiff.xlsx workbook (deletes/adds/
 # updated_1/updated_2 sheets); the intermediate CSVs are removed.
 export CSVDIFF_XLSX_ONLY=true
-gradle csvDiff --args="$OUT/mgoe_dbdiff $OUT/mgoe_before.csv $OUT/mgoe_after.csv marker,term,source,evidence,relation,created_by,contributed_by,protein_acc,inferred_from zdb_id"
+gradle csvDiff --args="$OUT/mgoe_dbdiff $OUT/mgoe_before.csv $OUT/mgoe_after.csv marker,term,source,evidence,relation,created_by,contributed_by,protein_acc,inferred_from,annotation_extensions,noctua_model zdb_id"
 
 # Fold the logical rollup into its own workbook (removed/added sheets), then drop
 # the intermediate CSVs so only mgoe_logical.xlsx is archived.
