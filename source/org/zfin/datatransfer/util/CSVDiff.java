@@ -501,12 +501,44 @@ public class CSVDiff {
         CSVDiff utility = new CSVDiff(outputPrefix, keyColumns, ignoreColumns);
 
         try {
-            utility.process(file1Path, file2Path);
+            List<File> outputs = utility.process(file1Path, file2Path);
+            // When CSVDIFF_XLSX is set, combine the output CSVs into a single
+            // <outputPrefix>.xlsx workbook (one sheet per output file) for a
+            // tidy single-file artifact. Reuses CSVToXLSXConverter.
+            if (envTrue("CSVDIFF_XLSX")) {
+                writeCombinedWorkbook(outputPrefix, outputs);
+            }
         } catch (Exception e) {
             System.err.println("Error: " + e.getMessage());
             e.printStackTrace();
             System.exit(1);
         }
+    }
+
+    /**
+     * Combine the CSV outputs of a diff run into one {@code <outputPrefix>.xlsx}
+     * workbook, one sheet per file (named by the file's suffix, e.g. "deletes",
+     * "adds", "updated_1"). The source CSVs are kept.
+     */
+    private static void writeCombinedWorkbook(String outputPrefix, List<File> outputs) {
+        if (outputs == null || outputs.isEmpty()) {
+            return;
+        }
+        String prefixName = new File(outputPrefix).getName();
+        List<String> sheetNames = new ArrayList<>();
+        for (File f : outputs) {
+            String label = f.getName();
+            if (label.startsWith(prefixName + "_")) {
+                label = label.substring(prefixName.length() + 1);
+            }
+            if (label.endsWith(".csv")) {
+                label = label.substring(0, label.length() - 4);
+            }
+            sheetNames.add(label);
+        }
+        File xlsx = new File(outputPrefix + ".xlsx");
+        new CSVToXLSXConverter().run(xlsx, outputs, sheetNames, false);
+        System.out.println("Wrote combined workbook: " + xlsx.getAbsolutePath());
     }
 
     /**

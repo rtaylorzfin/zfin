@@ -107,6 +107,7 @@ $PSQL -c "\copy (SELECT * FROM tmp_gaf_mgoe_after ORDER BY zdb_id) TO STDOUT CSV
 # updates_ignored rather than counting as add+delete. Produces
 # mgoe_dbdiff_{deletes,adds,updated_1,updated_2}.csv.
 cd $SOURCEROOT
+export CSVDIFF_XLSX=true   # also emit a combined mgoe_dbdiff.xlsx workbook (one sheet per output)
 gradle csvDiff --args="$OUT/mgoe_dbdiff $OUT/mgoe_before.csv $OUT/mgoe_after.csv marker,term,source,evidence,relation,created_by,contributed_by,protein_acc,inferred_from zdb_id"
 
 # SECONDARY diff: logical (churn-excluded) rollup for curators -- collapses protein
@@ -123,7 +124,7 @@ echo "Logical (churn-excluded): removed=$(( $(wc -l < "$OUT/mgoe_logical_removed
   </builders>
   <publishers>
     <hudson.tasks.ArtifactArchiver>
-      <artifacts>server_apps/DB_maintenance/gafLoad/Load-GAF-GOA_m/Load-GAF-GOA*,server_apps/DB_maintenance/gafLoad/Load-GAF-GOA_m/mgoe_*.csv</artifacts>
+      <artifacts>server_apps/DB_maintenance/gafLoad/Load-GAF-GOA_m/Load-GAF-GOA*,server_apps/DB_maintenance/gafLoad/Load-GAF-GOA_m/mgoe_*.csv,server_apps/DB_maintenance/gafLoad/Load-GAF-GOA_m/mgoe_*.xlsx</artifacts>
       <latestOnly>false</latestOnly>
       <allowEmptyArchive>true</allowEmptyArchive>
     </hudson.tasks.ArtifactArchiver>
