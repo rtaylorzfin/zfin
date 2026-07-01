@@ -102,23 +102,27 @@ PSQL="psql -v ON_ERROR_STOP=1 -h $PGHOST -d $DBNAME"
 $PSQL -v stage=tmp_gaf_mgoe_after -f $SQL/snapshot_mgte.sql
 $PSQL -c "\copy (SELECT * FROM tmp_gaf_mgoe_after ORDER BY zdb_id) TO STDOUT CSV HEADER" > "$OUT/mgoe_after.csv"
 
-# PRIMARY diff: row-level (database) changes via csvDiff. Key = every column except
-# zdb_id; ignore zdb_id so a row that only got a recycled id lands in
-# updates_ignored rather than counting as add+delete. Produces
-# mgoe_dbdiff_{deletes,adds,updated_1,updated_2}.csv.
-cd $SOURCEROOT
-export CSVDIFF_XLSX=true   # also emit a combined mgoe_dbdiff.xlsx workbook (one sheet per output)
-gradle csvDiff --args="$OUT/mgoe_dbdiff $OUT/mgoe_before.csv $OUT/mgoe_after.csv marker,term,source,evidence,relation,created_by,contributed_by,protein_acc,inferred_from zdb_id"
-
 # SECONDARY diff: logical (churn-excluded) rollup for curators -- collapses protein
 # isoforms and id/protein churn to show annotations that truly appeared/disappeared.
 $PSQL -f $SQL/diff_mgte.sql
 $PSQL -c "\copy (SELECT * FROM tmp_gaf_real_removed ORDER BY publication,gene_zdb_id,go_id) TO STDOUT CSV HEADER" > "$OUT/mgoe_logical_removed.csv"
 $PSQL -c "\copy (SELECT * FROM tmp_gaf_real_added   ORDER BY publication,gene_zdb_id,go_id) TO STDOUT CSV HEADER" > "$OUT/mgoe_logical_added.csv"
 $PSQL -c "DROP TABLE IF EXISTS tmp_gaf_mgoe_before, tmp_gaf_mgoe_after, tmp_gaf_real_removed, tmp_gaf_real_added"
-
-echo "DB-level (csvDiff): deletes=$(( $(wc -l < "$OUT/mgoe_dbdiff_deletes.csv") - 1 )) adds=$(( $(wc -l < "$OUT/mgoe_dbdiff_adds.csv") - 1 ))"
 echo "Logical (churn-excluded): removed=$(( $(wc -l < "$OUT/mgoe_logical_removed.csv") - 1 )) added=$(( $(wc -l < "$OUT/mgoe_logical_added.csv") - 1 ))"
+
+cd $SOURCEROOT
+
+# PRIMARY diff (row-level / database): key = every column except zdb_id, ignore
+# zdb_id so a row that only got a recycled id lands in updates_ignored rather than
+# add+delete. CSVDIFF_XLSX_ONLY -> single mgoe_dbdiff.xlsx workbook (deletes/adds/
+# updated_1/updated_2 sheets); the intermediate CSVs are removed.
+export CSVDIFF_XLSX_ONLY=true
+gradle csvDiff --args="$OUT/mgoe_dbdiff $OUT/mgoe_before.csv $OUT/mgoe_after.csv marker,term,source,evidence,relation,created_by,contributed_by,protein_acc,inferred_from zdb_id"
+
+# Fold the logical rollup into its own workbook (removed/added sheets), then drop
+# the intermediate CSVs so only mgoe_logical.xlsx is archived.
+gradle csv2xlsx --args="$OUT/mgoe_logical.xlsx $OUT/mgoe_logical_removed.csv $OUT/mgoe_logical_added.csv"
+rm -f "$OUT/mgoe_logical_removed.csv" "$OUT/mgoe_logical_added.csv"
 ]]></command>
     </hudson.tasks.Shell>
   </builders>
