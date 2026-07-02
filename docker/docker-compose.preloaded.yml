@@ -1,0 +1,14 @@
+# Overlay for docker-compose.yml: boot db + solr from "preloaded" images
+# (base image + a baked-in loaded DB and Solr index) instead of the empty base
+# images, for instant per-feature stacks. See docker/new-feature.sh and
+# docker/build-preloaded.sh.
+#
+# Isolation without ZFS: with a per-feature COMPOSE_PROJECT_NAME, Compose names
+# the volumes <project>_pg_data / <project>_solr_var. Each starts empty, so
+# Docker seeds it from the preloaded image's baked data on first `up`; every
+# feature stack gets its own copy-on-write DB/index. `down -v` discards it.
+services:
+  db:
+    image: ${ZFIN_DB_IMAGE:?set ZFIN_DB_IMAGE (e.g. ghcr.io/zfin/zfin-db-preloaded:TAG)}
+  solr:
+    image: ${ZFIN_SOLR_IMAGE:?set ZFIN_SOLR_IMAGE (e.g. ghcr.io/zfin/zfin-solr-preloaded:TAG)}

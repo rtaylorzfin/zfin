@@ -122,7 +122,10 @@ services:
       SOLR_SECURITY_MANAGER_ENABLED: "false"
       TZ: ${TZ}
     ports:
-      - "8983-8992:8983"
+      # Default keeps the 0.0.0.0 range for the standalone dev stack; feature
+      # stacks set DOCKER_SOLR_PORT=<loopback-ip>:8983 for the uniform
+      # same-port/differ-by-IP scheme (see docker/new-feature.sh).
+      - "${DOCKER_SOLR_PORT:-8983-8992}:8983"
     volumes:
       # Single volume covering everything Solr persists. The image's
       # /docker-entrypoint-initdb.d/sync-config.sh refreshes conf/, lib/, and
@@ -202,7 +205,9 @@ services:
       JPDA_TRANSPORT: dt_socket
     entrypoint: ["catalina.sh", "jpda", "run"]
     ports:
-      - "127.0.0.1:5000:5000"
+      # Feature stacks set DOCKER_TOMCATDEBUG_PORT=<loopback-ip>:5000 so two
+      # stacks can expose the JPDA debug port at once without colliding.
+      - "${DOCKER_TOMCATDEBUG_PORT:-127.0.0.1:5000}:5000"
     volumes:
       - www_data:/opt/zfin/www_homes/zfin.org
       - catalina_base:/opt/zfin/catalina_bases/zfin.org

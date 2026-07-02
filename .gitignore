@@ -76,3 +76,14 @@ CLAUDE.md
 # Ontology serialization caches written during test runs.
 # Tests prime them lazily via AbstractOntologyTest.deserializeOrPrime(...).
 test/ontologies/data-transfer/*.ser
+
+# Preloaded / feature-stack tooling (see workbench/feature-lifecycle.md).
+# Ignore the large capture tarballs build-preloaded.sh generates, but keep the
+# tooling itself tracked.
+docker/postgresql/pgdata.tgz
+docker/solr/solrvar.tgz
+!docker/build-preloaded.sh
+!docker/new-feature.sh
+!docker/docker-compose.preloaded.yml
+!docker/postgresql/preloaded.Dockerfile
+!docker/solr/preloaded.Dockerfile
