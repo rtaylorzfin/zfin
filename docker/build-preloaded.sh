@@ -16,6 +16,10 @@
 #
 #   --project NAME   Compose project whose volumes to capture (default: $COMPOSE_PROJECT_NAME or "dazed")
 #   --tag TAG        Preloaded image tag (default: YYYY-MM-DD)
+#   --slim           Before capture, empty jobs-only tables + compact WAL for a leaner
+#                    image. NOTE: mutates the source stack's DB, but only tables proven
+#                    NOT read by the webapp (reloadable), and WAL auto-regrows. See
+#                    workbench/db-slim-candidates.md.
 #   --push           docker push the built images
 #   --no-stop        Don't stop db/solr before capture (only safe if already stopped)
 #   --keep-tarballs  Leave the intermediate .tgz files in the build contexts
@@ -32,11 +36,17 @@ REGISTRY="ghcr.io/zfin"
 PUSH=0
 STOP=1
 KEEP=0
+SLIM=0
+
+# Tables proven jobs-only (NOT read by the webapp) -> safe to empty for a lean
+# image. Evidence (ORM + call-site trace): workbench/db-slim-candidates.md.
+SLIM_TABLES="gff3 gff3_ncbi gff3_ncbi_attribute expression_search_anatomy_generated feature_stats_old"
 
 while [[ $# -gt 0 ]]; do
   case "$1" in
     --project) PROJECT="$2"; shift 2 ;;
     --tag)     TAG="$2"; shift 2 ;;
+    --slim)    SLIM=1; shift ;;
     --push)    PUSH=1; shift ;;
     --no-stop) STOP=0; shift ;;
     --keep-tarballs) KEEP=1; shift ;;
@@ -59,10 +69,59 @@ for v in "$PG_VOL" "$SOLR_VOL"; do
   fi
 done
 
+if [[ "$SLIM" == 1 && "$STOP" != 1 ]]; then
+  echo "!! --slim needs the db stopped; don't combine with --no-stop" >&2
+  exit 2
+fi
+
+# Empty jobs-only tables and shed stale WAL so the captured snapshot is lean.
+# Safe by design: the truncated tables are not read by the webapp
+# (workbench/db-slim-candidates.md) and are reloadable. WAL is collapsed with
+# pg_resetwal (a single CHECKPOINT won't -- PostgreSQL's segment-retention
+# estimate decays only ~2%/checkpoint). pg_resetwal is safe ONLY after a clean
+# shutdown, which we guarantee by stopping the throwaway server first. Runs only
+# while the real db container is stopped (single writer on the volume).
+slim_pg() {
+  local img="$REGISTRY/zfin-db:$ZFIN_RELEASE" name="preloaded-slim-$$" i ok=0
+  echo ">> [slim] throwaway postgres on $PG_VOL: TRUNCATE jobs-only tables"
+  docker run -d --name "$name" \
+    -e POSTGRES_HOST_AUTH_METHOD=trust \
+    -v "$PG_VOL":/var/lib/postgresql \
+    "$img" >/dev/null
+  for i in $(seq 1 60); do
+    docker exec "$name" pg_isready -U postgres -d zfindb >/dev/null 2>&1 && { ok=1; break; }
+    sleep 1
+  done
+  [[ "$ok" == 1 ]] || { echo "!! [slim] postgres not ready" >&2; docker logs --tail 30 "$name" >&2; docker rm -f "$name" >/dev/null; exit 1; }
+  docker exec -i "$name" psql -U postgres -d zfindb -v ON_ERROR_STOP=1 <<SQL
+DO \$\$
+DECLARE t text;
+BEGIN
+  FOREACH t IN ARRAY ARRAY[$(printf "'%s'," $SLIM_TABLES | sed 's/,$//')]
+  LOOP
+    IF to_regclass(t) IS NOT NULL THEN
+      EXECUTE format('TRUNCATE TABLE %I CASCADE', t);
+      RAISE NOTICE 'slimmed %', t;
+    END IF;
+  END LOOP;
+END \$\$;
+SQL
+  docker stop "$name" >/dev/null   # clean shutdown: required precondition for pg_resetwal
+  docker rm "$name" >/dev/null
+  echo ">> [slim] pg_resetwal to shed stale WAL segments (safe after the clean shutdown above)"
+  docker run --rm -u postgres -v "$PG_VOL":/var/lib/postgresql --entrypoint bash "$img" \
+    -c 'pg_resetwal -f "$PGDATA"'
+  echo ">> [slim] emptied: $SLIM_TABLES; WAL reset"
+}
+
 # Quiesce Postgres/Solr so the on-disk state we tar is clean, not mid-write.
 if [[ "$STOP" == 1 ]]; then
   echo ">> stopping db + solr in project '$PROJECT' for a consistent capture"
   docker compose -p "$PROJECT" stop db solr
+fi
+
+if [[ "$SLIM" == 1 ]]; then
+  slim_pg
 fi
 
 capture() {  # capture <volume> <output-tgz>

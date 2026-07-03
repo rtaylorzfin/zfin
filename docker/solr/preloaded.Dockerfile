@@ -8,11 +8,13 @@
 # log4j2.xml from the image templates, but leaves the baked index data/tlog/
 # snapshots alone -- so config stays image-authoritative while the index is
 # served from the preloaded capture.
-ARG ZFIN_RELEASE
+ARG ZFIN_RELEASE=main
 FROM ghcr.io/zfin/zfin-solr:${ZFIN_RELEASE}
 
+# Ownership (the solr uid/gid) is preserved from the captured volume by ADD, so
+# we skip a `RUN chown -R` — that rewrites every file into a second multi-GB
+# layer and roughly doubles the image's on-disk size.
 USER root
 ARG SOLRVAR_TARBALL=solrvar.tgz
 ADD ${SOLRVAR_TARBALL} /var/solr/
-RUN chown -R solr:solr /var/solr
 USER solr

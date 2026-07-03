@@ -11,13 +11,13 @@
 # fresh (anonymous or per-project) volume from this baked content -- giving every
 # feature stack its own copy-on-write DB with no shared state and no ZFS needed.
 # `docker compose down -v` discards it.
-ARG ZFIN_RELEASE
+ARG ZFIN_RELEASE=main
 FROM ghcr.io/zfin/zfin-db:${ZFIN_RELEASE}
 
-# ADD auto-extracts a local tar into the destination.
+# ADD auto-extracts a local tar into the destination. The tarball is captured
+# straight from the postgres data volume, so file ownership (the postgres
+# uid/gid) is already correct and ADD preserves it. We deliberately DO NOT
+# `RUN chown -R` afterward: that rewrites every file into a second multi-GB
+# layer, which doubled the on-disk image size (~34GB observed on first build).
 ARG PGDATA_TARBALL=pgdata.tgz
 ADD ${PGDATA_TARBALL} /var/lib/postgresql/
-
-# tar already preserves ownership, but re-assert it in case the capture host
-# used different uid/gid mapping than the postgres image's `postgres` user.
-RUN chown -R postgres:postgres /var/lib/postgresql
