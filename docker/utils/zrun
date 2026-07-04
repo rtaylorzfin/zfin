@@ -17,6 +17,8 @@ z-commands (available inside an activated .zenv -- `source .zenv/activate`):
   zpull [svc...]       pull image(s)
   zlog [svc...]        tail logs
   zrestart [svc]       restart a running container
+  zfeature <cmd>       feature ops -- `zfeature new [<ticket>]`, `zfeature build-preloaded`
+  zbuild <phase>       hands-free build/deploy -- configure|load-db|load-solr|deploy-jenkins|deploy|all
   zstatus              show the active stack: name, dir, url, containers
   zhelp                this help
   deactivate           leave the active .zenv (restores your shell)
