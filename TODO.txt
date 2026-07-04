@@ -87,6 +87,19 @@ Decisions / follow-ups
 - [ ] Claude sidecar container (future) — workbench/claude-sidecar.md
 - [ ] "quiz" skill idea for the definition-of-done checklist
 
+Bugs found
+- [ ] IP collision: the base zfin_org stack is pinned to 127.0.0.2 (docker/.env
+      DOCKER_DB_PORT=127.0.0.2:5432, DOCKER_HTTPD_HTTPS_PORT=127.0.0.2:443), but
+      new-feature.groovy's IP allocator starts at 127.0.0.2 too (max octet across
+      wt-*/.env, min 1, +1 => .2 for the first feature). So feature #1 (zfh-123)
+      binds the SAME host ports as the base -> whichever `up`s its db second fails
+      with "port is already allocated". Surfaced trying to validate `zbuild deploy`
+      against zfin_org while zfh-123 was up.
+      Fix options: (a) allocator also treats the base docker/.env's IP as occupied
+      (read DOCKER_DB_PORT/LOOPBACK from it); (b) start feature numbering at .3,
+      reserving .1 (loopback default) + .2 (base); (c) move base to 127.0.0.1.
+      Prefer (a): derive "taken" IPs from BOTH the base .env and wt-*/.env.
+
 Cleanup before PR
 - [ ] sweep untracked cruft (hs_err_pid*.log, screenshot*.png, tmp*, docker/old.env,
       docker/lb.log, .temp.txt.swp, the exported transcript in workbench/, ...)

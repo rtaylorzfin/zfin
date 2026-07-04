@@ -53,19 +53,18 @@ usage() {
       echo "Usage: zrun [service] [bash_args...]"
       echo "  service     Compose service to run (default: compile)"
       echo "  bash_args   Extra arguments passed to bash (e.g. -c 'ls -la')"
-      echo "  Env: ZFIN_COMPOSE          path to docker-compose.yml"
-      echo "  Env: COMPOSE_PROJECT_NAMES comma-separated project name prefixes (default: zfin_org,test,trunk,cell,crick,franklin,schlapp)"
+      echo "  Targets the active .zenv stack (COMPOSE_PROJECT_NAME/COMPOSE_FILE);"
+      echo "  set ZFIN_COMPOSE=/path/to/docker-compose.yml if no .zenv is active."
       ;;
     zexec)
       echo "Usage: zexec [service] [bash_args...]"
-      echo "  service     Container name pattern to match (default: compile)"
+      echo "  service     Compose service whose running container to exec into (default: compile)"
       echo "  bash_args   Extra arguments passed to bash (e.g. -c 'ls -la')"
-      echo "  Env: COMPOSE_PROJECT_NAMES comma-separated project name prefixes (default: zfin_org,test,trunk,cell,crick,franklin,schlapp)"
+      echo "  Resolves the container via 'docker compose exec' in the active .zenv stack."
       ;;
     zrestart)
       echo "Usage: zrestart [service]"
-      echo "  service     Container name pattern to match (default: compile)"
-      echo "  Env: COMPOSE_PROJECT_NAMES comma-separated project name prefixes (default: zfin_org,test,trunk,cell,crick,franklin,schlapp)"
+      echo "  service     Compose service to restart in the active .zenv stack"
       ;;
     zup)
       echo "Usage: zup [service...]"
@@ -143,31 +142,16 @@ case "$SCRIPT" in
   zrun)
     exec docker compose "${COMPOSE_FILE_ARGS[@]+"${COMPOSE_FILE_ARGS[@]}"}" run --rm "${DOCKER_ARGS[@]}" "$SERVICE" bash -l "$@"
     ;;
-  zexec|zrestart)
-    IFS=',' read -ra PROJECT_NAMES <<< "${COMPOSE_PROJECT_NAMES:-zfin_org,test,trunk,cell,crick,franklin,schlapp}"
-    CONTAINER_ID=""
-    for project in "${PROJECT_NAMES[@]}"; do
-      CONTAINER_ID=$(docker ps --filter "name=${project}-${SERVICE}" --format '{{.ID}}' | head -1)
-      [[ -n "$CONTAINER_ID" ]] && break
-    done
-    if [[ -z "$CONTAINER_ID" ]]; then
-      echo "Error: no running container found for service '${SERVICE}'" >&2
-      echo "  Searched prefixes: ${PROJECT_NAMES[*]}" >&2
-      echo "  Set COMPOSE_PROJECT_NAMES=a,b,c to override" >&2
-      echo "" >&2
-      echo "Running containers:" >&2
-      docker ps --format '  {{.Names}}\t{{.Status}}' >&2
-      exit 1
-    fi
-    CONTAINER_NAME=$(docker ps --format '{{.Names}}' --filter "id=$CONTAINER_ID")
-    if [[ "$SCRIPT" == "zrestart" ]]; then
-      echo "Restarting: $CONTAINER_NAME" >&2
-      exec docker restart "$CONTAINER_ID" "$@"
-    fi
-    echo "Connecting to: $CONTAINER_NAME" >&2
-    TTY_FLAG=()
-    [[ -t 0 ]] && TTY_FLAG=(-t)
-    exec docker exec -i "${TTY_FLAG[@]}" "${DOCKER_ARGS[@]}" "$CONTAINER_ID" bash -l "$@"
+  zrestart)
+    # Compose resolves the service in the active project (COMPOSE_PROJECT_NAME/FILE from
+    # the .zenv) -- no name-prefix guessing needed.
+    exec docker compose "${COMPOSE_FILE_ARGS[@]+"${COMPOSE_FILE_ARGS[@]}"}" restart "$SERVICE" "$@"
+    ;;
+  zexec)
+    # Exec into THIS stack's running service via compose (exact, via the .zenv env).
+    # compose exec allocates a TTY by default; disable it when stdin isn't a terminal.
+    TTY_FLAG=(); [[ -t 0 ]] || TTY_FLAG=(-T)
+    exec docker compose "${COMPOSE_FILE_ARGS[@]+"${COMPOSE_FILE_ARGS[@]}"}" exec "${TTY_FLAG[@]}" "${DOCKER_ARGS[@]}" "$SERVICE" bash -l "$@"
     ;;
   zup)
     exec docker compose "${COMPOSE_FILE_ARGS[@]+"${COMPOSE_FILE_ARGS[@]}"}" up -d "$SERVICE" "$@"
