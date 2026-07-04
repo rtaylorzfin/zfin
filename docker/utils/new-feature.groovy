@@ -25,7 +25,10 @@
 //   --branch NAME   Branch to create (default: <name>)
 //   --tag TAG       Preloaded image tag (default: newest local zfin-db-preloaded;
 //                   override via $PRELOADED_TAG)
-//   --ip 127.0.0.X  Loopback IP for published ports (default: next free)
+//   --ip 127.0.0.X  Pin the loopback IP for published ports (default: auto)
+//   --ip-base N     Start auto-allocation at 127.0.0.N (or $ZFIN_FEATURE_IP_BASE;
+//                   default 2). Allocation skips the base stack's IP, other features'
+//                   IPs, and anything currently bound -- picking the first free octet.
 //   --up            Bring up the preloaded data tier (db + solr) after provisioning.
 //                   The app tier (tomcat/httpd) is intentionally left down until the
 //                   webapp is built+deployed -- see the next: block it prints.
@@ -77,6 +80,7 @@ def base    = 'main'
 def baseArg = false
 def tagArg  = null
 def ip      = ''
+def ipBase  = null
 def branch  = ''
 def doUp    = false
 def doHosts = false
@@ -85,12 +89,13 @@ def name    = ''
 def argv = args as List
 for (int i = 0; i < argv.size(); i++) {
     switch (argv[i]) {
-        case '--base':   base = argv[++i]; baseArg = true; break
-        case '--branch': branch = argv[++i]; break
-        case '--tag':    tagArg = argv[++i]; break
-        case '--ip':     ip = argv[++i];     break
-        case '--up':     doUp = true;        break
-        case '--hosts':  doHosts = true;     break
+        case '--base':    base = argv[++i]; baseArg = true; break
+        case '--branch':  branch = argv[++i]; break
+        case '--tag':     tagArg = argv[++i]; break
+        case '--ip':      ip = argv[++i];     break
+        case '--ip-base': ipBase = argv[++i]; break
+        case '--up':      doUp = true;        break
+        case '--hosts':   doHosts = true;     break
         default:
             if (argv[i].startsWith('-')) die("unknown arg: ${argv[i]}", 2)
             name = argv[i]
@@ -163,21 +168,41 @@ def host    = "${slug}.zfin.test"
 def wt      = new File(WT_PARENT, "wt-${slug}")
 def wtPath  = wt.absolutePath
 
-// Allocate the next free 127.0.0.X across existing feature worktrees, unless the
-// caller pinned one. This is the host-side bit Compose can't do for us: published
-// ports must land on a per-feature IP so stacks don't fight over :443/:5432, and
-// so <name>.zfin.test resolves to exactly one stack.
+// Allocate a free 127.0.0.X for this feature's published ports, unless pinned with
+// --ip. Compose can't do this for us: published ports must land on a per-feature IP so
+// stacks don't fight over :443/:5432 and <name>.zfin.test resolves to exactly one stack.
+// "Taken" is gathered from three places so we never collide with the base stack, another
+// feature, or whatever is bound right now:
+//   - the base docker/.env's reserved IPs (any 127.0.0.N in it, e.g. DOCKER_DB_PORT),
+//   - every existing feature worktree's LOOPBACK_IP,
+//   - any 127.0.0.N currently published by a running container.
+// Scan upward from a configurable start (--ip-base / $ZFIN_FEATURE_IP_BASE, default 2)
+// to the first free octet.
 if (!ip) {
-    int max = 1
+    def taken = [1] as Set          // .1 is the loopback default; never hand it out
+    def addOctets = { String s -> (s =~ /127\.0\.0\.(\d+)/).each { taken << (it[1] as int) } }
+    baseEnvFile.readLines().each(addOctets)
     (WT_PARENT.listFiles() ?: [] as File[]).findAll { it.isDirectory() && it.name.startsWith('wt-') }.each { d ->
         def f = new File(d, 'docker/.env')
-        if (!f.isFile()) return
-        def ipLines = f.readLines().findAll { it.startsWith('LOOPBACK_IP=') }
-        if (!ipLines) return
-        def octet = ipLines.last().substring('LOOPBACK_IP='.length()).trim().tokenize('.').last()
-        if (octet.isInteger() && octet.toInteger() > max) max = octet.toInteger()
+        if (f.isFile()) f.readLines().findAll { it.startsWith('LOOPBACK_IP=') }.each(addOctets)
     }
-    ip = "127.0.0.${max + 1}"
+    capOut(['docker', 'ps', '--format', '{{.Ports}}']).readLines().each(addOctets)
+
+    def startStr = ipBase ?: System.getenv('ZFIN_FEATURE_IP_BASE')
+    int start = startStr ? (startStr.contains('.') ? startStr.tokenize('.').last() : startStr) as int : 2
+    int octet = start
+    while (octet <= 254 && taken.contains(octet)) octet++
+    if (octet > 254) die("no free 127.0.0.X in [$start, 254] (taken: ${taken.sort().join(', ')})")
+    ip = "127.0.0.$octet"
+    def skipped = taken.findAll { it >= start }.sort()
+    info("allocated $ip" + (skipped ? "  (skipped in-use: ${skipped.join(', ')})" : ''))
+}
+
+// macOS needs an explicit loopback alias for anything other than 127.0.0.1; Linux
+// treats all of 127/8 as loopback already. Warn (don't fail) if it's missing.
+if (System.getProperty('os.name')?.toLowerCase()?.contains('mac')) {
+    def aliased = capOut(['ifconfig', 'lo0']).contains("inet $ip ")
+    if (!aliased) info("note (macOS): $ip is not a loopback alias yet -- if ports won't bind, run:  sudo ifconfig lo0 alias $ip")
 }
 
 info("feature=$name project=$project host=$host ip=$ip tag=$tag base=$base")

@@ -88,7 +88,7 @@ Decisions / follow-ups
 - [ ] "quiz" skill idea for the definition-of-done checklist
 
 Bugs found
-- [ ] IP collision: the base zfin_org stack is pinned to 127.0.0.2 (docker/.env
+- [x] FIXED: IP collision: the base zfin_org stack is pinned to 127.0.0.2 (docker/.env
       DOCKER_DB_PORT=127.0.0.2:5432, DOCKER_HTTPD_HTTPS_PORT=127.0.0.2:443), but
       new-feature.groovy's IP allocator starts at 127.0.0.2 too (max octet across
       wt-*/.env, min 1, +1 => .2 for the first feature). So feature #1 (zfh-123)
@@ -98,7 +98,23 @@ Bugs found
       Fix options: (a) allocator also treats the base docker/.env's IP as occupied
       (read DOCKER_DB_PORT/LOOPBACK from it); (b) start feature numbering at .3,
       reserving .1 (loopback default) + .2 (base); (c) move base to 127.0.0.1.
-      Prefer (a): derive "taken" IPs from BOTH the base .env and wt-*/.env.
+      DONE via (a)++: allocator now gathers taken octets from the base .env, every
+      wt-*/.env, AND anything bound on 127.0.0.x right now (docker ps), then scans from a
+      configurable start (--ip-base / $ZFIN_FEATURE_IP_BASE, default 2) to the first free
+      octet. Validated: default -> .5 (skips base .2 + features), --ip-base 100 -> .100.
+- [x] FIXED: mailpit is a global singleton: docker-compose.yml gave it `container_name: mailpit`
+      (fixed, not project-prefixed), so only ONE project can run it -- parallel stacks
+      collide ("container name /mailpit already in use"). Surfaced when `zbuild deploy` on
+      zfin-789 reached `up -d httpd mailpit tomcat` while zfh-123's mailpit held the name;
+      the aborted `up` also left httpd down (collateral -- deploy's build steps had all
+      SUCCEEDED). Fix: drop container_name so compose prefixes it (<proj>-mailpit-1); OR
+      remove mailpit from zbuild's deploy phase (one shared mailpit is likely enough for
+      dev). VALIDATION RESULT: zbuild deploy's build sequence (gradle make -> ant
+      deploy-catalina-base -> ant deploy-without-tests -> tomcat) works end-to-end; only
+      the mailpit up step failed.
+      DONE: removed container_name so compose names it <project>-mailpit-1. Verified
+      zfin-789-mailpit-1 starts cleanly (the step that had failed). zbuild deploy now
+      completes end-to-end.
 
 Cleanup before PR
 - [ ] sweep untracked cruft (hs_err_pid*.log, screenshot*.png, tmp*, docker/old.env,
