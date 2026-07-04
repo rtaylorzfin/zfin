@@ -88,6 +88,7 @@ _ZENV_PROJECT='${opt.project}'
 _ZENV_HOST='${opt.host ?: ''}'
 _ZENV_DIR='${dir.absolutePath}'
 _ZENV_BIN='${bin.absolutePath}'
+_ZENV_UTILS='${UTILS.absolutePath}'
 _ZENV_COMPOSE_FILE='${opt.compose}'
 _ZENV_ENV_FILE='${opt.envFile}'
 _ZENV_TAG='${opt.tag ?: ''}'
@@ -113,6 +114,11 @@ export ZENV_DIR="$_ZENV_DIR"
 
 PS1="($_ZENV_PROJECT) ${PS1:-}"
 
+# bash tab-completion for `z` (no-op in other shells / if the file is missing)
+if [ -n "${BASH_VERSION:-}" ] && [ -r "$_ZENV_UTILS/z-completion.bash" ]; then
+  . "$_ZENV_UTILS/z-completion.bash"
+fi
+
 deactivate() {
   PATH="$_ZENV_OLD_PATH"; export PATH
   PS1="$_ZENV_OLD_PS1"
@@ -121,8 +127,9 @@ deactivate() {
   if [ -n "$_ZENV_OLD_CF" ];   then export COMPOSE_FILE="$_ZENV_OLD_CF";            else unset COMPOSE_FILE;          fi
   if [ -n "$_ZENV_OLD_CEF" ];  then export COMPOSE_ENV_FILES="$_ZENV_OLD_CEF";      else unset COMPOSE_ENV_FILES;     fi
   if [ -n "$_ZENV_OLD_TAG" ];  then export PRELOADED_TAG="$_ZENV_OLD_TAG";          else unset PRELOADED_TAG;         fi
+  complete -r z 2>/dev/null || true
   unset ZENV_ACTIVE ZENV_HOST ZENV_DIR
-  unset _ZENV_PROJECT _ZENV_HOST _ZENV_DIR _ZENV_BIN _ZENV_COMPOSE_FILE _ZENV_ENV_FILE _ZENV_TAG
+  unset _ZENV_PROJECT _ZENV_HOST _ZENV_DIR _ZENV_BIN _ZENV_UTILS _ZENV_COMPOSE_FILE _ZENV_ENV_FILE _ZENV_TAG
   unset _ZENV_OLD_PS1 _ZENV_OLD_PATH _ZENV_OLD_CPN _ZENV_OLD_CPNS _ZENV_OLD_CF _ZENV_OLD_CEF _ZENV_OLD_TAG
   unset -f deactivate
   echo "zenv: deactivated (restored previous shell environment)"
