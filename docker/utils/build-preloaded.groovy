@@ -31,7 +31,7 @@
 // Usage:
 //   docker/build-preloaded.groovy [--project NAME] [--tag TAG] [--slim] [--keep-tarballs]
 //
-//   --project NAME   Compose project whose volumes to capture (default: $COMPOSE_PROJECT_NAME or "dazed")
+//   --project NAME   Compose project whose volumes to capture (default: $COMPOSE_PROJECT_NAME or "zfin_org")
 //   --tag TAG        Preloaded image tag (default: today's date, YYYY-MM-DD)
 //   --slim           Before capture, empty jobs-only tables + reset WAL for a leaner
 //                    image. NOTE: mutates the source stack's DB, but only tables proven
@@ -94,7 +94,7 @@ if (envFile.exists()) envFile.eachLine { line ->
 def envOf = { String k, String dflt = null -> dotenv.containsKey(k) ? dotenv[k] : (System.getenv(k) ?: dflt) }
 
 // --- defaults + args ---------------------------------------------------------
-def project = envOf('COMPOSE_PROJECT_NAME', 'dazed')
+def project = envOf('COMPOSE_PROJECT_NAME', 'zfin_org')
 def tag     = java.time.LocalDate.now().toString()   // YYYY-MM-DD
 def keep    = false
 def slim    = false

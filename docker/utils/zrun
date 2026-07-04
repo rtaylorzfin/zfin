@@ -53,8 +53,7 @@ usage() {
       echo "Usage: zrun [service] [bash_args...]"
       echo "  service     Compose service to run (default: compile)"
       echo "  bash_args   Extra arguments passed to bash (e.g. -c 'ls -la')"
-      echo "  Targets the active .zenv stack (COMPOSE_PROJECT_NAME/COMPOSE_FILE);"
-      echo "  set ZFIN_COMPOSE=/path/to/docker-compose.yml if no .zenv is active."
+      echo "  Targets the active .zenv stack (source .zenv/activate first)."
       ;;
     zexec)
       echo "Usage: zexec [service] [bash_args...]"
@@ -69,22 +68,22 @@ usage() {
     zup)
       echo "Usage: zup [service...]"
       echo "  service     One or more services to start (default: all)"
-      echo "  Env: ZFIN_COMPOSE  path to docker-compose.yml"
+      echo "  Acts on the active .zenv stack (source .zenv/activate first)."
       ;;
     zdown)
       echo "Usage: zdown [service...]"
       echo "  service     One or more services to stop (default: all)"
-      echo "  Env: ZFIN_COMPOSE  path to docker-compose.yml"
+      echo "  Acts on the active .zenv stack (source .zenv/activate first)."
       ;;
     zpull)
       echo "Usage: zpull [service...]"
       echo "  service     One or more services to pull (default: all)"
-      echo "  Env: ZFIN_COMPOSE  path to docker-compose.yml"
+      echo "  Acts on the active .zenv stack (source .zenv/activate first)."
       ;;
     zlog)
       echo "Usage: zlog [service...]"
       echo "  service     One or more services to tail logs for (default: all)"
-      echo "  Env: ZFIN_COMPOSE  path to docker-compose.yml"
+      echo "  Acts on the active .zenv stack (source .zenv/activate first)."
       ;;
     *)
       echo "Must be invoked as 'zrun', 'zexec', 'zrestart', 'zup', 'zdown', 'zlog', or 'zpull'" >&2
@@ -119,51 +118,41 @@ while [[ $# -gt 0 ]]; do
   esac
 done
 
-# Decide which compose file(s) to pass. If COMPOSE_FILE is set in the environment
-# (e.g. by a feature's `.zenv/activate`), let `docker compose` consume it natively
-# -- it supports ':'-separated lists and pairs with COMPOSE_ENV_FILES/COMPOSE_PROJECT_NAME
-# -- so we pass NO -f and the whole feature stack resolves automatically. Otherwise
-# fall back to ZFIN_COMPOSE / the default single file (unchanged behavior).
-COMPOSE_FILE_ARGS=()
+# An active .zenv (or zbuild / GoCD) exports COMPOSE_PROJECT_NAME/COMPOSE_FILE, which
+# `docker compose` reads natively -- so we pass no -f and act on exactly that stack.
+# If nothing set it, there's no stack to target: tell the user to activate one.
 if [[ -z "${COMPOSE_FILE:-}" ]]; then
-  f="${ZFIN_COMPOSE:-$HOME/zfin/docker/docker-compose.yml}"
-  if [[ ! -f "$f" ]]; then
-    echo "Error: compose file not found: $f" >&2
-    echo "  Set ZFIN_COMPOSE=/path/to/docker-compose.yml to override," >&2
-    echo "  or activate a feature (source .zenv/activate) to set COMPOSE_FILE." >&2
-    exit 1
-  fi
-  COMPOSE_FILE_ARGS=(-f "$f")
+  echo "Error: no COMPOSE_FILE in the environment -- activate a stack first:" >&2
+  echo "  source <repo-or-worktree>/.zenv/activate" >&2
+  exit 1
 fi
-# Expand safely even when empty under `set -u` (incl. bash 3.2):
-#   "${COMPOSE_FILE_ARGS[@]+"${COMPOSE_FILE_ARGS[@]}"}"
 
 case "$SCRIPT" in
   zrun)
-    exec docker compose "${COMPOSE_FILE_ARGS[@]+"${COMPOSE_FILE_ARGS[@]}"}" run --rm "${DOCKER_ARGS[@]}" "$SERVICE" bash -l "$@"
+    exec docker compose run --rm "${DOCKER_ARGS[@]}" "$SERVICE" bash -l "$@"
     ;;
   zrestart)
     # Compose resolves the service in the active project (COMPOSE_PROJECT_NAME/FILE from
     # the .zenv) -- no name-prefix guessing needed.
-    exec docker compose "${COMPOSE_FILE_ARGS[@]+"${COMPOSE_FILE_ARGS[@]}"}" restart "$SERVICE" "$@"
+    exec docker compose restart "$SERVICE" "$@"
     ;;
   zexec)
     # Exec into THIS stack's running service via compose (exact, via the .zenv env).
     # compose exec allocates a TTY by default; disable it when stdin isn't a terminal.
     TTY_FLAG=(); [[ -t 0 ]] || TTY_FLAG=(-T)
-    exec docker compose "${COMPOSE_FILE_ARGS[@]+"${COMPOSE_FILE_ARGS[@]}"}" exec "${TTY_FLAG[@]}" "${DOCKER_ARGS[@]}" "$SERVICE" bash -l "$@"
+    exec docker compose exec "${TTY_FLAG[@]}" "${DOCKER_ARGS[@]}" "$SERVICE" bash -l "$@"
     ;;
   zup)
-    exec docker compose "${COMPOSE_FILE_ARGS[@]+"${COMPOSE_FILE_ARGS[@]}"}" up -d "$SERVICE" "$@"
+    exec docker compose up -d "$SERVICE" "$@"
     ;;
   zdown)
-    exec docker compose "${COMPOSE_FILE_ARGS[@]+"${COMPOSE_FILE_ARGS[@]}"}" stop "$SERVICE" "$@"
+    exec docker compose stop "$SERVICE" "$@"
     ;;
   zpull)
-    exec docker compose "${COMPOSE_FILE_ARGS[@]+"${COMPOSE_FILE_ARGS[@]}"}" pull "$SERVICE" "$@"
+    exec docker compose pull "$SERVICE" "$@"
     ;;
   zlog)
-    exec docker compose "${COMPOSE_FILE_ARGS[@]+"${COMPOSE_FILE_ARGS[@]}"}" logs -f "$SERVICE" "$@"
+    exec docker compose logs -f "$SERVICE" "$@"
     ;;
   *)
     echo "Error: must be invoked as 'zrun', 'zexec', 'zrestart', 'zup', 'zdown', or 'zpull'" >&2

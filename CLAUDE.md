@@ -32,7 +32,7 @@ Key points:
 - `zrun` always uses a **login shell** (`bash -l`), which sources `.profile` and sets up `SOURCEROOT`/`TARGETROOT`/`NODE_ENV`. A non-login shell (raw `bash -c`) skips this and builds fail with errors like `NODE_ENV environment variable is undefined` — so prefer `zrun` over hand-rolled `docker compose`/`docker exec`.
 - `zrun` with no args drops into an interactive login shell in `compile` at `SOURCEROOT`.
 - Pass `-u root` (and similar docker flags) before the bash command; it may come before or after the service name, e.g. `zrun -u root -c "…"` or `zexec -u root jenkins`.
-- Override which project prefixes `zexec`/`zrestart` search with `COMPOSE_PROJECT_NAMES=a,b,c`. When a `.zenv` is active (below), the stack's project/compose files/env-file are supplied automatically via `COMPOSE_PROJECT_NAME`/`COMPOSE_FILE`/`COMPOSE_ENV_FILES`, so `zrun` needs no `-f`. Otherwise set `ZFIN_COMPOSE=/path/to/docker-compose.yml`.
+- z-commands act on the **active `.zenv` stack**: activation exports `COMPOSE_PROJECT_NAME`/`COMPOSE_FILE`/`COMPOSE_ENV_FILES`, which `docker compose` reads natively — so `zrun` needs no `-f` and `zexec`/`zrestart` resolve the container exactly (no project-name guessing). With no `.zenv` active, `zrun` errors and tells you to activate one.
 
 ```bash
 # Compile Java

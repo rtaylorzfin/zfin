@@ -59,8 +59,10 @@ info("  fresh ✓ (no ZFIN volumes / images / containers)")
 
 // --- 3. init inputs (paths come from docker/.env) --------------------------------
 info("checking init inputs...")
+def home = System.getProperty('user.home')
+def expandTilde = { String s -> s?.startsWith('~') ? home + s.substring(1) : s }   // Java File doesn't expand ~
 def checkPath = { String var, boolean required ->
-    def p = dotenv[var]
+    def p = expandTilde(dotenv[var])
     def ok = p && new File(p).exists()
     println("   ${ok ? '✓' : (required ? '✗' : '–')} ${var.padRight(38)} ${p ?: '(unset)'}${ok ? '' : (required ? '   MISSING (required)' : '   (optional, skipped)')}")
     [required: required, ok: ok, var: var]
@@ -106,7 +108,7 @@ def plan = []
 plan << [createZenv, '--dir', REPO.absolutePath, '--project', project, '--compose', baseCompose, '--env-file', envFile.absolutePath, '--host', host]
 plan << [zbuild, 'all'] + (buildImages ? ['--build'] : [])
 if (firstTicket) {
-    plan << [buildPre, '--tag', tag]                              // bake preloaded from the freshly-loaded base
+    plan << [buildPre, '--project', project, '--tag', tag]        // bake preloaded from the freshly-loaded base
     plan << [newFeature, firstTicket, '--tag', tag, '--up', '--hosts']
 }
 
