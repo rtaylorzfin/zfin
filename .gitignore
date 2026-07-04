@@ -72,7 +72,6 @@ temp-ai-*
 .trae
 .vscode
 .windsurf
-CLAUDE.md
 
 # Ontology serialization caches written during test runs.
 # Tests prime them lazily via AbstractOntologyTest.deserializeOrPrime(...).
