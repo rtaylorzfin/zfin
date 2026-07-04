@@ -1,0 +1,24 @@
+#!/usr/bin/env bash
+# z -- umbrella dispatcher for the z-commands. `z <cmd> [args]` runs `z<cmd>`:
+#   z run …      -> zrun …          z up …       -> zup …
+#   z exec …     -> zexec …         z down …     -> zdown …
+#   z pull …     -> zpull …         z log …      -> zlog …
+#   z restart …  -> zrestart …      z status     -> zstatus
+#   z build …    -> zbuild …        z feature …  -> zfeature …
+#   z help       -> zhelp
+# All targets live in the active .zenv/bin, so `source .zenv/activate` first.
+set -euo pipefail
+
+sub="${1:-help}"
+[[ $# -gt 0 ]] && shift
+
+case "$sub" in
+  -h|--help|help) exec zhelp ;;
+esac
+
+cmd="z$sub"
+if ! command -v "$cmd" >/dev/null 2>&1; then
+  echo "z: unknown command '$sub' (no '$cmd' on PATH). Try: z help" >&2
+  exit 2
+fi
+exec "$cmd" "$@"

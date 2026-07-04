@@ -1,5 +1,26 @@
 # Slimming the preloaded dev DB (working analysis)
 
+## Why size matters: the preloaded model makes a FULL COPY per feature (not CoW)
+
+The preloaded image bakes the whole PGDATA (and Solr index) into its layers. But
+postgres/solr declare `VOLUME`, so on a feature stack's first `up`, Docker **seeds
+the per-project named volume (`<proj>_pg_data` / `<proj>_solr_var`) by COPYING** the
+image's baked data into it. This is a plain filesystem copy at volume-create time --
+**NOT copy-on-write**, and the running DB then uses that copy, not the shared image
+layer. So disk cost is roughly:
+
+```
+  preloaded images (once)     ~33G db + ~10G solr
+  + per feature stack         ~26G db + ~10G solr   (a full, independent copy)
+```
+
+Three feature stacks ≈ 100G+. This is why the `--slim` levers below matter (they
+shrink every per-feature copy), and it's the trade the preloaded approach made:
+instant boot + isolation on plain Docker, paid for in disk. True per-feature CoW
+clones would need a CoW filesystem (ZFS/btrfs/reflink) -- see TODO.txt.
+
+## Slimming the image (working analysis)
+
 Goal: shrink the preloaded DB image (`base/` ≈16GB + `pg_wal/` ≈8.8GB = ~24GB
 PGDATA on `dazed`) and speed up `getdb`/`loaddb`. Two INDEPENDENT levers:
 

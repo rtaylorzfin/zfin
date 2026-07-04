@@ -101,6 +101,54 @@ Decisions / follow-ups
       stack? A release likely wants the real instance's properties/host + a real load (not
       preloaded dev images), so it's probably closer to `zbuild all` on the primary
       checkout than to `zfeature new`. Clarify the intended path and document it.
+- [ ] space efficiency: preloaded stacks make a FULL COPY of the DB/Solr per feature
+      (Docker seeds each <proj>_pg_data/_solr_var by copying the image's baked VOLUME
+      data -- NOT copy-on-write). ~26G db + ~10G solr PER feature; 3 stacks ≈ 100G+.
+      Explore real per-feature CoW so N clones are near-free:
+        - ZFS (the original idea): snapshot a golden loaded pg_data/solr_var dataset,
+          `zfs clone` per feature, destroy on teardown. Needs ZFS-backed docker storage
+          or bind-mounting ZFS clones as the volumes.
+        - btrfs subvolume snapshots, or reflink copies (cp --reflink=auto) on APFS/XFS.
+        - Docker doesn't do CoW volume seeding itself, so this likely means managing the
+          data dirs outside Docker's named-volume seeding (bind-mount clones) or a
+          storage driver / plugin that clones.
+      Trade vs current: much less disk + faster "up", at the cost of a fs dependency
+      (the very thing the preloaded-image approach was chosen to avoid). Weigh per host.
+      HOST OS MATTERS: this is a Linux-host capability. On Linux, ZFS/btrfs on the host +
+      bind-mount clones into containers works. On macOS (Docker Desktop) it's effectively
+      unavailable -- volumes live inside the LinuxKit VM's disk (not host APFS), you can't
+      run ZFS/btrfs in that managed VM, and APFS clonefile doesn't reach Docker volumes;
+      bind-mounting a 26G PGDATA over virtiofs is too slow/fsync-fragile for a DB. So CoW
+      clones are the win on Linux dev/CI; on macOS, lean on --slim + minimal-table-set.
+      (This is exactly why the preloaded full-copy approach was chosen: it works on macOS.)
+- [ ] minimal-table-set DB spin-up (a much cheaper alternative to full per-feature copies):
+      a mode that boots a feature DB with only a minimal set of tables -- some omitted
+      entirely, some truncated (maybe ALL truncated => schema-only) -- so the per-feature
+      copy is tiny. Then make it EASY to pull in the full data for specific tables on
+      demand when a ticket needs them (e.g. `zfeature load-tables <t1> <t2> ...` that
+      restores those tables from the full dump / a full preloaded image). Builds on the
+      --slim jobs-only classification (workbench/db-slim-candidates.md) but goes further:
+      minimal/empty by default, add-what-you-need. Design Qs: where does the full per-table
+      data come from (the .bak? a full preloaded image? pg COPY from a full stack?), and
+      how to express table+dependency sets so FKs are satisfiable.
+- [ ] hibernate/archive idle feature stacks to cheap storage (USB/NFS), restore on demand.
+      A stack you're not touching still pins ~36G local (26G db + 10G solr). Idea:
+      `zfeature archive <stack>` -> stop it, tar its stateful volumes (pg_data, solr_var)
+      to an archive dir on USB/NFS, `docker volume rm` locally (frees fast disk; keep the
+      tiny worktree/.env/.zenv). `zfeature restore <stack>` -> recreate volumes, extract,
+      start. Reuses build-preloaded's exact tar-capture mechanism.
+      Speed: minutes each way (compressed ~15G; read from slow media + write 36G local) --
+      faster than a full loaddb/reindex, slower than plain `stop`/`start` (which keeps data
+      local). So it's the "parking for days/weeks" tier, between stop and full teardown.
+      Caveats: archive AT REST on USB/NFS is fine; do NOT run the DB directly off NFS/USB
+      (I/O latency + fsync/locking break Postgres). Only pg_data/solr_var need archiving;
+      www_data/catalina_base are regenerable via a redeploy.
+      KEY INSIGHT: a feature that only changed CODE (not DB data) needs NO db archival at
+      all -- its DB is identical to the preloaded image, so "restore" = re-seed from the
+      preloaded image (a fresh `up`), and the only state to keep is the git branch. So
+      archival is really only for DB-MUTATING features; detecting/limiting to the diverged
+      data is the interesting part (ties into minimal-table-set + --slim). Especially
+      relevant on macOS where CoW clones aren't an option.
 - [ ] merge tooling to main so worktrees are self-contained (drops the -f overlay wrinkle)
 - [ ] loopback/port allocation review (per-IP, same-port scheme)
 - [ ] two tags? -preloaded (full) vs -preloaded-lean

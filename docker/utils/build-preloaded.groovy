@@ -7,9 +7,13 @@
 //
 // This captures that stack's pg_data + solr_var volumes and bakes them into
 //   zfin-db-preloaded:<tag>  and  zfin-solr-preloaded:<tag>
-// which a feature stack boots instantly with per-container copy-on-write data
-// (no ZFS required). See docker/postgresql/preloaded.Dockerfile and
-// docker/solr/preloaded.Dockerfile.
+// which a feature stack boots instantly (no getdb/loaddb/reindex). See
+// docker/postgresql/preloaded.Dockerfile and docker/solr/preloaded.Dockerfile.
+//
+// NOTE: NOT copy-on-write. postgres/solr declare VOLUME, so on first `up` Docker
+// SEEDS each feature's named volume by COPYING the image's baked data -- a full
+// per-feature copy (~26G db + ~10G solr each), not a shared/CoW clone. The win is
+// instant boot + isolation, at the cost of disk. See workbench/db-slim-candidates.md.
 //
 // These images bake in a REAL loaded database + Solr index, so they are
 // deliberately LOCAL-ONLY: bare names (no ghcr.io/ registry prefix) and no

@@ -8,9 +8,11 @@
 # build-preloaded.groovy and never pushed to a registry.
 #
 # Isolation without ZFS: with a per-feature COMPOSE_PROJECT_NAME, Compose names
-# the volumes <project>_pg_data / <project>_solr_var. Each starts empty, so
-# Docker seeds it from the preloaded image's baked data on first `up`; every
-# feature stack gets its own copy-on-write DB/index. `down -v` discards it.
+# the volumes <project>_pg_data / <project>_solr_var. Each starts empty, so on first
+# `up` Docker SEEDS it by COPYING the image's baked data (postgres/solr declare
+# VOLUME). That's a full per-feature COPY (~26G db + ~10G solr each) -- NOT
+# copy-on-write; the win is instant boot + isolation, at the cost of disk.
+# `down -v` discards a stack's copy. See workbench/db-slim-candidates.md.
 # `build: !reset null` drops the build: section these services inherit from the
 # base compose file. Without it, a MISSING preloaded image would make
 # `docker compose up` silently BUILD from the stock Dockerfile and mistag the

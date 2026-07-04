@@ -198,11 +198,18 @@ if (!ip) {
     info("allocated $ip" + (skipped ? "  (skipped in-use: ${skipped.join(', ')})" : ''))
 }
 
-// macOS needs an explicit loopback alias for anything other than 127.0.0.1; Linux
-// treats all of 127/8 as loopback already. Warn (don't fail) if it's missing.
-if (System.getProperty('os.name')?.toLowerCase()?.contains('mac')) {
-    def aliased = capOut(['ifconfig', 'lo0']).contains("inet $ip ")
-    if (!aliased) info("note (macOS): $ip is not a loopback alias yet -- if ports won't bind, run:  sudo ifconfig lo0 alias $ip")
+// macOS needs an explicit loopback alias for any 127.0.0.X other than .1, or the
+// stack's published ports can't bind (Linux treats all of 127/8 as loopback, so this
+// is a no-op there). Add it with sudo -- otherwise `--up` fails with "can't assign
+// requested address". Idempotent: skip if already present. (lo0 aliases don't survive
+// a reboot; teardown can drop it with `sudo ifconfig lo0 -alias <ip>`.)
+if (System.getProperty('os.name')?.toLowerCase()?.contains('mac') && ip != '127.0.0.1') {
+    if (capOut(['ifconfig', 'lo0']).contains("inet $ip ")) {
+        info("loopback alias $ip already present")
+    } else {
+        info("adding loopback alias $ip (macOS, sudo) so published ports can bind")
+        sh(['sudo', 'ifconfig', 'lo0', 'alias', ip])
+    }
 }
 
 info("feature=$name project=$project host=$host ip=$ip tag=$tag base=$base")
@@ -322,4 +329,5 @@ teardown:
   deactivate
   git worktree remove $wtPath
   sudo hostctl remove $slug            # drop this feature's hosts profile
+  sudo ifconfig lo0 -alias $ip         # (macOS) drop the loopback alias
 """
