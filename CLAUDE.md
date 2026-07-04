@@ -69,7 +69,14 @@ Groovy scripts in `docker/utils/`):
 zfeature new [<ticket>]        # provision a feature stack (prompts if no ticket)
 zfeature build-preloaded       # bake preloaded db/solr images from a loaded stack
 zstatus                        # active stack: name, dir, url, containers
+zbuild <phase>                 # hands-free build/deploy (configure|load-db|load-solr|
+                               #   deploy-jenkins|deploy|all) -- the CI engine; also on PATH here
 ```
+
+Two more scripts run **directly** (not via the wrapper), because they bootstrap or drive
+CI: `docker/utils/z-fresh-install` (interactive day-zero setup on a bare workstation) and
+`docker/utils/zbuild` (non-interactive; also what GoCD should call per stage instead of
+inlining `docker compose` tasks).
 
 To (re)create a `.zenv` directly (base stack, or repair):
 

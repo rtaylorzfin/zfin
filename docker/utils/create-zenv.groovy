@@ -69,8 +69,8 @@ def ln = { File link, String target ->
 }
 ln(new File(bin, 'zrun'), ZRUN.absolutePath)
 ALIASES.each { ln(new File(bin, it), 'zrun') }
-// zfeature is a separate real script (not a zrun basename-alias), so link it directly.
-ln(new File(bin, 'zfeature'), new File(UTILS, 'zfeature').absolutePath)
+// Separate real scripts (not zrun basename-aliases) -- link each directly.
+['zfeature', 'zbuild'].each { ln(new File(bin, it), new File(UTILS, it).absolutePath) }
 
 // activate: a header of baked values + a literal bash body (env save/set + deactivate).
 def header = """\

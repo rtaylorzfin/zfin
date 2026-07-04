@@ -28,8 +28,31 @@ Decisions / follow-ups
 - [x] new-feature #3 open Q — /etc/hosts vs dnsmasq: DECIDED on hostctl (per-feature profile named
       after the slug; teardown = `sudo hostctl remove <slug>`). dnsmasq *.zfin.test wildcard remains
       the zero-touch alternative to --hosts.
-- [ ] `z-fresh-install` (or `zfeature fresh-install`) -- guided day-zero setup on a bare
-      workstation (nothing in docker images/volumes yet). Flow:
+- [~] simplify example-gocd.json with the new tooling.
+      STATUS: `docker/utils/zbuild` PROTOTYPED (phased: configure|load-db|load-solr|
+      deploy-jenkins|deploy|all; --build/--test; delegates to zrun + docker compose;
+      compile-checked, arg-handling tested). REMAINING: run it end-to-end against a real
+      stack to validate the phases; then rewrite example-gocd.json to (1) set COMPOSE_*
+      as pipeline environment_variables and (2) call `zbuild <phase>` per stage.
+      Every task is `docker compose ...`
+      in docker/. Levers: (1) set COMPOSE_PROJECT_NAME/COMPOSE_FILE/COMPOSE_ENV_FILES as
+      GoCD pipeline environment_variables (the .zenv model = GoCD env vars) -> drop all the
+      working_directory: docker/ and enable per-branch CI stacks; (2) z-commands thin tasks
+      (docker compose run --rm compile bash -l -c X -> zrun -c X; up/down -> zup/zdown) once
+      docker/utils + a generated .zenv/bin are on the agent PATH; (3) a HANDS-FREE, phased,
+      NON-INTERACTIVE orchestrator (docker/utils/, e.g. `zbuild configure|load-db|load-solr|
+      deploy-jenkins|deploy`) so each GoCD stage is a one-liner and the logic lives versioned +
+      testable in one file instead of ~30 tasks across 1163 lines of JSON (keep it phased, not
+      monolithic, to preserve GoCD parallelism/gating/retry). The 22-job Stop_X/Start_X "Docker"
+      stage is operator plumbing -- could collapse to a couple parameterized jobs.
+      KEY: that orchestrator IS the non-interactive core z-fresh-install needs -- fresh-install
+      becomes the interactive front-end that calls the same phases. Build once, two entry points.
+- [~] `z-fresh-install` -- guided day-zero setup on a bare workstation.
+      STATUS: `docker/utils/z-fresh-install` PROTOTYPED (fresh-check + init-input checks +
+      --dry-run plan tested; drives create-zenv -> zbuild all -> build-preloaded + new-feature).
+      REMAINING: real end-to-end run on an actually-fresh machine (needs the db/solr dumps
+      present); decide whether to also expose it via zfeature. Original spec below.
+      Guided day-zero setup on a bare workstation (nothing in docker images/volumes yet). Flow:
         1. Verify it's truly fresh: error if any ZFIN docker state exists -- scope the check
            to ZFIN, NOT all of docker (the host may run unrelated containers): compose
            projects (zfin_org, zfh-*), *_pg_data / *_solr_var volumes, ghcr.io/zfin/* +
