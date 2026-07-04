@@ -149,6 +149,21 @@ Decisions / follow-ups
       archival is really only for DB-MUTATING features; detecting/limiting to the diverged
       data is the interesting part (ties into minimal-table-set + --slim). Especially
       relevant on macOS where CoW clones aren't an option.
+- [ ] shared DB across feature stacks (the biggest space win, esp. on macOS where CoW
+      clones aren't available). A feature that doesn't MUTATE the DB needs no copy of its
+      own -- it can point at a shared db (even the base zfin_org db), saving ~26G + the
+      seed time. Mechanism: such a feature runs only its APP tier (compile/tomcat/httpd),
+      not its own db/solr, and connects to the shared one via (a) a shared external network
+      (alias it `db`) or (b) PGHOST/PGPORT at the shared db's address (base db is on
+      127.0.0.2:5432). Solr shareable the same way (read-only).
+      UX (per the ask): `zfeature new` prompts "own isolated DB (~26G) or SHARE an existing
+      stack's DB? [list of running db-bearing stacks]".
+      HARD GUARD: safe ONLY while the feature doesn't mutate the DB -- liquibasePostBuild
+      (schema) or test/curation writes would bleed into every sharer. So it's for read-only
+      / UI / display / code-only tickets. Provide a "promote to own DB" path
+      (`zfeature isolate-db`?) for when a shared-DB feature later needs schema/writes.
+      Depends on the instances x properties item: "share" means injecting a PGHOST (and
+      solr host) override into the feature's generated zfin.properties/env.
 - [ ] merge tooling to main so worktrees are self-contained (drops the -f overlay wrinkle)
 - [ ] loopback/port allocation review (per-IP, same-port scheme)
 - [ ] two tags? -preloaded (full) vs -preloaded-lean
