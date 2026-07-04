@@ -78,6 +78,35 @@ def inputs = [
 def missingRequired = inputs.findAll { it.required && !it.ok }
 if (missingRequired) die("missing required init input(s): ${missingRequired*.var.join(', ')} -- set them in docker/.env and re-run.")
 
+// loaddb (build.gradle loadDatabase) picks the db-unload subdir with the NEWEST mtime,
+// then reads its last file -- so that subdir must actually contain a dump. An empty
+// newer dir shadows the real one and fails deep in `gradle loaddb` ("Cannot access
+// last() element from an empty Array"). Catch it here, before the long build.
+def dbUnloads = expandTilde(dotenv['DOCKER_DB_UNLOADS_PATH'])
+if (dbUnloads && new File(dbUnloads).isDirectory()) {
+    def subs   = (new File(dbUnloads).listFiles() ?: [] as File[]).findAll { it.isDirectory() }
+    def newest = subs ? subs.max { it.lastModified() } : null   // mirrors loadDatabase's files[0]
+    def dumps  = newest?.listFiles()?.findAll { it.isFile() }
+    if (!newest) die("db dump: no dated subdir under $dbUnloads")
+    if (!dumps)  die("db dump: loaddb picks the newest-mtime dir '${newest.name}', but it's EMPTY.\n" +
+                     "   Remove empty dirs under $dbUnloads so the one holding the .bak is newest.")
+    println("   ✓ db dump: loaddb will use ${newest.name}/${dumps.last().name}")
+}
+
+// getLatestSolrIndex (build.gradle) restores from <solr-unloads>/v9 and needs FLAT
+// snapshot.* dirs (Solr 9 format, ZFIN-10171). A legacy full-SOLR_HOME dump, or a
+// snapshot nested under a wrapper dir (v9/<inst>/snapshot.*), won't restore -- catch
+// it here instead of failing after the image build + full db load.
+def solrUnloads = expandTilde(dotenv['DOCKER_SOLR_UNLOADS_PATH'])
+if (solrUnloads) {
+    def v9 = new File(solrUnloads, 'v9')
+    def snaps = v9.isDirectory() ? (v9.listFiles() ?: [] as File[]).findAll { it.isDirectory() && it.name.startsWith('snapshot.') } : []
+    if (!snaps) die("solr dump: no flat snapshot.* dir under ${v9} (Solr 9 format).\n" +
+                    "   getLatestSolrIndex needs v9/snapshot.<ts>/ directly -- not a legacy full-SOLR_HOME\n" +
+                    "   dump or a nested wrapper (v9/<inst>/snapshot.*). Fetch/move one, then re-run.")
+    println("   ✓ solr dump: getLatestSolrIndex will use v9/${snaps.max { it.lastModified() }.name}")
+}
+
 // --- 2 & 4. choices (prompt interactively; dry-run uses defaults) ----------------
 def project = dotenv['COMPOSE_PROJECT_NAME'] ?: 'zfin_org'
 def host    = dotenv['DOCKER_VIRTUAL_HOST'] ?: 'zfin.org'
@@ -116,6 +145,12 @@ println "\nPlan:"
 plan.each { println "  \$ ${it.join(' ')}" }
 
 if (dryRun) { info("dry-run: not executing."); return }
+
+// A truly fresh box has no build cache, but a reused box may carry stale cross-arch
+// layers that make `docker compose build` emit mixed-arch images (e.g. an amd64
+// `compile` on an arm64 host -> emulation). Prune it so the build is clean + native.
+info("pruning docker build cache (clean, native-arch image builds)")
+new ProcessBuilder('docker', 'builder', 'prune', '-af').inheritIO().start().waitFor()
 
 println ""
 // The base stack's compose env for zbuild (so it targets '$project', not the compose-dir default).

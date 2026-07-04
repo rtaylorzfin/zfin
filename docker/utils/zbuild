@@ -69,9 +69,20 @@ def STOCK = ['base', 'compile', 'db', 'solr', 'httpd', 'tomcat', 'jenkins', 'fai
 
 def PHASES = [:]
 PHASES['configure'] = {
-    info(buildImages ? 'configure: build stock images' : 'configure: pull stock images')
-    if (buildImages) compose(['build'] + STOCK as Object[])
-    else             compose(['pull']  + STOCK as Object[])
+    if (buildImages) {
+        // Build `base` FIRST, on its own, so it's tagged locally before compile/jenkins
+        // resolve `FROM ghcr.io/zfin/zfin-base:...`. In a single combined `compose build`,
+        // buildx resolves that FROM from the REGISTRY (amd64) -- concurrently with base
+        // building -- instead of the local native base, yielding amd64 compile/jenkins on
+        // an arm64 host. Base-first makes their FROM pick up the local (native) base.
+        info('configure: build base image (native, for the FROM chain)')
+        compose('build', 'base')
+        info('configure: build the remaining stock images')
+        compose(['build'] + (STOCK - 'base') as Object[])
+    } else {
+        info('configure: pull stock images')
+        compose(['pull'] + STOCK as Object[])
+    }
     info('configure: init volumes (cert + zfin.properties via the compile login shell)')
     zc('true')          // bash -l sources .profile -> generates cert/keystore + zfin.properties
     info('configure: ant do')
