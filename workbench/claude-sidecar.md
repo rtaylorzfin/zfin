@@ -67,5 +67,5 @@ in skip-permissions mode (hooks still run under `--dangerously-skip-permissions`
 ## Likely integration
 
 An optional `claude` service in the feature stack, behind a `--claude` flag /
-Compose profile in `docker/new-feature.sh`, so a feature can be brought up with
+Compose profile in `docker/utils/new-feature.groovy`, so a feature can be brought up with
 or without its own contained agent.

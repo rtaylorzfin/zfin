@@ -1,0 +1,87 @@
+TODO — preloaded-dev-stacks   (delete this file before merging the PR)
+
+Legend: [ ] pending   [x] done   [~] partially done
+
+End-to-end validation
+- [ ] build-preloaded.groovy --slim against a real loaded dazed stack -> lean image
+- [ ] boot a feature stack from the lean image; confirm common webapp pages render
+- [ ] new-feature.groovy ZFH-xxx --up: worktree + per-feature stack comes up populated
+- [ ] confirm liquibasePostBuild + targeted solrIndex deltas apply on a feature stack
+- [ ] re-run build-preloaded.groovy so the images pick up the new LOCAL-ONLY bare names
+      (the 2026-07-01 images were built under the old ghcr.io/zfin/*-preloaded names)
+- [x] slim mechanism unit-validated on a throwaway volume (WAL 577M->65M, truncate + keeper OK)
+- [x] preloaded images build on a real stack (done on the Mac: db/solr -preloaded:2026-07-01)
+
+Decisions / follow-ups
+- [ ] JIRA TICKET: multi-arch STOCK images on ghcr.io.
+      The stock images (ghcr.io/zfin/zfin-{base,compile,db,solr,httpd,tomcat,...}:${ZFIN_RELEASE})
+      are single-arch today — nothing in CI (.github/workflows/{ant,eslint}.yml) builds/pushes them
+      with buildx, so whatever is on ghcr.io is whatever host last pushed (almost certainly amd64).
+      On an arm64 Mac, `FROM ghcr.io/zfin/zfin-db:main` then pulls amd64 and runs under emulation.
+      Fix: publish a manifest list under the plain tag (:main) so `docker pull ...:main` auto-selects
+      arm64/amd64 and Dockerfile FROM lines never change. Either `buildx --platform
+      linux/amd64,linux/arm64 --push`, or build each arch natively as arch-suffixed tags
+      (:main-arm64 / :main-amd64 — an accepted pattern) and combine with `buildx imagetools create`.
+      NOTE: STOCK family only. The PRELOADED images are deliberately local-only (real data, never
+      pushed), so they need only the builder's native arch — build-preloaded.groovy handles that
+      with plain `docker build`.
+- [x] new-feature #3 open Q — /etc/hosts vs dnsmasq: DECIDED on hostctl (per-feature profile named
+      after the slug; teardown = `sudo hostctl remove <slug>`). dnsmasq *.zfin.test wildcard remains
+      the zero-touch alternative to --hosts.
+- [ ] `z-fresh-install` (or `zfeature fresh-install`) -- guided day-zero setup on a bare
+      workstation (nothing in docker images/volumes yet). Flow:
+        1. Verify it's truly fresh: error if any ZFIN docker state exists -- scope the check
+           to ZFIN, NOT all of docker (the host may run unrelated containers): compose
+           projects (zfin_org, zfh-*), *_pg_data / *_solr_var volumes, ghcr.io/zfin/* +
+           *-preloaded images. Erroring on ANY container/volume is too aggressive.
+        2. Ask: build stock images (docker compose build) or pull from ghcr.io?
+        3. Ask/verify the init inputs are present (paths come from docker/.env): db dump,
+           solr dump, and optionally bowtie (DOCKER_BOWTIE_PATH), blast
+           (DOCKER_ABBLAST_PATH / DOCKER_BLASTSERVER_BLAST_DATABASE_PATH), loadup
+           (DOCKER_LOADUP_PATH). Fail early with what's missing.
+        4. Ask for a first feature/ticket name (e.g. ZF-123).
+        5. Guide through standing up a dev stack with our tooling (create-zenv -> activate ->
+           the load steps -> zfeature ...).
+      MUST cover the load steps this branch never touched: getdb/loaddb, make,
+      liquibasePreBuild/PostBuild, getsolr/loadsolr (reference/build-and-docker.md §2-3),
+      run via zrun in the base compile container.
+      Sequencing to resolve: features boot from PRELOADED images, which require a LOADED base
+      first. So fresh-install really = set up + fully load the BASE (zfin_org) stack, THEN
+      (optionally) `zfeature build-preloaded`, THEN `zfeature new <ticket>`. The "feature name"
+      prompt belongs after the base is loaded.
+      Bootstrap chicken-egg: on a bare box there's no .zenv (and maybe no host groovy) yet, but
+      this command lives inside the zenv wrapper. Either document the pre-steps (install groovy;
+      `docker/utils/create-zenv.groovy` for the base; `source .zenv/activate`; then run it), or
+      add a tiny wrapper-free entry that bootstraps those first.
+- [ ] continue migrating ant build tasks -> gradle. Some ant "tasks" aren't really builds --
+      they just run a Java main with the right classpath. Those could become a CLI like our
+      zrun/zenv tooling: a sibling `zfin-make` / `zfin-task` (name TBD) that execs java with the
+      classpath set up, rather than living as ant targets. (Ties into the first-build master
+      command question -- once ant do/deploy-* shrink, `gradle firstDeploy` gets simpler.)
+- [ ] merge tooling to main so worktrees are self-contained (drops the -f overlay wrinkle)
+- [ ] loopback/port allocation review (per-IP, same-port scheme)
+- [ ] two tags? -preloaded (full) vs -preloaded-lean
+- [ ] Claude sidecar container (future) — workbench/claude-sidecar.md
+- [ ] "quiz" skill idea for the definition-of-done checklist
+
+Cleanup before PR
+- [ ] sweep untracked cruft (hs_err_pid*.log, screenshot*.png, tmp*, docker/old.env,
+      docker/lb.log, .temp.txt.swp, the exported transcript in workbench/, ...)
+- [ ] add .gitignore entries for the recurring artifacts (incl. workbench/*-export*.txt?)
+- [ ] graduate workbench/ docs (feature-lifecycle.md, claude-sidecar.md, db-slim-candidates.md)
+      to reference/ once the approach is validated
+- [ ] push: git push -u origin preloaded-dev-stacks   (Ryan runs the push manually)
+
+Done this cycle
+- [x] convert new-feature.sh + build-preloaded.sh -> .groovy (readability; host has groovy 4.0.29
+      matching the container). CLI surface identical except --push dropped from build-preloaded.
+- [x] preloaded images made LOCAL-ONLY: bare names (zfin-db-preloaded / zfin-solr-preloaded, no
+      ghcr.io prefix), --push removed from build-preloaded (structural guard vs leaking real data)
+- [x] --hosts now uses hostctl per-feature profiles instead of raw `sudo tee -a /etc/hosts`
+- [x] preloaded images + Dockerfiles + docker-compose.preloaded.yml
+- [x] new-feature (worktree + per-feature project, loopback IP, per-IP ports)
+- [x] parameterized solr + tomcatdebug ports; verified via docker compose config
+- [x] build-preloaded --slim (jobs-only TRUNCATE + pg_resetwal WAL reset)
+- [x] dropped redundant chown from preloaded Dockerfiles
+- [x] webapp-vs-jobs table classification (workbench/db-slim-candidates.md)
+- [x] docker prune (~5.7GB reclaimed; 11GB free)

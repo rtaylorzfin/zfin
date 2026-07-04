@@ -20,8 +20,8 @@ definition of done below.
 
 Work several tickets at once without branch-switching or reloading data. Each
 feature gets its own git worktree **and** its own Docker Compose project, booted
-from preloaded images. Provision with `docker/new-feature.sh <name>` (see
-`docker/build-preloaded.sh` for how the preloaded images are made).
+from preloaded images. Provision with `docker/utils/new-feature.groovy <name>` (see
+`docker/utils/build-preloaded.groovy` for how the preloaded images are made).
 
 Mechanics, and the facts that are easy to get wrong:
 
@@ -98,6 +98,6 @@ Examples of conventions captured this way:
 ## Related
 
 - Preloaded per-feature dev stacks (instant DB + Solr, no ZFS):
-  `docker/new-feature.sh`, `docker/build-preloaded.sh`,
+  `docker/utils/new-feature.groovy`, `docker/utils/build-preloaded.groovy`,
   `docker/docker-compose.preloaded.yml`, and
   `docker/{postgresql,solr}/preloaded.Dockerfile`.

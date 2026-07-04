@@ -124,7 +124,7 @@ services:
     ports:
       # Default keeps the 0.0.0.0 range for the standalone dev stack; feature
       # stacks set DOCKER_SOLR_PORT=<loopback-ip>:8983 for the uniform
-      # same-port/differ-by-IP scheme (see docker/new-feature.sh).
+      # same-port/differ-by-IP scheme (see docker/utils/new-feature.groovy).
       - "${DOCKER_SOLR_PORT:-8983-8992}:8983"
     volumes:
       # Single volume covering everything Solr persists. The image's

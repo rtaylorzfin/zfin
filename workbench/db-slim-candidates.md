@@ -63,7 +63,7 @@ does a from-scratch reindex in their feature stack.
 
 ## Recommended mechanism
 
-Add an optional `--slim` mode to `docker/build-preloaded.sh` that, before capture:
+Add an optional `--slim` mode to `docker/utils/build-preloaded.groovy` that, before capture:
 1. compacts WAL (Lever A), and
 2. `TRUNCATE`s the jobs-only drop set (Lever B).
 

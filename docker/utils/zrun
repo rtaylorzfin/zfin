@@ -3,6 +3,48 @@ set -euo pipefail
 
 SCRIPT=$(basename "$0")
 
+# zhelp / zstatus: informational only (no container work). Handle them before arg
+# parsing and compose-file resolution, so they work even when nothing is activated.
+case "$SCRIPT" in
+  zhelp)
+    cat <<'H'
+z-commands (available inside an activated .zenv -- `source .zenv/activate`):
+  zrun [svc] [args]    run a command in a fresh container (default svc: compile)
+                       e.g. zrun -c "gradle dirtydeploy"
+  zexec [svc] [args]   exec into the running container (default: compile)
+  zup [svc...]         start service(s)
+  zdown [svc...]       stop service(s)
+  zpull [svc...]       pull image(s)
+  zlog [svc...]        tail logs
+  zrestart [svc]       restart a running container
+  zstatus              show the active stack: name, dir, url, containers
+  zhelp                this help
+  deactivate           leave the active .zenv (restores your shell)
+H
+    if [[ -n "${ZENV_ACTIVE:-}" ]]; then echo "active: ${ZENV_ACTIVE}"; else echo "active: (none) -- source <repo-or-worktree>/.zenv/activate"; fi
+    exit 0
+    ;;
+  zstatus)
+    if [[ -z "${ZENV_ACTIVE:-}" ]]; then
+      echo "zenv: no feature active. Activate one:  source <repo-or-worktree>/.zenv/activate"
+      exit 0
+    fi
+    ip=$(grep -E '^LOOPBACK_IP='   "${COMPOSE_ENV_FILES:-/dev/null}" 2>/dev/null | tail -1 | cut -d= -f2-) || true
+    dbimg=$(grep -E '^ZFIN_DB_IMAGE=' "${COMPOSE_ENV_FILES:-/dev/null}" 2>/dev/null | tail -1 | cut -d= -f2-) || true
+    echo "zenv: ${ZENV_ACTIVE}"
+    [[ -n "${ZENV_DIR:-}"  ]] && echo "  dir      : ${ZENV_DIR}"
+    [[ -n "${ZENV_HOST:-}" ]] && echo "  url      : https://${ZENV_HOST}${ip:+  ($ip)}"
+    [[ -n "$dbimg" ]]         && echo "  images   : ${dbimg} (+ solr)"
+    [[ -n "${PRELOADED_TAG:-}" ]] && echo "  tag      : ${PRELOADED_TAG}"
+    echo "  compose  : ${COMPOSE_FILE:-<none>}"
+    echo "  env-file : ${COMPOSE_ENV_FILES:-<none>}"
+    echo
+    echo "containers:"
+    docker compose ps 2>/dev/null || echo "  (docker compose ps failed)"
+    exit 0
+    ;;
+esac
+
 usage() {
   case "$SCRIPT" in
     zrun)
@@ -76,19 +118,28 @@ while [[ $# -gt 0 ]]; do
   esac
 done
 
-compose_file() {
-  local f="${ZFIN_COMPOSE:-$HOME/zfin/docker/docker-compose.yml}"
+# Decide which compose file(s) to pass. If COMPOSE_FILE is set in the environment
+# (e.g. by a feature's `.zenv/activate`), let `docker compose` consume it natively
+# -- it supports ':'-separated lists and pairs with COMPOSE_ENV_FILES/COMPOSE_PROJECT_NAME
+# -- so we pass NO -f and the whole feature stack resolves automatically. Otherwise
+# fall back to ZFIN_COMPOSE / the default single file (unchanged behavior).
+COMPOSE_FILE_ARGS=()
+if [[ -z "${COMPOSE_FILE:-}" ]]; then
+  f="${ZFIN_COMPOSE:-$HOME/zfin/docker/docker-compose.yml}"
   if [[ ! -f "$f" ]]; then
     echo "Error: compose file not found: $f" >&2
-    echo "  Set ZFIN_COMPOSE=/path/to/docker-compose.yml to override" >&2
+    echo "  Set ZFIN_COMPOSE=/path/to/docker-compose.yml to override," >&2
+    echo "  or activate a feature (source .zenv/activate) to set COMPOSE_FILE." >&2
     exit 1
   fi
-  echo "$f"
-}
+  COMPOSE_FILE_ARGS=(-f "$f")
+fi
+# Expand safely even when empty under `set -u` (incl. bash 3.2):
+#   "${COMPOSE_FILE_ARGS[@]+"${COMPOSE_FILE_ARGS[@]}"}"
 
 case "$SCRIPT" in
   zrun)
-    exec docker compose -f "$(compose_file)" run --rm "${DOCKER_ARGS[@]}" "$SERVICE" bash -l "$@"
+    exec docker compose "${COMPOSE_FILE_ARGS[@]+"${COMPOSE_FILE_ARGS[@]}"}" run --rm "${DOCKER_ARGS[@]}" "$SERVICE" bash -l "$@"
     ;;
   zexec|zrestart)
     IFS=',' read -ra PROJECT_NAMES <<< "${COMPOSE_PROJECT_NAMES:-zfin_org,test,trunk,cell,crick,franklin,schlapp}"
@@ -117,16 +168,16 @@ case "$SCRIPT" in
     exec docker exec -i "${TTY_FLAG[@]}" "${DOCKER_ARGS[@]}" "$CONTAINER_ID" bash -l "$@"
     ;;
   zup)
-    exec docker compose -f "$(compose_file)" up -d "$SERVICE" "$@"
+    exec docker compose "${COMPOSE_FILE_ARGS[@]+"${COMPOSE_FILE_ARGS[@]}"}" up -d "$SERVICE" "$@"
     ;;
   zdown)
-    exec docker compose -f "$(compose_file)" stop "$SERVICE" "$@"
+    exec docker compose "${COMPOSE_FILE_ARGS[@]+"${COMPOSE_FILE_ARGS[@]}"}" stop "$SERVICE" "$@"
     ;;
   zpull)
-    exec docker compose -f "$(compose_file)" pull "$SERVICE" "$@"
+    exec docker compose "${COMPOSE_FILE_ARGS[@]+"${COMPOSE_FILE_ARGS[@]}"}" pull "$SERVICE" "$@"
     ;;
   zlog)
-    exec docker compose -f "$(compose_file)" logs -f "$SERVICE" "$@"
+    exec docker compose "${COMPOSE_FILE_ARGS[@]+"${COMPOSE_FILE_ARGS[@]}"}" logs -f "$SERVICE" "$@"
     ;;
   *)
     echo "Error: must be invoked as 'zrun', 'zexec', 'zrestart', 'zup', 'zdown', or 'zpull'" >&2

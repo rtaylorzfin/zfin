@@ -47,6 +47,7 @@ out/
 .env
 .env.local
 .env.development
+.zenv/
 .env.test
 .env.production
 
