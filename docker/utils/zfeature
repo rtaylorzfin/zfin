@@ -1,0 +1,43 @@
+#!/usr/bin/env groovy
+// zfeature -- entry point for feature dev-stack ops, on PATH inside an activated
+// .zenv (source .zenv/activate). A thin dispatcher: it delegates to the Groovy
+// scripts in docker/utils/ (resolved via this file's own real location, so it always
+// drives the PRIMARY checkout's scripts no matter which .zenv invoked it). Run bare
+// it prints help.
+//
+// Usage:
+//   zfeature new [<ticket>] [opts]      provision a feature stack (prompts if no ticket)
+//   zfeature build-preloaded [opts]     bake preloaded db/solr images from a loaded stack
+//   zfeature help                       this help
+//
+// The one script NOT reachable here is create-zenv.groovy -- it bootstraps the very
+// .zenv that puts zfeature on PATH, so it must be run directly (once, per checkout).
+
+def UTILS = new File(getClass().protectionDomain.codeSource.location.toURI()).canonicalFile.parentFile
+
+def SUBCOMMANDS = [
+    'new'            : 'new-feature.groovy',
+    'build-preloaded': 'build-preloaded.groovy',
+]
+
+def usage = {
+    println """zfeature -- feature dev-stack ops (run inside an activated .zenv)
+  zfeature new [<ticket>] [opts]      provision a feature stack (prompts if no ticket)
+  zfeature build-preloaded [opts]     bake preloaded db/solr images from a loaded stack
+  zfeature help                       this help
+
+  (create the very first .zenv with:  docker/utils/create-zenv.groovy ...)"""
+}
+
+def argv = args as List
+def cmd  = argv ? argv[0] : null
+if (!cmd || cmd in ['help', '-h', '--help']) { usage(); return }
+
+def script = SUBCOMMANDS[cmd]
+if (!script) { System.err.println("zfeature: unknown subcommand '$cmd'\n"); usage(); System.exit(2) }
+
+def target = new File(UTILS, script)
+if (!target.isFile()) { System.err.println("zfeature: missing delegate $target"); System.exit(1) }
+
+// Delegate with inherited IO so interactive prompts + streaming output pass through.
+System.exit(new ProcessBuilder([target.absolutePath] + argv.drop(1)).inheritIO().start().waitFor())

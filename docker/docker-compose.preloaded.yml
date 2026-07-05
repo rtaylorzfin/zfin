@@ -1,0 +1,30 @@
+# Overlay for docker-compose.yml: boot db + solr from "preloaded" images
+# (base image + a baked-in loaded DB and Solr index) instead of the empty base
+# images, for instant per-feature stacks. See docker/utils/new-feature.groovy and
+# docker/utils/build-preloaded.groovy.
+#
+# These preloaded images are LOCAL-ONLY (bare names, no registry prefix): they
+# bake in real loaded data, so they are built per-machine by
+# build-preloaded.groovy and never pushed to a registry.
+#
+# Isolation without ZFS: with a per-feature COMPOSE_PROJECT_NAME, Compose names
+# the volumes <project>_pg_data / <project>_solr_var. Each starts empty, so on first
+# `up` Docker SEEDS it by COPYING the image's baked data (postgres/solr declare
+# VOLUME). That's a full per-feature COPY (~26G db + ~10G solr each) -- NOT
+# copy-on-write; the win is instant boot + isolation, at the cost of disk.
+# `down -v` discards a stack's copy. See workbench/db-slim-candidates.md.
+# `build: !reset null` drops the build: section these services inherit from the
+# base compose file. Without it, a MISSING preloaded image would make
+# `docker compose up` silently BUILD from the stock Dockerfile and mistag the
+# result as ...-preloaded -- i.e. an empty DB masquerading as preloaded. With
+# build reset + pull_policy:never, a missing image fails loudly ("image not
+# found locally") instead. Build the image first with build-preloaded.groovy.
+services:
+  db:
+    build: !reset null
+    image: ${ZFIN_DB_IMAGE:?set ZFIN_DB_IMAGE (e.g. zfin-db-preloaded:TAG)}
+    pull_policy: never
+  solr:
+    build: !reset null
+    image: ${ZFIN_SOLR_IMAGE:?set ZFIN_SOLR_IMAGE (e.g. zfin-solr-preloaded:TAG)}
+    pull_policy: never
