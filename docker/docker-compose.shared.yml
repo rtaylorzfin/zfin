@@ -1,0 +1,28 @@
+# Provider overlay for the shared data stack (Compose project `zfin_shared`): run the
+# preloaded db + solr ONCE, on a named network, so several feature stacks can share this
+# single copy instead of each seeding its own (~19-32G db + ~9G solr per feature). Used as
+#   docker-compose.yml + docker-compose.preloaded.yml + this   (project=zfin_shared)
+# via `z shared up`. Feature stacks opt in with `z feature new --shared-db`, which attaches
+# their app tier to zfin_shared_net and skips their own db/solr.
+#
+# SHARED DATA == SHARED WRITES: every attached feature reads/writes the SAME zfindb + solr
+# index. Safe only for read-mostly work -- a migration (liquibasePostBuild), a reindex, or a
+# curation edit by one feature is instantly visible to (and can break) the others. There is
+# no cheap write-isolation: a separate DATABASE/TEMPLATE per feature is a full copy, which
+# negates the savings. See reference/preloaded-dev-stacks.md.
+networks:
+  zfin_shared_net:
+    name: zfin_shared_net          # fixed name so feature stacks can reference it as external
+services:
+  db:
+    # Reached over zfin_shared_net, not the host -- so drop the base's published port
+    # (it's 127.0.0.2:5432, which would collide with a running zfin_org db).
+    ports: !reset null
+    networks:
+      zfin_shared_net:
+        aliases: [db]              # feature app tiers resolve `db` here
+  solr:
+    ports: !reset null
+    networks:
+      zfin_shared_net:
+        aliases: [solr]

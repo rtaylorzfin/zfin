@@ -55,6 +55,10 @@ CI / bootstrap (no activation needed):
                                         load-solr|deploy-jenkins|deploy|all)
   z create-zenv <opts>                  generate a .zenv/ for a stack (bootstrap)
   z fresh-install [--dry-run]           guided day-zero setup on a bare workstation
+
+Shared data stack (read-mostly features share ONE db+solr copy):
+  z shared up|down|status [--tag T]     run/stop the shared db+solr (project zfin_shared);
+                                        attach features with `z feature new --shared-db`
   z help                                this help'''
 
 switch (cmd) {
@@ -64,10 +68,11 @@ switch (cmd) {
         println a ? "\nactive: $a" : "\nactive: (none) -- source <repo-or-worktree>/.zenv/activate"
         break
 
-    // CI / bootstrap
+    // CI / bootstrap + the shared data stack (each manages its own project; no .zenv needed)
     case 'build':         runCmd('Zbuild', rest); break
     case 'create-zenv':   runCmd('CreateZenv', rest); break
     case 'fresh-install': runCmd('FreshInstall', rest); break
+    case 'shared':        runCmd('SharedStack', rest); break
 
     // feature ops
     case 'feature':

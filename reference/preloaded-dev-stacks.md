@@ -186,6 +186,33 @@ on-demand, not as part of the served stack).
 
 ---
 
+## Sharing db+solr across features (`--shared-db`)
+
+Read-mostly features (UI/JSP/React work, browsing) don't each need their own ~19-32G db +
+~9G solr copy. `--shared-db` points them at one shared copy:
+
+```bash
+z shared up                             # boot preloaded db+solr ONCE (project zfin_shared,
+                                        #   net zfin_shared_net) -- one copy for all sharers
+z feature new ZFIN-1 --shared-db --up
+z feature new ZFIN-2 --shared-db --up   # both reach the SAME db/solr
+z shared status                         # what's attached;  z shared down [--rm-data] to stop
+```
+
+How it works: the dedicated `zfin_shared` stack runs db+solr on the named network
+`zfin_shared_net` (aliased `db`/`solr`). A `--shared-db` feature uses
+`docker-compose.shared-db.yml` (instead of the preloaded overlay): it attaches its app tier
+(tomcat/compile) to that external network so the webapp's `db`/`solr` hostnames resolve to
+the shared containers, and profile-suppresses its own db/solr so no per-feature copy is
+seeded.
+
+**The hard constraint — shared data == shared writes.** All sharers read/write the *same*
+`zfindb` and solr index, so a `liquibasePostBuild` migration, a reindex, or a curation edit
+by one feature is instantly visible to (and can break) the others. There is no cheap
+write-isolation (a per-feature `DATABASE`/`TEMPLATE` is a full copy, which negates the
+saving). So `--shared-db` is for **read-mostly** parallel work; a feature that needs its own
+schema/writes should be a normal per-feature-copy stack.
+
 ## Teardown
 
 Do this only once the feature's PR is merged — `down -v` discards the stack's DB/Solr/app

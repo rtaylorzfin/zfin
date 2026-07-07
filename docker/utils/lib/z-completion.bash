@@ -11,7 +11,7 @@ _z_complete() {
 
     if [[ "$base" == "z" ]]; then
         if (( COMP_CWORD == 1 )); then
-            COMPREPLY=( $(compgen -W "run exec up down pull log restart status build feature create-zenv fresh-install help" -- "$cur") )
+            COMPREPLY=( $(compgen -W "run exec up down pull log restart status build feature shared create-zenv fresh-install help" -- "$cur") )
             return
         fi
         sub="${COMP_WORDS[1]}"; argstart=2
@@ -24,12 +24,13 @@ _z_complete() {
         run|exec)                  COMPREPLY=( $(compgen -W "$services -u" -- "$cur") ) ;;
         up|down|pull|log|restart)  COMPREPLY=( $(compgen -W "$services" -- "$cur") ) ;;
         build)                     COMPREPLY=( $(compgen -W "configure load-db load-solr deploy-jenkins deploy all --build --test" -- "$cur") ) ;;
+        shared)                    COMPREPLY=( $(compgen -W "up down status --tag --rm-data" -- "$cur") ) ;;
         feature)
             if (( COMP_CWORD == argstart )); then
                 COMPREPLY=( $(compgen -W "new build-preloaded" -- "$cur") )
             else
                 case "${COMP_WORDS[argstart]}" in
-                    new)             COMPREPLY=( $(compgen -W "--up --hosts --no-app --no-caches --tag --ip --ip-base --base --branch" -- "$cur") ) ;;
+                    new)             COMPREPLY=( $(compgen -W "--up --hosts --shared-db --no-app --no-caches --tag --ip --ip-base --base --branch" -- "$cur") ) ;;
                     build-preloaded) COMPREPLY=( $(compgen -W "--tag --slim --app --caches --keep-tarballs --project" -- "$cur") ) ;;
                 esac
             fi ;;

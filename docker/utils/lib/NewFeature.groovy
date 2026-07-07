@@ -41,6 +41,10 @@
 //   --hosts         Map <host> -> <ip> in /etc/hosts via a hostctl profile named
 //                   after the feature slug (uses sudo). Teardown is a clean
 //                   `sudo hostctl remove <slug>`.
+//   --shared-db     Share the `zfin_shared` stack's db+solr instead of seeding this
+//                   feature's own copy (needs `z shared up` first). READ-MOSTLY only:
+//                   writes/migrations/reindex are shared with every other --shared-db
+//                   feature. Uses docker-compose.shared-db.yml (not the preloaded overlay).
 //
 // After provisioning, `source <worktree>/.zenv/activate` (venv-style) makes
 // zrun/zup/zdown/zexec -- and bare `docker compose` -- resolve to this feature;
@@ -68,6 +72,7 @@ def doUp     = false
 def doHosts  = false
 def doApp    = true
 def doCaches = true
+def doSharedDb = false
 def name     = ''
 
 def argv = args as List
@@ -82,6 +87,7 @@ for (int i = 0; i < argv.size(); i++) {
         case '--no-app':    doApp = false;      break
         case '--no-caches': doCaches = false;   break
         case '--hosts':     doHosts = true;     break
+        case '--shared-db': doSharedDb = true;  break
         default:
             if (argv[i].startsWith('-')) die("unknown arg: ${argv[i]}", 2)
             name = argv[i]
@@ -132,18 +138,26 @@ if (!name) {
 if (!tag) die("no zfin-db-preloaded images found locally. Build one: z feature build-preloaded [--tag TAG]")
 info("preloaded tag: $tag")
 
-// Fail fast if the preloaded images for this tag aren't built locally. Otherwise
-// compose (pull_policy:never) errors partway through `up` -- AFTER we've already
-// created the worktree, .env, hosts entry, and empty volumes that then won't
-// re-seed. Checking here means a tag mismatch leaves no partial state behind.
-['zfin-db-preloaded', 'zfin-solr-preloaded'].each { repo ->
-    if (!imageExists("$repo:$tag")) {
-        def have = captureOutput(['docker', 'images', '--format', '{{.Repository}}:{{.Tag}}'])
-                    .readLines().findAll { it.contains('preloaded') }
-        die("preloaded image '$repo:$tag' not found locally.\n" +
-            "   build it:      z feature build-preloaded --tag $tag\n" +
-            "   or set a tag:  --tag <tag>  /  export PRELOADED_TAG=<tag>" +
-            (have ? "\n   have locally:  ${have.join(', ')}" : "\n   (no preloaded images built yet)"))
+// --shared-db: this feature runs NO local db/solr (see docker-compose.shared-db.yml), so it
+// doesn't need the preloaded images -- it needs the shared data stack up (its external network).
+if (doSharedDb) {
+    if (zfinUtil.runQuietly(['docker', 'network', 'inspect', 'zfin_shared_net']) != 0)
+        die("--shared-db needs the shared data stack up first:  z shared up")
+    info("shared db+solr: using the zfin_shared stack (no per-feature copy)")
+} else {
+    // Fail fast if the preloaded images for this tag aren't built locally. Otherwise
+    // compose (pull_policy:never) errors partway through `up` -- AFTER we've already
+    // created the worktree, .env, hosts entry, and empty volumes that then won't
+    // re-seed. Checking here means a tag mismatch leaves no partial state behind.
+    ['zfin-db-preloaded', 'zfin-solr-preloaded'].each { repo ->
+        if (!imageExists("$repo:$tag")) {
+            def have = captureOutput(['docker', 'images', '--format', '{{.Repository}}:{{.Tag}}'])
+                        .readLines().findAll { it.contains('preloaded') }
+            die("preloaded image '$repo:$tag' not found locally.\n" +
+                "   build it:      z feature build-preloaded --tag $tag\n" +
+                "   or set a tag:  --tag <tag>  /  export PRELOADED_TAG=<tag>" +
+                (have ? "\n   have locally:  ${have.join(', ')}" : "\n   (no preloaded images built yet)"))
+        }
     }
 }
 
@@ -270,7 +284,10 @@ ZFIN_SOLR_IMAGE=zfin-solr-preloaded:$tag
 //     (and bare `docker compose`) at THIS feature, collapsing the long -p/--env-file/-f
 //     invocation. `deactivate` restores the shell. create-zenv also keeps .zenv/ out of git.
 //     Called in-process (same JVM, same zfinUtil) rather than spawned.
-def composeFiles = "${new File(DOCKER, 'docker-compose.yml').absolutePath}:${new File(DOCKER, 'docker-compose.preloaded.yml').absolutePath}"
+// --shared-db uses the consumer overlay (attach to zfin_shared_net, suppress local db/solr)
+// INSTEAD of the preloaded overlay -- no local db/solr, so no preloaded images to point at.
+def dataOverlay = doSharedDb ? 'docker-compose.shared-db.yml' : 'docker-compose.preloaded.yml'
+def composeFiles = "${new File(DOCKER, 'docker-compose.yml').absolutePath}:${new File(DOCKER, dataOverlay).absolutePath}"
 new CreateZenv().run(['--dir', wtPath, '--project', project, '--compose', composeFiles,
     '--env-file', outEnv.absolutePath, '--tag', tag, '--host', host], zfinUtil)
 
@@ -328,23 +345,33 @@ if (warmCaches) restore(cacheVols)
 // volumes (TARGETROOT/CATALINA_BASE) are empty until the webapp is built+deployed, so it
 // would crash-loop. Services like ncbiload/jenkins/blast are irrelevant to a feature.
 // The compile container's first run sets up the TLS cert + tomcat config.
-def services = ['db', 'solr'] + (warmApp ? ['tomcat', 'httpd'] : [])
-if (doUp) {
+// --shared-db: the data tier is the external shared stack, so bring up only the app tier
+// (and only if it's warm). Otherwise this feature's own preloaded db/solr + app tier.
+def services = (doSharedDb ? [] : ['db', 'solr']) + (warmApp ? ['tomcat', 'httpd'] : [])
+if (doUp && services) {
     info("${compose.join(' ')} up -d ${services.join(' ')}")
     runCommand(compose + ['up', '-d'] + services)
+} else if (doUp) {
+    info("nothing to auto-up yet (shared data tier is external; build+deploy, then zup tomcat httpd)")
 }
 
 // The printed next: block adapts to whether the app tier was warmed. Warm -> the stack
 // already serves $base's deploy, so the only step is dirtydeploy for this branch's delta.
 // Cold -> the full first-time build+deploy sequence.
-def imagesLine = warmApp
-    ? "     images   : zfin-{db,solr}-preloaded:$tag  + warm app (preloaded-app/$tag)"
-    : "     images   : zfin-{db,solr}-preloaded:$tag"
-def bringUp = doUp
-    ? (warmApp ? "  # db+solr+tomcat+httpd already up -- serving $base's deploy at https://$host"
-               : "  # data tier (db + solr) is already up.")
-    : (warmApp ? "  zup db solr tomcat httpd             # full stack: instant (data + warm app tier)"
-               : "  zup db solr                          # data tier: instant, from preloaded images")
+def imagesLine = doSharedDb
+    ? "     data     : SHARED zfin_shared stack (net zfin_shared_net)" + (warmApp ? "  + warm app (preloaded-app/$tag)" : "")
+    : (warmApp ? "     images   : zfin-{db,solr}-preloaded:$tag  + warm app (preloaded-app/$tag)"
+               : "     images   : zfin-{db,solr}-preloaded:$tag")
+def bringUp = doSharedDb
+    ? (warmApp
+        ? (doUp ? "  # tomcat+httpd up, serving $base's deploy on the SHARED db/solr at https://$host"
+                : "  zup tomcat httpd                     # app tier (data is the shared zfin_shared stack)")
+        : "  # data tier is the shared zfin_shared stack (needs `z shared up`); build+deploy, then zup tomcat httpd")
+    : (doUp
+        ? (warmApp ? "  # db+solr+tomcat+httpd already up -- serving $base's deploy at https://$host"
+                   : "  # data tier (db + solr) is already up.")
+        : (warmApp ? "  zup db solr tomcat httpd             # full stack: instant (data + warm app tier)"
+                   : "  zup db solr                          # data tier: instant, from preloaded images"))
 def deploySteps = warmApp ? """\
   # the app tier is already serving $base's code from the warm snapshot. Deploy THIS
   # branch's changes on top (fast, incremental):

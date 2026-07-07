@@ -177,7 +177,7 @@ def trimSnapshot = {
         else sleep(1000)
     }
     if (!ready) {
-        runCommand(['docker', 'logs', '--tail', '30', name], check: false)
+        runCommand(['docker', 'logs', '--tail', '30', name], [check: false])
         runQuietly(['docker', 'rm', '-f', name]); state.trim = null
         die("[trim] postgres not ready")
     }

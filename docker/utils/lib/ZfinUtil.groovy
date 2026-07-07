@@ -40,7 +40,7 @@ class ZfinUtil {
 
     private ProcessBuilder newProcess(List cmd) {
         def p = new ProcessBuilder(cmd*.toString())
-        childEnv.each { k, v -> p.environment().put(k, v) }
+        childEnv.each { k, v -> p.environment().put(k.toString(), v.toString()) }  // env map is String,String (values may be GStrings)
         p
     }
 

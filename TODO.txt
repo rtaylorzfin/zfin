@@ -149,8 +149,17 @@ Decisions / follow-ups
       archival is really only for DB-MUTATING features; detecting/limiting to the diverged
       data is the interesting part (ties into minimal-table-set + --slim). Especially
       relevant on macOS where CoW clones aren't an option.
-- [ ] shared DB across feature stacks (the biggest space win, esp. on macOS where CoW
-      clones aren't available). A feature that doesn't MUTATE the DB needs no copy of its
+- [~] shared DB across feature stacks (the biggest space win, esp. on macOS where CoW
+      clones aren't available). PROTOTYPED via approach (a) -- a dedicated `zfin_shared`
+      stack + external network: `z shared up` runs db+solr once on zfin_shared_net; a
+      feature made with `z feature new --shared-db` (docker-compose.shared-db.yml) attaches
+      its app tier to that net and profile-suppresses its own db/solr. Chose the dedicated
+      shared stack over PGHOST-at-base and over the interactive prompt (simpler + cleaner
+      than injecting PGHOST or coupling to a running feature). Shares db+solr. See
+      reference/preloaded-dev-stacks.md. STILL TODO from the original notes: the
+      interactive prompt in `z feature new`, and a `promote to own DB` (isolate-db) path.
+      Original notes for context:
+      A feature that doesn't MUTATE the DB needs no copy of its
       own -- it can point at a shared db (even the base zfin_org db), saving ~26G + the
       seed time. Mechanism: such a feature runs only its APP tier (compile/tomcat/httpd),
       not its own db/solr, and connects to the shared one via (a) a shared external network
