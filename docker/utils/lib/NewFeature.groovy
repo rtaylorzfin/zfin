@@ -45,6 +45,9 @@
 //                   feature's own copy (needs `z shared up` first). READ-MOSTLY only:
 //                   writes/migrations/reindex are shared with every other --shared-db
 //                   feature. Uses docker-compose.shared-db.yml (not the preloaded overlay).
+//   --no-node       Skip the one-time `gradle npmInstall` (npm ci) that populates the
+//                   worktree's node_modules. By default it runs so the first `gradle
+//                   dirtydeploy` (npmBuild -> webpack) works; skip if you'll build yourself.
 //
 // After provisioning, `source <worktree>/.zenv/activate` (venv-style) makes
 // zrun/zup/zdown/zexec -- and bare `docker compose` -- resolve to this feature;
@@ -73,6 +76,7 @@ def doHosts  = false
 def doApp    = true
 def doCaches = true
 def doSharedDb = false
+def doNode = true
 def name     = ''
 
 def argv = args as List
@@ -88,6 +92,7 @@ for (int i = 0; i < argv.size(); i++) {
         case '--no-caches': doCaches = false;   break
         case '--hosts':     doHosts = true;     break
         case '--shared-db': doSharedDb = true;  break
+        case '--no-node':   doNode = false;     break
         default:
             if (argv[i].startsWith('-')) die("unknown arg: ${argv[i]}", 2)
             name = argv[i]
@@ -377,6 +382,15 @@ def warmT0 = System.currentTimeMillis()
 if (warmApp)    restore(appVols)
 if (warmCaches) restore(cacheVols)
 if (warmApp || warmCaches) info(String.format("warm restore total: %.1fs", (System.currentTimeMillis() - warmT0) / 1000.0))
+
+// node_modules is git-ignored (absent in a fresh worktree) and NOT in the warm TARGETROOT,
+// and `gradle dirtydeploy` runs npmBuild (webpack) WITHOUT npmInstall -- so a fresh worktree
+// needs `npm ci` once or dirtydeploy fails with "webpack: not found". Do it in the compile
+// container (no db/solr needed); npmInstall is up-to-date-skipped on later runs. --no-node skips.
+if (doNode) {
+    info("installing node deps in compile (gradle npmInstall / npm ci) -- one-time for this worktree...")
+    runCommand(compose + ['run', '--rm', 'compile', 'bash', '-l', '-c', 'gradle npmInstall'])
+}
 
 // Bring up the preloaded data tier (instantly ready). With a warm app tier, also start
 // tomcat/httpd -> the stack comes up serving. Without one, leave the app tier down: its

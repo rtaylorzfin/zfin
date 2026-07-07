@@ -30,7 +30,7 @@ _z_complete() {
                 COMPREPLY=( $(compgen -W "new ls rm build-preloaded" -- "$cur") )
             else
                 case "${COMP_WORDS[argstart]}" in
-                    new)             COMPREPLY=( $(compgen -W "--up --hosts --shared-db --no-app --no-caches --tag --ip --ip-base --base --branch" -- "$cur") ) ;;
+                    new)             COMPREPLY=( $(compgen -W "--up --hosts --shared-db --no-app --no-caches --no-node --tag --ip --ip-base --base --branch" -- "$cur") ) ;;
                     rm)              COMPREPLY=( $(compgen -W "--force" -- "$cur") ) ;;
                     build-preloaded) COMPREPLY=( $(compgen -W "--tag --slim --app --caches --keep-tarballs --project" -- "$cur") ) ;;
                 esac
