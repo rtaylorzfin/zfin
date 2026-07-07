@@ -327,18 +327,23 @@ def compose = ['docker', 'compose',
 def restore = { List vns ->
     vns.each { vn ->
         def vol = "${project}_${vn}"
+        def tgz = new File(auxDir, "${vn}.tgz")
+        def mb  = tgz.isFile() ? tgz.length() / 1048576.0 : 0
+        def t0  = System.currentTimeMillis()
         runCommand(['docker', 'volume', 'create',
             '--label', "com.docker.compose.project=$project",
             '--label', "com.docker.compose.volume=$vn", vol])
-        info("warming $vol from ${vn}.tgz")
         runCommand(['docker', 'run', '--rm', '-u', '0', '--entrypoint', 'tar',
             '-v', "${vol}:/data",
             '-v', "${auxDir.absolutePath}:/in:ro",
             "zfin-db-preloaded:$tag", 'xzf', "/in/${vn}.tgz", '-C', '/data'])
+        info(String.format("warmed %s from %s.tgz (%.0f MB gz) in %.1fs", vol, vn, mb, (System.currentTimeMillis() - t0) / 1000.0))
     }
 }
+def warmT0 = System.currentTimeMillis()
 if (warmApp)    restore(appVols)
 if (warmCaches) restore(cacheVols)
+if (warmApp || warmCaches) info(String.format("warm restore total: %.1fs", (System.currentTimeMillis() - warmT0) / 1000.0))
 
 // Bring up the preloaded data tier (instantly ready). With a warm app tier, also start
 // tomcat/httpd -> the stack comes up serving. Without one, leave the app tier down: its
