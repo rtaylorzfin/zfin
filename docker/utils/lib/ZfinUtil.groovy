@@ -75,4 +75,14 @@ class ZfinUtil {
 
     /** True if a docker image exists locally. */
     boolean imageExists(String ref) { runQuietly(['docker', 'image', 'inspect', ref]) == 0 }
+
+    /** The canonical tar-capable container: the compile image (GNU tar, runs as root, always
+     *  local, no Docker Hub pull). One source both the warm-restore and the capture use.
+     *  Reads ZFIN_RELEASE from docker/.env (falling back to the environment). */
+    String tarImage() {
+        def env = new File(DOCKER, '.env')
+        def rel = (env.isFile() ? env.readLines().findAll { it.startsWith('ZFIN_RELEASE=') }
+                     .collect { it.split('=', 2)[1] }[-1] : null) ?: System.getenv('ZFIN_RELEASE')
+        "ghcr.io/zfin/zfin-compile:${rel}"
+    }
 }

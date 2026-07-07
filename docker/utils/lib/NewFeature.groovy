@@ -330,11 +330,7 @@ def compose = ['docker', 'compose',
 // results land in per-index slots (no contention). Timing/errors are printed after join, in
 // order, so the concurrent output doesn't interleave. (Raw gzip is ~1s; the cost is
 // container startup + writing many small files, which parallelism overlaps.)
-// Tar-capable container for extraction: the compile image (a guaranteed-local dev image
-// with GNU tar; avoids a Docker Hub pull for busybox/alpine, and keeps this off the db
-// image). We run it with -u 0 + --entrypoint tar.
-def release  = baseEnvFile.readLines().findAll { it.startsWith('ZFIN_RELEASE=') }.collect { it.split('=', 2)[1] }[-1] ?: System.getenv('ZFIN_RELEASE')
-def tarImage = "ghcr.io/zfin/zfin-compile:${release}"
+def tarImage = zfinUtil.tarImage()   // compile image: GNU tar, root-runnable, local (no pull)
 def restore = { List vns ->
     def results = new Object[vns.size()]
     def threads = []

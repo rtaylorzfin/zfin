@@ -109,9 +109,9 @@ for (int i = 0; i < argv.size(); i++) {
 def release = envOf('ZFIN_RELEASE')
 if (!release) die("ZFIN_RELEASE must be set (from docker/.env or the environment)")
 
-// Stock db image: the pg engine matching this data, AND the image we tar the
-// volumes with (it has GNU tar + gzip and runs as root) -- so capture never
-// depends on pulling alpine from Docker Hub.
+// Stock db image: the pg engine matching this data, used for the WAL-trim throwaway
+// postgres (which MUST be the db image). The tar capture below uses zfinUtil.tarImage()
+// (the compile image) -- same source new-feature's restore uses. Both are local (no pull).
 def stockDb = "ghcr.io/zfin/zfin-db:$release"
 
 def pgVol   = "${project}_pg_data"
@@ -253,7 +253,7 @@ def capture = { String vol, File out ->
     runCommand(['docker', 'run', '--rm', '-u', '0', '--entrypoint', 'tar',
         '-v', "${vol}:/data:ro",
         '-v', "${out.parentFile.absolutePath}:/out",
-        stockDb, 'czf', "/out/${out.name}", '-C', '/data', '.'])
+        zfinUtil.tarImage(), 'czf', "/out/${out.name}", '-C', '/data', '.'])
 }
 
 def pgTarball   = new File(DOCKER, 'postgresql/pgdata.tgz')
