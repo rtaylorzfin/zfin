@@ -5,10 +5,16 @@ CERTDIR=/opt/zfin/tls/certs
 KEYDIR=/opt/zfin/tls/private
 KEYSTOREDIR=/opt/apache/apache-tomcat/conf
 CERT_HOSTNAME=zfin.org
-# Every per-feature dev stack is served at <slug>.zfin.test, so the cert must cover the
-# wildcard (one label -> covers z10286.zfin.test, zfh-a.zfin.test, ...) plus the bare
-# apex and localhost. Without these SANs the browser throws a name-mismatch error.
-CERT_SAN="DNS:${CERT_HOSTNAME}, DNS:*.zfin.test, DNS:zfin.test, DNS:localhost"
+# Base SAN = the production hostname. Staging/prod serve real *.zfin.org letsencrypt certs
+# and keep exactly this.
+CERT_SAN="DNS:${CERT_HOSTNAME}"
+# DEV opt-in only: per-feature dev stacks are served at <slug>.zfin.test, so when
+# ZFIN_DEV_CERT_SAN=true the self-signed cert also covers the .zfin.test wildcard (one label
+# -> z10286.zfin.test, zfh-a.zfin.test, ...) plus the apex and localhost. Off by default so
+# it never leaks into a staging/prod cert.
+if [ "${ZFIN_DEV_CERT_SAN:-false}" = "true" ]; then
+  CERT_SAN="${CERT_SAN}, DNS:*.zfin.test, DNS:zfin.test, DNS:localhost"
+fi
 
 if [ ! -d $CERTDIR ]
 then

@@ -24,6 +24,9 @@ services:
       KIBANA_SYSTEM_PASSWORD: ${KIBANA_SYSTEM_PASSWORD}
       INSTANCE: ${DOCKER_INSTANCE}
       ZFIN_RELEASE: ${ZFIN_RELEASE}
+      # Dev-only opt-in: adds a *.zfin.test wildcard to the self-signed cert generate_base.sh
+      # makes (see more_bash_profile). Unset -> false -> staging/prod keep a zfin.org-only cert.
+      ZFIN_DEV_CERT_SAN: ${ZFIN_DEV_CERT_SAN:-false}
       DOCKER_SSH_AUTH_SOCK: ${DOCKER_SSH_AUTH_SOCK}
       DOCKER_SSH_USER: ${DOCKER_SSH_USER}
       DOCKER_SSH_HOST: ${DOCKER_SSH_HOST}
