@@ -5,6 +5,10 @@ CERTDIR=/opt/zfin/tls/certs
 KEYDIR=/opt/zfin/tls/private
 KEYSTOREDIR=/opt/apache/apache-tomcat/conf
 CERT_HOSTNAME=zfin.org
+# Every per-feature dev stack is served at <slug>.zfin.test, so the cert must cover the
+# wildcard (one label -> covers z10286.zfin.test, zfh-a.zfin.test, ...) plus the bare
+# apex and localhost. Without these SANs the browser throws a name-mismatch error.
+CERT_SAN="DNS:${CERT_HOSTNAME}, DNS:*.zfin.test, DNS:zfin.test, DNS:localhost"
 
 if [ ! -d $CERTDIR ]
 then
@@ -30,7 +34,7 @@ then
 
   #ssl extensions (https://eengstrom.github.io/musings/self-signed-tls-certs-v.-chrome-on-macos-catalina)
   echo "[v3_ca]" > $CERTDIR/ssl-extensions.cnf
-  echo "subjectAltName = DNS:${CERT_HOSTNAME}" >>  $CERTDIR/ssl-extensions.cnf
+  echo "subjectAltName = ${CERT_SAN}" >>  $CERTDIR/ssl-extensions.cnf
   echo "extendedKeyUsage = serverAuth" >>  $CERTDIR/ssl-extensions.cnf
 
   openssl x509 -req -days 365 \

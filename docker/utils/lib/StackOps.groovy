@@ -81,6 +81,15 @@ class StackOps {
                 println "  env-file : ${envf ?: '<none>'}"
                 println "\ncontainers:"
                 new ProcessBuilder(['docker', 'compose', 'ps']).inheritIO().start().waitFor()
+                // A --shared-db stack's data tier lives in the separate `zfin_shared` project,
+                // so `docker compose ps` above won't list it. Show it explicitly.
+                if (System.getenv('COMPOSE_FILE')?.contains('shared-db.yml')) {
+                    def proj = System.getenv('COMPOSE_PROJECT_NAME')
+                    println "\nshared data (project zfin_shared, connected into ${proj}_default):"
+                    new ProcessBuilder(['docker', 'ps', '-a',
+                        '--filter', 'label=com.docker.compose.project=zfin_shared',
+                        '--format', 'table {{.Names}}\t{{.Status}}\t{{.Image}}']).inheritIO().start().waitFor()
+                }
                 break
 
             default: die("StackOps: unknown op '$op'", 2)
