@@ -57,6 +57,14 @@ class StackOps {
                 }
                 break
             case 'down':    requireStack(); compose(['stop'] + rest); break
+
+            // attach the sandboxed agent (skip-permissions is safe -- see docker-compose.claude.yml).
+            // Bring it up first: `z up claude`. Needs a feature stack made with `z feature new --claude`.
+            case 'claude':
+                requireStack()
+                compose(['exec'] + (System.console() ? [] : ['-T']) + ['claude', 'claude', '--dangerously-skip-permissions'] + rest)
+                break
+
             case 'pull':    requireStack(); compose(['pull'] + rest); break
             case 'log':     requireStack(); compose(['logs', '-f'] + rest); break
             case 'restart': requireStack(); compose(['restart'] + rest); break

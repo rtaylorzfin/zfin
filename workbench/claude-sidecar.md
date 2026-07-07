@@ -1,7 +1,26 @@
 # Claude sidecar container (future strategy)
 
-Status: **not built** — a design we may adopt later. Captured so the reasoning
-(and the safety gotchas) aren't lost.
+Status: **v1 scaffolded** — decided Tier 2 (edit + compile + tests vs the feature's
+db/solr) with a mounted `~/.claude`; files exist, not yet built/run. Below is the
+reasoning + safety gotchas; the "v1 as built" section records what's wired up.
+
+## v1 as built (decisions locked)
+
+- **Image** `docker/claude/Dockerfile`: `FROM ghcr.io/zfin/zfin-compile` (reuse the Java/
+  Gradle/Node toolchain — NOT its mounts) + `npm i -g @anthropic-ai/claude-code`.
+- **Service** `docker/docker-compose.claude.yml`: profile-gated `claude` service. Mounts
+  ONLY the worktree (`:rw`), `gradle_cache`/`maven_cache` (`:ro`), and `$ZFIN_CLAUDE_HOME`
+  (→ `~/.claude`). No docker.sock / SSH agent / www_data / host creds. Reaches db/solr over
+  the compose network. So it can edit + `gradle` compile + run the test suite (**Tier 2**),
+  but structurally cannot deploy or push.
+- **Wiring**: `z feature new --claude` adds the overlay + bakes `ZFIN_CLAUDE_HOME`. Then
+  `docker compose build claude` (once), `z up claude`, `z claude` → attaches
+  `claude --dangerously-skip-permissions` inside the sidecar.
+- **To validate before trusting**: build the image; confirm auth works from the mounted
+  `~/.claude`; confirm `gradle test` runs in-container against the feature db/solr; confirm
+  it genuinely cannot reach docker/ssh. Deploy + visual page checks stay with the human.
+- **Still open**: enforce egress allowlist? a `PreToolUse` hook blocking `git push` as
+  defense-in-depth? narrow the `~/.claude` mount to just credentials?
 
 ## Goal
 

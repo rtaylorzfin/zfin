@@ -1,0 +1,41 @@
+# Opt-in Claude sidecar for a feature stack. Added to the compose file list by
+# `z feature new --claude`. See workbench/claude-sidecar.md + reference/preloaded-dev-stacks.md.
+#
+# LOCKED DOWN BY DESIGN. This is what makes `--dangerously-skip-permissions` acceptable: the
+# container's blast radius is one disposable feature worktree, not the host. It mounts ONLY
+# the worktree (:rw) + the build caches (:ro) + your ~/.claude, and reaches the feature's
+# db/solr over the compose network. It deliberately does NOT get docker.sock, the SSH agent,
+# or any host credentials -> it structurally CANNOT deploy or push. Tier 2: it can edit +
+# `gradle` compile + run the unit/integration suite against the preloaded db/solr; deploy +
+# visual verification stay with you (or the normal compile/tomcat path).
+#
+# Profile-gated so it's inert unless started explicitly: `z up claude`, then `z claude` to
+# attach the agent. Requires the local image: `docker compose build claude` (FROM the compile
+# image, so build/pull that first).
+services:
+  claude:
+    build:
+      context: ./claude/
+      args:
+        ZFIN_RELEASE: ${ZFIN_RELEASE}
+    image: zfin-claude:${ZFIN_RELEASE}
+    profiles: ["claude"]                 # never started by a bare `z up`; opt in explicitly
+    working_dir: /opt/zfin/source_roots/zfin.org
+    environment:
+      # Baked so Claude's (non-login) bash has them without sourcing .profile (see CLAUDE.md
+      # NODE_ENV note). TARGETROOT points at an UNMOUNTED path -> gradle test writes there
+      # stay container-local (no shared deploy volume, so the sidecar can't touch a deploy).
+      SOURCEROOT: /opt/zfin/source_roots/zfin.org
+      TARGETROOT: /opt/zfin/www_homes/zfin.org
+      NODE_ENV: development
+    volumes:
+      - ${DOCKER_SOURCE_ROOTS_PATH}:/opt/zfin/source_roots/zfin.org:rw   # the worktree -- the edit target
+      - gradle_cache:/home/gradle/.gradle:ro                             # build cache, READ-ONLY
+      - maven_cache:/home/gradle/.m2:ro
+      - npm_cache:/home/gradle/.npm:ro                                   # warm npm cache (npmInstall/npmBuild), READ-ONLY
+      - ${ZFIN_CLAUDE_HOME}:/home/gradle/.claude                         # Claude's OWN auth/config only
+      # deliberately ABSENT: /var/run/docker.sock, the SSH agent socket, www_data (deploy),
+      # ~/.ssh / ~/.aws / gcloud / any other host credential.
+    command: ["sleep", "infinity"]        # stays up; attach the agent with `z claude`
+    tty: true
+    stdin_open: true
