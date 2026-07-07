@@ -313,13 +313,15 @@ if (doHosts) {
     runCommand(['sudo', 'hostctl', 'add', 'domains', slug, host, '--ip', ip, '--quiet'])
 }
 
-// 4. Compose command. Use THIS repo's compose files (so the preloaded overlay is
-//    found regardless of the worktree's branch), but the worktree's .env + source.
+// 4. Compose command. Use THIS repo's compose files (found regardless of the worktree's
+//    branch) with the worktree's .env + source. MUST use the SAME dataOverlay as the .zenv
+//    (shared-db vs preloaded) -- otherwise `--up` here brings the app tier up under the wrong
+//    overlay (e.g. a --shared-db feature's tomcat never joins zfin_shared_net).
 def compose = ['docker', 'compose',
                '--project-name', project,
                '--env-file', outEnv.absolutePath,
                '-f', new File(DOCKER, 'docker-compose.yml').absolutePath,
-               '-f', new File(DOCKER, 'docker-compose.preloaded.yml').absolutePath]
+               '-f', new File(DOCKER, dataOverlay).absolutePath]
 
 // Warm volumes: populate the SHARED deploy volumes (and, with --caches, the build
 // caches) from the tarballs BEFORE any container mounts them. Docker only seeds an
