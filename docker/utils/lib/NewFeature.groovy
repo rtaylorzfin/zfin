@@ -324,21 +324,47 @@ def compose = ['docker', 'compose',
 // volume) and extract the tarball into it, using the local preloaded db image as a
 // tar-capable, root-runnable container. Done regardless of --up so the volumes are
 // warm whenever their services first start.
+// The volumes are independent, so extract them CONCURRENTLY -- wall-clock drops toward the
+// slowest single volume (gradle_cache) instead of the sum, and the per-container startups
+// overlap. Each thread creates its volume + untars into it, capturing exit + merged output;
+// results land in per-index slots (no contention). Timing/errors are printed after join, in
+// order, so the concurrent output doesn't interleave. (Raw gzip is ~1s; the cost is
+// container startup + writing many small files, which parallelism overlaps.)
 def restore = { List vns ->
-    vns.each { vn ->
-        def vol = "${project}_${vn}"
-        def tgz = new File(auxDir, "${vn}.tgz")
-        def mb  = tgz.isFile() ? tgz.length() / 1048576.0 : 0
-        def t0  = System.currentTimeMillis()
-        runCommand(['docker', 'volume', 'create',
-            '--label', "com.docker.compose.project=$project",
-            '--label', "com.docker.compose.volume=$vn", vol])
-        runCommand(['docker', 'run', '--rm', '-u', '0', '--entrypoint', 'tar',
-            '-v', "${vol}:/data",
-            '-v', "${auxDir.absolutePath}:/in:ro",
-            "zfin-db-preloaded:$tag", 'xzf', "/in/${vn}.tgz", '-C', '/data'])
-        info(String.format("warmed %s from %s.tgz (%.0f MB gz) in %.1fs", vol, vn, mb, (System.currentTimeMillis() - t0) / 1000.0))
+    def results = new Object[vns.size()]
+    def threads = []
+    vns.eachWithIndex { vn, idx ->
+        threads << Thread.start {
+            def vol = "${project}_${vn}"
+            def tgz = new File(auxDir, "${vn}.tgz")
+            def mb  = tgz.isFile() ? tgz.length() / 1048576.0 : 0
+            def t0  = System.currentTimeMillis()
+            try {
+                def run2 = { List c ->
+                    def p = new ProcessBuilder(c*.toString()).redirectErrorStream(true).start()
+                    def out = p.inputStream.text          // drain (avoid pipe deadlock) + capture
+                    [code: p.waitFor(), out: out]
+                }
+                def cr = run2(['docker', 'volume', 'create',
+                    '--label', "com.docker.compose.project=$project",
+                    '--label', "com.docker.compose.volume=$vn", vol])
+                def ex = run2(['docker', 'run', '--rm', '-u', '0', '--entrypoint', 'tar',
+                    '-v', "${vol}:/data",
+                    '-v', "${auxDir.absolutePath}:/in:ro",
+                    "zfin-db-preloaded:$tag", 'xzf', "/in/${vn}.tgz", '-C', '/data'])
+                def ok = cr.code == 0 && ex.code == 0
+                results[idx] = [vn: vn, vol: vol, mb: mb, secs: (System.currentTimeMillis() - t0) / 1000.0,
+                                ok: ok, err: (ok ? '' : (cr.out + ex.out).trim())]
+            } catch (Throwable t) {
+                results[idx] = [vn: vn, vol: vol, mb: mb, secs: 0, ok: false, err: t.toString()]
+            }
+        }
     }
+    threads*.join()
+    results.each { r -> info(String.format("warmed %s from %s.tgz (%.0f MB gz) in %.1fs%s",
+                                            r.vol, r.vn, r.mb, r.secs, r.ok ? '' : '  !! FAILED')) }
+    def failed = results.findAll { !it.ok }
+    if (failed) die("warm restore failed: ${failed.collect { it.vn }.join(', ')}\n" + failed.collect { it.err }.join('\n'))
 }
 def warmT0 = System.currentTimeMillis()
 if (warmApp)    restore(appVols)
