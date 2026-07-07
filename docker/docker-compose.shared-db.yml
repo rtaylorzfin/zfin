@@ -1,27 +1,24 @@
 # Consumer overlay for a feature that SHARES the `zfin_shared` data stack instead of running
 # its own db/solr (added by `z feature new --shared-db`). Requires the shared stack up first
-# (`z shared up`). It attaches the app tier to the external zfin_shared_net -- where the
-# shared db/solr are aliased -- and suppresses this feature's own db/solr, so NO per-feature
-# ~19-32G/~9G copy is created. Because no local db/solr run, this feature's compose does NOT
-# include docker-compose.preloaded.yml.
+# (`z shared up`). This overlay's ONLY job is to suppress the feature's own db/solr, so NO
+# per-feature ~19-32G/~9G copy is created. Because no local db/solr run, this feature's
+# compose does NOT include docker-compose.preloaded.yml.
+#
+# How does the webapp then reach `db`/`solr`? NOT by putting the app tier on the shared
+# network -- multi-homing the tomcat container breaks its startup: catalina sets
+# `-Djava.rmi.server.hostname=$(container ip)`, and with two networks that expands to two IPs,
+# the second of which leaks in as a bare java arg ("Could not find or load main class
+# 172.x.x.x"). Instead, `z feature new --shared-db` connects the SHARED db/solr containers
+# INTO this feature's own default network (with aliases db/solr) after `up`. The app tier
+# stays single-homed; postgres/solr don't care about being on several networks at once.
 #
 # SHARED DATA == SHARED WRITES: read-mostly features only. A migration/reindex/edit hits
 # every sharer. See reference/preloaded-dev-stacks.md.
-networks:
-  zfin_shared_net:
-    external: true                 # created by the shared stack (`z shared up`); must pre-exist
 services:
   # Suppress this feature's own data tier: a profile that's never enabled -> never started,
-  # so no per-feature volume/copy. The app tier reaches db/solr on the shared network instead.
+  # so no per-feature volume/copy. The shared db/solr get connected into this feature's
+  # default network by `z feature new --shared-db` so `db`/`solr` resolve to them.
   db:
     profiles: ["local-data"]
   solr:
     profiles: ["local-data"]
-  # App tier joins BOTH its own default network (to reach httpd/tomcat siblings) AND the
-  # shared network, so the webapp's `db`/`solr` hostnames resolve to the shared containers.
-  tomcat:
-    networks: [default, zfin_shared_net]
-  tomcatdebug:
-    networks: [default, zfin_shared_net]
-  compile:
-    networks: [default, zfin_shared_net]

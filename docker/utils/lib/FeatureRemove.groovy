@@ -5,6 +5,7 @@
 // worktree -- so it prompts unless --force. Do it once the feature's PR is merged.
 class FeatureRemove {
     def run(List args, ZfinUtil zfinUtil) {
+        if (args.any { it in ['-h', '--help'] }) { zfinUtil.printHeader(this); return }
         def die = zfinUtil.&die; def info = zfinUtil.&info
         def runCommand = zfinUtil.&runCommand; def captureOutput = zfinUtil.&captureOutput
         def REPO = zfinUtil.REPO
@@ -50,6 +51,18 @@ class FeatureRemove {
         }
         info("down -v the '$slug' stack")
         runCommand(compose + ['down', '-v'], [check: false])
+
+        // A --shared-db feature has the SHARED db/solr connected into its `<slug>_default`
+        // network; those foreign containers block `down -v` from removing the network, leaving
+        // it dangling (and a later recreate hits "endpoint already exists"). Disconnect any
+        // still-attached containers, then remove the network.
+        def net = "${slug}_default".toString()
+        if (zfinUtil.runQuietly(['docker', 'network', 'inspect', net]) == 0) {
+            def attached = captureOutput(['docker', 'network', 'inspect', net, '--format',
+                '{{range .Containers}}{{.Name}} {{end}}']).split() as List
+            attached.each { runCommand(['docker', 'network', 'disconnect', '-f', net, it], [check: false]) }
+            runCommand(['docker', 'network', 'rm', net], [check: false])
+        }
 
         // 2. worktree + branch
         if (wt.isDirectory()) {

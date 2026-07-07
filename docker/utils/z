@@ -80,13 +80,22 @@ switch (cmd) {
     case 'feature':
         def fsub = rest ? rest[0] : ''
         def fa = rest.drop(1)
+        // `z feature help <sub>` (or `z feature <sub> -h`) -> that subcommand's own --help.
+        if (fsub in ['help', '-h', '--help'] && fa && fa[0] in ['new', 'build-preloaded', 'ls', 'rm']) {
+            fsub = fa[0]; fa = ['--help']
+        }
         switch (fsub) {
             case 'new':             runCmd('NewFeature', fa); break
             case 'build-preloaded': runCmd('BuildPreloaded', fa); break
             case 'ls': case 'list': runCmd('FeatureList', fa); break
             case 'rm':              runCmd('FeatureRemove', fa); break
             case ['', '-h', '--help', 'help']:
-                (fsub ? System.out : System.err).println("usage: z feature new|build-preloaded|ls|rm [opts]")
+                (fsub ? System.out : System.err).println('''z feature -- per-feature dev stacks
+  new [<ticket>] [opts]    provision a feature stack (worktree + .env + .zenv + boot)
+  ls                       list feature stacks (project, branch, data, up/down, url)
+  rm <ticket> [--force]    tear a feature down (down -v + worktree/branch/hosts)
+  build-preloaded [opts]   bake preloaded db/solr images from a loaded stack
+Flags for a subcommand:  z feature <sub> --help   (e.g. z feature new --help)''')
                 System.exit(fsub ? 0 : 2)
             default: zfinUtil.die("z feature: unknown '$fsub' (new|build-preloaded|ls|rm)", 2)
         }

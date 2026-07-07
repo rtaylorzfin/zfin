@@ -40,7 +40,22 @@ class StackOps {
         switch (op) {
             case 'run':     runExec(false, rest); break
             case 'exec':    runExec(true, rest); break
-            case 'up':      requireStack(); compose(['up', '-d'] + rest); break
+            case 'up':
+                requireStack()
+                // A --shared-db stack keeps its app tier single-homed and reaches shared data
+                // by connecting the shared db/solr into this feature's network -- so up must
+                // create the network, connect them, THEN start (see ZfinUtil.connectSharedData).
+                // Idempotent: on the normal stop/start cycle the network + connect persist, so
+                // this just re-confirms them; it matters after a full `docker compose down`.
+                def proj = System.getenv('COMPOSE_PROJECT_NAME')
+                if (System.getenv('COMPOSE_FILE')?.contains('shared-db.yml') && proj) {
+                    zfinUtil.runCommand(['docker', 'compose', 'up', '--no-start'] + rest)
+                    zfinUtil.connectSharedData(proj)
+                    compose(['start'] + rest)
+                } else {
+                    compose(['up', '-d'] + rest)
+                }
+                break
             case 'down':    requireStack(); compose(['stop'] + rest); break
             case 'pull':    requireStack(); compose(['pull'] + rest); break
             case 'log':     requireStack(); compose(['logs', '-f'] + rest); break

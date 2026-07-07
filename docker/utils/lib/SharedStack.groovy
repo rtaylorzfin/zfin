@@ -1,13 +1,15 @@
 // SharedStack -- manage the dedicated shared data stack (Compose project `zfin_shared`):
-// the preloaded db + solr run ONCE on the named network zfin_shared_net, and feature stacks
-// created with `z feature new --shared-db` attach to it instead of seeding their own copies.
-//   z shared up   [--tag T]        boot the shared db+solr (creates zfin_shared_net)
+// the preloaded db + solr run ONCE here, and feature stacks created with
+// `z feature new --shared-db` reach them (instead of seeding their own copies) by connecting
+// these shared containers into the feature's own network -- see ZfinUtil.connectSharedData.
+//   z shared up   [--tag T]        boot the shared db+solr
 //   z shared down [--rm-data]      stop it (keep the shared copy; --rm-data discards it)
-//   z shared status                show the shared stack + which features are attached
+//   z shared status                show the shared stack + which features share it
 //
 // SHARED DATA == SHARED WRITES: read-mostly features only. See reference/preloaded-dev-stacks.md.
 class SharedStack {
     def run(List args, ZfinUtil zfinUtil) {
+        if (args.any { it in ['-h', '--help'] }) { zfinUtil.printHeader(this); return }
         def die = zfinUtil.&die; def info = zfinUtil.&info
         def runCommand = zfinUtil.&runCommand; def captureOutput = zfinUtil.&captureOutput
         def DOCKER = zfinUtil.DOCKER
@@ -56,9 +58,16 @@ class SharedStack {
                 break
             case 'status':
                 runCommand(compose + ['ps'], [check: false])
-                def attached = captureOutput(['docker', 'network', 'inspect', 'zfin_shared_net',
-                                              '--format', '{{range .Containers}}{{.Name}} {{end}}'])
-                info("attached to zfin_shared_net: ${attached ?: '(none, or network not up)'}")
+                // A feature shares this data by having the shared db connected into its own
+                // `<project>_default` network, so the sharers are exactly those networks.
+                def dbcid = captureOutput(['docker', 'ps', '-q',
+                    '--filter', 'label=com.docker.compose.project=zfin_shared',
+                    '--filter', 'label=com.docker.compose.service=db'])
+                if (!dbcid) { info("shared stack not running (z shared up)"); break }
+                def features = captureOutput(['docker', 'inspect', dbcid, '--format',
+                    '{{range $k,$v := .NetworkSettings.Networks}}{{$k}} {{end}}']).split()
+                    .findAll { it.endsWith('_default') }.collect { it.replaceFirst(/_default$/, '') }
+                info("features sharing this db: ${features ? features.join(', ') : '(none connected)'}")
                 break
             default: die("z shared: unknown subcommand '$sub' (up|down|status)", 2)
         }

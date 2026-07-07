@@ -76,6 +76,17 @@ class ZfinUtil {
     /** True if a docker image exists locally. */
     boolean imageExists(String ref) { runQuietly(['docker', 'image', 'inspect', ref]) == 0 }
 
+    /** Print a command's own file header (its leading `//` comment block) as --help text.
+     *  Pass the command instance; reads its .groovy source (works for gcl-loaded classes). */
+    void printHeader(cmd) {
+        def f = new File(cmd.getClass().protectionDomain.codeSource.location.toURI())
+        println f.readLines()
+                 .takeWhile { it.startsWith('//') || it.startsWith('#!') || it.trim().isEmpty() }
+                 .findAll { it.startsWith('//') }
+                 .collect { it.replaceFirst('^// ?', '') }
+                 .join('\n')
+    }
+
     /** The canonical tar-capable container: the compile image (GNU tar, runs as root, always
      *  local, no Docker Hub pull). One source both the warm-restore and the capture use.
      *  Reads ZFIN_RELEASE from docker/.env (falling back to the environment). */
@@ -84,5 +95,30 @@ class ZfinUtil {
         def rel = (env.isFile() ? env.readLines().findAll { it.startsWith('ZFIN_RELEASE=') }
                      .collect { it.split('=', 2)[1] }[-1] : null) ?: System.getenv('ZFIN_RELEASE')
         "ghcr.io/zfin/zfin-compile:${rel}"
+    }
+
+    // Connect the shared `zfin_shared` db/solr containers INTO the given feature project's
+    // default network (`<project>_default`) with aliases db/solr, so a --shared-db feature's
+    // app tier resolves `db`/`solr` to the shared containers. This is how a --shared-db
+    // feature reaches shared data WITHOUT multi-homing its own tomcat -- catalina sets
+    // `-Djava.rmi.server.hostname=$(container ip)`, and a two-network tomcat expands that to
+    // two IPs, the second leaking in as a bare java arg (fatal "Could not find or load main
+    // class 172.x"). Postgres/solr don't care about being on several networks, so we attach
+    // THEM to the feature's network instead. Idempotent: skips a container already joined.
+    // The network must already exist (compose creates it on up / up --no-start).
+    void connectSharedData(String project) {
+        def net = "${project}_default".toString()   // String, not GString: List.contains below
+        ['db', 'solr'].each { svc ->
+            def cid = captureOutput(['docker', 'ps', '-q',
+                '--filter', 'label=com.docker.compose.project=zfin_shared',
+                '--filter', "label=com.docker.compose.service=$svc"])
+            if (!cid) { info("warning: shared $svc not running -- run 'z shared up' first"); return }
+            def nets = captureOutput(['docker', 'inspect', cid, '--format',
+                '{{range $k,$v := .NetworkSettings.Networks}}{{$k}} {{end}}']).split() as List
+            if (nets.contains(net)) return
+            info("connect shared $svc -> $net (alias $svc)")
+            // check:false: a redundant connect (already joined) errors harmlessly.
+            runCommand(['docker', 'network', 'connect', '--alias', svc, net, cid], [check: false])
+        }
     }
 }

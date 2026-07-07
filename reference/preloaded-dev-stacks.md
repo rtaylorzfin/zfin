@@ -202,12 +202,17 @@ z feature new ZFIN-2 --shared-db --up   # both reach the SAME db/solr
 z shared status                         # what's attached;  z shared down [--rm-data] to stop
 ```
 
-How it works: the dedicated `zfin_shared` stack runs db+solr on the named network
-`zfin_shared_net` (aliased `db`/`solr`). A `--shared-db` feature uses
-`docker-compose.shared-db.yml` (instead of the preloaded overlay): it attaches its app tier
-(tomcat/compile) to that external network so the webapp's `db`/`solr` hostnames resolve to
-the shared containers, and profile-suppresses its own db/solr so no per-feature copy is
-seeded.
+How it works: the dedicated `zfin_shared` stack runs db+solr once. A `--shared-db` feature
+uses `docker-compose.shared-db.yml` (instead of the preloaded overlay), which
+profile-suppresses its own db/solr so no per-feature copy is seeded. To reach the shared
+data, `z feature new --shared-db` (and `z up`) **connect the shared db/solr containers into
+the feature's own default network** with aliases `db`/`solr`, so the webapp's `db`/`solr`
+hostnames resolve to them. The feature's app tier stays *single-homed*: an earlier design
+attached the app tier to the shared network instead, but multi-homing the tomcat container
+is fatal — catalina sets `-Djava.rmi.server.hostname=$(container ip)`, and with two networks
+that expands to two IPs, the second leaking in as a bare java arg (`Could not find or load
+main class 172.x`). Postgres/solr don't care about being on several networks, so we attach
+*them* to each feature's network instead.
 
 **The hard constraint — shared data == shared writes.** All sharers read/write the *same*
 `zfindb` and solr index, so a `liquibasePostBuild` migration, a reindex, or a curation edit

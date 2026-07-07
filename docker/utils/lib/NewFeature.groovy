@@ -58,6 +58,7 @@
 // worktree is fine -- provisioning never depends on where you happen to be.
 class NewFeature {
 def run(List args, ZfinUtil zfinUtil) {
+    if (args.any { it in ['-h', '--help'] }) { zfinUtil.printHeader(this); return }
     def die = zfinUtil.&die; def info = zfinUtil.&info; def runCommand = zfinUtil.&runCommand; def captureOutput = zfinUtil.&captureOutput
     def imageExists = zfinUtil.&imageExists
     def DOCKER    = zfinUtil.DOCKER   // docker
@@ -289,8 +290,9 @@ ZFIN_SOLR_IMAGE=zfin-solr-preloaded:$tag
 //     (and bare `docker compose`) at THIS feature, collapsing the long -p/--env-file/-f
 //     invocation. `deactivate` restores the shell. create-zenv also keeps .zenv/ out of git.
 //     Called in-process (same JVM, same zfinUtil) rather than spawned.
-// --shared-db uses the consumer overlay (attach to zfin_shared_net, suppress local db/solr)
-// INSTEAD of the preloaded overlay -- no local db/solr, so no preloaded images to point at.
+// --shared-db uses the consumer overlay (suppress local db/solr) INSTEAD of the preloaded
+// overlay -- no local db/solr, so no preloaded images to point at. The shared db/solr are
+// connected into this feature's network at up time (see connectSharedData), not via compose.
 def dataOverlay = doSharedDb ? 'docker-compose.shared-db.yml' : 'docker-compose.preloaded.yml'
 def composeFiles = "${new File(DOCKER, 'docker-compose.yml').absolutePath}:${new File(DOCKER, dataOverlay).absolutePath}"
 new CreateZenv().run(['--dir', wtPath, '--project', project, '--compose', composeFiles,
@@ -316,7 +318,7 @@ if (doHosts) {
 // 4. Compose command. Use THIS repo's compose files (found regardless of the worktree's
 //    branch) with the worktree's .env + source. MUST use the SAME dataOverlay as the .zenv
 //    (shared-db vs preloaded) -- otherwise `--up` here brings the app tier up under the wrong
-//    overlay (e.g. a --shared-db feature's tomcat never joins zfin_shared_net).
+//    overlay (e.g. a --shared-db feature would seed its own db/solr instead of sharing).
 def compose = ['docker', 'compose',
                '--project-name', project,
                '--env-file', outEnv.absolutePath,
@@ -402,7 +404,16 @@ if (doNode) {
 // --shared-db: the data tier is the external shared stack, so bring up only the app tier
 // (and only if it's warm). Otherwise this feature's own preloaded db/solr + app tier.
 def services = (doSharedDb ? [] : ['db', 'solr']) + (warmApp ? ['tomcat', 'httpd'] : [])
-if (doUp && services) {
+if (doUp && services && doSharedDb) {
+    // Shared-db: create the app tier + this feature's default network WITHOUT starting, connect
+    // the shared db/solr into that network (so `db`/`solr` resolve at tomcat startup), THEN
+    // start. The app tier stays single-homed -- see ZfinUtil.connectSharedData for why.
+    info("${compose.join(' ')} up --no-start ${services.join(' ')}")
+    runCommand(compose + ['up', '--no-start'] + services)
+    zfinUtil.connectSharedData(project)
+    info("${compose.join(' ')} start ${services.join(' ')}")
+    runCommand(compose + ['start'] + services)
+} else if (doUp && services) {
     info("${compose.join(' ')} up -d ${services.join(' ')}")
     runCommand(compose + ['up', '-d'] + services)
 } else if (doUp) {
@@ -413,7 +424,7 @@ if (doUp && services) {
 // already serves $base's deploy, so the only step is dirtydeploy for this branch's delta.
 // Cold -> the full first-time build+deploy sequence.
 def imagesLine = doSharedDb
-    ? "     data     : SHARED zfin_shared stack (net zfin_shared_net)" + (warmApp ? "  + warm app (preloaded-app/$tag)" : "")
+    ? "     data     : SHARED zfin_shared db/solr (connected into ${project}_default)" + (warmApp ? "  + warm app (preloaded-app/$tag)" : "")
     : (warmApp ? "     images   : zfin-{db,solr}-preloaded:$tag  + warm app (preloaded-app/$tag)"
                : "     images   : zfin-{db,solr}-preloaded:$tag")
 def bringUp = doSharedDb

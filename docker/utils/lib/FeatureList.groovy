@@ -2,6 +2,7 @@
 // branch, data mode own/shared, up/down, url). Read-only.
 class FeatureList {
     def run(List args, ZfinUtil zfinUtil) {
+        if (args.any { it in ['-h', '--help'] }) { zfinUtil.printHeader(this); return }
         def captureOutput = zfinUtil.&captureOutput
         def wtParent = zfinUtil.REPO.parentFile
         def wts = ((wtParent.listFiles() ?: []) as List).findAll { it.isDirectory() && it.name.startsWith('wt-') }.sort { it.name }
