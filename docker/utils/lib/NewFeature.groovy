@@ -321,42 +321,53 @@ def compose = ['docker', 'compose',
 // EMPTY volume from an image on first mount, and no image carries this content, so
 // these would otherwise come up empty (and tomcat/httpd would crash-loop). We
 // pre-create each volume (with compose's labels so compose adopts it as a project
-// volume) and extract the tarball into it, using the local preloaded db image as a
-// tar-capable, root-runnable container. Done regardless of --up so the volumes are
-// warm whenever their services first start.
+// volume) and extract the tarball into it, using the compile image as a tar-capable,
+// root-runnable container (see tarImage below). Done regardless of --up so the volumes
+// are warm whenever their services first start.
 // The volumes are independent, so extract them CONCURRENTLY -- wall-clock drops toward the
 // slowest single volume (gradle_cache) instead of the sum, and the per-container startups
 // overlap. Each thread creates its volume + untars into it, capturing exit + merged output;
 // results land in per-index slots (no contention). Timing/errors are printed after join, in
 // order, so the concurrent output doesn't interleave. (Raw gzip is ~1s; the cost is
 // container startup + writing many small files, which parallelism overlaps.)
+// Tar-capable container for extraction: the compile image (a guaranteed-local dev image
+// with GNU tar; avoids a Docker Hub pull for busybox/alpine, and keeps this off the db
+// image). We run it with -u 0 + --entrypoint tar.
+def release  = baseEnvFile.readLines().findAll { it.startsWith('ZFIN_RELEASE=') }.collect { it.split('=', 2)[1] }[-1] ?: System.getenv('ZFIN_RELEASE')
+def tarImage = "ghcr.io/zfin/zfin-compile:${release}"
 def restore = { List vns ->
     def results = new Object[vns.size()]
     def threads = []
     vns.eachWithIndex { vn, idx ->
         threads << Thread.start {
-            def vol = "${project}_${vn}"
+            def vol   = "${project}_${vn}"
+            def cname = "zfin-warm-${project}-${vn}"   // deterministic name so we can always clean it up
             def tgz = new File(auxDir, "${vn}.tgz")
             def mb  = tgz.isFile() ? tgz.length() / 1048576.0 : 0
             def t0  = System.currentTimeMillis()
+            def run2 = { List c ->
+                def p = new ProcessBuilder(c*.toString()).redirectErrorStream(true).start()
+                def out = p.inputStream.text          // drain (avoid pipe deadlock) + capture
+                [code: p.waitFor(), out: out]
+            }
             try {
-                def run2 = { List c ->
-                    def p = new ProcessBuilder(c*.toString()).redirectErrorStream(true).start()
-                    def out = p.inputStream.text          // drain (avoid pipe deadlock) + capture
-                    [code: p.waitFor(), out: out]
-                }
+                run2(['docker', 'rm', '-f', cname])   // clear a stale orphan from a prior interrupted run
                 def cr = run2(['docker', 'volume', 'create',
                     '--label', "com.docker.compose.project=$project",
                     '--label', "com.docker.compose.volume=$vn", vol])
-                def ex = run2(['docker', 'run', '--rm', '-u', '0', '--entrypoint', 'tar',
+                // No --rm: a --rm container that never STARTS (interrupt) is left "Created" and
+                // pins the volume; we name it and remove it explicitly in finally instead.
+                def ex = run2(['docker', 'run', '--name', cname, '-u', '0', '--entrypoint', 'tar',
                     '-v', "${vol}:/data",
                     '-v', "${auxDir.absolutePath}:/in:ro",
-                    "zfin-db-preloaded:$tag", 'xzf', "/in/${vn}.tgz", '-C', '/data'])
+                    tarImage, 'xzf', "/in/${vn}.tgz", '-C', '/data'])
                 def ok = cr.code == 0 && ex.code == 0
                 results[idx] = [vn: vn, vol: vol, mb: mb, secs: (System.currentTimeMillis() - t0) / 1000.0,
                                 ok: ok, err: (ok ? '' : (cr.out + ex.out).trim())]
             } catch (Throwable t) {
                 results[idx] = [vn: vn, vol: vol, mb: mb, secs: 0, ok: false, err: t.toString()]
+            } finally {
+                run2(['docker', 'rm', '-f', cname])   // always remove (normal + error paths)
             }
         }
     }
