@@ -77,8 +77,11 @@ function like `zrun` after activation).
 | `z` | The front door (Groovy). Self-locates, builds one `ZfinUtil`, and routes each command to its class — run in-process. |
 | `lib/ZfinUtil.groovy` | Shared class: process/logging helpers, canonical roots, and the preloaded-volume contract (`APP_VOLS`/`CACHE_VOLS`) — the single source both producer and consumer read. |
 | `lib/StackOps.groovy` | The stack lifecycle family: `run`/`exec`/`up`/`down`/`pull`/`log`/`restart`/`status`. |
+| `lib/SharedStack.groovy` | The shared data stack (`z shared up`/`down`/`status`) that `--shared-db` features attach to. |
 | `lib/CreateZenv.groovy` | Generate a `.zenv/` (venv-style activation). Bootstrap via `z create-zenv`. |
 | `lib/NewFeature.groovy` | Provision a feature: worktree + `.env` + `.zenv` + IP + hosts + boot (`z feature new`). |
+| `lib/FeatureList.groovy` | List feature stacks (`z feature ls`). |
+| `lib/FeatureRemove.groovy` | Tear a feature down: down -v + worktree/branch/hosts (`z feature rm`). |
 | `lib/BuildPreloaded.groovy` | Bake the preloaded images (+ `--slim`/`--app`/`--caches`); WAL trimmed on every build (`z feature build-preloaded`). |
 | `lib/Zbuild.groovy` | Non-interactive, phased build/deploy orchestrator — the CI engine (`z build`; what GoCD stages should call). |
 | `lib/FreshInstall.groovy` | Guided day-zero setup on a bare workstation (`z fresh-install`). |
@@ -213,10 +216,21 @@ write-isolation (a per-feature `DATABASE`/`TEMPLATE` is a full copy, which negat
 saving). So `--shared-db` is for **read-mostly** parallel work; a feature that needs its own
 schema/writes should be a normal per-feature-copy stack.
 
-## Teardown
+## Listing + teardown
 
-Do this only once the feature's PR is merged — `down -v` discards the stack's DB/Solr/app
-copy and `git worktree remove` discards uncommitted work. From the activated `.zenv`:
+```bash
+z feature ls                      # all feature stacks: project, branch, data (own/shared), up/down, url
+z feature rm <ticket>             # tear one down (prompts; --force to skip)
+```
+
+`z feature rm` automates the full teardown: `docker compose down -v` (containers + per-feature
+volumes/copies), `git worktree remove --force`, `git branch -D`, `hostctl remove <slug>`, and
+(macOS) `ifconfig lo0 -alias <ip>` — deriving the project/ip/host/compose-files from the
+worktree's `.env`/`.zenv`. It's **destructive** (discards the stack's copies *and* any
+uncommitted work), so do it only once the feature's PR is merged; it prompts for confirmation
+unless `--force` (and refuses without a TTY).
+
+The equivalent by hand, if you prefer (or `new-feature` prints these at the end of provisioning):
 
 ```bash
 docker compose down -v            # containers + network + per-feature volumes
@@ -224,11 +238,7 @@ deactivate
 git worktree remove <worktree>    # add --force if dirty
 sudo hostctl remove <slug>        # drop the /etc/hosts profile
 sudo ifconfig lo0 -alias <ip>     # (macOS only) drop the loopback alias
-git branch -d <branch>            # optional; refuses if unmerged
 ```
-
-(`new-feature` prints these exact steps, filled in, at the end of provisioning. A
-`z feature rm` command to automate this is on the `TODO.txt` backlog.)
 
 ---
 

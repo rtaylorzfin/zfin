@@ -27,10 +27,11 @@ _z_complete() {
         shared)                    COMPREPLY=( $(compgen -W "up down status --tag --rm-data" -- "$cur") ) ;;
         feature)
             if (( COMP_CWORD == argstart )); then
-                COMPREPLY=( $(compgen -W "new build-preloaded" -- "$cur") )
+                COMPREPLY=( $(compgen -W "new ls rm build-preloaded" -- "$cur") )
             else
                 case "${COMP_WORDS[argstart]}" in
                     new)             COMPREPLY=( $(compgen -W "--up --hosts --shared-db --no-app --no-caches --tag --ip --ip-base --base --branch" -- "$cur") ) ;;
+                    rm)              COMPREPLY=( $(compgen -W "--force" -- "$cur") ) ;;
                     build-preloaded) COMPREPLY=( $(compgen -W "--tag --slim --app --caches --keep-tarballs --project" -- "$cur") ) ;;
                 esac
             fi ;;

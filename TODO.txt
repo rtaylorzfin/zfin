@@ -173,7 +173,14 @@ Decisions / follow-ups
       (`zfeature isolate-db`?) for when a shared-DB feature later needs schema/writes.
       Depends on the instances x properties item: "share" means injecting a PGHOST (and
       solr host) override into the feature's generated zfin.properties/env.
-- [ ] `zfeature rm <name>` (teardown) -- the lifecycle bookend to `zfeature new`, run once
+- [x] `z feature rm <name>` (teardown) -- DONE (lib/FeatureRemove.groovy): down -v +
+      worktree remove --force + branch -D + hostctl remove + macOS lo0 -alias, deriving
+      proj/slug/ip/host + the compose file list from the worktree's .env/.zenv. Also added
+      `z feature ls` (lib/FeatureList.groovy) to list stacks. SAFETY as-built is a
+      confirmation prompt (refuses without a TTY unless --force) rather than the
+      auto-"refuse if unmerged/uncommitted" check envisioned below -- that stricter guard
+      (and `git branch -d` instead of -D) is the remaining refinement. Original notes:
+      the lifecycle bookend to `zfeature new`, run once
       the feature's final PR is merged. Bundle the manual "teardown:" steps new-feature
       already prints: `docker compose down -v` (drop the per-feature DB/Solr copy +
       containers/network), `git worktree remove`, `sudo hostctl remove <slug>`, and
