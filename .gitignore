@@ -47,6 +47,7 @@ out/
 .env
 .env.local
 .env.development
+.zenv/
 .env.test
 .env.production
 
@@ -71,8 +72,15 @@ temp-ai-*
 .trae
 .vscode
 .windsurf
-CLAUDE.md
 
 # Ontology serialization caches written during test runs.
 # Tests prime them lazily via AbstractOntologyTest.deserializeOrPrime(...).
 test/ontologies/data-transfer/*.ser
+
+# Preloaded / feature-stack tooling (see reference/preloaded-dev-stacks.md).
+# Ignore the large capture tarballs build-preloaded.groovy generates (db/solr
+# intermediates + the persistent warm-app snapshots); the tooling in docker/utils/
+# stays tracked.
+docker/postgresql/pgdata.tgz
+docker/solr/solrvar.tgz
+docker/preloaded-app/

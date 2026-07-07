@@ -1,0 +1,291 @@
+TODO — preloaded-dev-stacks   (delete this file before merging the PR)
+
+Legend: [ ] pending   [x] done   [~] partially done
+
+End-to-end validation
+- [ ] build-preloaded.groovy --slim against a real loaded dazed stack -> lean image
+- [ ] boot a feature stack from the lean image; confirm common webapp pages render
+- [ ] new-feature.groovy ZFH-xxx --up: worktree + per-feature stack comes up populated
+- [ ] confirm liquibasePostBuild + targeted solrIndex deltas apply on a feature stack
+- [ ] re-run build-preloaded.groovy so the images pick up the new LOCAL-ONLY bare names
+      (the 2026-07-01 images were built under the old ghcr.io/zfin/*-preloaded names)
+- [x] slim mechanism unit-validated on a throwaway volume (WAL 577M->65M, truncate + keeper OK)
+- [x] preloaded images build on a real stack (done on the Mac: db/solr -preloaded:2026-07-01)
+
+Decisions / follow-ups
+- [ ] JIRA TICKET: multi-arch STOCK images on ghcr.io.
+      The stock images (ghcr.io/zfin/zfin-{base,compile,db,solr,httpd,tomcat,...}:${ZFIN_RELEASE})
+      are single-arch today — nothing in CI (.github/workflows/{ant,eslint}.yml) builds/pushes them
+      with buildx, so whatever is on ghcr.io is whatever host last pushed (almost certainly amd64).
+      On an arm64 Mac, `FROM ghcr.io/zfin/zfin-db:main` then pulls amd64 and runs under emulation.
+      Fix: publish a manifest list under the plain tag (:main) so `docker pull ...:main` auto-selects
+      arm64/amd64 and Dockerfile FROM lines never change. Either `buildx --platform
+      linux/amd64,linux/arm64 --push`, or build each arch natively as arch-suffixed tags
+      (:main-arm64 / :main-amd64 — an accepted pattern) and combine with `buildx imagetools create`.
+      NOTE: STOCK family only. The PRELOADED images are deliberately local-only (real data, never
+      pushed), so they need only the builder's native arch — build-preloaded.groovy handles that
+      with plain `docker build`.
+- [x] new-feature #3 open Q — /etc/hosts vs dnsmasq: DECIDED on hostctl (per-feature profile named
+      after the slug; teardown = `sudo hostctl remove <slug>`). dnsmasq *.zfin.test wildcard remains
+      the zero-touch alternative to --hosts.
+- [~] simplify example-gocd.json with the new tooling.
+      STATUS: `docker/utils/zbuild` PROTOTYPED (phased: configure|load-db|load-solr|
+      deploy-jenkins|deploy|all; --build/--test; delegates to zrun + docker compose;
+      compile-checked, arg-handling tested). REMAINING: run it end-to-end against a real
+      stack to validate the phases; then rewrite example-gocd.json to (1) set COMPOSE_*
+      as pipeline environment_variables and (2) call `zbuild <phase>` per stage.
+      Every task is `docker compose ...`
+      in docker/. Levers: (1) set COMPOSE_PROJECT_NAME/COMPOSE_FILE/COMPOSE_ENV_FILES as
+      GoCD pipeline environment_variables (the .zenv model = GoCD env vars) -> drop all the
+      working_directory: docker/ and enable per-branch CI stacks; (2) z-commands thin tasks
+      (docker compose run --rm compile bash -l -c X -> zrun -c X; up/down -> zup/zdown) once
+      docker/utils + a generated .zenv/bin are on the agent PATH; (3) a HANDS-FREE, phased,
+      NON-INTERACTIVE orchestrator (docker/utils/, e.g. `zbuild configure|load-db|load-solr|
+      deploy-jenkins|deploy`) so each GoCD stage is a one-liner and the logic lives versioned +
+      testable in one file instead of ~30 tasks across 1163 lines of JSON (keep it phased, not
+      monolithic, to preserve GoCD parallelism/gating/retry). The 22-job Stop_X/Start_X "Docker"
+      stage is operator plumbing -- could collapse to a couple parameterized jobs.
+      KEY: that orchestrator IS the non-interactive core z-fresh-install needs -- fresh-install
+      becomes the interactive front-end that calls the same phases. Build once, two entry points.
+- [~] `z-fresh-install` -- guided day-zero setup on a bare workstation.
+      STATUS: `docker/utils/z-fresh-install` PROTOTYPED (fresh-check + init-input checks +
+      --dry-run plan tested; drives create-zenv -> zbuild all -> build-preloaded + new-feature).
+      REMAINING: real end-to-end run on an actually-fresh machine (needs the db/solr dumps
+      present); decide whether to also expose it via zfeature. Original spec below.
+      Guided day-zero setup on a bare workstation (nothing in docker images/volumes yet). Flow:
+        1. Verify it's truly fresh: error if any ZFIN docker state exists -- scope the check
+           to ZFIN, NOT all of docker (the host may run unrelated containers): compose
+           projects (zfin_org, zfh-*), *_pg_data / *_solr_var volumes, ghcr.io/zfin/* +
+           *-preloaded images. Erroring on ANY container/volume is too aggressive.
+        2. Ask: build stock images (docker compose build) or pull from ghcr.io?
+        3. Ask/verify the init inputs are present (paths come from docker/.env): db dump,
+           solr dump, and optionally bowtie (DOCKER_BOWTIE_PATH), blast
+           (DOCKER_ABBLAST_PATH / DOCKER_BLASTSERVER_BLAST_DATABASE_PATH), loadup
+           (DOCKER_LOADUP_PATH). Fail early with what's missing.
+        4. Ask for a first feature/ticket name (e.g. ZF-123).
+        5. Guide through standing up a dev stack with our tooling (create-zenv -> activate ->
+           the load steps -> zfeature ...).
+      MUST cover the load steps this branch never touched: getdb/loaddb, make,
+      liquibasePreBuild/PostBuild, getsolr/loadsolr (reference/build-and-docker.md §2-3),
+      run via zrun in the base compile container.
+      Sequencing to resolve: features boot from PRELOADED images, which require a LOADED base
+      first. So fresh-install really = set up + fully load the BASE (zfin_org) stack, THEN
+      (optionally) `zfeature build-preloaded`, THEN `zfeature new <ticket>`. The "feature name"
+      prompt belongs after the base is loaded.
+      Bootstrap chicken-egg: on a bare box there's no .zenv (and maybe no host groovy) yet, but
+      this command lives inside the zenv wrapper. Either document the pre-steps (install groovy;
+      `docker/utils/create-zenv.groovy` for the base; `source .zenv/activate`; then run it), or
+      add a tiny wrapper-free entry that bootstraps those first.
+- [ ] continue migrating ant build tasks -> gradle. Some ant "tasks" aren't really builds --
+      they just run a Java main with the right classpath. Those could become a CLI like our
+      zrun/zenv tooling: a sibling `zfin-make` / `zfin-task` (name TBD) that execs java with the
+      classpath set up, rather than living as ant targets. (Ties into the first-build master
+      command question -- once ant do/deploy-* shrink, `gradle firstDeploy` gets simpler.)
+- [ ] reconcile the new-feature workflow with INSTANCES + zfin.properties generation.
+      zfin.properties is generated per-INSTANCE from commons/env/all-properties.yml
+      (PropertiesProcessor.groovy, via load-properties.bash on the compile login shell;
+      INSTANCE/DOCKER_INSTANCE selects it). new-feature.groovy copies the base .env and
+      overrides project/host/IP/images but NOT DOCKER_INSTANCE -- so every feature stack
+      inherits the base instance (e.g. coral) and generates that instance's properties,
+      even though its host is zfh-123.zfin.test on 127.0.0.X. Questions: does a feature
+      need its own instance (or property overrides) so the generated zfin.properties
+      matches its host/URL/ports? Should all-properties.yml gain a "feature" instance
+      pattern, or should new-feature inject per-feature property overrides? Where do
+      hostname-derived properties (base URL, cookie domain, etc.) currently come from,
+      and do they break when the instance's host != the feature's host?
+- [ ] how to deploy/run a RELEASE branch with this tooling -- same as a feature, or not?
+      Today release branches deploy from the PRIMARY source location with a checkout of
+      the release branch (full build/load, a specific instance), NOT a worktree+preloaded
+      feature stack. Decide: do release deploys stay "primary location + release checkout"
+      (and just adopt zbuild for the phased build/deploy), or can they be a feature-style
+      stack? A release likely wants the real instance's properties/host + a real load (not
+      preloaded dev images), so it's probably closer to `zbuild all` on the primary
+      checkout than to `zfeature new`. Clarify the intended path and document it.
+- [ ] space efficiency: preloaded stacks make a FULL COPY of the DB/Solr per feature
+      (Docker seeds each <proj>_pg_data/_solr_var by copying the image's baked VOLUME
+      data -- NOT copy-on-write). ~26G db + ~10G solr PER feature; 3 stacks ≈ 100G+.
+      Explore real per-feature CoW so N clones are near-free:
+        - ZFS (the original idea): snapshot a golden loaded pg_data/solr_var dataset,
+          `zfs clone` per feature, destroy on teardown. Needs ZFS-backed docker storage
+          or bind-mounting ZFS clones as the volumes.
+        - btrfs subvolume snapshots, or reflink copies (cp --reflink=auto) on APFS/XFS.
+        - Docker doesn't do CoW volume seeding itself, so this likely means managing the
+          data dirs outside Docker's named-volume seeding (bind-mount clones) or a
+          storage driver / plugin that clones.
+      Trade vs current: much less disk + faster "up", at the cost of a fs dependency
+      (the very thing the preloaded-image approach was chosen to avoid). Weigh per host.
+      HOST OS MATTERS: this is a Linux-host capability. On Linux, ZFS/btrfs on the host +
+      bind-mount clones into containers works. On macOS (Docker Desktop) it's effectively
+      unavailable -- volumes live inside the LinuxKit VM's disk (not host APFS), you can't
+      run ZFS/btrfs in that managed VM, and APFS clonefile doesn't reach Docker volumes;
+      bind-mounting a 26G PGDATA over virtiofs is too slow/fsync-fragile for a DB. So CoW
+      clones are the win on Linux dev/CI; on macOS, lean on --slim + minimal-table-set.
+      (This is exactly why the preloaded full-copy approach was chosen: it works on macOS.)
+- [ ] minimal-table-set DB spin-up (a much cheaper alternative to full per-feature copies):
+      a mode that boots a feature DB with only a minimal set of tables -- some omitted
+      entirely, some truncated (maybe ALL truncated => schema-only) -- so the per-feature
+      copy is tiny. Then make it EASY to pull in the full data for specific tables on
+      demand when a ticket needs them (e.g. `zfeature load-tables <t1> <t2> ...` that
+      restores those tables from the full dump / a full preloaded image). Builds on the
+      --slim jobs-only classification (workbench/db-slim-candidates.md) but goes further:
+      minimal/empty by default, add-what-you-need. Design Qs: where does the full per-table
+      data come from (the .bak? a full preloaded image? pg COPY from a full stack?), and
+      how to express table+dependency sets so FKs are satisfiable.
+- [ ] hibernate/archive idle feature stacks to cheap storage (USB/NFS), restore on demand.
+      A stack you're not touching still pins ~36G local (26G db + 10G solr). Idea:
+      `zfeature archive <stack>` -> stop it, tar its stateful volumes (pg_data, solr_var)
+      to an archive dir on USB/NFS, `docker volume rm` locally (frees fast disk; keep the
+      tiny worktree/.env/.zenv). `zfeature restore <stack>` -> recreate volumes, extract,
+      start. Reuses build-preloaded's exact tar-capture mechanism.
+      Speed: minutes each way (compressed ~15G; read from slow media + write 36G local) --
+      faster than a full loaddb/reindex, slower than plain `stop`/`start` (which keeps data
+      local). So it's the "parking for days/weeks" tier, between stop and full teardown.
+      Caveats: archive AT REST on USB/NFS is fine; do NOT run the DB directly off NFS/USB
+      (I/O latency + fsync/locking break Postgres). Only pg_data/solr_var need archiving;
+      www_data/catalina_base are regenerable via a redeploy.
+      KEY INSIGHT: a feature that only changed CODE (not DB data) needs NO db archival at
+      all -- its DB is identical to the preloaded image, so "restore" = re-seed from the
+      preloaded image (a fresh `up`), and the only state to keep is the git branch. So
+      archival is really only for DB-MUTATING features; detecting/limiting to the diverged
+      data is the interesting part (ties into minimal-table-set + --slim). Especially
+      relevant on macOS where CoW clones aren't an option.
+- [ ] shared DB across feature stacks (the biggest space win, esp. on macOS where CoW
+      clones aren't available). A feature that doesn't MUTATE the DB needs no copy of its
+      own -- it can point at a shared db (even the base zfin_org db), saving ~26G + the
+      seed time. Mechanism: such a feature runs only its APP tier (compile/tomcat/httpd),
+      not its own db/solr, and connects to the shared one via (a) a shared external network
+      (alias it `db`) or (b) PGHOST/PGPORT at the shared db's address (base db is on
+      127.0.0.2:5432). Solr shareable the same way (read-only).
+      UX (per the ask): `zfeature new` prompts "own isolated DB (~26G) or SHARE an existing
+      stack's DB? [list of running db-bearing stacks]".
+      HARD GUARD: safe ONLY while the feature doesn't mutate the DB -- liquibasePostBuild
+      (schema) or test/curation writes would bleed into every sharer. So it's for read-only
+      / UI / display / code-only tickets. Provide a "promote to own DB" path
+      (`zfeature isolate-db`?) for when a shared-DB feature later needs schema/writes.
+      Depends on the instances x properties item: "share" means injecting a PGHOST (and
+      solr host) override into the feature's generated zfin.properties/env.
+- [ ] `zfeature rm <name>` (teardown) -- the lifecycle bookend to `zfeature new`, run once
+      the feature's final PR is merged. Bundle the manual "teardown:" steps new-feature
+      already prints: `docker compose down -v` (drop the per-feature DB/Solr copy +
+      containers/network), `git worktree remove`, `sudo hostctl remove <slug>`, and
+      (macOS) `sudo ifconfig lo0 -alias <ip>`; deactivate the .zenv if it's active; and
+      free the loopback IP for reuse. Derive proj/slug/ip/host from the worktree's .env.
+      SAFETY (destructive -- discards the DB copy + the worktree): confirm before acting,
+      and REFUSE (unless --force) if the branch has unmerged commits vs main or the
+      worktree has uncommitted/untracked changes -- that's the "only after the PR merged"
+      guard. Optionally `git branch -d <branch>` (which itself refuses if unmerged).
+      Related: the hibernate/archive item is the softer "park it" version of this.
+- [x] warm the CODE build/deploy too (not just db/solr data) -- kills the slowest remaining
+      step on the feature critical path. Today preloaded skips getdb/loaddb/getsolr, but a
+      feature still runs the full first-time build+deploy (ant do + gradle make +
+      deploy-catalina-base + deploy-without-tests ~ 10-20 min) before its app tier serves.
+      Goal: seed a feature's deploy-target volumes with a base deploy so tomcat/httpd come
+      up already serving; the feature then only `gradle dirtydeploy`s its branch delta.
+      DONE (Option A): build-preloaded --app captures the 4 deploy volumes to restore
+      tarballs under docker/preloaded-app/<tag>/; new-feature extracts them into the fresh
+      per-feature volumes before up + starts tomcat/httpd. --caches does the same for the
+      gradle/maven build caches so the first dirtydeploy is fast. Verified end-to-end
+      (warm homepage + pax6a gene page HTTP 200, no build step). See
+      reference/preloaded-dev-stacks.md. Remaining below is design context / follow-ups.
+
+      WHY THE DB/SOLR TRICK DOESN'T TRANSFER (the structural catch): pg_data/solr_var are
+      SINGLE-OWNER (only db / only solr), so baking data into that service's image at the
+      VOLUME path + letting Docker seed the fresh named volume works cleanly. The deploy
+      volumes are SHARED, mounted at the SAME path in many services:
+        www_data=/opt/zfin/www_homes/zfin.org      -> compile,db,httpd,certbot,tomcat,tomcatdebug,jenkins (7)
+        catalina_base=/opt/zfin/catalina_bases/... -> compile,tomcat,tomcatdebug,jenkins,filebeat (5)
+        keystore=/opt/apache/apache-tomcat/conf    -> compile,tomcat,tomcatdebug (3)
+        tls_certs=/opt/zfin/tls                     -> compile,httpd (2)
+      Docker's implicit image->volume seeding is FIRST-MOUNTER-WINS and copies from THAT
+      container's image at the path. For www_data, whichever of db/tomcat/httpd/... starts
+      first seeds it -- and most have nothing at that path, so it seeds EMPTY (wrong). So
+      you CANNOT rely on image seeding for shared volumes -- populate them EXPLICITLY.
+
+      STRUCTURE -- Option A (recommended; reuses existing pieces):
+        - build-preloaded (extended): after a full base deploy, `tar` the deploy-target
+          volumes (www_data, catalina_base, keystore, tls_certs) to RESTORE tarballs (same
+          capture it does for pg/solr, but NOT baked into a per-service image).
+        - new-feature (before `up`): create the per-project volumes and extract each tarball
+          into its volume via a throwaway container
+          (`docker run --rm -v <proj>_www_data:/dest -v <arch>:/src alpine tar xzf ...`),
+          then `up`. Deterministic; no start-order/seeding ambiguity; all sharers see it.
+      Option B (more compose-native): a one-shot `app-seed` service (carrying the artifacts
+      in an image) that mounts all the shared volumes, `cp -a`'s content in, then exits;
+      app services `depends_on: {app-seed: {condition: service_completed_successfully}}`.
+      Versioned/self-contained (nice for GoCD), but new image + compose plumbing. Prefer A.
+
+      NOTES: baked deploy = BASE branch at bake time -> feature boots serving main's app,
+      then `dirtydeploy` overlays its delta (WARM START, not final). Rebake as main moves.
+      Cert is fine to share (generate_base.sh makes CN=zfin.org for every instance anyway).
+      Optionally also warm gradle_cache/maven_cache (faster recompile; heavier/churnier ->
+      separate opt-in). Watch: adds www_data (several GB) to the per-feature COPY (ties into
+      the disk-space family); confirm dirtydeploy reconciles a feature diff vs a main-baked
+      TARGETROOT (changed/removed files, JS bundles).
+- [ ] merge tooling to main so worktrees are self-contained (drops the -f overlay wrinkle)
+- [ ] loopback/port allocation review (per-IP, same-port scheme)
+- [ ] two tags? -preloaded (full) vs -preloaded-lean
+- [ ] Claude sidecar container (future) — workbench/claude-sidecar.md
+- [ ] "quiz" skill idea for the definition-of-done checklist
+
+Bugs found
+- [x] FIXED: IP collision: the base zfin_org stack is pinned to 127.0.0.2 (docker/.env
+      DOCKER_DB_PORT=127.0.0.2:5432, DOCKER_HTTPD_HTTPS_PORT=127.0.0.2:443), but
+      new-feature.groovy's IP allocator starts at 127.0.0.2 too (max octet across
+      wt-*/.env, min 1, +1 => .2 for the first feature). So feature #1 (zfh-123)
+      binds the SAME host ports as the base -> whichever `up`s its db second fails
+      with "port is already allocated". Surfaced trying to validate `zbuild deploy`
+      against zfin_org while zfh-123 was up.
+      Fix options: (a) allocator also treats the base docker/.env's IP as occupied
+      (read DOCKER_DB_PORT/LOOPBACK from it); (b) start feature numbering at .3,
+      reserving .1 (loopback default) + .2 (base); (c) move base to 127.0.0.1.
+      DONE via (a)++: allocator now gathers taken octets from the base .env, every
+      wt-*/.env, AND anything bound on 127.0.0.x right now (docker ps), then scans from a
+      configurable start (--ip-base / $ZFIN_FEATURE_IP_BASE, default 2) to the first free
+      octet. Validated: default -> .5 (skips base .2 + features), --ip-base 100 -> .100.
+- [x] FIXED: mailpit is a global singleton: docker-compose.yml gave it `container_name: mailpit`
+      (fixed, not project-prefixed), so only ONE project can run it -- parallel stacks
+      collide ("container name /mailpit already in use"). Surfaced when `zbuild deploy` on
+      zfin-789 reached `up -d httpd mailpit tomcat` while zfh-123's mailpit held the name;
+      the aborted `up` also left httpd down (collateral -- deploy's build steps had all
+      SUCCEEDED). Fix: drop container_name so compose prefixes it (<proj>-mailpit-1); OR
+      remove mailpit from zbuild's deploy phase (one shared mailpit is likely enough for
+      dev). VALIDATION RESULT: zbuild deploy's build sequence (gradle make -> ant
+      deploy-catalina-base -> ant deploy-without-tests -> tomcat) works end-to-end; only
+      the mailpit up step failed.
+      DONE: removed container_name so compose names it <project>-mailpit-1. Verified
+      zfin-789-mailpit-1 starts cleanly (the step that had failed). zbuild deploy now
+      completes end-to-end.
+
+Cleanup before PR
+- [ ] sweep untracked cruft (hs_err_pid*.log, screenshot*.png, tmp*, docker/old.env,
+      docker/lb.log, .temp.txt.swp, the exported transcript in workbench/, ...)
+- [ ] add .gitignore entries for the recurring artifacts (incl. workbench/*-export*.txt?)
+- [ ] graduate workbench/ docs (feature-lifecycle.md, claude-sidecar.md, db-slim-candidates.md)
+      to reference/ once the approach is validated
+- [ ] push: git push -u origin preloaded-dev-stacks   (Ryan runs the push manually)
+
+- [ ] code-review follow-ups (deferred from the review batch; not blocking):
+      - new-feature: no rollback on a mid-provision failure -- a cancelled `sudo hostctl`
+        prompt (or any die after the worktree is created) orphans wt-<slug> + branch +
+        hostctl profile + per-feature volumes. Add a shutdown hook (like build-preloaded
+        now has) that tears those down unless provisioning completed.
+      - new-feature IP allocator: `taken` is built only from literal 127.0.0.X strings, so a
+        stack bound to 0.0.0.0:443 that is currently down contributes nothing -> the feature
+        gets .2 and later fails `up` with EADDRINUSE. (--ip-base is validated now; this
+        detection gap remains.)
+      - build-preloaded runningContainer(): passes newline-joined IDs as one arg if a service
+        ever has >1 container. Harmless today (one each); guard if that changes.
+
+Done this cycle
+- [x] convert new-feature.sh + build-preloaded.sh -> .groovy (readability; host has groovy 4.0.29
+      matching the container). CLI surface identical except --push dropped from build-preloaded.
+- [x] preloaded images made LOCAL-ONLY: bare names (zfin-db-preloaded / zfin-solr-preloaded, no
+      ghcr.io prefix), --push removed from build-preloaded (structural guard vs leaking real data)
+- [x] --hosts now uses hostctl per-feature profiles instead of raw `sudo tee -a /etc/hosts`
+- [x] preloaded images + Dockerfiles + docker-compose.preloaded.yml
+- [x] new-feature (worktree + per-feature project, loopback IP, per-IP ports)
+- [x] parameterized solr + tomcatdebug ports; verified via docker compose config
+- [x] build-preloaded --slim (jobs-only TRUNCATE + pg_resetwal WAL reset)
+- [x] dropped redundant chown from preloaded Dockerfiles
+- [x] webapp-vs-jobs table classification (workbench/db-slim-candidates.md)
+- [x] docker prune (~5.7GB reclaimed; 11GB free)

@@ -1,0 +1,92 @@
+#!/usr/bin/env groovy
+// z -- the single front door for the ZFIN dev-stack tooling (Groovy, like lib/). It is the
+// only executable on PATH; after `source .zenv/activate` the short names (zrun/zexec/zup/...
+// == `z run`/`z exec`/...) are shell FUNCTIONS, and .zenv/bin holds a single `z` symlink.
+//
+// z's whole job is to be the front door: self-locate, build ONE ZfinUtil, and ROUTE the
+// command to its class in lib/ -- run in-process (no forked groovy, no env plumbing).
+// Every command is a lib class with `run(List args, ZfinUtil zfinUtil)`; z loads them all
+// through one GroovyClassLoader (lib/ on its classpath -> `ZfinUtil` is a single Class, so
+// the typed param resolves and command classes can call each other).
+//
+//   stack ops (need an active .zenv):  run exec up down pull log restart status  -> StackOps
+//   feature ops:                       feature new|build-preloaded
+//   CI / bootstrap (no .zenv):         build create-zenv fresh-install
+//
+// Note: for interactive/long commands z stays parked as the parent JVM proxying stdio;
+// `docker compose ... -it` owns the PTY and sits in the foreground process group, so
+// resize/Ctrl-C behave -- the only cost is the JVM start.
+
+def SELF  = new File(getClass().protectionDomain.codeSource.location.toURI()).canonicalFile
+def UTILS = SELF.parentFile                     // docker/utils (canonical -> real, not the symlink)
+def LIB   = new File(UTILS, 'lib')
+
+def gcl = new GroovyClassLoader(getClass().classLoader)
+gcl.addClasspath(LIB.absolutePath)              // resolve ZfinUtil + command classes by name, one Class each
+def zfinUtil = gcl.loadClass('ZfinUtil').newInstance(UTILS)
+
+def argv = args as List
+def cmd  = argv ? argv[0] : 'help'
+def rest = argv.drop(1)
+
+// Load a command class and run it in this JVM. A command's die()/System.exit propagates as
+// z's exit; a normal return falls through to exit 0.
+def runCmd = { String cls, List a -> gcl.loadClass(cls).newInstance().run(a, zfinUtil) }
+
+def USAGE = '''z -- ZFIN dev-stack tooling (short names work too: `zrun` == `z run`).
+
+Stack ops (require `source .zenv/activate`):
+  z run  [svc] [args]   run a command in a fresh container (default svc: compile)
+                        e.g. z run -c "gradle dirtydeploy"   (== zrun -c "...")
+  z exec [svc] [args]   exec into the running container (default: compile)
+  z up   [svc...]       start service(s)            (default: all)
+  z down [svc...]       stop service(s)
+  z pull [svc...]       pull image(s)
+  z log  [svc...]       tail logs
+  z restart [svc...]    restart service(s)
+  z status              show the active stack: name, dir, url, containers
+
+Feature ops:
+  z feature new [<ticket>] [opts]   provision a feature stack (prompts if no ticket)
+  z feature build-preloaded [opts]  bake preloaded db/solr images from a loaded stack
+
+CI / bootstrap (no activation needed):
+  z build <phase...> [--build --test]   hands-free build/deploy (configure|load-db|
+                                        load-solr|deploy-jenkins|deploy|all)
+  z create-zenv <opts>                  generate a .zenv/ for a stack (bootstrap)
+  z fresh-install [--dry-run]           guided day-zero setup on a bare workstation
+  z help                                this help'''
+
+switch (cmd) {
+    case ['help', '-h', '--help']:
+        println USAGE
+        def a = System.getenv('ZENV_ACTIVE')
+        println a ? "\nactive: $a" : "\nactive: (none) -- source <repo-or-worktree>/.zenv/activate"
+        break
+
+    // CI / bootstrap
+    case 'build':         runCmd('Zbuild', rest); break
+    case 'create-zenv':   runCmd('CreateZenv', rest); break
+    case 'fresh-install': runCmd('FreshInstall', rest); break
+
+    // feature ops
+    case 'feature':
+        def fsub = rest ? rest[0] : ''
+        def fa = rest.drop(1)
+        switch (fsub) {
+            case 'new':             runCmd('NewFeature', fa); break
+            case 'build-preloaded': runCmd('BuildPreloaded', fa); break
+            case ['', '-h', '--help', 'help']:
+                (fsub ? System.out : System.err).println("usage: z feature new|build-preloaded [opts]")
+                System.exit(fsub ? 0 : 2)
+            default: zfinUtil.die("z feature: unknown '$fsub' (new|build-preloaded)", 2)
+        }
+        break
+
+    // stack lifecycle -> StackOps (op is args[0])
+    case ['run', 'exec', 'up', 'down', 'pull', 'log', 'restart', 'status']:
+        runCmd('StackOps', [cmd] + rest)
+        break
+
+    default: zfinUtil.die("z: unknown command '$cmd' (try: z help)", 2)
+}
