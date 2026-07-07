@@ -7,13 +7,13 @@
 //
 //   class NewFeature {
 //     def run(List args, ZfinUtil zfinUtil) {
-//       def die = zfinUtil.&die; def sh = zfinUtil.&sh; def DOCKER = zfinUtil.DOCKER
+//       def die = zfinUtil.&die; def runCommand = zfinUtil.&runCommand; def DOCKER = zfinUtil.DOCKER
 //       ...
 //     }
 //   }
 //
 // The helper semantics unify what used to be copy-pasted (and had drifted) across the
-// scripts: sh(List, [check:false]) honors check, and childEnv injects extra process env
+// scripts: runCommand(List, [check:false]) honors check, and childEnv injects extra process env
 // (zbuild sets it to default COMPOSE_FILE).
 class ZfinUtil {
     // Canonical roots, derived from the one path z hands us -- no .parentFile depth-counting
@@ -38,34 +38,34 @@ class ZfinUtil {
     void die(String m, int code = 1) { System.err.println("!! $m"); System.exit(code) }
     void info(String m) { println(">> $m") }
 
-    private ProcessBuilder pb(List cmd) {
+    private ProcessBuilder newProcess(List cmd) {
         def p = new ProcessBuilder(cmd*.toString())
         childEnv.each { k, v -> p.environment().put(k, v) }
         p
     }
 
     /** Run a command, streaming stdio. Dies on nonzero unless [check:false]. Returns exit code. */
-    int sh(List cmd, Map opts = [:]) {
-        def code = pb(cmd).inheritIO().start().waitFor()
+    int runCommand(List cmd, Map opts = [:]) {
+        def code = newProcess(cmd).inheritIO().start().waitFor()
         if (code != 0 && opts.check != false) die("command failed ($code): ${cmd.join(' ')}", code)
         code
     }
 
     /** Run with stdout+stderr discarded; return exit code (never dies). */
-    int quiet(List cmd) {
-        pb(cmd).redirectOutput(ProcessBuilder.Redirect.DISCARD)
+    int runQuietly(List cmd) {
+        newProcess(cmd).redirectOutput(ProcessBuilder.Redirect.DISCARD)
                .redirectError(ProcessBuilder.Redirect.DISCARD).start().waitFor()
     }
 
     /** Run; return trimmed stdout (stderr discarded). Never dies. */
-    String capOut(List cmd) {
-        def p = pb(cmd).redirectError(ProcessBuilder.Redirect.DISCARD).start()
+    String captureOutput(List cmd) {
+        def p = newProcess(cmd).redirectError(ProcessBuilder.Redirect.DISCARD).start()
         def out = p.inputStream.text; p.waitFor(); out.trim()
     }
 
     /** Run, feeding `input` to stdin; stream stdout/stderr. Dies on nonzero unless [check:false]. */
-    int shIn(List cmd, String input, Map opts = [:]) {
-        def p = pb(cmd).redirectOutput(ProcessBuilder.Redirect.INHERIT)
+    int runWithInput(List cmd, String input, Map opts = [:]) {
+        def p = newProcess(cmd).redirectOutput(ProcessBuilder.Redirect.INHERIT)
                        .redirectError(ProcessBuilder.Redirect.INHERIT).start()
         p.outputStream.withWriter('UTF-8') { it << input }
         def code = p.waitFor()
@@ -74,5 +74,5 @@ class ZfinUtil {
     }
 
     /** True if a docker image exists locally. */
-    boolean imageExists(String ref) { quiet(['docker', 'image', 'inspect', ref]) == 0 }
+    boolean imageExists(String ref) { runQuietly(['docker', 'image', 'inspect', ref]) == 0 }
 }

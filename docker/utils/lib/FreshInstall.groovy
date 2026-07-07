@@ -17,7 +17,7 @@
 
 class FreshInstall {
 def run(List args, ZfinUtil zfinUtil) {
-    def die = zfinUtil.&die; def info = zfinUtil.&info; def capOut = zfinUtil.&capOut; def sh = zfinUtil.&sh
+    def die = zfinUtil.&die; def info = zfinUtil.&info; def captureOutput = zfinUtil.&captureOutput; def runCommand = zfinUtil.&runCommand
     def UTILS  = zfinUtil.UTILS
     def DOCKER = zfinUtil.DOCKER
     def REPO   = zfinUtil.REPO
@@ -33,9 +33,9 @@ envFile.eachLine { line -> def m = (line =~ /^([A-Za-z_][A-Za-z0-9_]*)=(.*)$/); 
 
 // --- 1. fresh check (scoped to ZFIN signals; ignores unrelated Docker) -----------
 info("checking the machine is ZFIN-fresh...")
-def volumes = capOut(['docker', 'volume', 'ls', '--format', '{{.Name}}']).readLines().findAll { it ==~ /.*_(pg_data|solr_var)$/ }
-def images  = capOut(['docker', 'images', '--format', '{{.Repository}}:{{.Tag}}']).readLines().findAll { it.startsWith('ghcr.io/zfin/') || it.contains('preloaded') }.unique()
-def zfinCts = capOut(['docker', 'ps', '-a', '--format', '{{.Names}}\t{{.Image}}']).readLines()
+def volumes = captureOutput(['docker', 'volume', 'ls', '--format', '{{.Name}}']).readLines().findAll { it ==~ /.*_(pg_data|solr_var)$/ }
+def images  = captureOutput(['docker', 'images', '--format', '{{.Repository}}:{{.Tag}}']).readLines().findAll { it.startsWith('ghcr.io/zfin/') || it.contains('preloaded') }.unique()
+def zfinCts = captureOutput(['docker', 'ps', '-a', '--format', '{{.Names}}\t{{.Image}}']).readLines()
                 .findAll { it.contains('\t') && (it.split('\t')[1].contains('zfin') || it.split('\t')[1].contains('preloaded')) }
                 .collect { it.split('\t')[0] }
 def found = []

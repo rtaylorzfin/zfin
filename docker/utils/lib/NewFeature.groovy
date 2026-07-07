@@ -51,7 +51,7 @@
 // worktree is fine -- provisioning never depends on where you happen to be.
 class NewFeature {
 def run(List args, ZfinUtil zfinUtil) {
-    def die = zfinUtil.&die; def info = zfinUtil.&info; def sh = zfinUtil.&sh; def capOut = zfinUtil.&capOut
+    def die = zfinUtil.&die; def info = zfinUtil.&info; def runCommand = zfinUtil.&runCommand; def captureOutput = zfinUtil.&captureOutput
     def imageExists = zfinUtil.&imageExists
     def DOCKER    = zfinUtil.DOCKER   // docker
     def REPO      = zfinUtil.REPO     // primary checkout
@@ -96,7 +96,7 @@ if (!baseEnvFile.exists()) die("$baseEnvFile not found (needed as the base env)"
 // branch-specific bake) -- a selector, not a constant; the default grabs the newest
 // you've built, so the common case needs no --tag / env var.
 def newestPreloadedTag = { ->
-    def imgs = capOut(['docker', 'images', 'zfin-db-preloaded', '--format', '{{.CreatedAt}}\t{{.Tag}}'])
+    def imgs = captureOutput(['docker', 'images', 'zfin-db-preloaded', '--format', '{{.CreatedAt}}\t{{.Tag}}'])
                 .readLines().findAll { it?.trim() && !it.endsWith('\t<none>') }
     imgs ? imgs.sort().last().split('\t').last().trim() : null
 }
@@ -110,9 +110,9 @@ def askYesNo = { con, String prompt, boolean dflt ->
 // Worktree awareness: a new feature bases on `main` off the PRIMARY checkout, NOT
 // the current worktree's branch. If we're invoked from a secondary worktree, that's
 // easy to forget -- so prompt (interactive) or warn (non-interactive) about the base.
-def cwdTop     = capOut(['git', '-C', new File('.').absolutePath, 'rev-parse', '--show-toplevel'])
+def cwdTop     = captureOutput(['git', '-C', new File('.').absolutePath, 'rev-parse', '--show-toplevel'])
 def inWorktree = cwdTop && new File(cwdTop).canonicalFile != REPO.canonicalFile
-def cwdBranch  = inWorktree ? capOut(['git', '-C', new File('.').absolutePath, 'rev-parse', '--abbrev-ref', 'HEAD']) : ''
+def cwdBranch  = inWorktree ? captureOutput(['git', '-C', new File('.').absolutePath, 'rev-parse', '--abbrev-ref', 'HEAD']) : ''
 
 if (!name) {
     def con = System.console()
@@ -138,7 +138,7 @@ info("preloaded tag: $tag")
 // re-seed. Checking here means a tag mismatch leaves no partial state behind.
 ['zfin-db-preloaded', 'zfin-solr-preloaded'].each { repo ->
     if (!imageExists("$repo:$tag")) {
-        def have = capOut(['docker', 'images', '--format', '{{.Repository}}:{{.Tag}}'])
+        def have = captureOutput(['docker', 'images', '--format', '{{.Repository}}:{{.Tag}}'])
                     .readLines().findAll { it.contains('preloaded') }
         die("preloaded image '$repo:$tag' not found locally.\n" +
             "   build it:      z feature build-preloaded --tag $tag\n" +
@@ -188,7 +188,7 @@ if (!ip) {
         def f = new File(d, 'docker/.env')
         if (f.isFile()) f.readLines().findAll { it.startsWith('LOOPBACK_IP=') }.each(addOctets)
     }
-    capOut(['docker', 'ps', '--format', '{{.Ports}}']).readLines().each(addOctets)
+    captureOutput(['docker', 'ps', '--format', '{{.Ports}}']).readLines().each(addOctets)
 
     def startStr = ipBase ?: System.getenv('ZFIN_FEATURE_IP_BASE')
     int start = 2
@@ -212,11 +212,11 @@ if (!ip) {
 // requested address". Idempotent: skip if already present. (lo0 aliases don't survive
 // a reboot; teardown can drop it with `sudo ifconfig lo0 -alias <ip>`.)
 if (System.getProperty('os.name')?.toLowerCase()?.contains('mac') && ip != '127.0.0.1') {
-    if (capOut(['ifconfig', 'lo0']).contains("inet $ip ")) {
+    if (captureOutput(['ifconfig', 'lo0']).contains("inet $ip ")) {
         info("loopback alias $ip already present")
     } else {
         info("adding loopback alias $ip (macOS, sudo) so published ports can bind")
-        sh(['sudo', 'ifconfig', 'lo0', 'alias', ip])
+        runCommand(['sudo', 'ifconfig', 'lo0', 'alias', ip])
     }
 }
 
@@ -224,7 +224,7 @@ info("feature=$name project=$project host=$host ip=$ip tag=$tag base=$base")
 
 // 1. worktree + branch (separate host path => its own mounted source tree)
 if (!wt.isDirectory()) {
-    sh(['git', '-C', REPO.absolutePath, 'worktree', 'add', wtPath, '-b', branch, base])
+    runCommand(['git', '-C', REPO.absolutePath, 'worktree', 'add', wtPath, '-b', branch, base])
 } else {
     info("worktree $wtPath already exists, reusing")
 }
@@ -288,7 +288,7 @@ if (doHosts) {
     if (!hostctlOnPath)
         die("--hosts needs hostctl (https://github.com/guumaster/hostctl; `brew install guumaster/tap/hostctl`)")
     info("mapping $host -> $ip via hostctl profile '$slug' (sudo)")
-    sh(['sudo', 'hostctl', 'add', 'domains', slug, host, '--ip', ip, '--quiet'])
+    runCommand(['sudo', 'hostctl', 'add', 'domains', slug, host, '--ip', ip, '--quiet'])
 }
 
 // 4. Compose command. Use THIS repo's compose files (so the preloaded overlay is
@@ -310,11 +310,11 @@ def compose = ['docker', 'compose',
 def restore = { List vns ->
     vns.each { vn ->
         def vol = "${project}_${vn}"
-        sh(['docker', 'volume', 'create',
+        runCommand(['docker', 'volume', 'create',
             '--label', "com.docker.compose.project=$project",
             '--label', "com.docker.compose.volume=$vn", vol])
         info("warming $vol from ${vn}.tgz")
-        sh(['docker', 'run', '--rm', '-u', '0', '--entrypoint', 'tar',
+        runCommand(['docker', 'run', '--rm', '-u', '0', '--entrypoint', 'tar',
             '-v', "${vol}:/data",
             '-v', "${auxDir.absolutePath}:/in:ro",
             "zfin-db-preloaded:$tag", 'xzf', "/in/${vn}.tgz", '-C', '/data'])
@@ -331,7 +331,7 @@ if (warmCaches) restore(cacheVols)
 def services = ['db', 'solr'] + (warmApp ? ['tomcat', 'httpd'] : [])
 if (doUp) {
     info("${compose.join(' ')} up -d ${services.join(' ')}")
-    sh(compose + ['up', '-d'] + services)
+    runCommand(compose + ['up', '-d'] + services)
 }
 
 // The printed next: block adapts to whether the app tier was warmed. Warm -> the stack

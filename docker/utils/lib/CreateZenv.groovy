@@ -27,7 +27,7 @@ import java.nio.file.Paths
 class CreateZenv {
 def run(List args, ZfinUtil zfinUtil) {
     def die = zfinUtil.&die
-    def capOut = zfinUtil.&capOut
+    def captureOutput = zfinUtil.&captureOutput
     def ZFRONT = new File(zfinUtil.UTILS, 'z')   // the one executable every stack activates
     def LIB    = zfinUtil.LIB                      // docker/utils/lib (holds z-completion.bash)
 
@@ -145,7 +145,7 @@ fi
 new File(zenv, 'activate').text = comment + switchGuard + vars + body
 
 // Keep .zenv/ out of git without touching a tracked .gitignore (works on any branch).
-def common = capOut(['git', '-C', dir.absolutePath, 'rev-parse', '--git-common-dir'])
+def common = captureOutput(['git', '-C', dir.absolutePath, 'rev-parse', '--git-common-dir'])
 if (common) {
     def cdir = new File(common).isAbsolute() ? new File(common) : new File(dir, common)
     def excl = new File(cdir, 'info/exclude')

@@ -64,8 +64,8 @@
 // --- shared helpers + roots (via ZfinUtil, passed in by z) --------------------
 class BuildPreloaded {
 def run(List args, ZfinUtil zfinUtil) {
-    def die = zfinUtil.&die; def info = zfinUtil.&info; def sh = zfinUtil.&sh; def quiet = zfinUtil.&quiet
-    def capOut = zfinUtil.&capOut; def shIn = zfinUtil.&shIn
+    def die = zfinUtil.&die; def info = zfinUtil.&info; def runCommand = zfinUtil.&runCommand; def runQuietly = zfinUtil.&runQuietly
+    def captureOutput = zfinUtil.&captureOutput; def runWithInput = zfinUtil.&runWithInput
 
     // --- load docker/.env --------------------------------------------------------
     def DOCKER = zfinUtil.DOCKER
@@ -121,7 +121,7 @@ info("preloaded build: project=$project release=$release tag=$tag")
 
 // Both named volumes must exist, or the capture would silently produce empties.
 [pgVol, solrVol].each { v ->
-    if (quiet(['docker', 'volume', 'inspect', v]) != 0)
+    if (runQuietly(['docker', 'volume', 'inspect', v]) != 0)
         die("volume '$v' not found -- is project '$project' loaded? (try --project)")
 }
 
@@ -135,7 +135,7 @@ def auxDir    = zfinUtil.auxDir(tag)
 def requireVols = { List vns, String flag, String hint ->
     vns.each { vn ->
         def v = "${project}_${vn}"
-        if (quiet(['docker', 'volume', 'inspect', v]) != 0)
+        if (runQuietly(['docker', 'volume', 'inspect', v]) != 0)
             die("$flag: volume '$v' not found -- $hint")
     }
 }
@@ -166,19 +166,19 @@ def trimSnapshot = {
     def img  = stockDb
     def name = "preloaded-trim-${ProcessHandle.current().pid()}"
     info("[trim] throwaway postgres on $pgVol" + (slim ? " (TRUNCATE jobs-only tables + WAL reset)" : " (WAL reset)"))
-    sh(['docker', 'run', '-d', '--name', name,
+    runCommand(['docker', 'run', '-d', '--name', name,
         '-e', 'POSTGRES_HOST_AUTH_METHOD=trust',
         '-v', "${pgVol}:/var/lib/postgresql", img])
     state.trim = name    // track so the shutdown hook can force-remove it if we die below
 
     def ready = false
     for (int i = 0; i < 60 && !ready; i++) {
-        if (quiet(['docker', 'exec', name, 'pg_isready', '-U', 'postgres', '-d', 'zfindb']) == 0) ready = true
+        if (runQuietly(['docker', 'exec', name, 'pg_isready', '-U', 'postgres', '-d', 'zfindb']) == 0) ready = true
         else sleep(1000)
     }
     if (!ready) {
-        sh(['docker', 'logs', '--tail', '30', name], check: false)
-        quiet(['docker', 'rm', '-f', name]); state.trim = null
+        runCommand(['docker', 'logs', '--tail', '30', name], check: false)
+        runQuietly(['docker', 'rm', '-f', name]); state.trim = null
         die("[trim] postgres not ready")
     }
 
@@ -196,16 +196,16 @@ def trimSnapshot = {
               END LOOP;
             END \$\$;
         """.stripIndent()
-        shIn(['docker', 'exec', '-i', name, 'psql', '-U', 'postgres', '-d', 'zfindb', '-v', 'ON_ERROR_STOP=1'], sql)
+        runWithInput(['docker', 'exec', '-i', name, 'psql', '-U', 'postgres', '-d', 'zfindb', '-v', 'ON_ERROR_STOP=1'], sql)
         info("[slim] emptied jobs-only tables: ${slimTables.join(' ')}")
     }
 
     // -t 60: give postgres time for a clean fast-shutdown (the default 10s grace risks a
     // SIGKILL -> unclean state, which pg_resetwal -f would then paper over).
-    sh(['docker', 'stop', '-t', '60', name])
-    quiet(['docker', 'rm', name]); state.trim = null
+    runCommand(['docker', 'stop', '-t', '60', name])
+    runQuietly(['docker', 'rm', name]); state.trim = null
     info("[trim] pg_resetwal to shed recycled WAL segments (safe after the clean shutdown above)")
-    sh(['docker', 'run', '--rm', '-u', 'postgres', '-v', "${pgVol}:/var/lib/postgresql",
+    runCommand(['docker', 'run', '--rm', '-u', 'postgres', '-v', "${pgVol}:/var/lib/postgresql",
         '--entrypoint', 'bash', img, '-c', 'pg_resetwal -f "$PGDATA"'])
 }
 
@@ -215,7 +215,7 @@ def trimSnapshot = {
 // step always gets a stopped db regardless of starting state. Detected via compose
 // labels so no compose file / -f flags are needed.
 def runningContainer = { String svc ->
-    capOut(['docker', 'ps', '-q',
+    captureOutput(['docker', 'ps', '-q',
             '--filter', "label=com.docker.compose.project=$project",
             '--filter', "label=com.docker.compose.service=$svc"])
 }
@@ -228,10 +228,10 @@ def stopped = [:]   // service -> container id we stopped
 // force-removes a leaked trim container, unless state.completed says we finished cleanly.
 Runtime.runtime.addShutdownHook(new Thread({
     if (state.completed) return
-    if (state.trim) quiet(['docker', 'rm', '-f', state.trim])
+    if (state.trim) runQuietly(['docker', 'rm', '-f', state.trim])
     stopped.each { svc, cid ->
         System.err.println("!! [cleanup] restarting $svc after an incomplete build")
-        quiet(['docker', 'start', cid])
+        runQuietly(['docker', 'start', cid])
     }
 } as Runnable))
 
@@ -239,7 +239,7 @@ Runtime.runtime.addShutdownHook(new Thread({
     def cid = runningContainer(svc)
     if (cid) {
         info("stopping $svc ($cid) for a consistent capture")
-        sh(['docker', 'stop', cid])
+        runCommand(['docker', 'stop', cid])
         stopped[svc] = cid
     }
 }
@@ -250,7 +250,7 @@ def capture = { String vol, File out ->
     info("capturing $vol -> $out")
     // --entrypoint tar bypasses the postgres entrypoint; -u 0 (root) so we can
     // read both the pg (postgres-owned) and solr (solr-owned) volume contents.
-    sh(['docker', 'run', '--rm', '-u', '0', '--entrypoint', 'tar',
+    runCommand(['docker', 'run', '--rm', '-u', '0', '--entrypoint', 'tar',
         '-v', "${vol}:/data:ro",
         '-v', "${out.parentFile.absolutePath}:/out",
         stockDb, 'czf', "/out/${out.name}", '-C', '/data', '.'])
@@ -277,7 +277,7 @@ if (caches) {
 // complete so the shutdown hook stands down -- the stack is back up from here.
 stopped.each { svc, cid ->
     info("restarting $svc")
-    sh(['docker', 'start', cid])
+    runCommand(['docker', 'start', cid])
 }
 state.completed = true
 
@@ -288,7 +288,7 @@ def dbImage   = "zfin-db-preloaded:$tag"
 def solrImage = "zfin-solr-preloaded:$tag"
 
 info("building $dbImage (local only; arch follows the base image)")
-sh(['docker', 'build',
+runCommand(['docker', 'build',
     '--build-arg', "ZFIN_RELEASE=$release",
     '--build-arg', 'PGDATA_TARBALL=pgdata.tgz',
     '-f', new File(DOCKER, 'postgresql/preloaded.Dockerfile').absolutePath,
@@ -296,7 +296,7 @@ sh(['docker', 'build',
     new File(DOCKER, 'postgresql').absolutePath])
 
 info("building $solrImage (local only; arch follows the base image)")
-sh(['docker', 'build',
+runCommand(['docker', 'build',
     '--build-arg', "ZFIN_RELEASE=$release",
     '--build-arg', 'SOLRVAR_TARBALL=solrvar.tgz',
     '-f', new File(DOCKER, 'solr/preloaded.Dockerfile').absolutePath,

@@ -34,12 +34,12 @@ def run(List args, ZfinUtil zfinUtil) {
 
     // Default COMPOSE_FILE for children when nothing set it (bare checkout / CI). An activated
     // .zenv or GoCD env_vars normally provide the full COMPOSE_PROJECT_NAME/FILE/ENV_FILES.
-    // childEnv is injected into every process zfinUtil.sh spawns (compose + zc).
+    // childEnv is injected into every process zfinUtil.runCommand spawns (compose + zc).
     if (!System.getenv('COMPOSE_FILE')) zfinUtil.childEnv['COMPOSE_FILE'] = new File(DOCKER, 'docker-compose.yml').absolutePath
 
-    def sh      = zfinUtil.&sh
-    def compose = { Object... a -> sh(['docker', 'compose'] + (a as List)) }                                        // lifecycle: up/down/stop/build/pull
-    def zc      = { String script -> sh(['docker', 'compose', 'run', '--rm', 'compile', 'bash', '-l', '-c', script]) } // run in the compile container (login shell)
+    def sh      = zfinUtil.&runCommand
+    def compose = { Object... a -> runCommand(['docker', 'compose'] + (a as List)) }                                        // lifecycle: up/down/stop/build/pull
+    def zc      = { String script -> runCommand(['docker', 'compose', 'run', '--rm', 'compile', 'bash', '-l', '-c', script]) } // run in the compile container (login shell)
 
 def buildImages = false
 def runTests    = false
