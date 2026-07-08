@@ -109,7 +109,7 @@ class NewFeature {
 // branch-specific bake) -- a selector, not a constant; the default grabs the newest
 // you've built, so the common case needs no --tag / env var.
         def newestPreloadedTag = { ->
-            def imgs = captureOutput(['docker', 'images', 'zfin-db-preloaded', '--format', '{{.CreatedAt}}\t{{.Tag}}'])
+            def imgs = captureOutput(['docker', 'images', StackConfig.DB_IMAGE_REPO, '--format', '{{.CreatedAt}}\t{{.Tag}}'])
                     .readLines().findAll { it?.trim() && !it.endsWith('\t<none>') }
             imgs ? imgs.sort().last().split('\t').last().trim() : null
         }
@@ -159,7 +159,7 @@ class NewFeature {
             // compose (pull_policy:never) errors partway through `up` -- AFTER we've already
             // created the worktree, .env, hosts entry, and empty volumes that then won't
             // re-seed. Checking here means a tag mismatch leaves no partial state behind.
-            ['zfin-db-preloaded', 'zfin-solr-preloaded'].each { repo ->
+            [StackConfig.DB_IMAGE_REPO, StackConfig.SOLR_IMAGE_REPO].each { repo ->
                 if (!imageExists("$repo:$tag")) {
                     def have = captureOutput(['docker', 'images', '--format', '{{.Repository}}:{{.Tag}}'])
                             .readLines().findAll { it.contains('preloaded') }
@@ -190,7 +190,7 @@ class NewFeature {
         def slug = name.toLowerCase()          // Compose projects must be lowercase
         def project = slug
         branch = branch ?: name
-        def host = "${slug}.zfin.test"
+        def host = StackConfig.host(slug)
         def wt = new File(WT_PARENT, "wt-${slug}")
         def wtPath = wt.absolutePath
 
@@ -285,8 +285,8 @@ DOCKER_DB_PORT=$ip:5432
 DOCKER_SOLR_PORT=$ip:8983
 DOCKER_JENKINS_HTTP_PORT=$ip:9499
 DOCKER_TOMCATDEBUG_PORT=$ip:5000
-ZFIN_DB_IMAGE=zfin-db-preloaded:$tag
-ZFIN_SOLR_IMAGE=zfin-solr-preloaded:$tag
+ZFIN_DB_IMAGE=${StackConfig.dbImage(tag)}
+ZFIN_SOLR_IMAGE=${StackConfig.solrImage(tag)}
 """
 
 // 2b. venv-style activation. create-zenv writes .zenv/{activate,bin/z}: `source .zenv/activate`

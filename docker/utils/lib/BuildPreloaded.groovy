@@ -162,7 +162,7 @@ class BuildPreloaded {
 
             def ready = false
             for (int i = 0; i < 60 && !ready; i++) {
-                if (runQuietly(['docker', 'exec', name, 'pg_isready', '-U', 'postgres', '-d', 'zfindb']) == 0) ready = true else sleep(1000)
+                if (runQuietly(StackConfig.dbHealthCheck(name)) == 0) ready = true else sleep(1000)
             }
             if (!ready) {
                 runCommand(['docker', 'logs', '--tail', '30', name], [check: false])
@@ -272,8 +272,8 @@ class BuildPreloaded {
 // Local-only images: bare names (no registry prefix), built for the host's
 // native arch and loaded straight into the local docker image store. These
 // carry real data and must never be pushed (see header).
-        def dbImage = "zfin-db-preloaded:$tag"
-        def solrImage = "zfin-solr-preloaded:$tag"
+        def dbImage = StackConfig.dbImage(tag)
+        def solrImage = StackConfig.solrImage(tag)
 
         info("building $dbImage (local only; arch follows the base image)")
         runCommand(['docker', 'build',

@@ -27,7 +27,7 @@ class SharedStack {
 
         // Tag selection mirrors new-feature: --tag > $PRELOADED_TAG > newest local image.
         def newestTag = {
-            def imgs = captureOutput(['docker', 'images', 'zfin-db-preloaded', '--format', '{{.CreatedAt}}\t{{.Tag}}'])
+            def imgs = captureOutput(['docker', 'images', StackConfig.DB_IMAGE_REPO, '--format', '{{.CreatedAt}}\t{{.Tag}}'])
                         .readLines().findAll { it?.trim() && !it.endsWith('\t<none>') }
             imgs ? imgs.sort().last().split('\t').last().trim() : null
         }
@@ -40,8 +40,8 @@ class SharedStack {
         def compose = ['docker', 'compose', '-p', 'zfin_shared', '--env-file', new File(DOCKER, '.env').absolutePath] +
                       files.collectMany { ['-f', new File(DOCKER, it).absolutePath] }
         if (tag) {
-            zfinUtil.childEnv['ZFIN_DB_IMAGE']   = "zfin-db-preloaded:$tag"
-            zfinUtil.childEnv['ZFIN_SOLR_IMAGE'] = "zfin-solr-preloaded:$tag"
+            zfinUtil.childEnv['ZFIN_DB_IMAGE']   = StackConfig.dbImage(tag)
+            zfinUtil.childEnv['ZFIN_SOLR_IMAGE'] = StackConfig.solrImage(tag)
         }
 
         switch (sub) {

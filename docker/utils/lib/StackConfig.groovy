@@ -8,8 +8,22 @@
 // the "light seam": the policy/mechanism split is expressed purely by WHERE a literal lives.
 // See workbench/architecture-improvement.md for the (deferred) fuller DSL-based version.
 class StackConfig {
+    // Preloaded data images (were scattered across NewFeature/BuildPreloaded/SharedStack).
+    static final String DB_IMAGE_REPO   = 'zfin-db-preloaded'
+    static final String SOLR_IMAGE_REPO = 'zfin-solr-preloaded'
+    static String dbImage(String tag)   { "$DB_IMAGE_REPO:$tag" }
+    static String solrImage(String tag) { "$SOLR_IMAGE_REPO:$tag" }
+
     // Compile image used to run `tar` during capture/restore (GNU tar, root, always local).
     static String compileImage(String release) { "ghcr.io/zfin/zfin-compile:$release" }
+
+    // Per-feature hostname (served by httpd; mapped via --hosts / dnsmasq).
+    static String host(String slug) { "${slug}.zfin.test" }
+
+    // Data-tier readiness probe: argv to exec in the db container.
+    static List<String> dbHealthCheck(String container) {
+        ['docker', 'exec', container, 'pg_isready', '-U', 'postgres', '-d', 'zfindb']
+    }
 
     // Service roles (were hardcoded lists across several commands).
     static final List<String> DATA_SERVICES  = ['db', 'solr']
