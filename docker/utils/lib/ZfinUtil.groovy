@@ -76,6 +76,24 @@ class ZfinUtil {
     /** True if a docker image exists locally. */
     boolean imageExists(String ref) { runQuietly(['docker', 'image', 'inspect', ref]) == 0 }
 
+    /** Parse docker/.env into a map (KEY=value lines). The single .env parser. */
+    Map<String, String> dotenv() {
+        def m = [:]
+        def f = new File(DOCKER, '.env')
+        if (f.isFile()) f.eachLine { line ->
+            def mm = (line =~ /^([A-Za-z_][A-Za-z0-9_]*)=(.*)$/)
+            if (mm.find()) m[mm.group(1)] = mm.group(2)
+        }
+        m
+    }
+
+    /** Resolve a config value the way `docker compose` does: docker/.env is authoritative
+     *  (honored even if blank), else the ambient environment, else `dflt`. */
+    String env(String key, String dflt = null) {
+        def de = dotenv()
+        de.containsKey(key) ? de[key] : (System.getenv(key) ?: dflt)
+    }
+
     /** Print a command's own file header (its leading `//` comment block) as --help text.
      *  Pass the command instance; reads its .groovy source (works for gcl-loaded classes). */
     void printHeader(cmd) {
@@ -90,12 +108,7 @@ class ZfinUtil {
     /** The canonical tar-capable container: the compile image (GNU tar, runs as root, always
      *  local, no Docker Hub pull). One source both the warm-restore and the capture use.
      *  Reads ZFIN_RELEASE from docker/.env (falling back to the environment). */
-    String tarImage() {
-        def env = new File(DOCKER, '.env')
-        def rel = (env.isFile() ? env.readLines().findAll { it.startsWith('ZFIN_RELEASE=') }
-                     .collect { it.split('=', 2)[1] }[-1] : null) ?: System.getenv('ZFIN_RELEASE')
-        "ghcr.io/zfin/zfin-compile:${rel}"
-    }
+    String tarImage() { "ghcr.io/zfin/zfin-compile:${env('ZFIN_RELEASE')}" }
 
     // Connect the shared `zfin_shared` db/solr containers INTO the given feature project's
     // default network (`<project>_default`) with aliases db/solr, so a --shared-db feature's

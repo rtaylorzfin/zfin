@@ -28,9 +28,8 @@ class FreshInstall {
         def dryRun = (args as List).contains('--dry-run')
         ; (args as List).findAll { it.startsWith('-') && it != '--dry-run' }.each { die("unknown flag: $it", 2) }
 
-// read docker/.env into a map
-        def dotenv = [:]
-        envFile.eachLine { line -> def m = (line =~ /^([A-Za-z_][A-Za-z0-9_]*)=(.*)$/); if (m.find()) dotenv[m.group(1)] = m.group(2) }
+// read docker/.env into a map (paths come from .env only -- no ambient fallback here)
+        def dotenv = zfinUtil.dotenv()
 
 // --- 1. fresh check (scoped to ZFIN signals; ignores unrelated Docker) -----------
         info("checking the machine is ZFIN-fresh...")

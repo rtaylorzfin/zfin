@@ -71,21 +71,11 @@ class BuildPreloaded {
         def runQuietly = zfinUtil.&runQuietly
         def captureOutput = zfinUtil.&captureOutput; def runWithInput = zfinUtil.&runWithInput
 
-        // --- load docker/.env --------------------------------------------------------
         def DOCKER = zfinUtil.DOCKER
 
-        // Mirror bash's `set -a; . .env`: values in docker/.env take precedence over the
-        // ambient environment; anything absent from .env falls back to the environment.
-        def dotenv = [:]
-        def envFile = new File(DOCKER, '.env')
-        if (envFile.exists()) envFile.eachLine { line ->
-            def m = (line =~ /^([A-Za-z_][A-Za-z0-9_]*)=(.*)$/)
-            if (m.find()) dotenv[m.group(1)] = m.group(2)
-        }
-        def envOf = { String k, String dflt = null -> dotenv.containsKey(k) ? dotenv[k] : (System.getenv(k) ?: dflt) }
-
         // --- defaults + args ---------------------------------------------------------
-        def project = envOf('COMPOSE_PROJECT_NAME', 'zfin_org')
+        // env(): docker/.env is authoritative, else the ambient environment (like compose).
+        def project = zfinUtil.env('COMPOSE_PROJECT_NAME', 'zfin_org')
         def tag = java.time.LocalDate.now().toString()   // YYYY-MM-DD
         def keep = false
         def slim = false
@@ -110,7 +100,7 @@ class BuildPreloaded {
             }
         }
 
-        def release = envOf('ZFIN_RELEASE')
+        def release = zfinUtil.env('ZFIN_RELEASE')
         if (!release) die("ZFIN_RELEASE must be set (from docker/.env or the environment)")
 
         // Stock db image: the pg engine matching this data, used for the WAL-trim throwaway
