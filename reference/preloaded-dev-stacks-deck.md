@@ -135,7 +135,7 @@ The `postgres`/`solr` images declare a `VOLUME`. When a feature starts, Docker
 - `build-preloaded` runs **`pg_resetwal`** to drop retained WAL before freezing
   (dead weight in a snapshot). `--slim` additionally truncates jobs-only tables.
 
-> ⚠️ **Local-only images.** They carry real ZFIN data — bare tag names, **never pushed**.
+> **Local-only images.** They carry real ZFIN data — bare tag names, **never pushed**.
 
 ---
 
@@ -191,7 +191,7 @@ z feature new ZFIN-B --shared-db --up   # both hit the SAME db/solr
 **How:** the shared `db`/`solr` containers are **connected *into* each feature's
 own network** (aliases `db`/`solr`). The feature's app tier stays *single-homed*.
 
-> 🔒 **Shared data = shared writes.** A migration/reindex/edit by one feature hits
+> **Shared data = shared writes.** A migration/reindex/edit by one feature hits
 > all sharers. Read-mostly only; needs its own schema? use a normal copy stack.
 
 ---
@@ -360,10 +360,10 @@ z feature help new            # per-flag help for any subcommand
 
 ## Learn more
 
-📄 **`reference/preloaded-dev-stacks.md`** — the full written guide
-📄 **`reference/build-and-docker.md`** — services, image layering, pipeline
-📄 **`reference/deploying-changes.md`** — "what to run after editing X"
-📄 **`CLAUDE.md`** — the `z` / `.zenv` tooling reference
+- **`reference/preloaded-dev-stacks.md`** — the full written guide
+- **`reference/build-and-docker.md`** — services, image layering, pipeline
+- **`reference/deploying-changes.md`** — "what to run after editing X"
+- **`CLAUDE.md`** — the `z` / `.zenv` tooling reference
 
 ### Questions? Every command self-documents:
 ```bash
