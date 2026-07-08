@@ -57,7 +57,7 @@ We want **several feature branches running side-by-side**, each with real data, 
 | Layer | What it is | Built by |
 |-------|-----------|----------|
 | **Preloaded data images** | `zfin-db-preloaded` / `zfin-solr-preloaded` — a frozen, fully-loaded DB & Solr index | `z feature build-preloaded` |
-| **Warm app snapshot** | `preloaded-app/<tag>/*.tgz` — deployed webapp, tomcat base, TLS certs, gradle/maven caches | `z feature build-preloaded --app --caches` |
+| **Warm app snapshot** | `preloaded-app/<tag>/*.tgz` — deployed webapp, tomcat base, TLS certs, gradle/maven/npm caches | `z feature build-preloaded --app --caches` |
 | **Feature stack** | A git worktree + its own isolated Compose project that *seeds* from the two above | `z feature new <ticket>` |
 
 Everything below is machinery to make those three layers cheap to create and use.
@@ -133,7 +133,7 @@ The `postgres`/`solr` images declare a `VOLUME`. When a feature starts, Docker
 - It's a **full copy**, *not* copy-on-write: db copy ≈ **~20 GB**, solr ≈ **~10 GB**.
 - So each feature is fully independent — write freely, break freely.
 - `build-preloaded` runs **`pg_resetwal`** to drop retained WAL before freezing
-  (dead weight in a snapshot). `--slim` additionally truncates jobs-only tables.
+  (dead weight in a frozen snapshot — reclaimed ~13 GB here).
 
 > **Local-only images.** They carry real ZFIN data — bare tag names, **never pushed**.
 
@@ -152,7 +152,8 @@ docker/preloaded-app/<tag>/
 ├── keystore.tgz        # tomcat TLS keystore
 ├── tls_certs.tgz       # httpd cert + key
 ├── gradle_cache.tgz    # ~/.gradle  (skip re-downloading the world)
-└── maven_cache.tgz     # ~/.m2
+├── maven_cache.tgz     # ~/.m2
+└── npm_cache.tgz       # ~/.npm   (warms `npm ci` for the first dirtydeploy)
 ```
 
 `z feature new` **tar-extracts** these into the feature's volumes → the app is
@@ -248,19 +249,24 @@ sudo security add-trusted-cert -d -r trustRoot -p ssl \
 
 ```
 docker/utils/
-├── z                     ← the ONE executable (Groovy)
+├── z                      ← the ONE executable (Groovy)
 └── lib/
-    ├── ZfinUtil.groovy   ← shared helpers + roots + volume contract
-    └── *.groovy          ← one class per command
+    ├── ZfinUtil.groovy    ← generic MECHANISM (runners, env, roots, helpers)
+    ├── StackConfig.groovy ← ZFIN POLICY (image names, host, service roles, volumes)
+    └── *.groovy           ← one class per command
 ```
 
 **`docker/utils/z`** — self-locates, loads `ZfinUtil` + every command class through
 one `GroovyClassLoader`, builds one `zfinUtil`, and calls `cmd.run(args, zfinUtil)`
 **in-process** (no forked JVM, no env plumbing). Pure routing.
 
-**`lib/ZfinUtil.groovy`** — process/logging helpers, canonical roots, the
-preloaded-volume contract (`APP_VOLS`/`CACHE_VOLS`), `connectSharedData()`,
-`tarImage()`, `printHeader()`. Every command receives it as a typed param.
+**`lib/ZfinUtil.groovy`** — generic *mechanism*: process/logging helpers,
+`env()`/`dotenv()` readers, canonical roots, `connectSharedData()`, `tarImage()`,
+`printHeader()`, `helpRequested()`. Every command receives it as a typed param.
+
+**`lib/StackConfig.groovy`** — the ZFIN *policy* home: image names, `host(slug)`,
+service roles, warm-volume classes (`APP_VOLS`/`CACHE_VOLS`), db health check. The one
+file to change when ZFIN's conventions change (the "light seam").
 
 ---
 

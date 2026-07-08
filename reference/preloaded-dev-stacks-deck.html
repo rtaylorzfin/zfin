@@ -68,7 +68,7 @@
 </tr>
 <tr>
 <td><strong>Warm app snapshot</strong></td>
-<td><code>preloaded-app/&lt;tag&gt;/*.tgz</code> — deployed webapp, tomcat base, TLS certs, gradle/maven caches</td>
+<td><code>preloaded-app/&lt;tag&gt;/*.tgz</code> — deployed webapp, tomcat base, TLS certs, gradle/maven/npm caches</td>
 <td><code>z feature build-preloaded --app --caches</code></td>
 </tr>
 <tr>
@@ -179,7 +179,7 @@ z feature <span class="hljs-built_in">rm</span> ZFIN-1234
 <li>It's a <strong>full copy</strong>, <em>not</em> copy-on-write: db copy ≈ <strong>~20 GB</strong>, solr ≈ <strong>~10 GB</strong>.</li>
 <li>So each feature is fully independent — write freely, break freely.</li>
 <li><code>build-preloaded</code> runs <strong><code>pg_resetwal</code></strong> to drop retained WAL before freezing<br />
-(dead weight in a snapshot). <code>--slim</code> additionally truncates jobs-only tables.</li>
+(dead weight in a frozen snapshot — reclaimed ~13 GB here).</li>
 </ul>
 <blockquote>
 <p><strong>Local-only images.</strong> They carry real ZFIN data — bare tag names, <strong>never pushed</strong>.</p>
@@ -198,7 +198,8 @@ z feature <span class="hljs-built_in">rm</span> ZFIN-1234
 ├── keystore.tgz        # tomcat TLS keystore
 ├── tls_certs.tgz       # httpd cert + key
 ├── gradle_cache.tgz    # ~/.gradle  (skip re-downloading the world)
-└── maven_cache.tgz     # ~/.m2
+├── maven_cache.tgz     # ~/.m2
+└── npm_cache.tgz       # ~/.npm   (warms `npm ci` for the first dirtydeploy)
 </code></pre>
 <p><code>z feature new</code> <strong>tar-extracts</strong> these into the feature's volumes → the app is<br />
 already deployed and the build caches are warm on first boot.</p>
@@ -315,17 +316,21 @@ feature's network instead (Postgres/Solr don't care about being multi-homed).<br
 <header>Preloaded per-feature dev stacks</header>
 <h2 id="file-map--the-front-door">File map — the front door</h2>
 <pre is="marp-pre" data-auto-scaling="downscale-only"><code>docker/utils/
-├── z                     ← the ONE executable (Groovy)
+├── z                      ← the ONE executable (Groovy)
 └── lib/
-    ├── ZfinUtil.groovy   ← shared helpers + roots + volume contract
-    └── *.groovy          ← one class per command
+    ├── ZfinUtil.groovy    ← generic MECHANISM (runners, env, roots, helpers)
+    ├── StackConfig.groovy ← ZFIN POLICY (image names, host, service roles, volumes)
+    └── *.groovy           ← one class per command
 </code></pre>
 <p><strong><code>docker/utils/z</code></strong> — self-locates, loads <code>ZfinUtil</code> + every command class through<br />
 one <code>GroovyClassLoader</code>, builds one <code>zfinUtil</code>, and calls <code>cmd.run(args, zfinUtil)</code><br />
 <strong>in-process</strong> (no forked JVM, no env plumbing). Pure routing.</p>
-<p><strong><code>lib/ZfinUtil.groovy</code></strong> — process/logging helpers, canonical roots, the<br />
-preloaded-volume contract (<code>APP_VOLS</code>/<code>CACHE_VOLS</code>), <code>connectSharedData()</code>,<br />
-<code>tarImage()</code>, <code>printHeader()</code>. Every command receives it as a typed param.</p>
+<p><strong><code>lib/ZfinUtil.groovy</code></strong> — generic <em>mechanism</em>: process/logging helpers,<br />
+<code>env()</code>/<code>dotenv()</code> readers, canonical roots, <code>connectSharedData()</code>, <code>tarImage()</code>,<br />
+<code>printHeader()</code>, <code>helpRequested()</code>. Every command receives it as a typed param.</p>
+<p><strong><code>lib/StackConfig.groovy</code></strong> — the ZFIN <em>policy</em> home: image names, <code>host(slug)</code>,<br />
+service roles, warm-volume classes (<code>APP_VOLS</code>/<code>CACHE_VOLS</code>), db health check. The one<br />
+file to change when ZFIN's conventions change (the &quot;light seam&quot;).</p>
 <footer>branch: preloaded-dev-stacks</footer>
 </section>
 </foreignObject></svg><svg data-marpit-svg="" viewBox="0 0 1280 720"><foreignObject width="1280" height="720"><section id="16" data-paginate="true" data-header="Preloaded per-feature dev stacks" data-footer="branch: preloaded-dev-stacks" data-theme="default" lang="en-US" data-marpit-pagination="16" style="--paginate:true;--header:Preloaded per-feature dev stacks;--footer:branch: preloaded-dev-stacks;--theme:default;" data-marpit-pagination-total="21">
