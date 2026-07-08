@@ -119,8 +119,10 @@ class BuildPreloaded {
         }
         if (app) requireVols(appVols, '--app',
                 "has project '$project' been DEPLOYED? (--app captures the deployed webapp; build+deploy the base first)")
-        if (caches) requireVols(cacheVols, '--caches',
-                "has project '$project' run a build yet? (--caches captures the gradle/maven build caches)")
+        // Caches are independent -> capture whichever volumes exist (a stack may predate a
+        // newly-added cache), so --caches never hard-dies over one absent volume.
+        def cacheVolsPresent = !caches ? [] :
+                cacheVols.findAll { runQuietly(['docker', 'volume', 'inspect', "${project}_${it}"]) == 0 }
         if (app || caches) auxDir.mkdirs()
 
         // Failure-recovery state shared with the shutdown hook (registered below): the trim
@@ -226,8 +228,12 @@ class BuildPreloaded {
             appVols.each { vn -> capture("${project}_${vn}", new File(auxDir, "${vn}.tgz")) }
         }
         if (caches) {
-            info("capturing gradle/maven build caches (large) -> $auxDir")
-            cacheVols.each { vn -> capture("${project}_${vn}", new File(auxDir, "${vn}.tgz")) }
+            def missing = cacheVols - cacheVolsPresent
+            if (missing) info("note: --caches skipping absent cache volumes: ${missing.join(', ')}")
+            if (cacheVolsPresent) {
+                info("capturing build caches (large) -> $auxDir")
+                cacheVolsPresent.each { vn -> capture("${project}_${vn}", new File(auxDir, "${vn}.tgz")) }
+            } else info("note: --caches: no cache volumes present, nothing captured")
         }
 
 // Restart exactly what we stopped (leave an already-down stack down), then mark the run
@@ -268,7 +274,7 @@ class BuildPreloaded {
         println "     $dbImage"
         println "     $solrImage"
         if (app) println "     $auxDir/  ->  ${appVols.join(', ')}  (warm app tier)"
-        if (caches) println "     $auxDir/  ->  ${cacheVols.join(', ')}  (warm build caches)"
+        if (caches && cacheVolsPresent) println "     $auxDir/  ->  ${cacheVolsPresent.join(', ')}  (warm build caches)"
         info("point a feature .env at these via ZFIN_DB_IMAGE / ZFIN_SOLR_IMAGE (see docker-compose.preloaded.yml).")
         if (app || caches) info("new-feature auto-detects these tarballs for tag '$tag' and warms the feature accordingly.")
     }

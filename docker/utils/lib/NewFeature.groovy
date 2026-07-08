@@ -180,12 +180,16 @@ class NewFeature {
         def auxDir = zfinUtil.auxDir(tag)
         def haveTars = { List vns -> vns.every { new File(auxDir, "${it}.tgz").isFile() } }
         def warmApp = doApp && haveTars(appVols)
-        def warmCaches = doCaches && haveTars(cacheVols)
+        // Caches are independent (gradle/maven/npm) -> warm whichever tarballs are present, so a
+        // snapshot that predates a newly-added cache still warms the rest. (App stays
+        // all-or-nothing: a partial deploy is broken.)
+        def cachesPresent = doCaches ? cacheVols.findAll { new File(auxDir, "${it}.tgz").isFile() } : []
+        def warmCaches = !cachesPresent.isEmpty()
         if (doApp && !warmApp && auxDir.isDirectory())
             info("note: $auxDir exists but is missing app tarballs -- app tier will NOT be warmed")
         info(warmApp ? "warm app tier: yes (from $auxDir)"
                 : "warm app tier: no" + (doApp ? " (build-preloaded --app --tag $tag to enable)" : " (--no-app)"))
-        if (warmCaches) info("warm build caches: yes (gradle + maven, from $auxDir)")
+        if (warmCaches) info("warm build caches: yes (${cachesPresent.collect { it - '_cache' }.join(' + ')}, from $auxDir)")
 
         def slug = name.toLowerCase()          // Compose projects must be lowercase
         def project = slug
@@ -390,7 +394,7 @@ ZFIN_SOLR_IMAGE=${StackConfig.solrImage(tag)}
         }
         def warmT0 = System.currentTimeMillis()
         if (warmApp) restore(appVols)
-        if (warmCaches) restore(cacheVols)
+        if (warmCaches) restore(cachesPresent)
         if (warmApp || warmCaches) info(String.format("warm restore total: %.1fs", (System.currentTimeMillis() - warmT0) / 1000.0))
 
 // node_modules is git-ignored (absent in a fresh worktree) and NOT in the warm TARGETROOT,
