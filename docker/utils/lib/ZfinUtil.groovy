@@ -63,22 +63,26 @@ class ZfinUtil {
     /** True if a docker image exists locally. */
     boolean imageExists(String ref) { runQuietly(['docker', 'image', 'inspect', ref]) == 0 }
 
-    /** Parse docker/.env into a map (KEY=value lines). The single .env parser. */
+    private Map<String, String> dotenvCache = null
+    /** Parse docker/.env into a map (KEY=value lines). Parsed once per ZfinUtil instance
+     *  (the base .env doesn't change mid-run). The single .env parser. */
     Map<String, String> dotenv() {
+        if (dotenvCache != null) return dotenvCache
         def m = [:]
         def f = new File(DOCKER, '.env')
         if (f.isFile()) f.eachLine { line ->
             def mm = (line =~ /^([A-Za-z_][A-Za-z0-9_]*)=(.*)$/)
             if (mm.find()) m[mm.group(1)] = mm.group(2)
         }
-        m
+        dotenvCache = m
     }
 
-    /** Resolve a config value the way `docker compose` does: docker/.env is authoritative
-     *  (honored even if blank), else the ambient environment, else `dflt`. */
+    /** Resolve a config value like compose's `${KEY:-dflt}`: docker/.env if set to a
+     *  NON-EMPTY value, else the ambient environment, else `dflt`. A blank `KEY=` in .env
+     *  falls back (matching compose `:-` and the prior release reader). */
     String env(String key, String dflt = null) {
-        def de = dotenv()
-        de.containsKey(key) ? de[key] : (System.getenv(key) ?: dflt)
+        def v = dotenv()[key]
+        v ?: (System.getenv(key) ?: dflt)
     }
 
     /** Print a command's own file header (its leading `//` comment block) as --help text.
