@@ -119,8 +119,8 @@ class BuildPreloaded {
         // docker/preloaded-app/<tag>/ (NOT baked into an image -- they're shared across
         // services, so image seeding can't populate them; see header). --app warms the
         // deployed app tier; --caches warms the build caches so the first dirtydeploy is fast.
-        def appVols = zfinUtil.APP_VOLS      // shared volume contract (single source, also read by NewFeature)
-        def cacheVols = zfinUtil.CACHE_VOLS
+        def appVols = StackConfig.APP_VOLS   // shared volume contract (single source, also read by NewFeature)
+        def cacheVols = StackConfig.CACHE_VOLS
         def auxDir = zfinUtil.auxDir(tag)
         def requireVols = { List vns, String flag, String hint ->
             vns.each { vn ->
@@ -223,7 +223,7 @@ class BuildPreloaded {
             }
         } as Runnable))
 
-        ['db', 'solr'].each { svc ->
+        StackConfig.DATA_SERVICES.each { svc ->
             def cid = runningContainer(svc)
             if (cid) {
                 info("stopping $svc ($cid) for a consistent capture")

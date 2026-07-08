@@ -26,10 +26,7 @@ class ZfinUtil {
         REPO   = DOCKER.parentFile        // checkout root
     }
 
-    // Preloaded warm-volume contract: the SINGLE source both BuildPreloaded (producer) and
-    // NewFeature (consumer) read, so the lists + on-disk layout can never drift apart.
-    static final List<String> APP_VOLS   = ['www_data', 'catalina_base', 'keystore', 'tls_certs']
-    static final List<String> CACHE_VOLS = ['gradle_cache', 'maven_cache']
+    // Warm-volume contract + service roles + image names now live in StackConfig (policy).
     File auxDir(String tag) { new File(DOCKER, "preloaded-app/$tag") }
 
     // Extra env injected into every spawned process (zbuild uses this to default COMPOSE_FILE).
@@ -115,7 +112,7 @@ class ZfinUtil {
     /** The canonical tar-capable container: the compile image (GNU tar, runs as root, always
      *  local, no Docker Hub pull). One source both the warm-restore and the capture use.
      *  Reads ZFIN_RELEASE from docker/.env (falling back to the environment). */
-    String tarImage() { "ghcr.io/zfin/zfin-compile:${env('ZFIN_RELEASE')}" }
+    String tarImage() { StackConfig.compileImage(env('ZFIN_RELEASE')) }
 
     // Connect the shared `zfin_shared` db/solr containers INTO the given feature project's
     // default network (`<project>_default`) with aliases db/solr, so a --shared-db feature's
@@ -128,7 +125,7 @@ class ZfinUtil {
     // The network must already exist (compose creates it on up / up --no-start).
     void connectSharedData(String project) {
         def net = "${project}_default".toString()   // String, not GString: List.contains below
-        ['db', 'solr'].each { svc ->
+        StackConfig.DATA_SERVICES.each { svc ->
             def cid = captureOutput(['docker', 'ps', '-q',
                 '--filter', 'label=com.docker.compose.project=zfin_shared',
                 '--filter', "label=com.docker.compose.service=$svc"])

@@ -28,7 +28,7 @@ class StackOps {
                 else if (service == null) { service = t; i++ }
                 else break
             }
-            [service ?: 'compile', dockerArgs, a.drop(i)]
+            [service ?: StackConfig.BUILD_SERVICE, dockerArgs, a.drop(i)]
         }
         def runExec = { boolean isExec, List a ->
             requireStack()

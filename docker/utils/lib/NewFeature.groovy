@@ -175,8 +175,8 @@ class NewFeature {
 // under docker/preloaded-app/<tag>/. If all four are present (and not --no-app), we
 // extract them into this feature's fresh volumes so tomcat/httpd come up already
 // serving the source branch's deploy -- the feature then dirtydeploys just its delta.
-        def appVols = zfinUtil.APP_VOLS      // shared volume contract (single source, also read by BuildPreloaded)
-        def cacheVols = zfinUtil.CACHE_VOLS
+        def appVols = StackConfig.APP_VOLS   // shared volume contract (single source, also read by BuildPreloaded)
+        def cacheVols = StackConfig.CACHE_VOLS
         def auxDir = zfinUtil.auxDir(tag)
         def haveTars = { List vns -> vns.every { new File(auxDir, "${it}.tgz").isFile() } }
         def warmApp = doApp && haveTars(appVols)
@@ -409,7 +409,7 @@ ZFIN_SOLR_IMAGE=zfin-solr-preloaded:$tag
 // The compile container's first run sets up the TLS cert + tomcat config.
 // --shared-db: the data tier is the external shared stack, so bring up only the app tier
 // (and only if it's warm). Otherwise this feature's own preloaded db/solr + app tier.
-        def services = (doSharedDb ? [] : ['db', 'solr']) + (warmApp ? ['tomcat', 'httpd'] : [])
+        def services = (doSharedDb ? [] : StackConfig.DATA_SERVICES) + (warmApp ? StackConfig.APP_SERVICES : [])
         if (doUp && services && doSharedDb) {
             // Shared-db: create the app tier + this feature's default network WITHOUT starting, connect
             // the shared db/solr into that network (so `db`/`solr` resolve at tomcat startup), THEN
