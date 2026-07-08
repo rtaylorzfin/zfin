@@ -41,7 +41,7 @@ class Zbuild {
         def sh = zfinUtil.&runCommand
         def compose = { Object... a -> runCommand(['docker', 'compose'] + (a as List)) }
         // lifecycle: up/down/stop/build/pull
-        def zc = { String script -> runCommand(['docker', 'compose', 'run', '--rm', 'compile', 'bash', '-l', '-c', script]) }
+        def zc = { String script -> runCommand(['docker', 'compose', 'run', '--rm', StackConfig.BUILD_SERVICE, 'bash', '-l', '-c', script]) }
         // run in the compile container (login shell)
 
         def buildImages = false

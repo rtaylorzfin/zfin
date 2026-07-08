@@ -403,7 +403,7 @@ ZFIN_SOLR_IMAGE=${StackConfig.solrImage(tag)}
 // container (no db/solr needed); npmInstall is up-to-date-skipped on later runs. --no-node skips.
         if (doNode) {
             info("installing node deps in compile (gradle npmInstall / npm ci) -- one-time for this worktree...")
-            runCommand(compose + ['run', '--rm', 'compile', 'bash', '-l', '-c', 'gradle npmInstall'])
+            runCommand(compose + ['run', '--rm', StackConfig.BUILD_SERVICE, 'bash', '-l', '-c', 'gradle npmInstall'])
         }
 
 // Bring up the preloaded data tier (instantly ready). With a warm app tier, also start

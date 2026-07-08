@@ -48,7 +48,7 @@ class SharedStack {
             case 'up':
                 if (!tag) die("no preloaded tag found -- build one (z feature build-preloaded) or pass --tag")
                 info("shared data stack 'zfin_shared' up (tag $tag) -> seeds ONE db+solr copy on network zfin_shared_net")
-                runCommand(compose + ['up', '-d', 'db', 'solr'])
+                runCommand(compose + ['up', '-d'] + StackConfig.DATA_SERVICES)
                 info("attach features with: z feature new <ticket> --shared-db")
                 break
             case 'down':
