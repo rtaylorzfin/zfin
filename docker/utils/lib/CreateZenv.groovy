@@ -26,6 +26,7 @@ import java.nio.file.Paths
 
 class CreateZenv {
     def run(List args, ZfinUtil zfinUtil) {
+        if (zfinUtil.helpRequested(args, this)) return
         def die = zfinUtil.&die
         def captureOutput = zfinUtil.&captureOutput
         def ZFRONT = new File(zfinUtil.UTILS, 'z')   // the one executable every stack activates

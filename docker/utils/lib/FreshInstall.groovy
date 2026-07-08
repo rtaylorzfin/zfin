@@ -17,6 +17,7 @@
 
 class FreshInstall {
     def run(List args, ZfinUtil zfinUtil) {
+        if (zfinUtil.helpRequested(args, this)) return
         def die = zfinUtil.&die; def info = zfinUtil.&info; def captureOutput = zfinUtil.&captureOutput;
         def runCommand = zfinUtil.&runCommand
         def UTILS = zfinUtil.UTILS

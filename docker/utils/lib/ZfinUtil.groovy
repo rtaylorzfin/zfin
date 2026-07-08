@@ -105,6 +105,13 @@ class ZfinUtil {
                  .join('\n')
     }
 
+    /** -h/--help guard: if requested, print the command's header and return true (so the
+     *  caller can `if (zfinUtil.helpRequested(args, this)) return`). */
+    boolean helpRequested(List args, cmd) {
+        if (args.any { it in ['-h', '--help'] }) { printHeader(cmd); return true }
+        false
+    }
+
     /** The canonical tar-capable container: the compile image (GNU tar, runs as root, always
      *  local, no Docker Hub pull). One source both the warm-restore and the capture use.
      *  Reads ZFIN_RELEASE from docker/.env (falling back to the environment). */

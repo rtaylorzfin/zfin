@@ -29,6 +29,7 @@
 
 class Zbuild {
     def run(List args, ZfinUtil zfinUtil) {
+        if (zfinUtil.helpRequested(args, this)) return
         def die = zfinUtil.&die; def info = zfinUtil.&info
         def DOCKER = zfinUtil.DOCKER
 

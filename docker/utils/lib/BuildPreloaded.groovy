@@ -64,9 +64,7 @@
 // --- shared helpers + roots (via ZfinUtil, passed in by z) --------------------
 class BuildPreloaded {
     def run(List args, ZfinUtil zfinUtil) {
-        if (args.any { it in ['-h', '--help'] }) {
-            zfinUtil.printHeader(this); return
-        }
+        if (zfinUtil.helpRequested(args, this)) return
         def die = zfinUtil.&die; def info = zfinUtil.&info; def runCommand = zfinUtil.&runCommand;
         def runQuietly = zfinUtil.&runQuietly
         def captureOutput = zfinUtil.&captureOutput; def runWithInput = zfinUtil.&runWithInput

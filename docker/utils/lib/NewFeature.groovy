@@ -58,9 +58,7 @@
 // worktree is fine -- provisioning never depends on where you happen to be.
 class NewFeature {
     def run(List args, ZfinUtil zfinUtil) {
-        if (args.any { it in ['-h', '--help'] }) {
-            zfinUtil.printHeader(this); return
-        }
+        if (zfinUtil.helpRequested(args, this)) return
         def die = zfinUtil.&die; def info = zfinUtil.&info; def runCommand = zfinUtil.&runCommand;
         def captureOutput = zfinUtil.&captureOutput
         def imageExists = zfinUtil.&imageExists

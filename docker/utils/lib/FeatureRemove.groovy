@@ -5,7 +5,7 @@
 // worktree -- so it prompts unless --force. Do it once the feature's PR is merged.
 class FeatureRemove {
     def run(List args, ZfinUtil zfinUtil) {
-        if (args.any { it in ['-h', '--help'] }) { zfinUtil.printHeader(this); return }
+        if (zfinUtil.helpRequested(args, this)) return
         def die = zfinUtil.&die; def info = zfinUtil.&info
         def runCommand = zfinUtil.&runCommand; def captureOutput = zfinUtil.&captureOutput
         def REPO = zfinUtil.REPO

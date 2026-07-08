@@ -9,7 +9,7 @@
 // SHARED DATA == SHARED WRITES: read-mostly features only. See reference/preloaded-dev-stacks.md.
 class SharedStack {
     def run(List args, ZfinUtil zfinUtil) {
-        if (args.any { it in ['-h', '--help'] }) { zfinUtil.printHeader(this); return }
+        if (zfinUtil.helpRequested(args, this)) return
         def die = zfinUtil.&die; def info = zfinUtil.&info
         def runCommand = zfinUtil.&runCommand; def captureOutput = zfinUtil.&captureOutput
         def DOCKER = zfinUtil.DOCKER
