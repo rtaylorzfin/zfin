@@ -1157,7 +1157,18 @@ sourceSets {
             exclude '**/*.groovy'
         }
     }
+    // IDE-resolution only: the dev-stack CLI classes in docker/utils/lib are loaded at
+    // runtime by docker/utils/z via a GroovyClassLoader (invisible to static analysis), so
+    // IntelliJ can't resolve ZfinUtil / cross-class refs. Declaring them as a source set
+    // makes the Gradle import mark docker/utils/lib as a Groovy source root (persisting
+    // across re-syncs) so jump-to-definition + completion work. Nothing depends on this
+    // set, so it's not part of build/deploy.
+    devtools {
+        groovy.srcDirs = ['docker/utils/lib']
+    }
 }
+// Let the devtools set see the same deps as main (Groovy runtime, etc.) for resolution.
+configurations { devtoolsImplementation.extendsFrom implementation }
 
 test {
 //    maxHeapSize = "2048m"
