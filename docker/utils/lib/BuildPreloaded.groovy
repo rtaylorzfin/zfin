@@ -50,8 +50,9 @@
 //   --app            Also capture the deployed-app volumes (www_data, catalina_base,
 //                    keystore, tls_certs) to docker/preloaded-app/<tag>/ so feature stacks
 //                    boot with a warm app tier. Requires the source stack to be DEPLOYED.
-//   --caches         Also capture the gradle_cache + maven_cache volumes (same dir) so a
-//                    feature's first `gradle dirtydeploy` skips re-downloading deps. These
+//   --caches         Also capture the gradle_cache + maven_cache + npm_cache volumes (same
+//                    dir) so a feature's first `gradle dirtydeploy`/`npmInstall` skips
+//                    re-downloading deps. These
 //                    are LARGE/churnier than the deploy volumes -- opt in when you want it.
 //   --keep-tarballs  Leave the intermediate db/solr .tgz files in the build contexts
 //                    (the --app/--caches tarballs are always kept -- they're restore sources)

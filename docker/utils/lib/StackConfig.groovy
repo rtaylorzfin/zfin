@@ -33,5 +33,5 @@ class StackConfig {
     // Warm-volume contract: the SINGLE source read by BuildPreloaded (producer) AND
     // NewFeature (consumer), so the lists + on-disk tarball layout can never drift apart.
     static final List<String> APP_VOLS   = ['www_data', 'catalina_base', 'keystore', 'tls_certs']
-    static final List<String> CACHE_VOLS = ['gradle_cache', 'maven_cache']
+    static final List<String> CACHE_VOLS = ['gradle_cache', 'maven_cache', 'npm_cache']
 }
