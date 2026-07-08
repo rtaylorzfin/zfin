@@ -56,13 +56,13 @@ almost entirely PGDATA, so the seed copies essentially all of it — only the ~0
 base layers are shared. These are *measured* numbers after the always-on WAL trim:
 `build-preloaded` `pg_resetwal`s on **every** build, which took this host's db image
 **32.6G → 19.7G** — the reclaimed ~13G was retained WAL (dead weight in a frozen
-snapshot; it had overshot the 10G soft `max_wal_size` during the load). `--slim` drops
-reloadable jobs-only tables for ~3.8G more (→ ~16G). The remaining ~19G is real data.
+snapshot; it had overshot the 10G soft `max_wal_size` during the load). The remaining
+~19G is real data.
 
 Three features ≈ 90G+. The win is **instant boot + full isolation on plain Docker**,
-paid for in disk. See [../workbench/db-slim-candidates.md](../workbench/db-slim-candidates.md)
-for the `--slim` levers and `TODO.txt` for the CoW-filesystem / shared-DB / archive
-directions that would cut this.
+paid for in disk. See `TODO.txt` for the CoW-filesystem / shared-DB / archive directions
+(and `workbench/architecture-improvement.md` for the Database Lab Engine option) that
+would cut this.
 
 ---
 
@@ -82,7 +82,7 @@ function like `zrun` after activation).
 | `lib/NewFeature.groovy` | Provision a feature: worktree + `.env` + `.zenv` + IP + hosts + boot (`z feature new`). |
 | `lib/FeatureList.groovy` | List feature stacks (`z feature ls`). |
 | `lib/FeatureRemove.groovy` | Tear a feature down: down -v + worktree/branch/hosts (`z feature rm`). |
-| `lib/BuildPreloaded.groovy` | Bake the preloaded images (+ `--slim`/`--app`/`--caches`); WAL trimmed on every build (`z feature build-preloaded`). |
+| `lib/BuildPreloaded.groovy` | Bake the preloaded images (+ `--app`/`--caches`); WAL trimmed on every build (`z feature build-preloaded`). |
 | `lib/Zbuild.groovy` | Non-interactive, phased build/deploy orchestrator — the CI engine (`z build`; what GoCD stages should call). |
 | `lib/FreshInstall.groovy` | Guided day-zero setup on a bare workstation (`z fresh-install`). |
 | `lib/z-completion.bash` | bash tab-completion for `z` + the short names. |
@@ -130,8 +130,8 @@ theirs from `z feature new` (which calls `create-zenv`).
 
 ```bash
 # 0. once per machine: bake the preloaded images from a loaded base stack
-z feature build-preloaded --tag dev            # WAL always trimmed; + --slim (drop jobs-only tables)
-                                              #   + --app (warm app tier) + --caches (warm gradle cache)
+z feature build-preloaded --tag dev            # WAL always trimmed
+                                              #   + --app (warm app tier) + --caches (warm gradle/maven/npm)
 
 # 1. provision a feature (prompts if no ticket)
 z feature new ZFIN-1234 --up --hosts           # worktree, .env, .zenv, IP, /etc/hosts, boot
@@ -280,5 +280,4 @@ registry is a structural choice, not an oversight.
 - [deploying-changes.md](deploying-changes.md) — what to run after editing X
 - [../workbench/feature-lifecycle.md](../workbench/feature-lifecycle.md) — earlier lifecycle notes
 - [../workbench/parallel-features-walkthrough.md](../workbench/parallel-features-walkthrough.md) — narrative walkthrough
-- [../workbench/db-slim-candidates.md](../workbench/db-slim-candidates.md) — slimming the preloaded DB
 - `TODO.txt` — the open backlog (CoW clones, shared DB, `z feature rm`, …)

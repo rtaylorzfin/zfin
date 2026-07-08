@@ -32,7 +32,7 @@ _z_complete() {
                 case "${COMP_WORDS[argstart]}" in
                     new)             COMPREPLY=( $(compgen -W "--up --hosts --shared-db --no-app --no-caches --no-node --tag --ip --ip-base --base --branch" -- "$cur") ) ;;
                     rm)              COMPREPLY=( $(compgen -W "--force" -- "$cur") ) ;;
-                    build-preloaded) COMPREPLY=( $(compgen -W "--tag --slim --app --caches --keep-tarballs --project" -- "$cur") ) ;;
+                    build-preloaded) COMPREPLY=( $(compgen -W "--tag --app --caches --keep-tarballs --project" -- "$cur") ) ;;
                 esac
             fi ;;
     esac

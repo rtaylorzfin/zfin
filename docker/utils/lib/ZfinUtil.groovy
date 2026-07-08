@@ -60,16 +60,6 @@ class ZfinUtil {
         def out = p.inputStream.text; p.waitFor(); out.trim()
     }
 
-    /** Run, feeding `input` to stdin; stream stdout/stderr. Dies on nonzero unless [check:false]. */
-    int runWithInput(List cmd, String input, Map opts = [:]) {
-        def p = newProcess(cmd).redirectOutput(ProcessBuilder.Redirect.INHERIT)
-                       .redirectError(ProcessBuilder.Redirect.INHERIT).start()
-        p.outputStream.withWriter('UTF-8') { it << input }
-        def code = p.waitFor()
-        if (code != 0 && opts.check != false) die("command failed ($code): ${cmd.join(' ')}", code)
-        code
-    }
-
     /** True if a docker image exists locally. */
     boolean imageExists(String ref) { runQuietly(['docker', 'image', 'inspect', ref]) == 0 }
 

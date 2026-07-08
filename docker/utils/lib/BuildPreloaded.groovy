@@ -13,7 +13,7 @@
 // NOTE: NOT copy-on-write. postgres/solr declare VOLUME, so on first `up` Docker
 // SEEDS each feature's named volume by COPYING the image's baked data -- a full
 // per-feature copy (~26G db + ~10G solr each), not a shared/CoW clone. The win is
-// instant boot + isolation, at the cost of disk. See workbench/db-slim-candidates.md.
+// instant boot + isolation, at the cost of disk.
 //
 // These images bake in a REAL loaded database + Solr index, so they are
 // deliberately LOCAL-ONLY: bare names (no ghcr.io/ registry prefix) and no
@@ -43,15 +43,10 @@
 // its own delta on top. See TODO.txt (warm build/deploy) and reference/preloaded-dev-stacks.md.
 //
 // Usage:
-//   z feature build-preloaded [--project NAME] [--tag TAG] [--slim] [--app] [--caches] [--keep-tarballs]
+//   z feature build-preloaded [--project NAME] [--tag TAG] [--app] [--caches] [--keep-tarballs]
 //
 //   --project NAME   Compose project whose volumes to capture (default: $COMPOSE_PROJECT_NAME or "zfin_org")
 //   --tag TAG        Preloaded image tag (default: today's date, YYYY-MM-DD)
-//   --slim           Additionally TRUNCATE jobs-only tables (proven NOT read by the
-//                    webapp, reloadable) for an even leaner image -- slightly riskier,
-//                    so opt-in. NOTE: WAL is collapsed on EVERY build regardless (it's
-//                    dead weight in a frozen snapshot and safe to shed), so --slim only
-//                    governs the extra table data. See workbench/db-slim-candidates.md.
 //   --app            Also capture the deployed-app volumes (www_data, catalina_base,
 //                    keystore, tls_certs) to docker/preloaded-app/<tag>/ so feature stacks
 //                    boot with a warm app tier. Requires the source stack to be DEPLOYED.
@@ -67,7 +62,7 @@ class BuildPreloaded {
         if (zfinUtil.helpRequested(args, this)) return
         def die = zfinUtil.&die; def info = zfinUtil.&info; def runCommand = zfinUtil.&runCommand;
         def runQuietly = zfinUtil.&runQuietly
-        def captureOutput = zfinUtil.&captureOutput; def runWithInput = zfinUtil.&runWithInput
+        def captureOutput = zfinUtil.&captureOutput
 
         def DOCKER = zfinUtil.DOCKER
 
@@ -76,21 +71,14 @@ class BuildPreloaded {
         def project = zfinUtil.env('COMPOSE_PROJECT_NAME', 'zfin_org')
         def tag = java.time.LocalDate.now().toString()   // YYYY-MM-DD
         def keep = false
-        def slim = false
         def app = false
         def caches = false
-
-        // Tables proven jobs-only (NOT read by the webapp) -> safe to empty for a lean
-        // image. Evidence (ORM + call-site trace): workbench/db-slim-candidates.md.
-        def slimTables = ['gff3', 'gff3_ncbi', 'gff3_ncbi_attribute',
-                          'expression_search_anatomy_generated', 'feature_stats_old']
 
         def argv = args as List
         for (int i = 0; i < argv.size(); i++) {
             switch (argv[i]) {
                 case '--project': project = argv[++i]; break
                 case '--tag': tag = argv[++i]; break
-                case '--slim': slim = true; break
                 case '--app': app = true; break
                 case '--caches': caches = true; break
                 case '--keep-tarballs': keep = true; break
@@ -145,16 +133,14 @@ class BuildPreloaded {
         //     unconditional win: the copy is started fresh in every feature, so there's
         //     nothing to recover. A plain CHECKPOINT won't shrink them (segment-retention
         //     decays only ~2%/checkpoint), so we pg_resetwal.
-        //   WITH --slim (opt-in, slightly riskier): also TRUNCATE tables proven jobs-only +
-        //     reloadable (workbench/db-slim-candidates.md) for an even smaller image.
-        // Mechanism: briefly run a throwaway postgres on the volume, so (a) any --slim TRUNCATE
-        // has a live server and (b) the clean docker-stop afterward gives pg_resetwal its
-        // required clean-shutdown precondition. Runs while the real db is stopped (single
-        // writer on the volume). The throwaway start skips initdb (data dir is non-empty).
+        // Mechanism: briefly run a throwaway postgres on the volume so the clean docker-stop
+        // afterward gives pg_resetwal its required clean-shutdown precondition. Runs while the
+        // real db is stopped (single writer on the volume). The throwaway start skips initdb
+        // (data dir is non-empty).
         def trimSnapshot = {
             def img = stockDb
             def name = "preloaded-trim-${ProcessHandle.current().pid()}"
-            info("[trim] throwaway postgres on $pgVol" + (slim ? " (TRUNCATE jobs-only tables + WAL reset)" : " (WAL reset)"))
+            info("[trim] throwaway postgres on $pgVol (WAL reset)")
             runCommand(['docker', 'run', '-d', '--name', name,
                         '-e', 'POSTGRES_HOST_AUTH_METHOD=trust',
                         '-v', "${pgVol}:/var/lib/postgresql", img])
@@ -168,24 +154,6 @@ class BuildPreloaded {
                 runCommand(['docker', 'logs', '--tail', '30', name], [check: false])
                 runQuietly(['docker', 'rm', '-f', name]); state.trim = null
                 die("[trim] postgres not ready")
-            }
-
-            if (slim) {
-                def sql = """
-            DO \$\$
-            DECLARE t text;
-            BEGIN
-              FOREACH t IN ARRAY ARRAY[${slimTables.collect { "'$it'" }.join(', ')}]
-              LOOP
-                IF to_regclass(t) IS NOT NULL THEN
-                  EXECUTE format('TRUNCATE TABLE %I CASCADE', t);
-                  RAISE NOTICE 'slimmed %', t;
-                END IF;
-              END LOOP;
-            END \$\$;
-        """.stripIndent()
-                runWithInput(['docker', 'exec', '-i', name, 'psql', '-U', 'postgres', '-d', 'zfindb', '-v', 'ON_ERROR_STOP=1'], sql)
-                info("[slim] emptied jobs-only tables: ${slimTables.join(' ')}")
             }
 
             // -t 60: give postgres time for a clean fast-shutdown (the default 10s grace risks a
@@ -232,7 +200,7 @@ class BuildPreloaded {
             }
         }
 
-        trimSnapshot()   // always sheds WAL; also TRUNCATEs jobs-only tables when --slim
+        trimSnapshot()   // sheds recycled WAL from the frozen snapshot
 
         def capture = { String vol, File out ->
             info("capturing $vol -> $out")
