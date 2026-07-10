@@ -88,6 +88,12 @@ RUN mkdir -p /opt/zfin/www_homes/zfin.org/server_apps/jenkins/jenkins-home \
     && adduser gradle solr
 
 USER gradle
+# Pre-create the cache mountpoints so a fresh named volume mounted here inherits
+# gradle ownership (Docker seeds an empty volume from the image dir's metadata).
+# .gradle already ships gradle-owned from the upstream image; .npm and .m2 don't
+# exist upstream, so without this Docker creates the volume root as root:root and
+# the unprivileged gradle user can't write to it (npm ci fails with EACCES).
+RUN mkdir -p /home/gradle/.npm /home/gradle/.m2
 COPY ./bash_profile /tmp/bash_profile
 RUN cat /tmp/bash_profile >> /home/gradle/.profile \
     && git config --global --add safe.directory /opt/zfin/source_roots/zfin.org \
