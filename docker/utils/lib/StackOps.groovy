@@ -72,9 +72,16 @@ class StackOps {
                     m ? m.last().substring(key.length()) : ''
                 }
                 def ip = readEnv('LOOPBACK_IP='); def dbimg = readEnv('ZFIN_DB_IMAGE=')
+                // Branch: the checked-out branch of this stack's worktree (empty if ZENV_DIR
+                // isn't a git worktree). The Jira issue is assumed to share the branch name
+                // (ZFIN's feature branches are ticket-keyed), linked at the standard browse URL.
+                def dir = System.getenv('ZENV_DIR')
+                def branch = dir ? zfinUtil.captureOutput(['git', '-C', dir, 'rev-parse', '--abbrev-ref', 'HEAD']) : ''
                 println "zenv: $active"
-                if (System.getenv('ZENV_DIR'))  println "  dir      : ${System.getenv('ZENV_DIR')}"
+                if (dir)     println "  dir      : $dir"
+                if (branch)  println "  branch   : $branch"
                 if (System.getenv('ZENV_HOST')) println "  url      : https://${System.getenv('ZENV_HOST')}${ip ? "  ($ip)" : ''}"
+                if (branch)  println "  jira     : https://zfin.atlassian.net/browse/$branch"
                 if (dbimg) println "  images   : $dbimg (+ solr)"
                 if (System.getenv('PRELOADED_TAG')) println "  tag      : ${System.getenv('PRELOADED_TAG')}"
                 println "  compose  : ${System.getenv('COMPOSE_FILE') ?: '<none>'}"

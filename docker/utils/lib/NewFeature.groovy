@@ -15,7 +15,7 @@
 //
 // Usage:
 //   zfeature new [<name>] [--base BRANCH] [--branch NAME]
-//                         [--tag TAG] [--ip 127.0.0.X] [--up] [--hosts]
+//                         [--tag TAG] [--ip 127.0.0.X] [--up] [--no-hosts]
 //
 //   <name>          Feature id, e.g. ZFIN-9002 -> project "zfin-9002",
 //                   worktree "wt-zfin-9002", host "zfin-9002.zfin.test".
@@ -38,9 +38,13 @@
 //                   build + deploy yourself). No effect without a snapshot.
 //   --no-caches     Skip restoring the gradle/maven build caches even if captured
 //                   (build-preloaded --caches). No effect without them.
-//   --hosts         Map <host> -> <ip> in /etc/hosts via a hostctl profile named
-//                   after the feature slug (uses sudo). Teardown is a clean
-//                   `sudo hostctl remove <slug>`.
+//   --no-hosts      Skip mapping <host> -> <ip> in /etc/hosts. By default new-feature
+//                   maps it via a hostctl profile named after the feature slug (uses
+//                   sudo), so <host> resolves immediately; teardown is a clean
+//                   `sudo hostctl remove <slug>`. If hostctl isn't installed the mapping
+//                   is skipped with a hint (not fatal) -- e.g. when a dnsmasq
+//                   *.zfin.test wildcard already resolves the host. (--hosts is accepted
+//                   as a back-compat no-op since this is now the default.)
 //   --shared-db     Share the `zfin_shared` stack's db+solr instead of seeding this
 //                   feature's own copy (needs `z shared up` first). READ-MOSTLY only:
 //                   writes/migrations/reindex are shared with every other --shared-db
@@ -74,7 +78,7 @@ class NewFeature {
         def ipBase = null
         def branch = ''
         def doUp = false
-        def doHosts = false
+        def doHosts = true
         def doApp = true
         def doCaches = true
         def doSharedDb = false
@@ -92,7 +96,8 @@ class NewFeature {
                 case '--up': doUp = true; break
                 case '--no-app': doApp = false; break
                 case '--no-caches': doCaches = false; break
-                case '--hosts': doHosts = true; break
+                case '--hosts': doHosts = true; break     // back-compat no-op: on by default
+                case '--no-hosts': doHosts = false; break
                 case '--shared-db': doSharedDb = true; break
                 case '--no-node': doNode = false; break
                 default:
@@ -129,7 +134,7 @@ class NewFeature {
 
         if (!name) {
             def con = System.console()
-            if (!con) die("usage: new-feature.groovy <name> [--base B] [--branch B] [--tag T] [--ip 127.0.0.X] [--up] [--hosts]", 2)
+            if (!con) die("usage: new-feature.groovy <name> [--base B] [--branch B] [--tag T] [--ip 127.0.0.X] [--up] [--no-hosts]", 2)
             println "New feature stack -- press Enter to accept [defaults]."
             while (!name) {
                 name = con.readLine("  ticket / feature id (e.g. ZFIN-789): ")?.trim();
@@ -318,9 +323,16 @@ ZFIN_SOLR_IMAGE=${StackConfig.solrImage(tag)}
                     .redirectError(ProcessBuilder.Redirect.DISCARD)
                     .start().waitFor() == 0
             if (!hostctlOnPath)
-                die("--hosts needs hostctl (https://github.com/guumaster/hostctl; `brew install guumaster/tap/hostctl`)")
-            info("mapping $host -> $ip via hostctl profile '$slug' (sudo)")
-            runCommand(['sudo', 'hostctl', 'add', 'domains', slug, host, '--ip', ip, '--quiet'])
+                // Not fatal: hostctl is one of several ways to resolve $host (a dnsmasq
+                // *.zfin.test wildcard is the zero-touch alternative). Skip with a hint
+                // rather than aborting a stack that's otherwise fully provisioned.
+                info("skipping host mapping: hostctl not installed -- add manually with " +
+                     "`sudo hostctl add domains $slug $host --ip $ip` " +
+                     "(https://github.com/guumaster/hostctl; `brew install guumaster/tap/hostctl`)")
+            else {
+                info("mapping $host -> $ip via hostctl profile '$slug' (sudo)")
+                runCommand(['sudo', 'hostctl', 'add', 'domains', slug, host, '--ip', ip, '--quiet'])
+            }
         }
 
 // 4. Compose command. Use THIS repo's compose files (found regardless of the worktree's
