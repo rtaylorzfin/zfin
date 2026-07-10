@@ -77,11 +77,17 @@ class StackOps {
                 // (ZFIN's feature branches are ticket-keyed), linked at the standard browse URL.
                 def dir = System.getenv('ZENV_DIR')
                 def branch = dir ? zfinUtil.captureOutput(['git', '-C', dir, 'rev-parse', '--abbrev-ref', 'HEAD']) : ''
+                // PR "create" link: derive the GitHub owner/repo slug from origin (SSH or HTTPS
+                // form) and point at the open-a-PR page for this branch. Empty for non-GitHub origins.
+                def origin = dir ? zfinUtil.captureOutput(['git', '-C', dir, 'remote', 'get-url', 'origin']) : ''
+                def ghMatch = origin =~ /github\.com[:\/](.+?)(?:\.git)?\/?$/
+                def ghSlug = ghMatch ? ghMatch[0][1] : ''
                 println "zenv: $active"
                 if (dir)     println "  dir      : $dir"
                 if (branch)  println "  branch   : $branch"
                 if (System.getenv('ZENV_HOST')) println "  url      : https://${System.getenv('ZENV_HOST')}${ip ? "  ($ip)" : ''}"
                 if (branch)  println "  jira     : https://zfin.atlassian.net/browse/$branch"
+                if (branch && ghSlug) println "  pr       : https://github.com/$ghSlug/pull/new/$branch"
                 if (dbimg) println "  images   : $dbimg (+ solr)"
                 if (System.getenv('PRELOADED_TAG')) println "  tag      : ${System.getenv('PRELOADED_TAG')}"
                 println "  compose  : ${System.getenv('COMPOSE_FILE') ?: '<none>'}"
