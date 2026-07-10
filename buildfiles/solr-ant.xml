@@ -112,74 +112,38 @@
         </exec>
     </target>
 
-    <target name="start-solr" description="Start up Solr"
-        depends="start-solr-docker,start-solr-systemctl">
+    <target name="start-solr" description="Start up Solr (docker compose)">
+        <exec executable="/usr/bin/docker">
+            <arg value="compose"/>
+            <arg value="-f"/>
+            <arg value="/opt/zfin/source_roots/zfin.org/docker/docker-compose.yml"/>
+            <arg value="start"/>
+            <arg value="solr"/>
+        </exec>
     </target>
     <target name="solr-start" description="Alias for start-solr" depends="start-solr"></target>
 
-    <target name="start-solr-docker" description="Start up Solr " if="isdocker">
+    <target name="stop-solr" description="Stop Solr (docker compose)">
         <exec executable="/usr/bin/docker">
             <arg value="compose"/>
             <arg value="-f"/>
             <arg value="/opt/zfin/source_roots/zfin.org/docker/docker-compose.yml"/>
-            <arg value="start"/>
+            <arg value="stop"/>
             <arg value="solr"/>
         </exec>
-    </target>
-
-    <target name="start-solr-systemctl" description="Start up Solr " unless="isdocker">
-        <exec executable="/bin/sudo">
-            <arg value="systemctl"/>
-            <arg value="start"/>
-            <arg value="solr"/>
-        </exec>
-    </target>
-
-    <target name="stop-solr" description="Stop Solr"
-        depends="stop-solr-docker,stop-solr-systemctl">
     </target>
     <target name="solr-stop" description="Alias for stop-solr" depends="stop-solr"></target>
 
-    <target name="stop-solr-docker" description="Stop Solr " if="isdocker">
+    <target name="restart-solr" description="Restart Solr (docker compose)">
         <exec executable="/usr/bin/docker">
             <arg value="compose"/>
             <arg value="-f"/>
             <arg value="/opt/zfin/source_roots/zfin.org/docker/docker-compose.yml"/>
-            <arg value="stop"/>
+            <arg value="restart"/>
             <arg value="solr"/>
         </exec>
-    </target>
-
-    <target name="stop-solr-systemctl" description="Stop Solr " unless="isdocker">
-        <exec executable="/bin/sudo">
-            <arg value="systemctl"/>
-            <arg value="stop"/>
-            <arg value="solr"/>
-        </exec>
-    </target>
-
-    <target name="restart-solr" description="Restart Solr"
-        depends="restart-solr-docker,restart-solr-systemctl">
     </target>
     <target name="solr-restart" description="Alias for restart-solr" depends="restart-solr"></target>
-
-    <target name="restart-solr-docker" description="Restart Solr" if="isdocker">
-        <exec executable="/usr/bin/docker">
-            <arg value="compose"/>
-            <arg value="-f"/>
-            <arg value="/opt/zfin/source_roots/zfin.org/docker/docker-compose.yml"/>
-            <arg value="restart"/>
-            <arg value="solr"/>
-        </exec>
-    </target>
-
-    <target name="restart-solr-systemctl" description="Restart Solr" unless="isdocker">
-        <exec executable="/bin/sudo">
-            <arg value="systemctl"/>
-            <arg value="restart"/>
-            <arg value="solr"/>
-        </exec>
-    </target>
 
     <target name="tail-solr-log" description="tail -f on solr.log file">
         <exec executable="tail">

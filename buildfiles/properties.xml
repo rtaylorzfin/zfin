@@ -105,14 +105,6 @@
     <property name="host-dir" value="${template-dir}/conf/Catalina"/>
     <property name="domain-host-dir" value="${CATALINA_BASE}/conf/Catalina"/>
 
-    <condition property="isinformix">
-        <equals arg1="${USER}" arg2="informix"/>
-    </condition>
-
-    <condition property="isdocker">
-        <equals arg1="${USER}" arg2="docker"/>
-    </condition>
-
     <condition property="is-happy-zfin-org">
         <equals arg1="${INSTANCE}" arg2="happy"/>
     </condition>
@@ -144,30 +136,14 @@
         </not>
     </condition>
 
-    <condition property="ismutant">
-	<and>
-            <not>
-                <equals arg1="${USER}" arg2="informix"/>
-            </not>
-            <not>
-                <equals arg1="${USER}" arg2="docker"/>
-            </not>
-        </and>
-    </condition>
-
-
-
 
     <target name="dumpMachine" description="Dump machine type.">
         <echo message="INSTANCE:             ${INSTANCE}"/>
         <echo message="USER:                 ${USER}"/>
         <echo message="DBNAME:               ${DBNAME}"/>
         <echo message="INFORMIX_SERVER:      ${INFORMIX_SERVER}"/>
-        <echo message="isinformix:           ${isinformix}"/>
-        <echo message="isdocker:             ${isdocker}"/>
         <echo message="isproduction:         ${isproduction}"/>
         <echo message="notproduction:        ${notproduction}"/>
-        <echo message="ismutant:             ${ismutant}"/>
     </target>
 
     <!-- javadoc diectory -->
