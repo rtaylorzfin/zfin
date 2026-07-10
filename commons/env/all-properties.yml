@@ -189,6 +189,11 @@ common_properties:
   SECURE_SERVER: "true"
   SHARED_DOMAIN_NAME: "false"
   SHOW_SQL: "false"
+  # Bind address for Tomcat's shutdown port. Loopback-only by default so the
+  # unauthenticated shutdown command is unreachable from other containers; dev
+  # instances override to 0.0.0.0 (see dev_defaults) so a same-network helper
+  # (e.g. the Claude sidecar) can bounce Tomcat without the Docker socket.
+  SHUTDOWNADDRESS: "localhost"
   SHUTDOWNPORT: "2007"
   SMTP_PORT: "25"
   SOLR_CONTEXT: "solr"
@@ -348,6 +353,10 @@ dev_defaults:
   NODE_ENV: "development"
   SCHEDULE_TRIGGER_FILES: ""
   SEND_AUTHOR_NOTIF_EMAIL: "false"
+  # Expose Tomcat's shutdown port on the container network so a same-network
+  # helper can trigger a restart (dev feature stacks are isolated + disposable).
+  # Prod/staging keep the loopback default from common_properties.
+  SHUTDOWNADDRESS: "0.0.0.0"
   SOLR_MEMORY: "8g"
   WIKI_HOST: "devwiki.zfin.org"
 

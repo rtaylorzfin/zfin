@@ -87,6 +87,12 @@ RUN mkdir -p /opt/zfin/www_homes/zfin.org/server_apps/jenkins/jenkins-home \
     && adduser gradle root \
     && adduser gradle solr
 
+# `restart-tomcat`: bounce a dev stack's Tomcat via its shutdown port instead of the Docker
+# socket (Catalina exits -> `restart: unless-stopped` brings it back). Shared here so every
+# image FROM base (compile, the Claude sidecar, ...) gets it. See the script header.
+COPY restart-tomcat /usr/local/bin/restart-tomcat
+RUN chmod 0755 /usr/local/bin/restart-tomcat
+
 USER gradle
 # Pre-create the cache mountpoints so a fresh named volume mounted here inherits
 # gradle ownership (Docker seeds an empty volume from the image dir's metadata).

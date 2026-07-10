@@ -177,6 +177,11 @@ services:
   tomcat:
     build: ./tomcat/
     image: ghcr.io/zfin/zfin-tomcat:${ZFIN_RELEASE}
+    # Auto-recover from a crash, and (paired with the dev-only 0.0.0.0 shutdown
+    # port) let a same-network helper bounce Tomcat by stopping PID 1: Catalina
+    # exits, this policy restarts the container. unless-stopped (not always) so a
+    # deliberate `zdown`/`docker compose stop` stays down.
+    restart: unless-stopped
     environment:
       CATALINA_BASE: /opt/zfin/catalina_bases/zfin.org
       INSTANCE: docker

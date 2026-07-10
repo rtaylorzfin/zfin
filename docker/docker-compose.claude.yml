@@ -9,6 +9,13 @@
 # `gradle` compile + run the unit/integration suite against the preloaded db/solr; deploy +
 # visual verification stay with you (or the normal compile/tomcat path).
 #
+# The ONE stack action it can take: `restart-tomcat` (baked into the image) sends Tomcat's
+# shutdown command to its shutdown port over the compose network; Catalina (PID 1) exits and
+# tomcat's `restart: unless-stopped` policy brings it back. That's a full container restart
+# WITHOUT the Docker socket -- reachable only because dev stacks bind the shutdown port to
+# 0.0.0.0 (all-properties.yml dev_defaults). The blast radius is exactly "bounce this stack's
+# Tomcat," nothing more.
+#
 # Profile-gated so it's inert unless started explicitly: `z up claude`, then `z claude` to
 # attach the agent. Requires the local image: `docker compose build claude` (FROM the compile
 # image, so build/pull that first).

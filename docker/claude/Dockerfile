@@ -15,3 +15,5 @@ FROM ghcr.io/zfin/zfin-compile:${ZFIN_RELEASE}
 USER root
 RUN npm install -g @anthropic-ai/claude-code
 USER gradle
+# `restart-tomcat` (bounce Tomcat via its shutdown port, no Docker socket) is inherited
+# from the base image -- see docker/base/restart-tomcat + docker-compose.claude.yml.

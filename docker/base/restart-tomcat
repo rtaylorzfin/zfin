@@ -1,0 +1,20 @@
+#!/usr/bin/env bash
+# Restart the feature stack's Tomcat WITHOUT the Docker socket.
+#
+# Sends Tomcat's shutdown command to its shutdown port over the compose network;
+# Catalina (PID 1) exits, and the tomcat service's `restart: unless-stopped`
+# policy brings the container back -> a full container restart (fresh JVM, re-read
+# server.xml/context.xml), not just a webapp reload.
+#
+# Only works on dev stacks: the shutdown port binds 0.0.0.0 there (all-properties.yml
+# dev_defaults: SHUTDOWNADDRESS), so it's reachable from this sidecar. Prod keeps the
+# loopback default and is unaffected. The bash /dev/tcp redirect needs no `nc`.
+set -euo pipefail
+host="${TOMCAT_HOST:-tomcat}"
+port="${SHUTDOWN_PORT:-2007}"
+if ! printf 'SHUTDOWN' > "/dev/tcp/${host}/${port}" 2>/dev/null; then
+    echo "restart-tomcat: could not reach ${host}:${port}." >&2
+    echo "  Is tomcat up, and is this a dev stack (shutdown port on 0.0.0.0)?" >&2
+    exit 1
+fi
+echo "restart-tomcat: sent SHUTDOWN to ${host}:${port} -- Tomcat will stop; the restart policy will bring it back."
