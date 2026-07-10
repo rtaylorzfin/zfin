@@ -1,7 +1,32 @@
 # Claude sidecar container (future strategy)
 
-Status: **not built** — a design we may adopt later. Captured so the reasoning
-(and the safety gotchas) aren't lost.
+Status: **v1 scaffolded** — decided Tier 2 (edit + compile + tests vs the feature's
+db/solr) with a mounted `~/.claude`; files exist, not yet built/run. Below is the
+reasoning + safety gotchas; the "v1 as built" section records what's wired up.
+
+## v1 as built (decisions locked)
+
+- **Image** `docker/claude/Dockerfile`: `FROM ghcr.io/zfin/zfin-compile` (reuse the Java/
+  Gradle/Node toolchain — NOT its mounts) + `npm i -g @anthropic-ai/claude-code`.
+- **Service** `docker/docker-compose.claude.yml`: profile-gated `claude` service. Mounts
+  ONLY the worktree (`:rw`), `gradle_cache`/`maven_cache`/`npm_cache` (`:ro`), and
+  `$ZFIN_CLAUDE_HOME` (→ `~/.claude`). No docker.sock / SSH agent / www_data / host creds.
+  Reaches db/solr over the compose network. So it can edit + `gradle` compile + run the test
+  suite (**Tier 2**), but structurally cannot deploy or push.
+- **Restart Tomcat without the socket** (`restart-tomcat`, baked into the base image): sends
+  Tomcat's shutdown command to its shutdown port over the compose network; Catalina (PID 1)
+  exits and tomcat's `restart: unless-stopped` policy restarts the container — a full restart,
+  no Docker socket. Reachable only because dev stacks bind the shutdown port to `0.0.0.0`
+  (`all-properties.yml` → `dev_defaults: SHUTDOWNADDRESS`); prod/staging keep the loopback
+  default, so this is dev-only. The agent's entire stack power is "bounce this Tomcat."
+- **Wiring**: `z feature new --claude` adds the overlay + bakes `ZFIN_CLAUDE_HOME`. Then
+  `docker compose build claude` (once), `z up claude`, `z claude` → attaches
+  `claude --dangerously-skip-permissions` inside the sidecar.
+- **To validate before trusting**: build the image; confirm auth works from the mounted
+  `~/.claude`; confirm `gradle test` runs in-container against the feature db/solr; confirm
+  it genuinely cannot reach docker/ssh. Deploy + visual page checks stay with the human.
+- **Still open**: enforce egress allowlist? a `PreToolUse` hook blocking `git push` as
+  defense-in-depth? narrow the `~/.claude` mount to just credentials?
 
 ## Goal
 
@@ -55,10 +80,9 @@ in skip-permissions mode (hooks still run under `--dangerously-skip-permissions`
   provision a minimal `~/.claude` into the image (which config, which MCP
   servers, if any).
 - **Auth** — how Claude authenticates inside the container (API key vs other).
-- **Build access** — does the sidecar need the gradle/maven caches (read-only?)
-  to build/test in-container, or does it only edit files while a separate
-  `compile`/`tomcat` deploy path handles builds? Keeping caches out is safer;
-  mounting them read-only is a middle ground.
+- **Build access** — RESOLVED: mount `gradle_cache`/`maven_cache`/`npm_cache`
+  read-only (the middle ground). The sidecar builds/tests in-container reusing the
+  warm caches but can't pollute them; the deploy path still lives elsewhere.
 - **Network policy** — whether to actually enforce egress restrictions or just
   rely on the no-credentials posture.
 - **Lifecycle / attach** — how you interact with it (`docker attach` / a wrapper

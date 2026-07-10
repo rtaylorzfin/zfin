@@ -52,6 +52,10 @@
 //   --no-node       Skip the one-time `gradle npmInstall` (npm ci) that populates the
 //                   worktree's node_modules. By default it runs so the first `gradle
 //                   dirtydeploy` (npmBuild -> webpack) works; skip if you'll build yourself.
+//   --claude        Add the opt-in, locked-down Claude sidecar service to this stack
+//                   (docker-compose.claude.yml). Then `z up claude` + `z claude` to attach
+//                   the agent. Build the image once: `z pull` won't -- `docker compose build
+//                   claude`. See workbench/claude-sidecar.md.
 //
 // After provisioning, `source <worktree>/.zenv/activate` (venv-style) makes
 // zrun/zup/zdown/zexec -- and bare `docker compose` -- resolve to this feature;
@@ -83,6 +87,7 @@ class NewFeature {
         def doCaches = true
         def doSharedDb = false
         def doNode = true
+        def doClaude = false
         def name = ''
 
         def argv = args as List
@@ -100,6 +105,7 @@ class NewFeature {
                 case '--no-hosts': doHosts = false; break
                 case '--shared-db': doSharedDb = true; break
                 case '--no-node': doNode = false; break
+                case '--claude': doClaude = true; break
                 default:
                     if (argv[i].startsWith('-')) die("unknown arg: ${argv[i]}", 2)
                     name = argv[i]
@@ -297,6 +303,9 @@ DOCKER_TOMCATDEBUG_PORT=$ip:5000
 ZFIN_DB_IMAGE=${StackConfig.dbImage(tag)}
 ZFIN_SOLR_IMAGE=${StackConfig.solrImage(tag)}
 """
+// --claude: the sandboxed agent's own config/auth to mount into the sidecar (host ~/.claude
+// by default; point ZFIN_CLAUDE_HOME at a minimal dir if you prefer). See docker-compose.claude.yml.
+        if (doClaude) outEnv << "ZFIN_CLAUDE_HOME=${System.getenv('HOME')}/.claude\n"
 
 // 2b. venv-style activation. create-zenv writes .zenv/{activate,bin/z}: `source .zenv/activate`
 //     puts `z` on PATH + defines the zrun/zexec/zup/... shell functions and points them
@@ -306,8 +315,10 @@ ZFIN_SOLR_IMAGE=${StackConfig.solrImage(tag)}
 // --shared-db uses the consumer overlay (suppress local db/solr) INSTEAD of the preloaded
 // overlay -- no local db/solr, so no preloaded images to point at. The shared db/solr are
 // connected into this feature's network at up time (see connectSharedData), not via compose.
+// --claude appends the profile-gated sidecar overlay so the .zenv can `z up claude`/`z claude`.
         def dataOverlay = doSharedDb ? 'docker-compose.shared-db.yml' : 'docker-compose.preloaded.yml'
         def composeFiles = "${new File(DOCKER, 'docker-compose.yml').absolutePath}:${new File(DOCKER, dataOverlay).absolutePath}"
+        if (doClaude) composeFiles += ":${new File(DOCKER, 'docker-compose.claude.yml').absolutePath}"
         new CreateZenv().run(['--dir', wtPath, '--project', project, '--compose', composeFiles,
                               '--env-file', outEnv.absolutePath, '--tag', tag, '--host', host], zfinUtil)
 
@@ -473,6 +484,7 @@ ZFIN_SOLR_IMAGE=${StackConfig.solrImage(tag)}
   zrun -c "gradle dirtydeploy"
   # this branch's schema/solr deltas on top of preloaded (only if it changes them):
   zrun -c "gradle liquibasePostBuild\""""
+        def claudeNote = doClaude ? "\n  # sandboxed Claude sidecar (this stack): docker compose build claude && zup claude && z claude" : ""
 
         println """
 >> provisioned $name
@@ -487,7 +499,7 @@ next:
   cd $wtPath
   source .zenv/activate                # activate -> commands resolve to '$project' ('deactivate' to exit)
 $bringUp
-$deploySteps
+$deploySteps$claudeNote
 
 teardown:
   docker compose down -v               # while activated: discards this stack's DB/Solr/app copy

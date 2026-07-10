@@ -169,6 +169,7 @@ public enum ZfinPropertiesEnum {
     SEND_AUTHOR_NOTIF_EMAIL,
     SHARED_DOMAIN_NAME,
     SHOW_SQL,
+    SHUTDOWNADDRESS,
     SHUTDOWNPORT,
     SMTP_HOST,
     SMTP_PORT,

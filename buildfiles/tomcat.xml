@@ -95,6 +95,7 @@
                 <filter token="TARGETROOT" value="${TARGETROOT}"/>
                 <filter token="DBNAME" value="${DBNAME}"/>
                 <filter token="SERVER-SHUTDOWN-PORT" value="${SHUTDOWNPORT}"/>
+                <filter token="SERVER-SHUTDOWN-ADDRESS" value="${SHUTDOWNADDRESS}"/>
                 <filter token="Non-SECUREPORT" value="${NON_SECUREPORT}"/>
                 <filter token="SECUREPORT" value="${SECUREPORT}"/>
                 <filter token="DOMAIN-NAME" value="${DOMAIN_NAME}"/>
@@ -107,6 +108,7 @@
                 <filter token="TARGETROOT" value="${TARGETROOT}"/>
                 <filter token="DBNAME" value="${DBNAME}"/>
                 <filter token="SERVER-SHUTDOWN-PORT" value="${SHUTDOWNPORT}"/>
+                <filter token="SERVER-SHUTDOWN-ADDRESS" value="${SHUTDOWNADDRESS}"/>
                 <filter token="Non-SECUREPORT" value="${NON_SECUREPORT}"/>
                 <filter token="SECUREPORT" value="${SECUREPORT}"/>
                 <filter token="SQLHOSTSHOST" value="${SQLHOSTS_HOST}"/>

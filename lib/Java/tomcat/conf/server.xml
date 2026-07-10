@@ -1,6 +1,6 @@
 <?xml version="1.0" encoding="UTF-8"?>
 
-<Server port="@SERVER-SHUTDOWN-PORT@" shutdown="SHUTDOWN">
+<Server port="@SERVER-SHUTDOWN-PORT@" shutdown="SHUTDOWN" address="@SERVER-SHUTDOWN-ADDRESS@">
   <Listener className="org.apache.catalina.startup.VersionLoggerListener" />
   <Listener className="org.apache.catalina.core.AprLifecycleListener" SSLEngine="on" />
   <Listener className="org.apache.catalina.core.JreMemoryLeakPreventionListener" />

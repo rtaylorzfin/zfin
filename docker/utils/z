@@ -45,6 +45,8 @@ Stack ops (require `source .zenv/activate`):
   z log  [svc...]       tail logs
   z restart [svc...]    restart service(s)
   z status              show the active stack: name, dir, url, containers
+  z claude              attach the sandboxed Claude sidecar (stack made with `z feature new
+                        --claude`; `z up claude` first). Runs claude --dangerously-skip-permissions.
 
 Feature ops:
   z feature new [<ticket>] [opts]   provision a feature stack (prompts if no ticket)
@@ -101,8 +103,8 @@ Flags for a subcommand:  z feature <sub> --help   (e.g. z feature new --help)'''
         }
         break
 
-    // stack lifecycle -> StackOps (op is args[0])
-    case ['run', 'exec', 'up', 'down', 'pull', 'log', 'restart', 'status']:
+    // stack lifecycle -> StackOps (op is args[0]); `claude` attaches the sandboxed agent
+    case ['run', 'exec', 'up', 'down', 'pull', 'log', 'restart', 'status', 'claude']:
         runCmd('StackOps', [cmd] + rest)
         break
 
