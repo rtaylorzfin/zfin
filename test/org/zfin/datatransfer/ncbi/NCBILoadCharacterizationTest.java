@@ -5,11 +5,14 @@ import org.apache.commons.csv.CSVRecord;
 import org.junit.Before;
 import org.junit.Test;
 import org.zfin.AbstractDangerousDatabaseTest;
+import org.zfin.datatransfer.ncbi.report.NcbiLoadStatistics;
 import org.zfin.datatransfer.util.CSVDiff;
 import org.zfin.framework.HibernateUtil;
 
 import java.io.File;
+import java.io.FileWriter;
 import java.io.IOException;
+import java.io.PrintWriter;
 import java.nio.file.Files;
 import java.nio.file.Path;
 import java.nio.file.StandardCopyOption;
@@ -17,7 +20,6 @@ import java.util.List;
 import java.util.Map;
 
 import static org.junit.Assert.assertEquals;
-import static org.junit.Assert.assertTrue;
 import static org.zfin.datatransfer.ncbi.port.PortHelper.envTrue;
 import static org.zfin.util.FileUtil.gunzipFile;
 
@@ -38,13 +40,13 @@ public class NCBILoadCharacterizationTest extends AbstractDangerousDatabaseTest 
     private NCBILoadIntegrationTestHelper helper;
 
     /**
-     * Test the characterization of the NCBI load using 2025-10-15 data
-     * Given the input files from 2025-10-15 and the database state as of 2025-10-15
+     * Test the characterization of the NCBI load using 2026-01-30 data
+     * Given the input files from 2026-01-30 and the database state as of 2026-01-29
      * When we run the NCBI load, we expect the changes to match those documented in
      * after_load.csv.gz
      *
      * Can be run like so:
-     * docker compose run --rm  compile bash -lc 'gradle -DB=/opt/zfin/unloads/db/2025.10.15.1/2025.10.15.1.bak loaddb; SKIP_DANGER_WARNING=1 gradle -PincludeNcbiCharacterizationTest test --info  --tests org.zfin.datatransfer.ncbi.NCBILoadCharacterizationTest.testPointInTimeCharacterization; exec bash'
+     * docker compose run --rm  compile bash -lc 'gradle -DB=/opt/zfin/unloads/db/2026.01.29.1/2026.01.29.1.bak loaddb; psql -v ON_ERROR_STOP=1 -f source/org/zfin/db/postGmakePostloaddb/1179/ZFIN-10082.sql; SKIP_DANGER_WARNING=1 gradle -PincludeNcbiCharacterizationTest test --info  --tests org.zfin.datatransfer.ncbi.NCBILoadCharacterizationTest.testPointInTimeCharacterization; exec bash'
      *
      * (The SKIP_DANGER_WARNING environment variable is required to actually run the test as a precaution against running against a production database.
      * The `exec bash` at the end is just to keep the container open so you can explore the generated artifacts in /tmp/ncbi_...)
@@ -54,26 +56,79 @@ public class NCBILoadCharacterizationTest extends AbstractDangerousDatabaseTest 
     @Test
     public void testPointInTimeCharacterization() throws IOException {
 
-        // Sanity check to make sure we are running against the unload from 2025-10-15
-        assertDatabaseDate(2026,1,14);
+        // Sanity check to make sure we are running against the unload from 2026-01-29
+        assertDatabaseDate(2026,1,29);
 
         // Create database state before the load
         copyCharacterizationTestData();
 
         helper.runNCBILoad();
 
-        // Verify database state
-        CSVDiff diff = new CSVDiff("aftertest",
+        // Verify database state — compare each aspect independently to avoid
+        // gene-level changes (annotation status, assembly) being amplified across all db_link rows
+
+        // 1. Compare db_links (per db_link row)
+        assertCsvMatch("dblinks",
                 new String[]{"dblink_linked_recid", "dblink_acc_num", "dblink_fdbcont_zdb_id"},
                 new String[]{"dblink_info", "dblink_zdb_id"});
 
-        Map<String, List<CSVRecord>> results = diff.processToMap(tempDir.resolve("expected_changes.csv").toString(),
-                tempDir.resolve("after_load.csv").toString());
+        // 2. Compare marker_annotation_status (per gene)
+        assertCsvMatch("annotation",
+                new String[]{"mrkr_zdb_id"},
+                new String[]{});
 
-        assertTrue(results.get("added").isEmpty());
-        assertTrue(results.get("deleted").isEmpty());
-        assertTrue(results.get("updated1").isEmpty());
-        assertTrue(results.get("updated2").isEmpty());
+        // 3. Compare marker_assembly (per gene+assembly)
+        assertCsvMatch("assembly",
+                new String[]{"mrkr_zdb_id", "assembly_name"},
+                new String[]{});
+    }
+
+    private void assertCsvMatch(String suffix, String[] keyColumns, String[] ignoreColumns) throws IOException {
+        String expectedFile = tempDir.resolve("expected_" + suffix + ".csv").toString();
+        String actualFile = tempDir.resolve("after_load_" + suffix + ".csv").toString();
+
+        CSVDiff diff = new CSVDiff("aftertest_" + suffix, keyColumns, ignoreColumns);
+        Map<String, List<CSVRecord>> results = diff.processToMap(expectedFile, actualFile);
+
+        List<CSVRecord> added = results.get("added");
+        List<CSVRecord> deleted = results.get("deleted");
+        List<CSVRecord> updated1 = results.get("updated1");
+        List<CSVRecord> updated2 = results.get("updated2");
+
+        // Write diffs to files for analysis
+        writeDiffFile(tempDir.resolve("diff_" + suffix + "_added.csv").toString(), added, suffix + " added");
+        writeDiffFile(tempDir.resolve("diff_" + suffix + "_deleted.csv").toString(), deleted, suffix + " deleted");
+        writeDiffFile(tempDir.resolve("diff_" + suffix + "_updated1.csv").toString(), updated1, suffix + " updated1");
+        writeDiffFile(tempDir.resolve("diff_" + suffix + "_updated2.csv").toString(), updated2, suffix + " updated2");
+
+        if (!added.isEmpty()) {
+            System.out.println(suffix.toUpperCase() + " ADDED (" + added.size() + " records):");
+            added.stream().limit(10).forEach(r -> System.out.println("  " + r));
+        }
+        if (!deleted.isEmpty()) {
+            System.out.println(suffix.toUpperCase() + " DELETED (" + deleted.size() + " records):");
+            deleted.stream().limit(10).forEach(r -> System.out.println("  " + r));
+        }
+        if (!updated1.isEmpty()) {
+            System.out.println(suffix.toUpperCase() + " UPDATED (" + updated1.size() + " records):");
+            updated1.stream().limit(10).forEach(r -> System.out.println("  " + r));
+        }
+
+        assertEquals(suffix + " added records", 0, added.size());
+        assertEquals(suffix + " deleted records", 0, deleted.size());
+        assertEquals(suffix + " updated1 records", 0, updated1.size());
+        assertEquals(suffix + " updated2 records", 0, updated2.size());
+    }
+
+    private void writeDiffFile(String path, List<CSVRecord> records, String label) {
+        try (PrintWriter pw = new PrintWriter(new FileWriter(path))) {
+            for (CSVRecord r : records) {
+                pw.println(r);
+            }
+            System.out.println("Wrote " + records.size() + " " + label + " records to " + path);
+        } catch (IOException e) {
+            System.err.println("Failed to write " + label + " diff file: " + e.getMessage());
+        }
     }
 
     private void assertDatabaseDate(int year, int month, int day) {
@@ -86,17 +141,203 @@ public class NCBILoadCharacterizationTest extends AbstractDangerousDatabaseTest 
         assertEquals("Database unload date should be " + expectedDate, expectedDate, date);
     }
 
-    private void copyCharacterizationTestData() {
-        String sourceDir = "/research/zarchive/load_files/NCBI-gene-load-archive/2026-01-09";
+    /**
+     * Generate baseline CSV files for the characterization test.
+     * Run this once against a freshly loaded database to create the expected output files.
+     *
+     * docker compose run --rm compile bash -lc 'gradle -DB=/opt/zfin/unloads/db/2026.01.29.1/2026.01.29.1.bak loaddb; \
+     *   psql -v ON_ERROR_STOP=1 -f source/org/zfin/db/postGmakePostloaddb/1179/ZFIN-10082.sql; \
+     *   psql -v ON_ERROR_STOP=1 -f source/org/zfin/db/postGmakePostloaddb/1180/ZFIN-10173-gene2accession.sql; \
+     *   SKIP_DANGER_WARNING=1 gradle -PincludeNcbiCharacterizationTest test --info \
+     *   --tests org.zfin.datatransfer.ncbi.NCBILoadCharacterizationTest.generateBaseline; exec bash'
+     */
+    @Test
+    public void generateBaseline() throws IOException {
+        assertDatabaseDate(2026, 1, 29);
+
+        copyInputFiles();
+
+        helper.runNCBILoad();
+
+        // Gzip generated CSVs and save to source tree (which is mounted rw)
+        Path outputDir = Path.of("/opt/zfin/source_roots/zfin.org/build/ncbi-baselines");
+        Files.createDirectories(outputDir);
+        for (String suffix : List.of("dblinks", "annotation", "assembly")) {
+            Path source = tempDir.resolve("after_load_" + suffix + ".csv");
+            if (!Files.exists(source)) {
+                throw new RuntimeException("Expected output file not found: " + source);
+            }
+            long lines = Files.lines(source).count();
+            System.out.println("Generated " + source.getFileName() + " with " + lines + " lines (including header)");
+
+            // Gzip to output directory
+            Path gzTarget = outputDir.resolve("after_load_" + suffix + ".csv.gz");
+            try (var out = new java.util.zip.GZIPOutputStream(Files.newOutputStream(gzTarget));
+                 var in = Files.newInputStream(source)) {
+                in.transferTo(out);
+            }
+            System.out.println("Saved baseline to " + gzTarget);
+        }
+        System.out.println("\n*** Baseline files saved to: " + outputDir);
+        System.out.println("*** Copy to archive from host with:");
+        System.out.println("***   cp build/ncbi-baselines/after_load_*.csv.gz /research/zarchive/load_files/NCBI-gene-load-archive/2026-01-30/");
+    }
+
+    /**
+     * Generate baseline CSV files using the LEGACY NCBIDirectPort implementation.
+     * Produces the same 3-CSV format (dblinks, annotation, assembly) for comparison
+     * against the new code's output.
+     *
+     * docker compose run --rm compile bash -lc 'gradle -DB=/opt/zfin/unloads/db/2026.01.29.1/2026.01.29.1.bak loaddb; \
+     *   psql -v ON_ERROR_STOP=1 -f source/org/zfin/db/postGmakePostloaddb/1179/ZFIN-10082.sql; \
+     *   psql -v ON_ERROR_STOP=1 -f source/org/zfin/db/postGmakePostloaddb/1180/ZFIN-10173-gene2accession.sql; \
+     *   SKIP_DANGER_WARNING=1 gradle -PincludeNcbiCharacterizationTest test --info \
+     *   --tests org.zfin.datatransfer.ncbi.NCBILoadCharacterizationTest.generateLegacyBaseline; exec bash'
+     */
+    @Test
+    public void generateLegacyBaseline() throws IOException {
+        assertDatabaseDate(2026, 1, 29);
+
+        copyInputFiles();
+
+        helper.runNCBILoadLegacy();
+
+        // Capture the database state produced by the legacy load into the 3-CSV format
+        File csvBase = new File(tempDir.toFile(), "after_load.csv");
+        NcbiLoadStatistics.captureAllStateToCsv(HibernateUtil.currentSession(), csvBase);
+
+        // Save to build directory
+        Path outputDir = Path.of("/opt/zfin/source_roots/zfin.org/build/ncbi-legacy-baselines");
+        Files.createDirectories(outputDir);
+        for (String suffix : List.of("dblinks", "annotation", "assembly")) {
+            Path source = tempDir.resolve("after_load_" + suffix + ".csv");
+            if (!Files.exists(source)) {
+                throw new RuntimeException("Expected output file not found: " + source);
+            }
+            long lines = Files.lines(source).count();
+            System.out.println("Generated " + source.getFileName() + " with " + lines + " lines (including header)");
+
+            Path gzTarget = outputDir.resolve("legacy_" + suffix + ".csv.gz");
+            try (var out = new java.util.zip.GZIPOutputStream(Files.newOutputStream(gzTarget));
+                 var in = Files.newInputStream(source)) {
+                in.transferTo(out);
+            }
+            System.out.println("Saved legacy baseline to " + gzTarget);
+        }
+        System.out.println("\n*** Legacy baseline files saved to: " + outputDir);
+        System.out.println("*** Compare against new baselines with csvDiff gradle task");
+    }
+
+    /**
+     * Compare legacy (NCBIDirectPort) baselines against new (NCBILoadTask) baselines.
+     * No database needed — just decompresses and diffs the CSV files.
+     *
+     * Expects:
+     *   - New baselines at:    /mnt/research/zarchive/.../2026-01-30/after_load_{dblinks,annotation,assembly}.csv.gz
+     *   - Legacy baselines at: /opt/zfin/source_roots/zfin.org/build/ncbi-legacy-baselines/legacy_{dblinks,annotation,assembly}.csv.gz
+     *
+     * Run with:
+     *   docker compose run --rm compile bash -lc \
+     *     'SKIP_DANGER_WARNING=1 gradle -PincludeNcbiCharacterizationTest test --info \
+     *      --tests org.zfin.datatransfer.ncbi.NCBILoadCharacterizationTest.compareLegacyVsNew'
+     */
+    @Test
+    public void compareLegacyVsNew() throws IOException {
+        String archiveDir = "/mnt/research/zarchive/load_files/NCBI-gene-load-archive/2026-01-30";
+        String legacyDir = "/opt/zfin/source_roots/zfin.org/build/ncbi-legacy-baselines";
+
+        String[][] configs = {
+                {"dblinks", "dblink_linked_recid,dblink_acc_num,dblink_fdbcont_zdb_id", "dblink_info,dblink_zdb_id"},
+                {"annotation", "mrkr_zdb_id", ""},
+                {"assembly", "mrkr_zdb_id,assembly_name", ""},
+        };
+
+        for (String[] config : configs) {
+            String suffix = config[0];
+            String[] keyColumns = config[1].split(",");
+            String[] ignoreColumns = config[2].isEmpty() ? new String[0] : config[2].split(",");
+
+            // Decompress legacy baseline
+            Path legacyGz = Path.of(legacyDir, "legacy_" + suffix + ".csv.gz");
+            Path legacyCsv = tempDir.resolve("legacy_" + suffix + ".csv");
+            if (!Files.exists(legacyGz)) {
+                throw new RuntimeException("Legacy baseline not found: " + legacyGz
+                        + "\nRun generateLegacyBaseline first.");
+            }
+            Files.copy(legacyGz, tempDir.resolve(legacyGz.getFileName()), java.nio.file.StandardCopyOption.REPLACE_EXISTING);
+            gunzipFile(tempDir.resolve(legacyGz.getFileName()).toAbsolutePath().toString());
+
+            // Decompress new baseline
+            Path newGz = Path.of(archiveDir, "after_load_" + suffix + ".csv.gz");
+            Path newCsv = tempDir.resolve("new_" + suffix + ".csv");
+            if (!Files.exists(newGz)) {
+                throw new RuntimeException("New baseline not found: " + newGz
+                        + "\nRun generateBaseline first.");
+            }
+            Files.copy(newGz, tempDir.resolve("new_" + suffix + ".csv.gz"), java.nio.file.StandardCopyOption.REPLACE_EXISTING);
+            gunzipFile(tempDir.resolve("new_" + suffix + ".csv.gz").toAbsolutePath().toString());
+
+            // Run structured diff: file1=legacy, file2=new
+            CSVDiff diff = new CSVDiff("legacy_vs_new_" + suffix, keyColumns, ignoreColumns);
+            Map<String, List<CSVRecord>> results = diff.processToMap(legacyCsv.toString(), newCsv.toString());
+
+            List<CSVRecord> added = results.get("added");
+            List<CSVRecord> deleted = results.get("deleted");
+            List<CSVRecord> updated1 = results.get("updated1");
+            List<CSVRecord> updated2 = results.get("updated2");
+            List<CSVRecord> summary = results.get("summary");
+
+            System.out.println("\n========================================");
+            System.out.println("  " + suffix.toUpperCase() + ": Legacy vs New");
+            System.out.println("========================================");
+            if (summary != null && !summary.isEmpty()) {
+                System.out.println("Summary: " + summary.get(0));
+            }
+
+            // Write diff files for detailed analysis
+            writeDiffFile(tempDir.resolve("legacy_vs_new_" + suffix + "_added.csv").toString(), added, suffix + " added (in new, not in legacy)");
+            writeDiffFile(tempDir.resolve("legacy_vs_new_" + suffix + "_deleted.csv").toString(), deleted, suffix + " deleted (in legacy, not in new)");
+            writeDiffFile(tempDir.resolve("legacy_vs_new_" + suffix + "_updated_legacy.csv").toString(), updated1, suffix + " updated (legacy version)");
+            writeDiffFile(tempDir.resolve("legacy_vs_new_" + suffix + "_updated_new.csv").toString(), updated2, suffix + " updated (new version)");
+
+            if (!added.isEmpty()) {
+                System.out.println("\nADDED in new code (" + added.size() + " records):");
+                added.stream().limit(10).forEach(r -> System.out.println("  " + r));
+                if (added.size() > 10) System.out.println("  ... and " + (added.size() - 10) + " more");
+            }
+            if (!deleted.isEmpty()) {
+                System.out.println("\nDELETED from new code (" + deleted.size() + " records):");
+                deleted.stream().limit(10).forEach(r -> System.out.println("  " + r));
+                if (deleted.size() > 10) System.out.println("  ... and " + (deleted.size() - 10) + " more");
+            }
+            if (!updated1.isEmpty()) {
+                System.out.println("\nUPDATED (" + updated1.size() + " records):");
+                for (int i = 0; i < Math.min(10, updated1.size()); i++) {
+                    System.out.println("  legacy: " + updated1.get(i));
+                    System.out.println("  new:    " + updated2.get(i));
+                }
+                if (updated1.size() > 10) System.out.println("  ... and " + (updated1.size() - 10) + " more");
+            }
+            if (added.isEmpty() && deleted.isEmpty() && updated1.isEmpty()) {
+                System.out.println("\nNo differences found!");
+            }
+        }
+
+        System.out.println("\n*** Diff files written to: " + tempDir);
+    }
+
+    /**
+     * Copy only the NCBI input files (no baselines) to the temp directory.
+     */
+    private void copyInputFiles() {
+        String sourceDir = "/mnt/research/zarchive/load_files/NCBI-gene-load-archive/2026-01-30";
         List<String> filesToCopy = List.of(
             "gene2accession.gz",
-            "gene2vega.gz",
             "notInCurrentReleaseGeneIDs.unl",
             "RefSeqCatalog.gz",
             "RELEASE_NUMBER",
             "seq.fasta",
-            "zf_gene_info.gz",
-            "after_load.csv.gz"
+            "zf_gene_info.gz"
         );
         for (String filename : filesToCopy) {
             File file = new File(sourceDir, filename);
@@ -105,12 +346,29 @@ public class NCBILoadCharacterizationTest extends AbstractDangerousDatabaseTest 
             }
             try {
                 Files.copy(file.toPath(), tempDir.resolve(filename), StandardCopyOption.REPLACE_EXISTING);
+            } catch (IOException e) {
+                throw new RuntimeException(e);
+            }
+        }
+    }
 
-                //special handling for after_load.csv.gz
-                if (filename.equals("after_load.csv.gz")) {
-                    Files.move(tempDir.resolve(filename), tempDir.resolve("expected_changes.csv.gz"), StandardCopyOption.REPLACE_EXISTING);
-                    gunzipFile(tempDir.resolve("expected_changes.csv.gz").toAbsolutePath().toString());
-                }
+    private void copyCharacterizationTestData() {
+        copyInputFiles();
+
+        // Copy baseline files (three separate CSVs)
+        String sourceDir = "/mnt/research/zarchive/load_files/NCBI-gene-load-archive/2026-01-30";
+        for (String suffix : List.of("dblinks", "annotation", "assembly")) {
+            String baselineFilename = "after_load_" + suffix + ".csv.gz";
+            File baselineFile = new File(sourceDir, baselineFilename);
+            if (!baselineFile.exists()) {
+                throw new RuntimeException("Baseline file does not exist: " + baselineFile.getAbsolutePath()
+                        + "\nRun the load once and save the output files as baselines. See doc/ncbi-characterization-test.md");
+            }
+            try {
+                Files.copy(baselineFile.toPath(), tempDir.resolve(baselineFilename), StandardCopyOption.REPLACE_EXISTING);
+                String expectedName = "expected_" + suffix + ".csv.gz";
+                Files.move(tempDir.resolve(baselineFilename), tempDir.resolve(expectedName), StandardCopyOption.REPLACE_EXISTING);
+                gunzipFile(tempDir.resolve(expectedName).toAbsolutePath().toString());
             } catch (IOException e) {
                 throw new RuntimeException(e);
             }

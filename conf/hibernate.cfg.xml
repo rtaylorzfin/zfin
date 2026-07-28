@@ -328,6 +328,8 @@
         <mapping class="org.zfin.mutant.FishExperiment"/>
         <mapping class="org.zfin.mutant.GeneGenotypeExperiment"/>
         <mapping class="org.zfin.datatransfer.ncbi.NcbiGeneInfo"/>
+        <mapping class="org.zfin.datatransfer.ncbi.entity.NcbiGene2Accession"/>
+        <mapping class="org.zfin.datatransfer.ncbi.entity.NcbiRefSeqCatalog"/>
 
         <!-- ZIRC line submission entities -->
         <mapping class="org.zfin.zirc.entity.LineSubmission"/>
