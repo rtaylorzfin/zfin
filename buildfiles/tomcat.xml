@@ -1,31 +1,6 @@
 <?xml version="1.0" encoding="UTF-8"?>
 <project name="tomcat" basedir=".">
-    <!-- todo: the location of the commons tree should probably come from the env -->
-    <property name="tomcat-script-mutant" value="/opt/zfin/bin/tomcat.sh"/>
-
-    <property name="tomcat-script-informix-zfishweb-start" value="sudo"/>
-    <property name="tomcat-script-informix-zfishweb-stop" value="sudo"/>
-
-
-    <target name="informix-zfishweb-tomcat-start" if="isinformix"
-            description="Starts tomcat if running as informix/zfishweb">
-        <exec executable="sudo" failifexecutionfails="true">
-            <arg value="/opt/zfin/bin/starttomcat.pl"/>
-            <arg value="${INSTANCE}"/>
-        </exec>
-        <echo message=":ZFISHWEB TOMCAT START SUCCESSFUL:"/>
-    </target>
-
-    <target name="informix-zfishweb-tomcat-stop" if="isinformix"
-            description="Stops tomcat if running as informix/zfishweb">
-        <exec executable="sudo" failifexecutionfails="true">
-            <arg value="/opt/zfin/bin/stoptomcat.pl"/>
-            <arg value="${INSTANCE}"/>
-        </exec>
-        <echo message=":ZFISHWEB TOMCAT STOP SUCCESSFUL:"/>
-    </target>
-
-    <target name="docker-tomcat-start" if="isdocker" description="Starts tomcat if docker">
+    <target name="docker-tomcat-start" description="Starts tomcat (docker compose)">
         <exec executable="/usr/bin/docker" failifexecutionfails="true">
             <arg value="compose"/>
 	    <arg value="-f"/>
@@ -36,7 +11,7 @@
         <echo message=":TOMCAT START SUCCESSFUL:"/>
     </target>
 
-    <target name="docker-tomcat-stop" if="isdocker" description="Stops tomcat if docker">
+    <target name="docker-tomcat-stop" description="Stops tomcat (docker compose)">
         <exec executable="/usr/bin/docker" failifexecutionfails="true">
             <arg value="compose"/>
 	        <arg value="-f"/>
@@ -47,41 +22,14 @@
         <echo message=":TOMCAT STOP SUCCESSFUL:"/>
     </target>
 
-    <target name="mutant-tomcat-start" if="ismutant" description="Starts tomcat if mutant">
-        <exec executable="${tomcat-script-mutant}" failifexecutionfails="true">
-            <arg value="start"/>
-        </exec>
-        <echo message=":TOMCAT START SUCCESSFUL:"/>
-    </target>
-
-    <target name="mutant-tomcat-stop" if="ismutant" description="Stops tomcat if mutant">
-        <exec executable="${tomcat-script-mutant}" failifexecutionfails="true">
-            <arg value="stop"/>
-        </exec>
-        <echo message=":TOMCAT STOP SUCCESSFUL:"/>
-    </target>
-
-    <target name="tomcat-stop" depends="mutant-tomcat-stop,informix-zfishweb-tomcat-stop,docker-tomcat-stop"
-            description="Stops tomcat by calling all tomcat stop targets"/>
-    <target name="tomcat-start" depends="mutant-tomcat-start,informix-zfishweb-tomcat-start,docker-tomcat-start"
-            description="Starts tomcat by calling all tomcat stop targets"/>
+    <target name="tomcat-stop" depends="docker-tomcat-stop"
+            description="Stops tomcat"/>
+    <target name="tomcat-start" depends="docker-tomcat-start"
+            description="Starts tomcat"/>
 
     <!-- Aliases for start and stop -->
     <target name="start-tomcat" depends="tomcat-start" description="Alias"></target>
     <target name="stop-tomcat" depends="tomcat-stop" description="Alias"></target>
-
-    <target name="tomcat-debug-start" description="Starts tomcat in debug mode">
-        <exec executable="${tomcat-script-mutant}">
-            <arg value="debug-start"/>
-        </exec>
-    </target>
-
-
-    <target name="tomcat-debug-stop" description="Stops tomcat in debug mode">
-        <exec executable="${tomcat-script-mutant}">
-            <arg value="debug-stop"/>
-        </exec>
-    </target>
 
     <target name="tail-tomcat" description="tail -f on catalina.log file">
         <echo message="tail -f ${CATALINA_BASE}/logs/catalina.out"/>
@@ -126,12 +74,9 @@
     </target>
 
     <target name="tomcat-restart" depends="tomcat-stop,tomcat-start"
-            description="Restarts tomcat for the appropriate machine"/>
-    <target name="tomcat-debug-restart" depends="tomcat-debug-stop,tomcat-debug-start"
-            description="Restarts tomcat in debug mode"/>
+            description="Restarts tomcat"/>
     <target name="restart" depends="tomcat-restart" description="Restarts tomcat for the appropriate environment"/>
     <target name="restart-tomcat" depends="tomcat-restart" description="Alias"/>
-    <target name="debug-restart" depends="tomcat-debug-restart" description="Restarts tomcat in debug mode"/>
 
     <!-- an alias to create-mutant-instance with a more explanatory name -->
     <target name="deploy-catalina-base" depends="create-mutant-instance" description="Creates a tomcat"/>
@@ -174,24 +119,6 @@
                 <filter token="PGHOST" value="${PGHOST}"/>
             </filterset>
         </copy>
-        <antcall target="set-catalina-base-perms"/>
-    </target>
-
-    <target name="set-catalina-base-perms" if="isinformix" description="Sets permissions for tomcat">
-        <echo message="chmod a+rX for ${CATALINA_BASE}"/>
-        <chmod perm="a+rX" type="both" verbose="true">
-            <fileset dir="${CATALINA_BASE}"/>
-        </chmod>
-
-        <echo message="chmod a+rwX for ${CATALINA_BASE}/work"/>
-        <chmod perm="a+rwX" type="both" verbose="true">
-            <fileset dir="${CATALINA_BASE}/work"/>
-        </chmod>
-        <echo message="***********************************************************************"/>
-        <echo message=" As yourself, please do: "/>
-        <echo message="    sudo chown -R zfishweb ${CATALINA_BASE}/logs "/>
-        <echo message="    sudo -u zfishweb touch ${CATALINA_BASE}/logs/catalina.out "/>
-        <echo message="************************************************************************"/>
     </target>
 
     <target name="create-tomcat-dirs" description="Creates tomcat directories">

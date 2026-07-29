@@ -1,0 +1,1164 @@
+{
+  "group": "Trunk",
+  "name": "Trunk",
+  "display_order_weight": -1.0,
+  "label_template": "${COUNT}",
+  "lock_behavior": "unlockWhenFinished",
+  "timer": {
+    "spec": "0 0 1 ? * *",
+    "only_on_changes": false
+  },
+  "environment_variables": [
+    {
+      "name": "DOCKER_SSH_AUTH_SOCK",
+      "value": "/tmp"
+    },
+    {
+      "name": "DOCKER_SSH_USER",
+      "value": "ryanm"
+    },
+    {
+      "name": "DOCKER_SSH_HOST",
+      "value": "crick.zfin.org"
+    },
+    {
+      "name": "DOCKER_DB_UNLOADS_PATH",
+      "value": "/research/zunloads/databases/zfindb"
+    },
+    {
+      "name": "DOCKER_SOLR_UNLOADS_PATH",
+      "value": "/research/zunloads/solr/zfindb"
+    },
+    {
+      "name": "DOCKER_BLASTSERVER_BLAST_DATABASE_PATH",
+      "value": "/research/zblastfiles/zmore/trunk"
+    },
+    {
+      "name": "DOCKER_ABBLAST_PATH",
+      "value": "/opt/ab-blast"
+    },
+    {
+      "name": "DOCKER_RESEARCH_PATH",
+      "value": "/net/ah-nas12-zfin.uoregon.edu/"
+    },
+    {
+      "name": "DOCKER_DOWNLOADS_PATH",
+      "value": "/research/zunloads/download-files/trunk"
+    },
+    {
+      "name": "DOCKER_LOADUP_PATH",
+      "value": "/research/zcentral/loadUp/"
+    },
+    {
+      "name": "DOCKER_HHATLAS_PATH",
+      "value": "/opt/zfin/hh_atlas/"
+    },
+    {
+      "name": "DOCKER_GFF3_PATH",
+      "value": "/research/zprod/gff3/"
+    },
+    {
+      "name": "DOCKER_VIRTUAL_HOST",
+      "value": "trunk.zfin.org"
+    },
+    {
+      "name": "DOCKER_INSTANCE",
+      "value": "trunk"
+    },
+    {
+      "name": "COMPOSE_PROJECT_NAME",
+      "value": "trunk"
+    },
+    {
+      "name": "TZ",
+      "value": "America/Los_Angeles"
+    },
+    {
+      "name": "ELK_VERSION",
+      "value": "8.2.3"
+    },
+    {
+      "name": "ELASTIC_PASSWORD",
+      "value": "{{SECRET:[secrets][elastic_password]}}"
+    },
+    {
+      "name": "KIBANA_SYSTEM_PASSWORD",
+      "value": "{{SECRET:[secrets][kibana_system_password]}}"
+    },
+    {
+      "name": "DOCKER_SOURCE_ROOTS_PATH",
+      "value": "/opt/zfin/docker/go_agent_data/pipelines/Trunk/"
+    },
+    {
+      "name": "OPENIDC_CRYPTOPASSPHRASE",
+      "value": "7738e6bf-1685-4370-8bc1-3cf87ce367e3"
+    },
+    {
+      "name": "OPENIDC_CLIENTID",
+      "value": "zfin.org"
+    },
+    {
+      "name": "OPENIDC_CLIENTSECRET",
+      "value": "5EvEvGRAnbcqNsUBi1KJITgXTHAt7zmN"
+    },
+    {
+      "name": "XPACK_ENCRYPTEDSAVEDOBJECTS_ENCRYPTIONKEY",
+      "value": "inawer9734nlsdf7lnwro8ysdf8yw3nlsndf"
+    },
+    {
+      "name": "DOCKER_HTTPD_HTTP_PORT",
+      "value": "8080-8089"
+    },
+    {
+      "name": "DOCKER_HTTPD_HTTPS_PORT",
+      "value": "8443-8452"
+    },
+    {
+      "name": "ZFIN_RELEASE",
+      "value": "main"
+    }
+  ],
+  "parameters": [],
+  "materials": [
+    {
+      "url": "https://github.com/ZFIN/zfin.git",
+      "branch": "main",
+      "shallow_clone": true,
+      "filter": {
+        "ignore": [],
+        "includes": []
+      },
+      "auto_update": true,
+      "type": "git"
+    }
+  ],
+  "stages": [
+    {
+      "name": "Configure",
+      "fetch_materials": true,
+      "never_cleanup_artifacts": false,
+      "clean_working_directory": false,
+      "approval": {
+        "type": "success",
+        "users": [],
+        "roles": [],
+        "allow_only_on_success": false
+      },
+      "environment_variables": [],
+      "jobs": [
+        {
+          "name": "Base_Configuration",
+          "environment_variables": [{
+            "name": "DOCKER_BUILDKIT",
+            "value": "0"
+          }],
+          "tabs": [],
+          "resources": [],
+          "artifacts": [
+            {
+              "source": "home/WEB-INF/zfin.properties",
+              "destination": "zfin.properties",
+              "type": "build"
+            }
+          ],
+          "timeout": 0.0,
+          "tasks": [
+            {
+              "command": "docker",
+              "working_directory": "docker/",
+              "timeout": -1.0,
+              "arguments": [
+                "compose",
+                "kill",
+                "compile"
+              ],
+              "run_if": "passed",
+              "type": "exec"
+            },
+            {
+              "command": "docker",
+              "working_directory": "docker/",
+              "timeout": -1.0,
+              "arguments": [
+                "compose",
+                "pull",
+		"base",
+		"compile",
+		"jenkins",
+		"fail2ban",
+		"db",
+		"httpd",
+		"tomcat",
+		"kibana",
+		"elasticsearch",
+		"filebeat"
+              ],
+              "run_if": "passed",
+              "type": "exec"
+            },
+            {
+              "command": "echo",
+              "working_directory": "docker/",
+              "timeout": -1.0,
+              "arguments": [
+		"removed solr from docker pull above"
+              ],
+              "run_if": "passed",
+              "type": "exec"
+            },
+            {
+              "command": "docker",
+              "working_directory": "docker/",
+              "timeout": -1.0,
+              "arguments": [
+                "compose",
+                "run",
+                "--rm",
+                "--name",
+                "trunk-compile-run-1",
+                "compile",
+                "bash",
+                "-lc",
+                "echo",
+	        "NO-OP - let the .profile logic initialize things in docker volume"
+              ],
+              "run_if": "passed",
+              "type": "exec"
+            },
+	    {
+              "command": "docker",
+              "working_directory": "docker/",
+              "timeout": -1.0,
+              "arguments": [
+                "compose",
+                "run",
+                "--rm",
+                "--detach",
+                "--name",
+                "trunk-compile-run-1",
+                "compile"
+              ],
+              "run_if": "passed",
+              "type": "exec"
+            },
+            {
+              "command": "docker",
+              "working_directory": "docker/",
+              "timeout": -1.0,
+              "arguments": [
+                "compose",
+                "down",
+		"jenkins",
+		"fail2ban",
+		"db",
+		"solr",
+		"httpd",
+		"tomcat",
+		"kibana",
+		"elasticsearch",
+		"filebeat"
+              ],
+              "run_if": "passed",
+              "type": "exec"
+            },
+            {
+              "command": "docker",
+              "working_directory": "docker/",
+              "timeout": -1.0,
+              "arguments": [
+                "compose",
+                "run",
+                "--rm",
+                "compile",
+                "bash",
+                "-l",
+                "-c",
+                "ant do"
+              ],
+              "run_if": "passed",
+              "type": "exec"
+            }
+          ]
+        }
+      ]
+    },
+    {
+      "name": "Load",
+      "fetch_materials": false,
+      "never_cleanup_artifacts": false,
+      "clean_working_directory": false,
+      "approval": {
+        "type": "success",
+        "users": [],
+        "roles": [],
+        "allow_only_on_success": false
+      },
+      "environment_variables": [],
+      "jobs": [
+        {
+          "name": "LoadDB",
+          "environment_variables": [],
+          "tabs": [],
+          "resources": [],
+          "artifacts": [],
+          "timeout": 0.0,
+          "tasks": [
+            {
+              "command": "docker",
+              "working_directory": "docker/",
+              "timeout": -1.0,
+              "arguments": [
+                "compose",
+                "up",
+                "--detach",
+                "db"
+              ],
+              "run_if": "passed",
+              "type": "exec"
+            },
+            {
+              "command": "docker",
+              "working_directory": "docker/",
+              "timeout": -1.0,
+              "arguments": [
+                "compose",
+                "run",
+                "--rm",
+                "compile",
+                "bash",
+                "-l",
+                "-c",
+                "gradle loaddb && gradle make && gradle liquibasePreBuild && gradle liquibasePostBuild"
+              ],
+              "run_if": "passed",
+              "type": "exec"
+            }
+          ]
+        },
+        {
+          "name": "LoadSolr",
+          "environment_variables": [],
+          "tabs": [],
+          "resources": [],
+          "artifacts": [],
+          "timeout": 0.0,
+          "tasks": [
+            {
+              "command": "docker",
+              "working_directory": "docker",
+              "timeout": -1.0,
+              "arguments": [
+                "compose",
+                "down",
+                "solr"
+              ],
+              "run_if": "passed",
+              "type": "exec"
+            },
+            {
+              "command": "docker",
+              "working_directory": "docker/",
+              "timeout": -1.0,
+              "arguments": [
+                "compose",
+                "up",
+                "--detach",
+                "solr"
+              ],
+              "run_if": "passed",
+              "type": "exec"
+            },
+            {
+              "command": "docker",
+              "working_directory": "docker/",
+              "timeout": -1.0,
+              "arguments": [
+                "compose",
+                "run",
+                "--rm",
+                "compile",
+                "bash",
+                "-l",
+                "-c",
+                "for i in $(seq 1 60); do curl -sf -o /dev/null \"http://solr:8983/solr/${CORE:-site_index}/admin/ping\" && break; echo \"waiting for solr core ($i/60)\"; sleep 5; done; gradle getLatestSolrIndex"
+              ],
+              "run_if": "passed",
+              "type": "exec"
+            }
+          ]
+        }
+      ]
+    },
+    {
+      "name": "Deploy-Jenkins",
+      "fetch_materials": false,
+      "never_cleanup_artifacts": false,
+      "clean_working_directory": false,
+      "approval": {
+        "type": "success",
+        "users": [],
+        "roles": [],
+        "allow_only_on_success": false
+      },
+      "environment_variables": [],
+      "jobs": [
+        {
+          "name": "Deploy",
+          "environment_variables": [],
+          "tabs": [],
+          "resources": [],
+          "artifacts": [],
+          "timeout": 0.0,
+          "tasks": [
+            {
+              "command": "docker",
+              "working_directory": "docker/",
+              "timeout": -1.0,
+              "arguments": [
+                "compose",
+                "down",
+                "jenkins"
+              ],
+              "run_if": "passed",
+              "type": "exec"
+            },
+	    {
+              "command": "docker",
+              "working_directory": "docker/",
+              "timeout": -1.0,
+              "arguments": [
+                "compose",
+                "run",
+                "--rm",
+                "compile",
+                "bash",
+                "-l",
+                "-c",
+                "ant deploy-jobs"
+              ],
+              "run_if": "passed",
+              "type": "exec"
+            },
+	    {
+              "command": "docker",
+              "working_directory": "docker/",
+              "timeout": -1.0,
+              "arguments": [
+                "compose",
+                "run",
+                "--rm",
+                "compile",
+                "bash",
+                "-l",
+                "-c",
+                "ant deploy-plugins"
+              ],
+              "run_if": "passed",
+              "type": "exec"
+            },
+            {
+              "command": "docker",
+              "working_directory": "docker/",
+              "timeout": -1.0,
+              "arguments": [
+                "compose",
+                "up",
+                "--detach",
+                "jenkins"
+              ],
+              "run_if": "any",
+              "type": "exec"
+            }
+          ]
+        }
+      ]
+    },
+    {
+      "name": "Deploy",
+      "fetch_materials": false,
+      "never_cleanup_artifacts": false,
+      "clean_working_directory": false,
+      "approval": {
+        "type": "success",
+        "users": [],
+        "roles": [],
+        "allow_only_on_success": false
+      },
+      "environment_variables": [],
+      "jobs": [
+        {
+          "name": "Deploy",
+          "environment_variables": [],
+          "tabs": [],
+          "resources": [],
+          "artifacts": [],
+          "timeout": 0.0,
+          "tasks": [
+            {
+              "command": "docker",
+              "working_directory": "docker/",
+              "timeout": -1.0,
+              "arguments": [
+                "compose",
+                "down",
+                "httpd"
+              ],
+              "run_if": "passed",
+              "type": "exec"
+            },
+            {
+              "command": "docker",
+              "working_directory": "docker/",
+              "timeout": -1.0,
+              "arguments": [
+                "compose",
+                "down",
+                "tomcat"
+              ],
+              "run_if": "passed",
+              "type": "exec"
+            },
+            {
+              "command": "docker",
+              "working_directory": "docker/",
+              "timeout": -1.0,
+              "arguments": [
+                "compose",
+                "run",
+                "--rm",
+                "compile",
+                "bash",
+                "-l",
+                "-c",
+                "gradle make"
+              ],
+              "run_if": "passed",
+              "type": "exec"
+            },
+            {
+              "command": "docker",
+              "working_directory": "docker/",
+              "timeout": -1.0,
+              "arguments": [
+                "compose",
+                "run",
+                "--rm",
+                "compile",
+                "bash",
+                "-l",
+                "-c",
+                "ant deploy-catalina-base"
+              ],
+              "run_if": "passed",
+              "type": "exec"
+            },
+            {
+              "command": "docker",
+              "working_directory": "docker/",
+              "timeout": -1.0,
+              "arguments": [
+                "compose",
+                "run",
+                "--rm",
+                "compile",
+                "bash",
+                "-l",
+                "-c",
+                "ant deploy-without-tests"
+              ],
+              "run_if": "passed",
+              "type": "exec"
+            },
+            {
+              "command": "docker",
+
+              "working_directory": "docker/",
+              "timeout": -1.0,
+              "arguments": [
+                "compose",
+                "up",
+                "--detach",
+                "httpd"
+              ],
+              "run_if": "any",
+              "type": "exec"
+            },
+            {
+              "command": "docker",
+              "working_directory": "docker/",
+              "timeout": -1.0,
+              "arguments": [
+                "compose",
+                "up",
+                "--detach",
+                "mailpit"
+              ],
+              "run_if": "any",
+              "type": "exec"
+            },
+            {
+              "command": "docker",
+              "working_directory": "docker/",
+              "timeout": -1.0,
+              "arguments": [
+                "compose",
+                "up",
+                "--detach",
+                "tomcat"
+              ],
+              "run_if": "any",
+              "type": "exec"
+            },
+            {
+              "command": "docker",
+              "working_directory": "docker/",
+              "timeout": -1.0,
+              "arguments": [
+                "compose",
+                "run",
+                "--rm",
+                "compile",
+                "bash",
+                "-l",
+                "-c",
+                "gradle test -PnonSmokeTests"
+              ],
+              "run_if": "any",
+              "type": "exec"
+            },
+            {
+              "command": "docker",
+              "working_directory": "docker/",
+              "timeout": -1.0,
+              "arguments": [
+                "compose",
+                "run",
+                "--rm",
+                "compile",
+                "bash",
+                "-l",
+                "-c",
+                "gradle test -PsmokeTests"
+              ],
+              "run_if": "any",
+              "type": "exec"
+            }
+          ]
+        }
+      ]
+    },
+    {
+      "name": "Docker",
+      "fetch_materials": false,
+      "never_cleanup_artifacts": false,
+      "clean_working_directory": false,
+      "approval": {
+        "type": "manual",
+        "users": [],
+        "roles": [],
+        "allow_only_on_success": false
+      },
+      "environment_variables": [],
+      "jobs": [
+        {
+          "name": "Stop_HTTPD",
+          "environment_variables": [],
+          "tabs": [],
+          "resources": [],
+          "artifacts": [],
+          "timeout": 0.0,
+          "tasks": [
+            {
+              "command": "docker",
+              "working_directory": "docker/",
+              "timeout": -1.0,
+              "arguments": [
+                "compose",
+                "down",
+                "httpd"
+              ],
+              "run_if": "any",
+              "type": "exec"
+            }
+          ]
+        },
+        {
+          "name": "Start_HTTPD",
+          "environment_variables": [],
+          "tabs": [],
+          "resources": [],
+          "artifacts": [],
+          "timeout": 0.0,
+          "tasks": [
+            {
+              "command": "docker",
+              "working_directory": "docker/",
+              "timeout": -1.0,
+              "arguments": [
+                "compose",
+                "up",
+                "-d",
+                "httpd"
+              ],
+              "run_if": "any",
+              "type": "exec"
+            }
+          ]
+	},
+        {
+          "name": "Stop_Tomcat",
+          "environment_variables": [],
+          "tabs": [],
+          "resources": [],
+          "artifacts": [],
+          "timeout": 0.0,
+          "tasks": [
+            {
+              "command": "docker",
+              "working_directory": "docker/",
+              "timeout": -1.0,
+              "arguments": [
+                "compose",
+                "down",
+                "tomcat"
+              ],
+              "run_if": "any",
+              "type": "exec"
+            }
+          ]
+	},
+        {
+          "name": "Start_Tomcat",
+          "environment_variables": [],
+          "tabs": [],
+          "resources": [],
+          "artifacts": [],
+          "timeout": 0.0,
+          "tasks": [
+            {
+              "command": "docker",
+              "working_directory": "docker/",
+              "timeout": -1.0,
+              "arguments": [
+                "compose",
+                "up",
+                "-d",
+                "tomcat"
+              ],
+              "run_if": "any",
+              "type": "exec"
+            }
+          ]
+	},
+        {
+          "name": "Stop_Postgresql",
+          "environment_variables": [],
+          "tabs": [],
+          "resources": [],
+          "artifacts": [],
+          "timeout": 0.0,
+          "tasks": [
+            {
+              "command": "docker",
+              "working_directory": "docker/",
+              "timeout": -1.0,
+              "arguments": [
+                "compose",
+                "down",
+                "db"
+              ],
+              "run_if": "any",
+              "type": "exec"
+            }
+          ]
+	},
+        {
+          "name": "Start_Postgresql",
+          "environment_variables": [],
+          "tabs": [],
+          "resources": [],
+          "artifacts": [],
+          "timeout": 0.0,
+          "tasks": [
+            {
+              "command": "docker",
+              "working_directory": "docker/",
+              "timeout": -1.0,
+              "arguments": [
+                "compose",
+                "up",
+                "-d",
+                "db"
+              ],
+              "run_if": "any",
+              "type": "exec"
+            }
+          ]
+	},
+        {
+          "name": "Stop_Solr",
+          "environment_variables": [],
+          "tabs": [],
+          "resources": [],
+          "artifacts": [],
+          "timeout": 0.0,
+          "tasks": [
+            {
+              "command": "docker",
+              "working_directory": "docker/",
+              "timeout": -1.0,
+              "arguments": [
+                "compose",
+                "down",
+                "solr"
+              ],
+              "run_if": "any",
+              "type": "exec"
+            }
+          ]
+	},
+        {
+          "name": "Start_Solr",
+          "environment_variables": [],
+          "tabs": [],
+          "resources": [],
+          "artifacts": [],
+          "timeout": 0.0,
+          "tasks": [
+            {
+              "command": "docker",
+              "working_directory": "docker/",
+              "timeout": -1.0,
+              "arguments": [
+                "compose",
+                "up",
+                "-d",
+                "solr"
+              ],
+              "run_if": "any",
+              "type": "exec"
+            }
+          ]
+	},
+	{
+          "name": "Stop_Jenkins",
+          "environment_variables": [],
+          "tabs": [],
+          "resources": [],
+          "artifacts": [],
+          "timeout": 0.0,
+          "tasks": [
+            {
+              "command": "docker",
+              "working_directory": "docker/",
+              "timeout": -1.0,
+              "arguments": [
+                "compose",
+                "down",
+                "jenkins"
+              ],
+              "run_if": "any",
+              "type": "exec"
+            }
+          ]
+        },
+	{
+          "name": "Start_Jenkins",
+          "environment_variables": [],
+          "tabs": [],
+          "resources": [],
+          "artifacts": [],
+          "timeout": 0.0,
+          "tasks": [
+            {
+              "command": "docker",
+              "working_directory": "docker/",
+              "timeout": -1.0,
+              "arguments": [
+                "compose",
+                "up",
+                "-d",
+                "jenkins"
+              ],
+              "run_if": "any",
+              "type": "exec"
+            }
+          ]
+        },
+	{
+          "name": "Stop_Mailpit",
+          "environment_variables": [],
+          "tabs": [],
+          "resources": [],
+          "artifacts": [],
+          "timeout": 0.0,
+          "tasks": [
+            {
+              "command": "docker",
+              "working_directory": "docker/",
+              "timeout": -1.0,
+              "arguments": [
+                "compose",
+                "down",
+                "mailpit"
+              ],
+              "run_if": "any",
+              "type": "exec"
+            }
+          ]
+        },
+	{
+          "name": "Start_Mailpit",
+          "environment_variables": [],
+          "tabs": [],
+          "resources": [],
+          "artifacts": [],
+          "timeout": 0.0,
+          "tasks": [
+            {
+              "command": "docker",
+              "working_directory": "docker/",
+              "timeout": -1.0,
+              "arguments": [
+                "compose",
+                "up",
+                "-d",
+                "mailpit"
+              ],
+              "run_if": "any",
+              "type": "exec"
+            }
+          ]
+        },
+	{
+          "name": "Stop_Compile",
+          "environment_variables": [],
+          "tabs": [],
+          "resources": [],
+          "artifacts": [],
+          "timeout": 0.0,
+          "tasks": [
+            {
+              "command": "docker",
+              "working_directory": "docker/",
+              "timeout": -1.0,
+              "arguments": [
+                "compose",
+                "kill",
+                "compile"
+              ],
+              "run_if": "any",
+              "type": "exec"
+            }
+          ]
+        },
+	{
+          "name": "Start_Compile",
+          "environment_variables": [],
+          "tabs": [],
+          "resources": [],
+          "artifacts": [],
+          "timeout": 0.0,
+          "tasks": [
+            {
+              "command": "docker",
+              "working_directory": "docker/",
+              "timeout": -1.0,
+              "arguments": [
+                "compose",
+                "run",
+                "--rm",
+                "--detach",
+                "--name",
+                "trunk-compile-run-1",
+                "compile"
+              ],
+              "run_if": "any",
+              "type": "exec"
+            }
+          ]
+        },
+	{
+          "name": "Stop_Kibana",
+          "environment_variables": [],
+          "tabs": [],
+          "resources": [],
+          "artifacts": [],
+          "timeout": 0.0,
+          "tasks": [
+            {
+              "command": "docker",
+              "working_directory": "docker/",
+              "timeout": -1.0,
+              "arguments": [
+                "compose",
+                "down",
+                "kibana"
+              ],
+              "run_if": "any",
+              "type": "exec"
+            }
+          ]
+        },
+	{
+          "name": "Start_Kibana",
+          "environment_variables": [],
+          "tabs": [],
+          "resources": [],
+          "artifacts": [],
+          "timeout": 0.0,
+          "tasks": [
+            {
+              "command": "docker",
+              "working_directory": "docker/",
+              "timeout": -1.0,
+              "arguments": [
+                "compose",
+                "up",
+                "-d",
+                "kibana"
+              ],
+              "run_if": "any",
+              "type": "exec"
+            }
+          ]
+	},
+	{
+          "name": "Stop_Metricbeat",
+          "environment_variables": [],
+          "tabs": [],
+          "resources": [],
+          "artifacts": [],
+          "timeout": 0.0,
+          "tasks": [
+            {
+              "command": "docker",
+              "working_directory": "docker/",
+              "timeout": -1.0,
+              "arguments": [
+                "compose",
+                "down",
+                "metricbeat"
+              ],
+              "run_if": "any",
+              "type": "exec"
+            }
+          ]
+        },
+	{
+          "name": "Start_Metricbeat",
+          "environment_variables": [],
+          "tabs": [],
+          "resources": [],
+          "artifacts": [],
+          "timeout": 0.0,
+          "tasks": [
+            {
+              "command": "docker",
+              "working_directory": "docker/",
+              "timeout": -1.0,
+              "arguments": [
+                "compose",
+                "up",
+                "-d",
+                "metricbeat"
+              ],
+              "run_if": "any",
+              "type": "exec"
+            }
+          ]
+	},
+	{
+          "name": "Stop_Elasticsearch",
+          "environment_variables": [],
+          "tabs": [],
+          "resources": [],
+          "artifacts": [],
+          "timeout": 0.0,
+          "tasks": [
+            {
+              "command": "docker",
+              "working_directory": "docker/",
+              "timeout": -1.0,
+              "arguments": [
+                "compose",
+                "down",
+                "elasticsearch"
+              ],
+              "run_if": "any",
+              "type": "exec"
+            }
+          ]
+        },
+	{
+          "name": "Start_Elasticsearch",
+          "environment_variables": [],
+          "tabs": [],
+          "resources": [],
+          "artifacts": [],
+          "timeout": 0.0,
+          "tasks": [
+            {
+              "command": "docker",
+              "working_directory": "docker/",
+              "timeout": -1.0,
+              "arguments": [
+                "compose",
+                "up",
+                "-d",
+                "elasticsearch"
+              ],
+              "run_if": "any",
+              "type": "exec"
+            }
+          ]
+	},
+	{
+          "name": "Stop_Filebeat",
+          "environment_variables": [],
+          "tabs": [],
+          "resources": [],
+          "artifacts": [],
+          "timeout": 0.0,
+          "tasks": [
+            {
+              "command": "docker",
+              "working_directory": "docker/",
+              "timeout": -1.0,
+              "arguments": [
+                "compose",
+                "down",
+                "filebeat"
+              ],
+              "run_if": "any",
+              "type": "exec"
+            }
+          ]
+        },
+	{
+          "name": "Start_Filebeat",
+          "environment_variables": [],
+          "tabs": [],
+          "resources": [],
+          "artifacts": [],
+          "timeout": 0.0,
+          "tasks": [
+            {
+              "command": "docker",
+              "working_directory": "docker/",
+              "timeout": -1.0,
+              "arguments": [
+                "compose",
+                "up",
+                "-d",
+                "filebeat"
+              ],
+              "run_if": "any",
+              "type": "exec"
+            }
+          ]
+	}
+      ]
+    }
+  ]
+}
