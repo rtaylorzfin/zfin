@@ -78,7 +78,24 @@ services:
     # configuration that contributed to repeated container OOMs during heavy
     # DIH workloads on a 32g host. Dial back up if you have a clearly RAM-rich
     # host and a workload that benefits.
-    command: -c 'max_connections=7500' -c 'shared_buffers=4GB' -c 'huge_pages=try' -c 'temp_buffers=256MB' -c 'work_mem=256MB' -c 'maintenance_work_mem=1GB' -c 'max_wal_size=10GB' -c 'timezone=America/Los_Angeles' -c 'shared_preload_libraries="pg_stat_statements"'
+    #
+    # work_mem is 128MB, paired with the 2g shm_size below -- the two have to be chosen
+    # together. work_mem is charged PER sort/hash node PER parallel worker, and a
+    # Parallel Hash Join sizes its shared segment (in /dev/shm) from it, so at 256MB a
+    # wide "including substructures" phenotype query died with `could not resize shared
+    # memory segment ... No space left on device` -- a 500 on the term page, not a slow
+    # query. Measured on that query (peak /dev/shm, runtime):
+    #   work_mem  1 query          2 concurrent      notes
+    #    128MB      35MB,  8.3s      66MB,  6.7s     no shared-memory pressure
+    #    192MB    1027MB,  2.7s          --          needs >2g
+    #    256MB    1027MB,  2.2s    2049MB,   err     fastest, but needs ~4g
+    # 256MB picks a much faster parallel-hash plan, but its ~1027MB per query does not
+    # fit two concurrent queries in 2g, and these term pages get crawled. 128MB keeps
+    # 30x headroom for the cost of ~4s of SQL, which is minor next to the ~20s the
+    # endpoint spends scrolling rows to count them. Throttling
+    # max_parallel_workers_per_gather to 1 instead was measured slower (9.3s) than this.
+    # maintenance_work_mem stays at 1GB, so VACUUM / CREATE INDEX are unaffected.
+    command: -c 'max_connections=7500' -c 'shared_buffers=4GB' -c 'huge_pages=try' -c 'temp_buffers=256MB' -c 'work_mem=128MB' -c 'maintenance_work_mem=1GB' -c 'max_wal_size=10GB' -c 'timezone=America/Los_Angeles' -c 'shared_preload_libraries="pg_stat_statements"'
     environment:
       POSTGRES_USER: postgres
       POSTGRES_PASSWORD_FILE: /run/secrets/pg_pass
@@ -86,7 +103,15 @@ services:
       POSTGRES_DB: zfindb
       POSTGRES_HOST_AUTH_METHOD: trust
       TZ: ${TZ}
-    shm_size: 1g
+    # 2g, not 1g. Postgres puts parallel-query DSM segments here, and at the previous 1g
+    # a wide ontology term page 500'd outright with `could not resize shared memory
+    # segment "/PostgreSQL.NNN" to 268435456 bytes: No space left on device` -- it had
+    # essentially no headroom (that one query peaked at 772MB across 24 segments before
+    # failing). Sized in tandem with work_mem above: at 128MB two concurrent wide queries
+    # peak at 66MB, so 2g is ~30x headroom. Raising work_mem back to 256MB would need 4g,
+    # since two concurrent queries peak at 2049MB there. tmpfs, so only pages actually in
+    # use are resident -- an idle stack shows ~5MB, not 2g.
+    shm_size: 2g
     ports:
       - "${DOCKER_DB_PORT:-127.0.0.1:5432}:5432"
     volumes:
