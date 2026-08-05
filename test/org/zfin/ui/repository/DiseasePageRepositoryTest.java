@@ -107,42 +107,30 @@ public class DiseasePageRepositoryTest extends AbstractDatabaseTest {
         assertNotNull(repository.getPhenotypeChebi(ancestor, new Pagination(), null, true));
     }
 
-    /** A Pagination whose filter map holds every given HQL path, so each lands in the query. */
-    private Pagination filterOn(String... hqlPaths) {
-        Pagination pagination = new Pagination();
-        for (String path : hqlPaths) {
-            pagination.addToFilterMap(path, "zzz");
-        }
-        return pagination;
+<<<<<<< HEAD
+=======
+    /**
+     * The include-children branch must not bind one parameter per matching row: Postgres caps a
+     * PreparedStatement at 65,535 parameters, and the widest ontology terms match far more rows
+     * than that (86,664 for the widest phenotype term when this was written). Binding the ids
+     * individually made /action/api/ontology/<term>/phenotype a hard 500 in production for the 11
+     * terms over the limit, so exercise the WIDEST term in each table rather than a convenient one.
+     * <p>
+     * The all-terms case is the only one that can trip the limit -- the direct branch binds a
+     * single term -- so this test only covers includeChildren=true.
+     */
+    @Test
+    public void includeChildrenDoesNotBindOneParameterPerRow() {
+        assertNotNull(repository.getGenesInvolved(
+            widestTerm("ui.omim_phenotype_display", "opd_ancestor_term_ids"), new Pagination(), true));
+        assertNotNull(repository.getPhenotype(
+            widestTerm("ui.term_phenotype_display", "tpd_ancestor_term_ids"), new Pagination(), true, false));
+        assertNotNull(repository.getFishDiseaseModels(
+            widestTerm("ui.zebrafish_models_display", "zmd_ancestor_term_ids"), new Pagination(), true));
+        assertNotNull(repository.getFishDiseaseChebiModels(
+            widestTerm("ui.zebrafish_models_chebi_association", "omca_ancestor_term_ids"), true));
+        assertNotNull(repository.getPhenotypeChebi(
+            widestTerm("ui.chebi_phenotype_display", "cpd_ancestor_term_ids"), new Pagination(), null, true));
     }
 
-    /** The term that the fewest rows of this table point at directly. */
-    private GenericTerm directTerm(String table, String termColumn) {
-        return loadTerm(firstValue(
-                "select " + termColumn + " from " + table +
-                " where " + termColumn + " is not null" +
-                " group by " + termColumn + " order by count(*) limit 1"));
-    }
-
-    /** The term appearing in the fewest rows' ancestor arrays -- so `in :ids` stays small. */
-    private GenericTerm ancestorTerm(String table, String ancestorColumn) {
-        return loadTerm(firstValue(
-                "select t from " + table + ", unnest(" + ancestorColumn + ") t" +
-                " group by t order by count(*) limit 1"));
-    }
-
-    private GenericTerm loadTerm(String termZdbID) {
-        GenericTerm term = RepositoryFactory.getOntologyRepository().getTermByZdbID(termZdbID);
-        assertNotNull("no term row for " + termZdbID, term);
-        return term;
-    }
-
-    // The SQL carries its own `limit 1`; setMaxResults would append a second limit clause.
-    private String firstValue(String sql) {
-        List<String> rows = HibernateUtil.currentSession()
-                .createNativeQuery(sql, String.class)
-                .getResultList();
-        assumeFalse("no data for: " + sql, rows.isEmpty());
-        return rows.get(0);
-    }
 }
