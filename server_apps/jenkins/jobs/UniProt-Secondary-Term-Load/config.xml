@@ -10,6 +10,45 @@
     - ProSite
     - Pfam
     The primary load for the UniProt data must be run first.
+
+    Picks the newest uniprot_release row that has a processed_date but no secondary_load_date.
+    Aborts if more than 30,000 actions are generated (override: ACTION_SIZE_ERROR_THRESHOLD).
+
+    INPUTS (external, downloaded each run unless supplied locally):
+      https://current.geneontology.org/ontology/external2go/uniprotkb_kw2go   (UP2GO_FILE)
+      https://current.geneontology.org/ontology/external2go/interpro2go       (IP2GO_FILE)
+      https://current.geneontology.org/ontology/external2go/ec2go            (EC2GO_FILE)
+      https://ftp.ebi.ac.uk/pub/databases/interpro/current_release/entry.list (DOMAIN_FILE)
+                                       - InterPro domain names and types
+
+    INPUT (on disk): the already-downloaded UniProt release file under
+      /research/zarchive/load_files/UniProt-archive/ (UNIPROT_RELEASE_ARCHIVE_DIR).
+      No fresh UniProt download happens here.
+
+    OUTPUT (tables written) - only when UNIPROT_COMMIT_CHANGES is checked:
+      db_link                   add/remove INTERPRO, EC, PFAM, PROSITE accessions
+      record_attribution        attributions for the added dblinks
+      marker_go_term_evidence   add/remove GO annotations derived from the InterPro, EC, and
+                                UniProt keyword mappings
+      inference_group_member    inferred-from entries for those annotations
+      interpro_protein          insert/delete InterPro domain records (ID, name, type)
+      protein                   insert new proteins; update up_length
+      protein_to_interpro       insert/delete protein &lt;-&gt; InterPro domain pairs
+      protein_to_pdb            insert/delete protein &lt;-&gt; PDB structure pairs
+      marker_to_protein         insert/delete gene &lt;-&gt; protein pairs
+      reference_protein         delete rows tied to removed dblinks
+      uniprot_release           sets secondary_load_date
+
+    REFERENCE TABLES (snapshotted into the "context" before actions are computed, so only
+    diffs get applied; replayable via CONTEXT_INPUT_FILE):
+      db_link                   existing InterPro/EC/Pfam/PROSITE/UniProtKB accessions
+      marker_go_term_evidence   existing annotations from these mappings
+      interpro_protein, protein, protein_to_interpro, protein_to_pdb, marker_to_protein
+      term                      GO terms named by the *2go files
+      publication               the InterPro2GO / EC2GO / UniProtKB-KW2GO mapping pubs
+      uniprot_release           which release to load; completion marker
+
+    Full I/O documentation: reference/data-load-jobs.md#uniprot-secondary-term-load
   </description>
   <keepDependencies>false</keepDependencies>
 

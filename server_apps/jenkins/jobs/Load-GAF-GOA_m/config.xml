@@ -35,6 +35,25 @@ Input File Details:
 
       goa_zebrafish_rna.gaf.gz — Annotations for non-coding RNA sequences. These use RNAcentral IDs (URS*) rather than UniProt accessions.
 
+OUTPUT (tables written):
+  marker_go_term_evidence               - annotations added; annotations previously loaded
+                                          for the "GOA" organization but absent from the new
+                                          file are removed
+  inference_group_member                - inferred-from entries
+  marker_go_term_annotation_extension_group / _extension
+  load_file_log                         - one row per source file per successful run
+
+REFERENCE TABLES (used for matching/validation):
+  db_link               UniProt/RNAcentral accession -&gt; ZFIN gene (the main matching step;
+                        source of the "Gene not found" errors)
+  marker                gene lookup by ZDB ID; clone -&gt; gene traversal
+  term / term_subset / ontology_subset
+                        GO term lookup, obsolete check, "Do Not Annotate" subsets
+  publication           PMID / DOI / GO_REF -&gt; ZFIN publication
+  go_evidence_code      evidence code validation
+  zdb_replaced_data     remap merged/replaced ZDB IDs
+
+Full I/O documentation: reference/data-load-jobs.md#load-gaf-goa_m
   </description>
   <keepDependencies>false</keepDependencies>
   <properties/>

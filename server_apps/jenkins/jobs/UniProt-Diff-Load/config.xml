@@ -5,6 +5,41 @@
     This job loads the UniProt data into the database.
     It will only load the data if there is a new release (as captured by UniProt-Release-Check_d).
 
+    Reconciles ZFIN gene &lt;-&gt; UniProtKB accession links against a new UniProt release.
+    New links are matched through a RefSeq accession shared with an existing ZFIN db_link.
+
+    INPUT (on disk): the release file downloaded and zebrafish-filtered by
+    UniProt-Release-Check_d, under /research/zarchive/load_files/UniProt-archive/.
+    That job fetches (see zfin.properties):
+      UNIPROT_SPROT_FILE_URL   https://rest.uniprot.org/uniprotkb/stream?...organism_id:7955...reviewed:true
+      UNIPROT_TREMBL_FILE_URL  https://rest.uniprot.org/uniprotkb/stream?...organism_id:7955...reviewed:false
+      *_ALT1..3                ftp.expasy.org / ftp.uniprot.org uniprot_{sprot,trembl}_vertebrates.dat.gz
+      UNIPROT_URL_FOR_RELEASE_DATE   timestamp probe only
+
+    INPUT (external, at run time): https://eutils.ncbi.nlm.nih.gov/entrez/eutils/ - checks
+    whether UniProt accessions about to be lost correspond to obsoleted RefSeq records.
+    Cached to NCBI_FETCH_CACHE_OUTPUT_FILE, replayable from NCBI_FETCH_CACHE_INPUT_FILE.
+
+    OUTPUT (tables written) - only when UNIPROT_COMMIT_CHANGES is checked:
+      db_link             insert UniProtKB links for genes matched via a shared RefSeq
+                          accession; delete links whose accessions left UniProt
+      record_attribution  attributions for new and newly-supported links
+      uniprot_release     sets processed_date
+
+    REFERENCE TABLES (used for matching):
+      db_link             current UniProtKB and RefSeq accessions per gene (RefSeq is the
+                          matching key)
+      marker              gene lookup by ZDB ID
+      record_attribution  distinguishes curator-attributed from load-attributed links
+      publication         AUTOMATED_CURATION_OF_UNIPROT_DATABASE_LINKS - the attribution pub
+                          for every link this load adds
+      uniprot_release     selects the release file; blocks loading an older release over a
+                          newer one
+
+    See also: UniProt-Secondary-Term-Load (must run after this),
+    Uniprot-Monthly-Diff-Load_m, UniProt-Release-Check_d.
+
+    Full I/O documentation: reference/data-load-jobs.md#uniprot-diff-load
   </description>
   <keepDependencies>false</keepDependencies>
 
