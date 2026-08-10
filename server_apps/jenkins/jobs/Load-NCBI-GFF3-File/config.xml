@@ -1,7 +1,33 @@
 <?xml version='1.1' encoding='UTF-8'?>
 <project>
     <actions/>
-    <description>Load NCBI GFF3 load file for GRCz12tu</description>
+    <description>Load NCBI GFF3 load file for GRCz12tu.
+Runs `gradle loadGff3NcbiFile` (org.zfin.sequence.gff.NCBIGff3Processor, -Xmx16g).
+
+INPUT (external):
+  https://ftp.ncbi.nlm.nih.gov/genomes/refseq/vertebrate_other/Danio_rerio/all_assembly_versions/GCF_049306965.1_GRCz12tu/GCF_049306965.1_GRCz12tu_genomic.gff.gz
+  (hard-coded. If GCF_049306965.1_GRCz12tu_genomic.gff.test exists in the working directory,
+  the download is skipped and that file is parsed instead.)
+
+OUTPUT (tables written):
+  gff3_ncbi                                       one row per GFF3 feature (batched insert)
+  gff3_ncbi_attribute                             retained attribute keys only:
+                                                  gene_id, gene_name, gene, Parent, ID, Dbxref
+  sequence_feature_chromosome_location_generated  upsert gene genomic locations,
+                                                  source = NCBI_LOADER
+
+  Note: gff3_ncbi is inserted into without a preceding truncate, so the table is expected to
+  be empty (prior release removed) before a run.
+
+REFERENCE TABLES (used for matching):
+  db_link           NCBI Gene ID -&gt; ZFIN gene (selects the 1-to-1 ZFIN&lt;-&gt;NCBI records)
+  marker            gene records for the located features
+  assembly          GRCz12tu assembly row
+  vocabulary_term   NCBI_ANNOTATION_STATUS = 'Current'
+  sequence_feature_chromosome_location_generated
+                    existing NCBI_LOADER locations, to decide insert vs. update
+
+Full I/O documentation: reference/data-load-jobs.md#load-ncbi-gff3-file</description>
     <keepDependencies>false</keepDependencies>
     <properties>
         <jenkins.model.BuildDiscarderProperty>

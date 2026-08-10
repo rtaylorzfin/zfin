@@ -1,7 +1,32 @@
 <?xml version='1.0' encoding='UTF-8'?>
 <project>
   <actions/>
-  <description></description>
+  <description>Load the GO Consortium's phylogenetically-inferred (FP / "prediction") GAF for ZFIN genes.
+
+INPUT (external):
+  https://current.geneontology.org/products/upstream_and_raw_data/zfin-prediction.gaf
+  (hard-coded in the load-gaf-fpinference ant target)
+
+  Column 1 already carries ZFIN:ZDB-GENE-* IDs, so genes are matched directly by ZDB ID
+  rather than through db_link the way the GOA load does.
+
+OUTPUT (tables written):
+  marker_go_term_evidence               - annotations added; annotations previously loaded
+                                          for the "FP Inferences" organization but absent
+                                          from the new file are removed
+  inference_group_member                - inferred-from entries
+  marker_go_term_annotation_extension_group / _extension
+  load_file_log                         - one row per successful run
+
+REFERENCE TABLES (used for matching/validation):
+  marker                gene lookup by ZDB ID
+  zdb_replaced_data     remap merged/replaced ZDB IDs
+  term / term_subset / ontology_subset
+                        GO term lookup, obsolete check, "Do Not Annotate" subsets
+  publication           PMID / DOI / GO_REF -&gt; ZFIN publication
+  go_evidence_code      evidence code validation
+
+Full I/O documentation: reference/data-load-jobs.md#load-gaf-fp-inference_m</description>
   <keepDependencies>false</keepDependencies>
   <properties/>
   <scm class="hudson.scm.NullSCM"/>
