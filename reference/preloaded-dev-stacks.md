@@ -103,8 +103,19 @@ Preloaded image Dockerfiles: `docker/postgresql/preloaded.Dockerfile`,
 
 ## venv-style activation (`.zenv`)
 
-There is no `z` on `PATH` by default. A stack's `.zenv/` (generated, git-ignored) carries
-an `activate` script and a `bin/` with a single `z` symlink → `docker/utils/z`:
+Two ways in. **Without activating anything**, the tracked repo-root launcher works from any
+checkout or worktree — stack ops (`run`/`exec`/`up`/`down`/`pull`/`log`/`restart`/`status`) walk
+up from the cwd, find the nearest `.zenv` and target that stack for the one invocation:
+
+```bash
+./z run -c "gradle dirtydeploy"    # >> targeting 'zfin-10454' from …/.zenv (no .zenv activated)
+```
+
+Explicit activation still wins, and standing in a *different* stack's tree while one is active
+gets you a warning rather than a command that quietly hit the wrong stack.
+
+**Activating** puts `z` on `PATH` for the session. A stack's `.zenv/` (generated, git-ignored)
+carries an `activate` script and a `bin/` holding the front door `z`:
 
 ```bash
 source .zenv/activate     # z on PATH + short-name functions; this stack targeted; `deactivate` to exit
@@ -123,6 +134,35 @@ source .zenv/activate     # z on PATH + short-name functions; this stack targete
 
 The main checkout has a `.zenv` for the base `zfin_org` stack; feature worktrees get
 theirs from `z feature new` (which calls `create-zenv`).
+
+### Copy vs link — why a feature's `.zenv` is self-contained
+
+A feature's `.zenv` is a **bundle**: `create-zenv` *copies* the tooling (`z` + `lib/` →
+`.zenv/bin/`) and the compose file(s) (→ `.zenv/compose/`) into it, and records where they
+came from in `.zenv/zenv.properties`. Nothing in a running feature stack reads the checkout
+that generated it.
+
+That matters because that checkout is a moving target: the tooling and
+`docker-compose.preloaded.yml` only exist on the branch that adds them, so with a symlinked
+`z` and origin-side compose paths, switching the main checkout to `main` dangled every
+feature's `z` and deleted the overlay out from under `COMPOSE_FILE`.
+
+| | main checkout (`--link`, the default there) | feature worktree (`--copy`, the default) |
+|---|---|---|
+| `.zenv/bin` | symlink → `docker/utils/` | copies of `z` + `lib/` |
+| `COMPOSE_FILE` | `docker/docker-compose.yml` in place | copies under `.zenv/compose/` |
+| tooling edits | live, immediately | frozen until `z feature refresh` |
+
+Copied compose files get their relative `build:`/`context:` paths rewritten to absolute ones
+(compose resolves them against the compose file's own directory, which is now `.zenv/compose/`).
+Each context points at the *worktree's own* `docker/<ctx>/` when it has one, else the origin's
+— so no ~100 MB of build context is duplicated per feature.
+
+```bash
+z feature refresh ZFIN-123     # re-copy tooling + compose after the tooling changes
+z feature refresh --all        # every feature worktree (also migrates pre-bundle .zenvs)
+source .zenv/activate          # re-source afterwards to pick it up
+```
 
 ---
 

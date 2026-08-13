@@ -56,6 +56,11 @@
 // After provisioning, `source <worktree>/.zenv/activate` (venv-style) makes
 // zrun/zup/zdown/zexec -- and bare `docker compose` -- resolve to this feature;
 // `deactivate` restores the shell. The printed next: block shows the full sequence.
+//
+// The .zenv is a self-contained BUNDLE (copies of the tooling + compose files, see
+// CreateZenv), so the feature doesn't break when this checkout switches branches -- the
+// tooling and the preloaded overlay live only on the branch that adds them. It's a snapshot:
+// `z feature refresh <ticket>` re-copies it after the tooling changes.
 
 // --- shared helpers + roots (via ZfinUtil, passed in by z) --------------------
 // Roots anchor to the PRIMARY checkout (z resolves them once), so running from inside a
@@ -306,10 +311,13 @@ ZFIN_SOLR_IMAGE=${StackConfig.solrImage(tag)}
 // --shared-db uses the consumer overlay (suppress local db/solr) INSTEAD of the preloaded
 // overlay -- no local db/solr, so no preloaded images to point at. The shared db/solr are
 // connected into this feature's network at up time (see connectSharedData), not via compose.
+// create-zenv COPIES the tooling + compose file(s) into <wt>/.zenv/ (a self-contained bundle),
+// so this feature survives the primary checkout switching branches or moving; it returns the
+// bundled compose files, which everything below drives compose through.
         def dataOverlay = doSharedDb ? 'docker-compose.shared-db.yml' : 'docker-compose.preloaded.yml'
         def composeFiles = "${new File(DOCKER, 'docker-compose.yml').absolutePath}:${new File(DOCKER, dataOverlay).absolutePath}"
-        new CreateZenv().run(['--dir', wtPath, '--project', project, '--compose', composeFiles,
-                              '--env-file', outEnv.absolutePath, '--tag', tag, '--host', host], zfinUtil)
+        def zenv = new CreateZenv().run(['--dir', wtPath, '--project', project, '--compose', composeFiles,
+                                         '--env-file', outEnv.absolutePath, '--tag', tag, '--host', host], zfinUtil)
 
 // 3. name resolution. On Linux all of 127.0.0.0/8 is already loopback, so no
 //    interface alias is needed -- only a name -> IP mapping. (On macOS you also
@@ -335,15 +343,15 @@ ZFIN_SOLR_IMAGE=${StackConfig.solrImage(tag)}
             }
         }
 
-// 4. Compose command. Use THIS repo's compose files (found regardless of the worktree's
-//    branch) with the worktree's .env + source. MUST use the SAME dataOverlay as the .zenv
-//    (shared-db vs preloaded) -- otherwise `--up` here brings the app tier up under the wrong
-//    overlay (e.g. a --shared-db feature would seed its own db/solr instead of sharing).
+// 4. Compose command: the .zenv's OWN compose files (the bundled copies) with the worktree's
+//    .env + source -- i.e. byte-for-byte what `source .zenv/activate` then `zup` will use.
+//    Taking them from the .zenv is what keeps the two in step: they can't drift into
+//    different overlays (a --shared-db feature seeding its own db/solr, say) or different
+//    compose content after a later `z feature refresh`.
         def compose = ['docker', 'compose',
                        '--project-name', project,
-                       '--env-file', outEnv.absolutePath,
-                       '-f', new File(DOCKER, 'docker-compose.yml').absolutePath,
-                       '-f', new File(DOCKER, dataOverlay).absolutePath]
+                       '--env-file', outEnv.absolutePath] +
+                      zenv.composeFiles.collectMany { ['-f', it.absolutePath] }
 
 // Warm volumes: populate the SHARED deploy volumes (and, with --caches, the build
 // caches) from the tarballs BEFORE any container mounts them. Docker only seeds an

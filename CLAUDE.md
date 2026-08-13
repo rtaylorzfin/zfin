@@ -16,8 +16,9 @@
 
 Almost nothing runs on the host — Java, Gradle, Ant, npm, and DB access all happen
 inside Docker containers. **`z`** ([docker/utils/z](docker/utils/z)) is the single front
-door that wraps the verbose `docker compose` invocations. After activating a stack (below)
-you invoke it as `z <cmd> …`, or via the short-name shell functions (`zrun` == `z run`):
+door that wraps the verbose `docker compose` invocations. Three ways to reach it, same tool:
+**`./z <cmd> …`** from a checkout root (the tracked launcher — nothing to source), **`z <cmd> …`**
+after activating a stack, or the short-name shell functions activation defines (`zrun` == `z run`):
 
 | Command | What it does |
 |---------|--------------|
@@ -26,6 +27,8 @@ you invoke it as `z <cmd> …`, or via the short-name shell functions (`zrun` ==
 | `z up`/`down`/`pull`/`log`/`restart [service…]` (`zup`/…) | start / stop / pull / tail-logs / restart services (default: all) |
 | `z status` (`zstatus`) | active stack: name, dir, url, containers |
 | `z feature new [<ticket>]` (`zfeature new`) | provision a feature stack (prompts if no ticket) |
+| `z feature ls` / `z feature rm <ticket>` | list feature stacks (incl. `.zenv` health) / tear one down |
+| `z feature refresh <ticket>\|--all` | re-copy tooling + compose into a feature's `.zenv` bundle |
 | `z feature build-preloaded` | bake preloaded db/solr images from a loaded stack |
 | `z build <phase>` (`zbuild`) | hands-free build/deploy — `configure\|load-db\|load-solr\|deploy-jenkins\|deploy\|all` (the CI engine) |
 | `z create-zenv` / `z fresh-install` | bootstrap: make a `.zenv` / guided day-zero setup |
@@ -35,12 +38,14 @@ Key points:
 - `z run` uses a **login shell** (`bash -l`), which sources `.profile` and sets up `SOURCEROOT`/`TARGETROOT`/`NODE_ENV`. A non-login shell (raw `bash -c`) skips this and builds fail with errors like `NODE_ENV environment variable is undefined` — so prefer `zrun` over hand-rolled `docker compose`/`docker exec`.
 - `zrun` with no args drops into an interactive login shell in `compile` at `SOURCEROOT`.
 - Pass `-u root` (and similar docker flags) for `run`/`exec`; it may come before or after the service name, e.g. `zrun -u root -c "…"` or `zexec -u root jenkins`.
-- Stack ops (run/exec/up/down/pull/log/restart) act on the **active `.zenv` stack**: activation exports `COMPOSE_PROJECT_NAME`/`COMPOSE_FILE`/`COMPOSE_ENV_FILES`, which `docker compose` reads natively. With no `.zenv` active they error and tell you to activate one. `build`/`create-zenv`/`fresh-install` don't require activation (CI/bootstrap).
+- Stack ops (run/exec/up/down/pull/log/restart/status) act on the **active `.zenv` stack**: activation exports `COMPOSE_PROJECT_NAME`/`COMPOSE_FILE`/`COMPOSE_ENV_FILES`, which `docker compose` reads natively. `build`/`create-zenv`/`fresh-install` don't require activation (CI/bootstrap).
+- **No activation needed for stack ops**: with no `.zenv` active they walk up from the cwd, find the nearest stack's `.zenv` and target it for that one invocation (announced on stderr) — so `./z run -c "gradle dirtydeploy"` works in any checkout or feature worktree. Activation always wins; if a `.zenv` is active while you stand in a *different* stack's tree, `z` says so rather than silently acting on the wrong one.
 
 ```bash
 zrun -c "gradle compileJava"      # compile Java
 zrun -c "gradle dirtydeploy"      # compile + hot-deploy to Tomcat
 zrun                              # interactive login shell in compile
+./z run -c "gradle dirtydeploy"   # same, without sourcing anything (nearest stack)
 ```
 
 ### Activating a stack (`.zenv`) — how `z` gets on `PATH`
@@ -54,11 +59,19 @@ venv-style, once per session:
 source .zenv/activate     # z on PATH + short-name functions + this stack targeted; `deactivate` to exit
 ```
 
-A `.zenv/` is a generated, git-ignored directory (`activate` + a `bin/` with a single
-`z` symlink → `docker/utils/z`) created by **`z create-zenv …`**. The short names are
-shell **functions** defined by `activate` (`zrun() { z run "$@"; }`), not separate
-executables — a Groovy `z` can't tell which name invoked it. The main checkout has a
-`.zenv` for the base `zfin_org` stack; feature worktrees get theirs from `z feature new`.
+A `.zenv/` is a generated, git-ignored directory (`activate` + a `bin/` holding `z`) created
+by **`z create-zenv …`**. The short names are shell **functions** defined by `activate`
+(`zrun() { z run "$@"; }`), not separate executables — a Groovy `z` can't tell which name
+invoked it. The main checkout has a `.zenv` for the base `zfin_org` stack; feature worktrees
+get theirs from `z feature new`.
+
+A feature's `.zenv` is **self-contained**: create-zenv *copies* `z` + `lib/` into `.zenv/bin/`
+and the compose file(s) into `.zenv/compose/` (build contexts rewritten to absolute paths),
+recording their origin in `.zenv/zenv.properties`. So a feature stack keeps working when the
+main checkout switches branches — where the tooling and `docker-compose.preloaded.yml` may not
+exist at all. The main checkout's own `.zenv` *links* instead (`bin/` → `docker/utils/`), so
+tooling edits take effect immediately. A bundle is a snapshot: after changing the tooling, run
+**`z feature refresh <ticket>|--all`** to re-copy it into existing features.
 
 **Layout.** `docker/utils/z` is the front door; every command is a class in
 [docker/utils/lib/](docker/utils/lib): `NewFeature`, `BuildPreloaded`, `CreateZenv`,

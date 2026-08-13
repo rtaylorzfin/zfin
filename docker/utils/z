@@ -29,6 +29,26 @@ def argv = args as List
 def cmd  = argv ? argv[0] : 'help'
 def rest = argv.drop(1)
 
+// z drives the HOST docker daemon and reasons in HOST paths. Inside a container that premise
+// breaks -- and `z` is reachable in there: the compile service mounts the source tree AND
+// /var/run/docker.sock, and the image ships groovy. So `zrun` inside compile would spawn a
+// sibling compile, and a .zenv's baked absolute paths (/opt/zfin/source_roots/coral/...) name
+// something else, or nothing, on that side of the mount. Refuse early with a clear reason
+// instead of half-working. /.dockerenv is the reliable signal (docker always creates it;
+// cgroup v2 often reports a bare `0::/` in a container, so it's a weak secondary).
+// Escape hatch: a containerized CI agent driving `z build` is legitimate -- ZFIN_Z_IN_CONTAINER=1.
+if (new File('/.dockerenv').exists() && !System.getenv('ZFIN_Z_IN_CONTAINER')
+        && !(cmd in ['help', '-h', '--help'])) {
+    System.err.println("""\
+!! z runs on the HOST, not inside a container (found /.dockerenv).
+   Inside the compile container you already have the build tools -- run gradle/ant directly:
+     gradle dirtydeploy
+   Stack ops (z run/up/down/...) belong on the host, where the .zenv paths and the docker
+   daemon agree. If this really is a containerized CI agent with the socket mounted, opt in:
+     ZFIN_Z_IN_CONTAINER=1 z $cmd ...""")
+    System.exit(2)
+}
+
 // Load a command class and run it in this JVM. A command's die()/System.exit propagates as
 // z's exit; a normal return falls through to exit 0.
 def runCmd = { String cls, List a -> gcl.loadClass(cls).newInstance().run(a, zfinUtil) }
@@ -50,6 +70,7 @@ Feature ops:
   z feature new [<ticket>] [opts]   provision a feature stack (prompts if no ticket)
   z feature ls                      list feature stacks (project, branch, data, up/down, url)
   z feature rm <ticket> [--force]   tear down a feature (down -v + worktree/branch/hosts)
+  z feature refresh <ticket>|--all  re-copy tooling + compose into a feature's .zenv bundle
   z feature build-preloaded [opts]  bake preloaded db/solr images from a loaded stack
 
 CI / bootstrap (no activation needed):
@@ -81,7 +102,7 @@ switch (cmd) {
         def fsub = rest ? rest[0] : ''
         def fa = rest.drop(1)
         // `z feature help <sub>` (or `z feature <sub> -h`) -> that subcommand's own --help.
-        if (fsub in ['help', '-h', '--help'] && fa && fa[0] in ['new', 'build-preloaded', 'ls', 'rm']) {
+        if (fsub in ['help', '-h', '--help'] && fa && fa[0] in ['new', 'build-preloaded', 'ls', 'rm', 'refresh']) {
             fsub = fa[0]; fa = ['--help']
         }
         switch (fsub) {
@@ -89,20 +110,28 @@ switch (cmd) {
             case 'build-preloaded': runCmd('BuildPreloaded', fa); break
             case 'ls': case 'list': runCmd('FeatureList', fa); break
             case 'rm':              runCmd('FeatureRemove', fa); break
+            case 'refresh':         runCmd('FeatureRefresh', fa); break
             case ['', '-h', '--help', 'help']:
                 (fsub ? System.out : System.err).println('''z feature -- per-feature dev stacks
   new [<ticket>] [opts]    provision a feature stack (worktree + .env + .zenv + boot)
   ls                       list feature stacks (project, branch, data, up/down, url)
   rm <ticket> [--force]    tear a feature down (down -v + worktree/branch/hosts)
+  refresh <ticket>|--all   re-copy the tooling + compose files into a feature's .zenv
   build-preloaded [opts]   bake preloaded db/solr images from a loaded stack
 Flags for a subcommand:  z feature <sub> --help   (e.g. z feature new --help)''')
                 System.exit(fsub ? 0 : 2)
-            default: zfinUtil.die("z feature: unknown '$fsub' (new|build-preloaded|ls|rm)", 2)
+            default: zfinUtil.die("z feature: unknown '$fsub' (new|build-preloaded|ls|rm|refresh)", 2)
         }
         break
 
-    // stack lifecycle -> StackOps (op is args[0])
+    // stack lifecycle -> StackOps (op is args[0]). These are the commands that need a TARGET,
+    // so they're the ones that get auto-detection: with no .zenv activated, resolveStack walks
+    // up from cwd, finds the nearest stack and targets it for this invocation (`./z run -c
+    // "gradle dirtydeploy"` just works). Activation still wins. Deliberately NOT applied to the
+    // origin-side commands (feature/build/shared/fresh-install) -- they pass -p/-f/--env-file
+    // explicitly and shouldn't silently inherit whichever tree you happen to stand in.
     case ['run', 'exec', 'up', 'down', 'pull', 'log', 'restart', 'status']:
+        zfinUtil.resolveStack(new File('.').canonicalFile)
         runCmd('StackOps', [cmd] + rest)
         break
 

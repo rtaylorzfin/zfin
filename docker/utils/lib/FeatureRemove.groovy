@@ -41,14 +41,10 @@ class FeatureRemove {
         // 1. tear down the Docker stack. Use the feature's own compose file list + env (from its
         //    .zenv) so down -v resolves exactly this stack; check:false so a partial/missing
         //    stack doesn't abort the rest of the teardown.
-        def act = new File(wt, '.zenv/activate')
+        def spec = zfinUtil.zenvVars(new File(wt, '.zenv'))
         def compose = ['docker', 'compose', '-p', slug]
         if (env.isFile()) compose += ['--env-file', env.absolutePath]
-        if (act.isFile()) {
-            def cf = act.readLines().findAll { it.startsWith('_ZENV_COMPOSE_FILE=') }
-                        .collect { it.replaceFirst(/^_ZENV_COMPOSE_FILE=/, '').replaceAll("'", '') }[-1]
-            if (cf) compose += cf.split(':').collectMany { ['-f', it] }
-        }
+        if (spec?.compose) compose += spec.compose.tokenize(':').collectMany { ['-f', it] }
         info("down -v the '$slug' stack")
         runCommand(compose + ['down', '-v'], [check: false])
 

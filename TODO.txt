@@ -13,6 +13,14 @@ End-to-end validation
 - [x] preloaded images build on a real stack (done on the Mac: db/solr -preloaded:2026-07-01)
 
 Decisions / follow-ups
+- [ ] a `docker compose build` (or an `up` with a missing image tag) inside a feature builds from
+      the WORKTREE's docker/<ctx>/ — its own branch's Dockerfiles — but tags the result with the
+      shared name (ghcr.io/zfin/zfin-{compile,httpd,tomcat,...}:${ZFIN_RELEASE}), so it replaces
+      the image the base stack and every other feature runs. Pre-existing (the tag was always
+      shared), but bundling makes the context question explicit. Options: per-feature image tags,
+      or pull_policy so a missing image fails loudly instead of silently building. Note the TLS
+      cert case is NOT affected: generate_base.sh runs from the mounted source tree (via
+      more_bash_profile), not from the image, so it follows the worktree's branch either way.
 - [ ] JIRA TICKET: multi-arch STOCK images on ghcr.io.
       The stock images (ghcr.io/zfin/zfin-{base,compile,db,solr,httpd,tomcat,...}:${ZFIN_RELEASE})
       are single-arch today — nothing in CI (.github/workflows/{ant,eslint}.yml) builds/pushes them
@@ -293,6 +301,30 @@ Cleanup before PR
         ever has >1 container. Harmless today (one each); guard if that changes.
 
 Done this cycle
+- [x] front door reachable as `./z` (tracked repo-root launcher execing docker/utils/z). NOT ./bin/z:
+      bin/ is gitignored (.gitignore:35) and is Eclipse's output dir per the tracked .classpath
+      (bin/main, bin/test, bin/devtools, bin/default) — gradle uses build/. `.zenv/bin/z` stays the
+      activated path.
+- [x] stack ops work with NO activation: ZfinUtil.resolveStack walks up from cwd to the nearest
+      .zenv (bundle or pre-bundle), injects COMPOSE_PROJECT_NAME/COMPOSE_FILE/COMPOSE_ENV_FILES +
+      ZENV_* via childEnv, and announces the target on stderr. So `./z run -c "gradle dirtydeploy"`
+      needs no `source .zenv/activate >/dev/null &&` prefix. Activation still wins; standing in a
+      DIFFERENT stack's tree while one is active warns instead of quietly acting on the wrong stack.
+      StackOps now reads stack vars via stackVar() and spawns compose via runCommand() so activated
+      and auto-detected stacks behave identically. Deliberately not applied to feature/build/shared/
+      fresh-install (they pass -p/-f/--env-file explicitly).
+- [x] `z feature ls` gained a ZENV column: copy | copy(stale) | legacy | link, from a content
+      fingerprint (ZfinUtil.bundleHash over z + lib/ + the source compose files) recorded as
+      tooling.hash at create time -> tells you when `z feature refresh` has something to do.
+- [x] deleted the stale docker/utils/zpk/ snapshot copy of the tooling
+- [x] feature .zenv is now a self-contained BUNDLE instead of a symlink back to the generating
+      checkout: create-zenv copies z + lib/ into .zenv/bin/ and the compose files into
+      .zenv/compose/ (relative build contexts rewritten to absolute), records origin roots in
+      .zenv/zenv.properties, and ZfinUtil reads those instead of deriving them. Fixes the
+      occasional breakage where switching the main checkout to a branch without the tooling
+      dangled every feature's `z` and removed docker-compose.preloaded.yml from COMPOSE_FILE.
+      Main checkout keeps a live link (--link default there) so tooling edits are immediate.
+      New: `z feature refresh <ticket>|--all` re-copies (and migrates pre-bundle .zenvs).
 - [x] convert new-feature.sh + build-preloaded.sh -> .groovy (readability; host has groovy 4.0.29
       matching the container). CLI surface identical except --push dropped from build-preloaded.
 - [x] preloaded images made LOCAL-ONLY: bare names (zfin-db-preloaded / zfin-solr-preloaded, no

@@ -18,19 +18,113 @@
 class ZfinUtil {
     // Canonical roots, derived from the one path z hands us -- no .parentFile depth-counting
     // scattered across scripts; if the tree ever moves, only this constructor changes.
+    //
+    // Exception: a BUNDLED z (a copy under <stack>/.zenv/utils/, see CreateZenv) can't derive
+    // DOCKER/REPO from its own location -- its parent is .zenv/, not a checkout. create-zenv
+    // records where it came from in .zenv/zenv.properties, so the bundle READS the origin roots
+    // instead of deriving them. Day-to-day stack ops need neither; the origin-side commands
+    // (feature new/rm, build-preloaded) do, and they get the real checkout.
     final File UTILS, LIB, DOCKER, REPO
     ZfinUtil(File utils) {
-        UTILS  = utils.canonicalFile      // docker/utils
+        UTILS  = utils.canonicalFile      // docker/utils (or <stack>/.zenv/utils when bundled)
         LIB    = new File(UTILS, 'lib')   // docker/utils/lib
-        DOCKER = UTILS.parentFile         // docker
-        REPO   = DOCKER.parentFile        // checkout root
+        def props = new File(UTILS.parentFile, 'zenv.properties')
+        def p = new Properties()
+        if (props.isFile()) props.withInputStream { p.load(it) }
+        DOCKER = p.'origin.docker' ? new File(p.'origin.docker') : UTILS.parentFile   // docker
+        REPO   = p.'origin.repo'   ? new File(p.'origin.repo')   : DOCKER.parentFile  // checkout root
     }
 
     // Warm-volume contract + service roles + image names now live in StackConfig (policy).
     File auxDir(String tag) { new File(DOCKER, "preloaded-app/$tag") }
 
-    // Extra env injected into every spawned process (zbuild uses this to default COMPOSE_FILE).
+    // Extra env injected into every spawned process (zbuild uses this to default COMPOSE_FILE;
+    // resolveStack uses it to target an un-activated stack).
     Map<String, String> childEnv = [:]
+
+    /** Where a stack-targeting var comes from: an ADOPTED stack (childEnv, see resolveStack)
+     *  or an activated .zenv (the real environment). Read these instead of System.getenv so a
+     *  command behaves the same whether the stack was activated or auto-detected. */
+    String stackVar(String key) { childEnv[key] ?: System.getenv(key) }
+
+    /** Nothing activated -> target the nearest .zenv (walking up from cwd) for this ONE
+     *  invocation: its COMPOSE_* vars go into childEnv, so every `docker compose` we spawn acts
+     *  on that stack. That's what makes `./z run -c "..."` work straight out of a checkout with
+     *  no `source .zenv/activate >/dev/null &&` in front of it.
+     *
+     *  `source .zenv/activate` remains the explicit path and always WINS -- but if a .zenv is
+     *  active while you stand in a different stack's tree, say so: silently acting on the wrong
+     *  stack is the one failure worth shouting about (`zdown` in the wrong worktree). */
+    void resolveStack(File cwd) {
+        def zenv = null, spec = null
+        for (def d = cwd?.canonicalFile; d != null && !spec; d = d.parentFile) {
+            zenv = new File(d, '.zenv')
+            spec = zenvVars(zenv)
+        }
+        if (!spec) return
+
+        def active = System.getenv('ZENV_ACTIVE')
+        if (System.getenv('COMPOSE_FILE')) {
+            if (active && active != spec.project)
+                System.err.println("!! note: '$active' is activated but you're inside ${spec.project}'s tree" +
+                        " -- commands act on '$active'.  (source ${zenv.absolutePath}/activate to switch)")
+            return
+        }
+        childEnv['COMPOSE_PROJECT_NAME'] = spec.project
+        childEnv['COMPOSE_FILE'] = spec.compose
+        childEnv['COMPOSE_ENV_FILES'] = spec.envFile ?: ''
+        childEnv['ZENV_ACTIVE'] = spec.project
+        childEnv['ZENV_DIR'] = spec.dir ?: zenv.parentFile.absolutePath
+        childEnv['ZENV_HOST'] = spec.host ?: ''
+        if (spec.tag) childEnv['PRELOADED_TAG'] = spec.tag
+        System.err.println(">> targeting '${spec.project}' from $zenv (no .zenv activated)")
+    }
+
+    /** What a .zenv describes, from either format: zenv.properties (bundled -- create-zenv
+     *  writes it) or, for a .zenv generated before bundling existed, the _ZENV_* vars baked into
+     *  its activate script. One reader so auto-detection, `feature ls` and `feature refresh` all
+     *  understand both. Uniform keys: mode, project, host, tag, dir, envFile, compose (what to
+     *  run: the bundled copies), composeSource (what to copy FROM), hash, legacy. Null if the
+     *  directory holds no usable .zenv. */
+    Map zenvVars(File zenvDir) {
+        def props = new File(zenvDir, 'zenv.properties')
+        if (props.isFile()) {
+            def p = new Properties()
+            props.withInputStream { p.load(it) }
+            if (!p.project || !p.'compose.active') return null
+            return [mode: p.mode ?: 'copy', project: p.project, host: p.host, tag: p.tag, dir: p.dir,
+                    envFile: p.'env.file', compose: p.'compose.active', composeSource: p.'compose.source',
+                    hash: p.'tooling.hash', legacy: false]
+        }
+        def act = new File(zenvDir, 'activate')
+        if (!act.isFile()) return null
+        def v = [:]
+        act.readLines().each { line ->
+            def m = (line =~ /^_ZENV_([A-Z_]+)='(.*)'$/)
+            if (m.find()) v[m.group(1)] = m.group(2)
+        }
+        if (!v.PROJECT || !v.COMPOSE_FILE) return null
+        // Pre-bundle .zenv: its compose files ARE the origin's -- that's exactly what bundling
+        // replaced, so they double as the source to copy from on `z feature refresh`.
+        [mode: 'copy', project: v.PROJECT, host: v.HOST, tag: v.TAG, dir: v.DIR,
+         envFile: v.ENV_FILE, compose: v.COMPOSE_FILE, composeSource: v.COMPOSE_FILE,
+         hash: null, legacy: true]
+    }
+
+    /** Content fingerprint of what a .zenv bundle was copied FROM: the front door, lib/, and
+     *  the compose files. create-zenv records it; `z feature ls` recomputes it against the
+     *  origin to flag a bundle that has fallen behind (refresh with `z feature refresh`). */
+    String bundleHash(File utilsDir, List<File> composeSources) {
+        def md = java.security.MessageDigest.getInstance('MD5')
+        def files = [new File(utilsDir, 'z')] +
+                (((new File(utilsDir, 'lib').listFiles() ?: []) as List).sort { it.name }) +
+                (composeSources ?: [])
+        def any = false
+        files.each { f ->
+            if (f?.isFile()) { any = true; md.update(f.name.bytes); md.update(f.bytes) }
+        }
+        any ? md.digest().encodeHex().toString() : ''
+    }
 
     void die(String m, int code = 1) { System.err.println("!! $m"); System.exit(code) }
     void info(String m) { println(">> $m") }

@@ -103,7 +103,14 @@ COMPOSE_PROJECT_NAME   COMPOSE_FILE   COMPOSE_ENV_FILES
 …and puts **`z`** on `PATH` plus shell functions `zrun` `zexec` `zup` `zdown`
 `zpull` `zlog` `zrestart` `zstatus` `zfeature` `zbuild`.
 
-> No `.zenv` active → stack commands refuse and tell you to activate one.
+> No `.zenv` active → stack commands walk up from the cwd, find the nearest `.zenv` and
+> target it for that invocation (`./z run -c "…"`, announced on stderr). Activation wins;
+> being inside another stack's tree while one is active warns instead of guessing.
+
+A feature's `.zenv` is a **self-contained bundle** — copies of `z` + `lib/` (`bin/`) and of
+the compose files (`compose/`), not links back to the checkout that made it, so the stack
+survives that checkout switching branches. `z feature refresh` re-copies after tooling
+changes; the main checkout's own `.zenv` links instead, so edits are live.
 
 ---
 
@@ -280,7 +287,8 @@ file to change when ZFIN's conventions change (the "light seam").
 | `SharedStack.groovy` | `z shared up/down/status` | the shared `zfin_shared` data stack |
 | `FeatureList.groovy` | `z feature ls` | list feature worktrees + state |
 | `FeatureRemove.groovy` | `z feature rm` | tear a feature down (down -v, worktree, hosts) |
-| `CreateZenv.groovy` | `z create-zenv` | generate a `.zenv/` |
+| `FeatureRefresh.groovy` | `z feature refresh` | re-copy tooling + compose into a feature's `.zenv` |
+| `CreateZenv.groovy` | `z create-zenv` | generate a `.zenv/` (copy for features, link for the main checkout) |
 | `Zbuild.groovy` | `z build` | phased build/deploy orchestrator (CI) |
 | `FreshInstall.groovy` | `z fresh-install` | guided day-zero bootstrap |
 | `z-completion.bash` | — | bash tab-completion |
