@@ -24,7 +24,7 @@ them.
                                +  loopback IP  +  /etc/hosts entry
                                +  a Compose project that boots from those images
 
-  source .zenv/activate   ──▶  zrun/zup/zdown/… and bare `docker compose`
+  source .zenv/activate   ──▶  zrun/zup/zstop/… and bare `docker compose`
                                all target THIS feature; `deactivate` to exit
 ```
 
@@ -76,12 +76,13 @@ function like `zrun` after activation).
 |------|------|
 | `z` | The front door (Groovy). Self-locates, builds one `ZfinUtil`, and routes each command to its class — run in-process. |
 | `lib/ZfinUtil.groovy` | Shared class: process/logging helpers, canonical roots, and the preloaded-volume contract (`APP_VOLS`/`CACHE_VOLS`) — the single source both producer and consumer read. |
-| `lib/StackOps.groovy` | The stack lifecycle family: `run`/`exec`/`up`/`down`/`pull`/`log`/`restart`/`status`. |
+| `lib/StackOps.groovy` | The stack lifecycle family: `run`/`exec`/`up`/`stop`/`down`/`pull`/`log`/`restart`/`status`. |
 | `lib/SharedStack.groovy` | The shared data stack (`z shared up`/`down`/`status`) that `--shared-db` features attach to. |
 | `lib/CreateZenv.groovy` | Generate a `.zenv/` (venv-style activation). Bootstrap via `z create-zenv`. |
 | `lib/NewFeature.groovy` | Provision a feature: worktree + `.env` + `.zenv` + IP + hosts + boot (`z feature new`). |
 | `lib/FeatureList.groovy` | List feature stacks (`z feature ls`). |
 | `lib/FeatureRemove.groovy` | Tear a feature down: down -v + worktree/branch/hosts (`z feature rm`). |
+| `lib/FeatureRefresh.groovy` | Re-copy the tooling + compose files into an existing `.zenv` bundle (`z feature refresh`). |
 | `lib/BuildPreloaded.groovy` | Bake the preloaded images (+ `--app`/`--caches`); WAL trimmed on every build (`z feature build-preloaded`). |
 | `lib/Zbuild.groovy` | Non-interactive, phased build/deploy orchestrator — the CI engine (`z build`; what GoCD stages should call). |
 | `lib/FreshInstall.groovy` | Guided day-zero setup on a bare workstation (`z fresh-install`). |
@@ -90,7 +91,7 @@ function like `zrun` after activation).
 No command self-locates: `z` resolves its install dir once, then loads `ZfinUtil` + every
 command class through one `GroovyClassLoader` (so `ZfinUtil` is a single `Class`), and calls
 `cmd.run(args, zfinUtil)` in-process — the helpers + roots arrive as a typed parameter. Stack
-ops require an active `.zenv`; `z build`/`z create-zenv`/`z fresh-install` don't (CI/bootstrap).
+ops take a stack from an active `.zenv` or auto-detect one from the cwd; `z build`/`z create-zenv`/`z fresh-install` need neither (CI/bootstrap).
 
 Compose overlay: **`docker/docker-compose.preloaded.yml`** points `db`/`solr` at the
 preloaded images (`pull_policy: never`, `build: !reset null` so a missing image fails
@@ -104,7 +105,7 @@ Preloaded image Dockerfiles: `docker/postgresql/preloaded.Dockerfile`,
 ## venv-style activation (`.zenv`)
 
 Two ways in. **Without activating anything**, the tracked repo-root launcher works from any
-checkout or worktree — stack ops (`run`/`exec`/`up`/`down`/`pull`/`log`/`restart`/`status`) walk
+checkout or worktree — stack ops (`run`/`exec`/`up`/`stop`/`down`/`pull`/`log`/`restart`/`status`) walk
 up from the cwd, find the nearest `.zenv` and target that stack for the one invocation:
 
 ```bash

@@ -54,7 +54,7 @@
 //                   dirtydeploy` (npmBuild -> webpack) works; skip if you'll build yourself.
 //
 // After provisioning, `source <worktree>/.zenv/activate` (venv-style) makes
-// zrun/zup/zdown/zexec -- and bare `docker compose` -- resolve to this feature;
+// zrun/zup/zstop/zexec -- and bare `docker compose` -- resolve to this feature;
 // `deactivate` restores the shell. The printed next: block shows the full sequence.
 //
 // The .zenv is a self-contained BUNDLE (copies of the tooling + compose files, see
@@ -489,7 +489,7 @@ ZFIN_SOLR_IMAGE=${StackConfig.solrImage(tag)}
      project  : $project
      url      : https://$host   (-> $ip)
 $imagesLine
-     activate : source $wtPath/.zenv/activate   (then zrun/zup/zdown/zexec target '$project')
+     activate : source $wtPath/.zenv/activate   (then zrun/zup/zstop/zexec target '$project')
 
 next:
   cd $wtPath
@@ -498,7 +498,10 @@ $bringUp
 $deploySteps
 
 teardown:
-  docker compose down -v               # while activated: discards this stack's DB/Solr/app copy
+  z feature rm $slug                   # all of the below, automated (prompts first)
+  # ...or by hand:
+  zstop                                # just pause it: containers stopped, data kept (zup resumes)
+  zdown -v                             # remove containers + THIS stack's DB/Solr/app copy
   deactivate
   git worktree remove $wtPath
   sudo hostctl remove $slug            # drop this feature's hosts profile

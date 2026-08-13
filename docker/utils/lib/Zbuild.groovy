@@ -33,15 +33,19 @@ class Zbuild {
         def die = zfinUtil.&die; def info = zfinUtil.&info
         def DOCKER = zfinUtil.DOCKER
 
-        // Default COMPOSE_FILE for children when nothing set it (bare checkout / CI). An activated
-        // .zenv or GoCD env_vars normally provide the full COMPOSE_PROJECT_NAME/FILE/ENV_FILES.
-        // childEnv is injected into every process zfinUtil.runCommand spawns (compose + zc).
-        if (!System.getenv('COMPOSE_FILE')) zfinUtil.childEnv['COMPOSE_FILE'] = new File(DOCKER, 'docker-compose.yml').absolutePath
+        // Last-resort COMPOSE_FILE for children: an activated .zenv, GoCD env_vars, or z's
+        // cwd-based auto-detection normally provide the full COMPOSE_PROJECT_NAME/FILE/ENV_FILES,
+        // so this only fires for a bare checkout with no .zenv at all. childEnv is injected into
+        // every process zfinUtil.runCommand spawns (compose + zc).
+        if (!zfinUtil.stackVar('COMPOSE_FILE')) zfinUtil.childEnv['COMPOSE_FILE'] = new File(DOCKER, 'docker-compose.yml').absolutePath
 
+        // sh, not a bare runCommand(): inside these closures an unqualified call resolves against
+        // Zbuild (which has no such method), so every phase died with MissingMethodException on
+        // its first docker call.
         def sh = zfinUtil.&runCommand
-        def compose = { Object... a -> runCommand(['docker', 'compose'] + (a as List)) }
-        // lifecycle: up/down/stop/build/pull
-        def zc = { String script -> runCommand(['docker', 'compose', 'run', '--rm', StackConfig.BUILD_SERVICE, 'bash', '-l', '-c', script]) }
+        def compose = { Object... a -> sh(['docker', 'compose'] + (a as List)) }
+        // lifecycle: up/stop/down/build/pull
+        def zc = { String script -> sh(['docker', 'compose', 'run', '--rm', StackConfig.BUILD_SERVICE, 'bash', '-l', '-c', script]) }
         // run in the compile container (login shell)
 
         def buildImages = false
@@ -131,7 +135,7 @@ class Zbuild {
         def toRun = requested == ['all'] ? ORDER : requested
         toRun.each { if (!PHASES[it]) die("unknown phase '$it'. Phases: ${ORDER.join(', ')} (or 'all').", 2) }
 
-        def proj = System.getenv('COMPOSE_PROJECT_NAME') ?: '(compose default)'
+        def proj = zfinUtil.stackVar('COMPOSE_PROJECT_NAME') ?: '(compose default)'
         info("stack=${proj}  phases=${toRun.join(' -> ')}${buildImages ? '  [build]' : ''}${runTests ? '  [test]' : ''}")
         toRun.each { PHASES[it]() }
         info("done: ${toRun.join(', ')}")

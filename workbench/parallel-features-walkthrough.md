@@ -107,7 +107,7 @@ copy. `source .zenv/activate` in each worktree switches which one your commands 
 
 ```bash
 # in the zfh-123 worktree (activated):
-zdown            # stop: frees RAM, keeps state   (zup to resume)
+zstop            # stop: frees RAM, keeps state   (zup to resume)
 ```
 
 ## Step 5 — wind down a ticket

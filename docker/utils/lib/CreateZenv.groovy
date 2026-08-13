@@ -2,7 +2,7 @@
 //
 // Creates <dir>/.zenv/{activate,bin/,compose/,zenv.properties}. Then:
 //     source <dir>/.zenv/activate
-// puts `z` on PATH and defines the short-name shell functions (zrun/zexec/zup/zdown/zpull/
+// puts `z` on PATH and defines the short-name shell functions (zrun/zexec/zup/zstop/zdown/zpull/
 // zlog/zrestart/zstatus/zhelp/zfeature/zbuild -> `z run`/`z exec`/...), and points them --
 // plus bare `docker compose` -- at the given stack via COMPOSE_PROJECT_NAME / COMPOSE_FILE /
 // COMPOSE_ENV_FILES, so you never type -p/--env-file/-f. `deactivate` restores the shell.
@@ -198,6 +198,7 @@ PS1="($_ZENV_PROJECT) ${PS1:-}"
 zrun()     { z run "$@"; }
 zexec()    { z exec "$@"; }
 zup()      { z up "$@"; }
+zstop()    { z stop "$@"; }
 zdown()    { z down "$@"; }
 zpull()    { z pull "$@"; }
 zlog()     { z log "$@"; }
@@ -219,8 +220,8 @@ deactivate() {
   if [ -n "$_ZENV_OLD_CF" ];  then export COMPOSE_FILE="$_ZENV_OLD_CF";          else unset COMPOSE_FILE;         fi
   if [ -n "$_ZENV_OLD_CEF" ]; then export COMPOSE_ENV_FILES="$_ZENV_OLD_CEF";    else unset COMPOSE_ENV_FILES;    fi
   if [ -n "$_ZENV_OLD_TAG" ]; then export PRELOADED_TAG="$_ZENV_OLD_TAG";        else unset PRELOADED_TAG;        fi
-  unset -f zrun zexec zup zdown zpull zlog zrestart zstatus zhelp zfeature zbuild 2>/dev/null || true
-  complete -r z zrun zexec zup zdown zpull zlog zrestart zstatus zhelp zfeature zbuild 2>/dev/null || true
+  unset -f zrun zexec zup zstop zdown zpull zlog zrestart zstatus zhelp zfeature zbuild 2>/dev/null || true
+  complete -r z zrun zexec zup zstop zdown zpull zlog zrestart zstatus zhelp zfeature zbuild 2>/dev/null || true
   unset ZENV_ACTIVE ZENV_HOST ZENV_DIR
   unset _ZENV_PROJECT _ZENV_HOST _ZENV_DIR _ZENV_BIN _ZENV_LIB _ZENV_COMPOSE_FILE _ZENV_ENV_FILE _ZENV_TAG
   unset _ZENV_OLD_PS1 _ZENV_OLD_PATH _ZENV_OLD_CPN _ZENV_OLD_CF _ZENV_OLD_CEF _ZENV_OLD_TAG

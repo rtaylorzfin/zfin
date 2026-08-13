@@ -11,7 +11,7 @@ _z_complete() {
 
     if [[ "$base" == "z" ]]; then
         if (( COMP_CWORD == 1 )); then
-            COMPREPLY=( $(compgen -W "run exec up down pull log restart status build feature shared create-zenv fresh-install help" -- "$cur") )
+            COMPREPLY=( $(compgen -W "run exec up stop down pull log restart status build feature shared create-zenv fresh-install help" -- "$cur") )
             return
         fi
         sub="${COMP_WORDS[1]}"; argstart=2
@@ -22,7 +22,8 @@ _z_complete() {
     local services="base compile db solr httpd tomcat blast mailpit jenkins ncbiload fail2ban certbot elasticsearch filebeat metricbeat kibana"
     case "$sub" in
         run|exec)                  COMPREPLY=( $(compgen -W "$services -u" -- "$cur") ) ;;
-        up|down|pull|log|restart)  COMPREPLY=( $(compgen -W "$services" -- "$cur") ) ;;
+        up|stop|pull|log|restart)  COMPREPLY=( $(compgen -W "$services" -- "$cur") ) ;;
+        down)                      COMPREPLY=( $(compgen -W "$services -v" -- "$cur") ) ;;
         build)                     COMPREPLY=( $(compgen -W "configure load-db load-solr deploy-jenkins deploy all --build --test" -- "$cur") ) ;;
         shared)                    COMPREPLY=( $(compgen -W "up down status --tag --rm-data" -- "$cur") ) ;;
         feature)
@@ -38,4 +39,4 @@ _z_complete() {
             fi ;;
     esac
 }
-complete -F _z_complete z zrun zexec zup zdown zpull zlog zrestart zstatus zhelp zfeature zbuild
+complete -F _z_complete z zrun zexec zup zstop zdown zpull zlog zrestart zstatus zhelp zfeature zbuild

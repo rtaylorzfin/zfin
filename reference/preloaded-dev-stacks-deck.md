@@ -100,7 +100,7 @@ Activation exports the three variables Compose reads natively, so every
 COMPOSE_PROJECT_NAME   COMPOSE_FILE   COMPOSE_ENV_FILES
 ```
 
-…and puts **`z`** on `PATH` plus shell functions `zrun` `zexec` `zup` `zdown`
+…and puts **`z`** on `PATH` plus shell functions `zrun` `zexec` `zup` `zstop` `zdown`
 `zpull` `zlog` `zrestart` `zstatus` `zfeature` `zbuild`.
 
 > No `.zenv` active → stack commands walk up from the cwd, find the nearest `.zenv` and
@@ -120,7 +120,8 @@ changes; the main checkout's own `.zenv` links instead, so edits are live.
 |---------|------|
 | `z run` / `zrun` | one-off command in a fresh `compile` container (login shell) |
 | `z exec` / `zexec` | exec into the **running** container |
-| `z up/down/pull/log/restart` | stack lifecycle (active stack) |
+| `z up/stop/pull/log/restart` | stack lifecycle (active stack) |
+| `z down [-v]` | remove containers + network (`-v`: also this stack's data copy) |
 | `z status` / `zstatus` | active stack: name, url, containers (+ shared db/solr) |
 | `z feature new / ls / rm` | provision / list / tear down feature stacks |
 | `z feature build-preloaded` | bake the preloaded images + app/cache snapshots |
@@ -363,7 +364,7 @@ z feature ls                          # list them
 z feature rm  ZFIN-1234               # remove one
 
 # inside an activated stack
-zrun -c "gradle dirtydeploy"   zstatus   zlog tomcat   zup / zdown
+zrun -c "gradle dirtydeploy"   zstatus   zlog tomcat   zup / zstop
 
 # help
 z feature help new            # per-flag help for any subcommand

@@ -24,7 +24,8 @@ after activating a stack, or the short-name shell functions activation defines (
 |---------|--------------|
 | `z run [service] [args]` (`zrun`) | `docker compose run --rm <service> bash -l <args>` — one-off command in a fresh container (default: `compile`) |
 | `z exec [service] [args]` (`zexec`) | exec into the **running** container for that service (default: `compile`) |
-| `z up`/`down`/`pull`/`log`/`restart [service…]` (`zup`/…) | start / stop / pull / tail-logs / restart services (default: all) |
+| `z up`/`stop`/`pull`/`log`/`restart [service…]` (`zup`/…) | start / stop / pull / tail-logs / restart services (default: all) |
+| `z down [service…]` (`zdown`) | remove containers + network; `-v` also discards this stack's DB/Solr/app copy |
 | `z status` (`zstatus`) | active stack: name, dir, url, containers |
 | `z feature new [<ticket>]` (`zfeature new`) | provision a feature stack (prompts if no ticket) |
 | `z feature ls` / `z feature rm <ticket>` | list feature stacks (incl. `.zenv` health) / tear one down |
@@ -38,7 +39,7 @@ Key points:
 - `z run` uses a **login shell** (`bash -l`), which sources `.profile` and sets up `SOURCEROOT`/`TARGETROOT`/`NODE_ENV`. A non-login shell (raw `bash -c`) skips this and builds fail with errors like `NODE_ENV environment variable is undefined` — so prefer `zrun` over hand-rolled `docker compose`/`docker exec`.
 - `zrun` with no args drops into an interactive login shell in `compile` at `SOURCEROOT`.
 - Pass `-u root` (and similar docker flags) for `run`/`exec`; it may come before or after the service name, e.g. `zrun -u root -c "…"` or `zexec -u root jenkins`.
-- Stack ops (run/exec/up/down/pull/log/restart/status) act on the **active `.zenv` stack**: activation exports `COMPOSE_PROJECT_NAME`/`COMPOSE_FILE`/`COMPOSE_ENV_FILES`, which `docker compose` reads natively. `build`/`create-zenv`/`fresh-install` don't require activation (CI/bootstrap).
+- Stack ops (run/exec/up/stop/down/pull/log/restart/status) act on the **active `.zenv` stack**: activation exports `COMPOSE_PROJECT_NAME`/`COMPOSE_FILE`/`COMPOSE_ENV_FILES`, which `docker compose` reads natively. `build`/`create-zenv`/`fresh-install` don't require activation (CI/bootstrap).
 - **No activation needed for stack ops**: with no `.zenv` active they walk up from the cwd, find the nearest stack's `.zenv` and target it for that one invocation (announced on stderr) — so `./z run -c "gradle dirtydeploy"` works in any checkout or feature worktree. Activation always wins; if a `.zenv` is active while you stand in a *different* stack's tree, `z` says so rather than silently acting on the wrong one.
 
 ```bash
@@ -51,7 +52,7 @@ zrun                              # interactive login shell in compile
 ### Activating a stack (`.zenv`) — how `z` gets on `PATH`
 
 `z` is the only executable, and it's Groovy like everything in `docker/utils/lib/`. You get
-it on `PATH` — plus the short-name functions (`zrun`/`zexec`/`zup`/`zdown`/`zpull`/`zlog`/
+it on `PATH` — plus the short-name functions (`zrun`/`zexec`/`zup`/`zstop`/`zdown`/`zpull`/`zlog`/
 `zrestart`/`zstatus`/`zhelp`/`zfeature`/`zbuild`) — by activating a stack's **`.zenv`**,
 venv-style, once per session:
 

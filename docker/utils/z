@@ -60,7 +60,8 @@ Stack ops (require `source .zenv/activate`):
                         e.g. z run -c "gradle dirtydeploy"   (== zrun -c "...")
   z exec [svc] [args]   exec into the running container (default: compile)
   z up   [svc...]       start service(s)            (default: all)
-  z down [svc...]       stop service(s)
+  z stop [svc...]       stop service(s), keeping containers + data
+  z down [svc...]       remove containers + network (-v also discards this stack's data)
   z pull [svc...]       pull image(s)
   z log  [svc...]       tail logs
   z restart [svc...]    restart service(s)
@@ -92,7 +93,10 @@ switch (cmd) {
         break
 
     // CI / bootstrap + the shared data stack (each manages its own project; no .zenv needed)
-    case 'build':         runCmd('Zbuild', rest); break
+    // build also auto-detects: GoCD sets COMPOSE_* explicitly (so this is a no-op there), but
+    // `./z build deploy` inside a feature worktree must mean THAT feature -- not the base stack
+    // Zbuild would otherwise fall back to.
+    case 'build':         zfinUtil.resolveStack(new File('.').canonicalFile); runCmd('Zbuild', rest); break
     case 'create-zenv':   runCmd('CreateZenv', rest); break
     case 'fresh-install': runCmd('FreshInstall', rest); break
     case 'shared':        runCmd('SharedStack', rest); break
@@ -130,7 +134,7 @@ Flags for a subcommand:  z feature <sub> --help   (e.g. z feature new --help)'''
     // "gradle dirtydeploy"` just works). Activation still wins. Deliberately NOT applied to the
     // origin-side commands (feature/build/shared/fresh-install) -- they pass -p/-f/--env-file
     // explicitly and shouldn't silently inherit whichever tree you happen to stand in.
-    case ['run', 'exec', 'up', 'down', 'pull', 'log', 'restart', 'status']:
+    case ['run', 'exec', 'up', 'stop', 'down', 'pull', 'log', 'restart', 'status']:
         zfinUtil.resolveStack(new File('.').canonicalFile)
         runCmd('StackOps', [cmd] + rest)
         break

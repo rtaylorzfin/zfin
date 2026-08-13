@@ -1,5 +1,5 @@
 // StackOps -- the stack lifecycle commands that operate on the active .zenv stack:
-// run / exec / up / down / pull / log / restart / status. z routes the whole family here
+// run / exec / up / stop / down / pull / log / restart / status. z routes the whole family here
 // (args[0] is the op), so z itself stays pure routing. All but `status` need a stack -- either
 // activated (COMPOSE_FILE in the environment) or auto-detected from cwd by
 // ZfinUtil.resolveStack, which z calls for this family; status reports gracefully with neither.
@@ -62,7 +62,12 @@ class StackOps {
                     compose(['up', '-d'] + rest)
                 }
                 break
-            case 'down':    requireStack(); compose(['stop'] + rest); break
+            // stop vs down, matching compose's own meaning of the words: `stop` halts the
+            // containers and keeps everything (this is what `z down` used to do, misleadingly);
+            // `down` removes containers + network, and only discards this stack's ~26G db/solr
+            // copy if you pass -v yourself. `z feature rm` is the guided full teardown.
+            case 'stop':    requireStack(); compose(['stop'] + rest); break
+            case 'down':    requireStack(); compose(['down'] + rest); break
             case 'pull':    requireStack(); compose(['pull'] + rest); break
             case 'log':     requireStack(); compose(['logs', '-f'] + rest); break
             case 'restart': requireStack(); compose(['restart'] + rest); break
