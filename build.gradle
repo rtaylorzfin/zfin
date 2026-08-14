@@ -122,6 +122,32 @@ configurations.all { config ->
     }
 }
 
+// Drop, recreate, and restore $dbname from a single unload file. Shared by
+// loadDatabase and compareLoads so both go through exactly the same steps.
+def loadUnloadFile = { String unloadPath ->
+    println "Loading $unloadPath into $dbname"
+    project.exec {
+        ignoreExitValue = true
+        commandLine "bash", "-c", "echo 'select pg_terminate_backend(pg_stat_activity.pid) from pg_stat_activity where pid <> pg_backend_pid();' | psql -v ON_ERROR_STOP=1 $dbname"
+    }
+    project.exec {
+        ignoreExitValue = true
+        commandLine 'dropdb', dbname
+    }
+    project.exec {
+        ignoreExitValue = true
+        commandLine 'createdb', dbname
+    }
+    project.exec {
+        ignoreExitValue = true
+        commandLine "bash", "-c", "pg_restore -j 8 -d $dbname $unloadPath"
+    }
+    project.exec {
+        ignoreExitValue = true
+        commandLine "bash", "-c", "echo 'vacuum (analyze)' | psql -v ON_ERROR_STOP=1 $dbname"
+    }
+}
+
 task loadDatabase() {
     doLast {
         File unloads = file(dbunloadspath)
@@ -149,27 +175,51 @@ task loadDatabase() {
             unloadPath = System.getProperty("unload")
         }
 
-        println "Loading $unloadPath into $dbname"
-        exec {
-            ignoreExitValue = true
-            commandLine "bash", "-c", "echo 'select pg_terminate_backend(pg_stat_activity.pid) from pg_stat_activity where pid <> pg_backend_pid();' | psql -v ON_ERROR_STOP=1 $dbname"
+        loadUnloadFile(unloadPath)
+    }
+}
+
+// Load two unload files back-to-back, snapshotting every table (row count +
+// content hash) after each, then emit a per-table before/after comparison.
+// Destructive: drops/recreates $dbname twice, leaving the AFTER dump loaded.
+//
+//   gradle compareLoads -Dbefore=<dump> -Dafter=<dump>
+//
+// Future TODO: move this out of build.gradle into the zfin-utils command.
+task compareLoads() {
+    doLast {
+        String before = System.getProperty("before")
+        String after = System.getProperty("after")
+        if (!before || !after) {
+            throw new GradleException("compareLoads requires -Dbefore=<dump> and -Dafter=<dump>")
         }
-        exec {
-            ignoreExitValue = true
-            commandLine 'dropdb', dbname
+
+        File outDir = file("$buildDir/db-load-comparison")
+        outDir.mkdirs()
+        String beforeCsv = new File(outDir, "before.csv").path
+        String afterCsv = new File(outDir, "after.csv").path
+        String comparisonCsv = new File(outDir, "table_load_comparison.csv").path
+        String snapshot = "server_apps/DB_maintenance/postgres/snapshot_table_summary.sh"
+        String compare = "server_apps/DB_maintenance/postgres/compare_table_summaries.sh"
+
+        println "== compareLoads: BEFORE = $before"
+        loadUnloadFile(before)
+        project.exec {
+            commandLine "bash", "-c", "DBNAME=$dbname OUTFILE=$beforeCsv bash $snapshot"
         }
-        exec {
-            ignoreExitValue = true
-            commandLine 'createdb', dbname
+
+        println "== compareLoads: AFTER = $after"
+        loadUnloadFile(after)
+        project.exec {
+            commandLine "bash", "-c", "DBNAME=$dbname OUTFILE=$afterCsv bash $snapshot"
         }
-        exec {
-            ignoreExitValue = true
-            commandLine "bash", "-c", "pg_restore -j 8 -d $dbname $unloadPath"
+
+        println "== compareLoads: comparing snapshots"
+        project.exec {
+            commandLine "bash", "-c", "DBNAME=$dbname BEFORE=$beforeCsv AFTER=$afterCsv OUT=$comparisonCsv bash $compare"
         }
-        exec {
-            ignoreExitValue = true
-            commandLine "bash", "-c", "echo 'vacuum (analyze)' | psql -v ON_ERROR_STOP=1 $dbname"
-        }
+
+        println "compareLoads complete. Summary CSV: $comparisonCsv"
     }
 }
 

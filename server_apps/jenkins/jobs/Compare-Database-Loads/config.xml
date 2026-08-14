@@ -1,0 +1,178 @@
+<?xml version='1.0' encoding='UTF-8'?>
+<project>
+  <actions/>
+  <description>Compare two database backups table-by-table using gradle compareLoads.
+
+Loads BEFORE_PATH, snapshots every table (row count + content hash), loads
+AFTER_PATH, snapshots again, then emits a per-table before/after comparison CSV
+(archived as a build artifact).
+
+Set LIST_ONLY to true to list available backups without loading.
+
+Note: This drops and recreates the database TWICE. All existing data will be
+replaced, and the AFTER backup is left loaded when the job finishes.</description>
+  <keepDependencies>false</keepDependencies>
+  <properties>
+      <hudson.model.ParametersDefinitionProperty>
+          <parameterDefinitions>
+              <hudson.model.StringParameterDefinition>
+                  <name>BEFORE_PATH</name>
+                  <description>Full path to the "before" backup file. Run with LIST_ONLY=true first to see available paths.</description>
+                  <defaultValue></defaultValue>
+                  <trim>true</trim>
+              </hudson.model.StringParameterDefinition>
+              <hudson.model.StringParameterDefinition>
+                  <name>AFTER_PATH</name>
+                  <description>Full path to the "after" backup file. Run with LIST_ONLY=true first to see available paths.</description>
+                  <defaultValue></defaultValue>
+                  <trim>true</trim>
+              </hudson.model.StringParameterDefinition>
+              <hudson.model.BooleanParameterDefinition>
+                  <name>LIST_ONLY</name>
+                  <description>List available backups and exit without loading.</description>
+                  <defaultValue>false</defaultValue>
+              </hudson.model.BooleanParameterDefinition>
+              <hudson.model.TextParameterDefinition>
+                  <name>NOTES</name>
+                  <description>Optional notes for the build history (e.g. what change the two loads bracket, ticket number).</description>
+                  <defaultValue></defaultValue>
+              </hudson.model.TextParameterDefinition>
+          </parameterDefinitions>
+      </hudson.model.ParametersDefinitionProperty>
+  </properties>
+  <scm class="hudson.scm.NullSCM"/>
+  <canRoam>true</canRoam>
+  <disabled>false</disabled>
+  <blockBuildWhenDownstreamBuilding>false</blockBuildWhenDownstreamBuilding>
+  <blockBuildWhenUpstreamBuilding>false</blockBuildWhenUpstreamBuilding>
+  <triggers/>
+  <concurrentBuild>false</concurrentBuild>
+  <customWorkspace>$TARGETROOT</customWorkspace>
+  <builders>
+    <hudson.tasks.Shell>
+      <command><![CDATA[#!/bin/bash
+set -e
+
+echo "=============================="
+echo "Compare-Database-Loads"
+echo "=============================="
+
+if [ -n "$NOTES" ]; then
+    echo ""
+    echo "Notes: $NOTES"
+    echo ""
+fi
+
+# List available backups (also shown when either path is blank).
+if [ "$LIST_ONLY" = "true" ] || [ -z "$BEFORE_PATH" ] || [ -z "$AFTER_PATH" ]; then
+    echo ""
+    echo "Available backups in $DB_UNLOADS_PATH:"
+    echo "---------------------------------------"
+    for dir in $(ls -dt "$DB_UNLOADS_PATH"/20??.??.??.* 2>/dev/null); do
+        bak=$(ls "$dir"/*.bak 2>/dev/null | head -1)
+        if [ -n "$bak" ]; then
+            size=$(du -sh "$bak" | cut -f1)
+            date=$(stat -c '%y' "$bak" 2>/dev/null || stat -f '%Sm' "$bak" 2>/dev/null)
+            echo "  $bak  ($size, $date)"
+        fi
+    done
+    echo ""
+
+    if [ "$LIST_ONLY" = "true" ]; then
+        echo "LIST_ONLY=true, exiting without loading."
+        exit 0
+    fi
+fi
+
+if [ -z "$BEFORE_PATH" ] || [ -z "$AFTER_PATH" ]; then
+    echo "ERROR: both BEFORE_PATH and AFTER_PATH are required (see the listing above)."
+    exit 1
+fi
+
+for f in "$BEFORE_PATH" "$AFTER_PATH"; do
+    if [ ! -f "$f" ]; then
+        echo "ERROR: Backup file not found: $f"
+        exit 1
+    fi
+done
+
+echo ""
+echo "BEFORE: $BEFORE_PATH"
+echo "AFTER:  $AFTER_PATH"
+echo ""
+echo "Starting comparison (this drops and recreates the database twice)..."
+echo ""
+
+cd $SOURCEROOT
+gradle compareLoads -Dbefore="$BEFORE_PATH" -Dafter="$AFTER_PATH"
+
+echo ""
+echo "Comparison complete. Summary: build/db-load-comparison/table_load_comparison.csv"
+]]></command>
+    </hudson.tasks.Shell>
+  </builders>
+  <publishers>
+    <hudson.tasks.ArtifactArchiver>
+      <artifacts>build/db-load-comparison/*.csv</artifacts>
+      <allowEmptyArchive>false</allowEmptyArchive>
+      <onlyIfSuccessful>false</onlyIfSuccessful>
+      <fingerprint>false</fingerprint>
+      <defaultExcludes>true</defaultExcludes>
+      <caseSensitive>true</caseSensitive>
+    </hudson.tasks.ArtifactArchiver>
+    <hudson.plugins.emailext.ExtendedEmailPublisher plugin="email-ext@2.35.1">
+      <recipientList></recipientList>
+      <configuredTriggers>
+        <hudson.plugins.emailext.plugins.trigger.SuccessTrigger>
+          <email>
+            <recipientList>@SUCCESS-RECIPIENT-LIST@</recipientList>
+            <subject>$PROJECT_DEFAULT_SUBJECT</subject>
+            <body>$PROJECT_DEFAULT_CONTENT
+
+${SCRIPT,template="console-output.template"}
+</body>
+            <sendToDevelopers>false</sendToDevelopers>
+            <sendToRequester>false</sendToRequester>
+            <includeCulprits>false</includeCulprits>
+            <sendToRecipientList>true</sendToRecipientList>
+            <attachmentsPattern></attachmentsPattern>
+            <attachBuildLog>false</attachBuildLog>
+            <compressBuildLog>false</compressBuildLog>
+            <replyTo></replyTo>
+            <contentType>project</contentType>
+          </email>
+        </hudson.plugins.emailext.plugins.trigger.SuccessTrigger>
+        <hudson.plugins.emailext.plugins.trigger.FailureTrigger>
+          <email>
+            <recipientList>@FAILURE-RECIPIENT-LIST@</recipientList>
+            <subject>$PROJECT_DEFAULT_SUBJECT</subject>
+            <body>$PROJECT_DEFAULT_CONTENT
+
+${SCRIPT,template="console-output.template"}
+</body>
+            <sendToDevelopers>false</sendToDevelopers>
+            <sendToRequester>false</sendToRequester>
+            <includeCulprits>false</includeCulprits>
+            <sendToRecipientList>true</sendToRecipientList>
+            <attachmentsPattern></attachmentsPattern>
+            <attachBuildLog>false</attachBuildLog>
+            <compressBuildLog>false</compressBuildLog>
+            <replyTo></replyTo>
+            <contentType>project</contentType>
+          </email>
+        </hudson.plugins.emailext.plugins.trigger.FailureTrigger>
+      </configuredTriggers>
+      <contentType>text/html</contentType>
+        <defaultSubject>[Jenkins][${INSTANCE}]: ${PROJECT_NAME}: ${BUILD_STATUS}</defaultSubject>
+      <defaultContent>$DEFAULT_CONTENT</defaultContent>
+      <attachmentsPattern></attachmentsPattern>
+      <presendScript></presendScript>
+      <attachBuildLog>false</attachBuildLog>
+      <compressBuildLog>false</compressBuildLog>
+      <replyTo>${DB_OWNER}@zfin.org</replyTo>
+      <saveOutput>false</saveOutput>
+    </hudson.plugins.emailext.ExtendedEmailPublisher>
+  </publishers>
+  <buildWrappers>
+  </buildWrappers>
+</project>
