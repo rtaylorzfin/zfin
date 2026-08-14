@@ -13,6 +13,19 @@ End-to-end validation
 - [x] preloaded images build on a real stack (done on the Mac: db/solr -preloaded:2026-07-01)
 
 Decisions / follow-ups
+- [ ] rebuild the `compile` image at some point: more_bash_profile is baked in at build time
+      (docker/compile/Dockerfile:30-31), so until a rebuild the running image still chowns the two
+      host sockets we stopped mounting (docker.sock, ssh-auth.sock) and prints two harmless
+      "cannot access" lines on every zrun login shell. Natural moment to also (a) drop the
+      docker-ce/docker-ce-cli/docker-compose-plugin install from docker/compile/Dockerfile -- the
+      CLI is inert with no socket -- and (b) drop the now-unreferenced DOCKER_SSH_AUTH_SOCK from
+      docker/environment_{mac,linux}*. Note a rebuild re-tags the SHARED
+      ghcr.io/zfin/zfin-compile:${ZFIN_RELEASE} that every stack runs.
+- [ ] `gradle getdb` / `getsolr` (getLatestDatabaseUnload / getLatestSolrUnload /
+      getLatestPostgresFilesTrunk) no longer work from inside a container: they scp from
+      ${SSH_HOST} and compile has no SSH agent by design (workbench/claude-sidecar.md). Deemed
+      acceptable -- they were unreliable anyway; fetch dumps on the host into the mounted unloads
+      dirs. Decide later whether to delete the tasks, rewrite them host-side, or leave them.
 - [ ] a `docker compose build` (or an `up` with a missing image tag) inside a feature builds from
       the WORKTREE's docker/<ctx>/ — its own branch's Dockerfiles — but tags the result with the
       shared name (ghcr.io/zfin/zfin-{compile,httpd,tomcat,...}:${ZFIN_RELEASE}), so it replaces

@@ -15,7 +15,12 @@ services:
     environment:
       PGHOST: db
       PGUSER: postgres
-      SSH_AUTH_SOCK: /run/host-services/ssh-auth.sock
+      # No SSH_AUTH_SOCK / agent socket / known_hosts anywhere in this service, on purpose:
+      # nothing running in `compile` can push or SSH out with your keys
+      # (workbench/claude-sidecar.md). SSH_USER/HOST are kept because they're plain strings (no
+      # credential) that the remote-fetch tasks put in their error messages. Those tasks
+      # (gradle getdb/getsolr) no longer work from in here -- copy dumps to the mounted unloads
+      # paths from the host instead.
       SSH_USER: ${DOCKER_SSH_USER}
       SSH_HOST: ${DOCKER_SSH_HOST}
       TZ: ${TZ}
@@ -27,7 +32,6 @@ services:
       # Dev-only opt-in: adds a *.zfin.test wildcard to the self-signed cert generate_base.sh
       # makes (see more_bash_profile). Unset -> false -> staging/prod keep a zfin.org-only cert.
       ZFIN_DEV_CERT_SAN: ${ZFIN_DEV_CERT_SAN:-false}
-      DOCKER_SSH_AUTH_SOCK: ${DOCKER_SSH_AUTH_SOCK}
       DOCKER_SSH_USER: ${DOCKER_SSH_USER}
       DOCKER_SSH_HOST: ${DOCKER_SSH_HOST}
       DOCKER_DB_UNLOADS_PATH: ${DOCKER_DB_UNLOADS_PATH}
@@ -69,8 +73,6 @@ services:
       - ${DOCKER_LOADUP_PATH}:/opt/zfin/loadUp
       - ${DOCKER_DOWNLOADS_PATH}:/opt/zfin/download-files
       - ${DOCKER_GFF3_PATH}:/opt/zfin/gff3
-      - ${DOCKER_SSH_AUTH_SOCK}:/run/host-services/ssh-auth.sock
-      - ~/.ssh/known_hosts:/home/gradle/.ssh/known_hosts
       # NO /var/run/docker.sock here, on purpose. Mounting the host daemon socket into a build
       # container is root-equivalent on the host, which is the single biggest reason `compile`
       # could not be the home for an autonomous agent (workbench/claude-sidecar.md). Its only

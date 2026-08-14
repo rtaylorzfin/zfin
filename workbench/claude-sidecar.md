@@ -56,17 +56,27 @@ contexts) and Hibernate (290 mappings), i.e. most of ZFIN's startup cost. And it
 capability we're trying to shrink: `manager-script` can deploy an arbitrary WAR, which is RCE
 inside the container, where the shutdown port could only stop the JVM.
 
-### Still open: the SSH agent socket
+### Step 2 (also done): the SSH agent socket is gone too
 
-Removing `docker.sock` closes the worst hole but **not** the push hole. `compile` still mounts
-`${DOCKER_SSH_AUTH_SOCK}`, so anything running there — including
-`--dangerously-skip-permissions` — can `git push` and SSH out with your credentials. Making that
-mount opt-in (a Compose profile, or a separate `compile-push` service) is what turns
-[[git-push-manual]] from a preference into a structural guarantee. Until then, `compile` is
-hardened but not a sandbox.
+`compile` no longer mounts `${DOCKER_SSH_AUTH_SOCK}` or `~/.ssh/known_hosts`, and no longer sets
+`SSH_AUTH_SOCK`. Nothing running there — `--dangerously-skip-permissions` included — can `git
+push` or SSH out with your credentials, which turns [[git-push-manual]] from a preference into a
+structural guarantee. `SSH_USER`/`SSH_HOST` stay: plain strings, no credential.
 
-What a real sidecar would still add beyond a hardened `compile`: restricted network egress, a
-minimal purpose-built `~/.claude`, and no shared gradle/maven cache volumes.
+We considered a profile-gated twin service (`compile` + the agent) to keep the remote-fetch tasks
+working, and decided against it. The affected tasks are `gradle getdb` / `getsolr` (→
+`getLatestDatabaseUnload`, `getLatestSolrUnload`, `getLatestPostgresFilesTrunk`), which `scp` dumps
+from `${SSH_HOST}:/research/zunloads/...`. They're unreliable enough not to be worth a credential
+path: **fetch dumps on the host instead** and drop them into the already-mounted unloads dirs
+(`${DOCKER_DB_UNLOADS_PATH}` → `/opt/zfin/unloads/db`, `${DOCKER_SOLR_UNLOADS_PATH}` →
+`/opt/zfin/unloads/solr`). Everything downstream — `loaddb`, `loadsolr`, `getLatestSolrIndex`,
+and so every `z build` phase — reads those mounts and is unaffected.
+
+Left as-is deliberately: the `:rw` source mount (the whole point is editing the worktree) and the
+shared gradle/maven/npm cache volumes. So `compile` is now credential-free, not fully isolated —
+what a real sidecar would still add is restricted network egress, a minimal purpose-built
+`~/.claude`, and unshared caches.
+
 
 ## Goal
 
@@ -80,16 +90,21 @@ or "an unwanted push."
 
 ## Critical anti-pattern: do NOT reuse the `compile` container
 
+> **Superseded 2026-08-14** — the first two mounts below are gone (see the decision section
+> above); this is the original reasoning, kept because it's why the hardening happened. What
+> remains true: the `:rw` source mount and shared caches, so `compile` is credential-free but
+> not isolated.
+
 The existing `compile` service is the wrong host for this. It mounts:
 
-- `/var/run/docker.sock` → full control of the host Docker daemon = **root on
-  the host**.
-- the SSH agent socket (`${DOCKER_SSH_AUTH_SOCK}`) → **can push / SSH out** with
-  your credentials.
+- ~~`/var/run/docker.sock` → full control of the host Docker daemon = **root on
+  the host**.~~ *(removed)*
+- ~~the SSH agent socket (`${DOCKER_SSH_AUTH_SOCK}`) → **can push / SSH out** with
+  your credentials.~~ *(removed)*
 - the whole source tree `:rw`, plus shared maven/gradle cache volumes.
 
-`--dangerously-skip-permissions` there is *not* sandboxed — it's more dangerous
-than running on the host. The sidecar must be a purpose-built, minimal container.
+`--dangerously-skip-permissions` there was *not* sandboxed — it was more dangerous
+than running on the host. A sidecar would still be a purpose-built, minimal container.
 
 ## What makes the container an actual boundary
 
