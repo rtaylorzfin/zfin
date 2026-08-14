@@ -14,6 +14,7 @@ changes still surface.
 | `server_apps/DB_maintenance/postgres/compare_table_summaries.sh` | Join a before + after snapshot into the comparison CSV and print a summary. |
 | `build.gradle` → `compareLoads` | Orchestrates: load before → snapshot → load after → snapshot → compare. |
 | `server_apps/jenkins/jobs/Compare-Database-Loads/config.xml` | Jenkins job; selects the two backup files the same way `Load-Database` does. |
+| `docker/compare-loads-series.sh` | Backward daily-sweep driver: steps through many dated unloads and produces a churn report for each consecutive pair. |
 
 ## Running it
 
@@ -58,6 +59,68 @@ DBNAME=zfin BEFORE=/tmp/before.csv AFTER=/tmp/after.csv \
 `EXCLUDE` (regex of `schema.table` names to skip), same as its sibling
 `dump_tables_deterministic.sh`.
 
+## Exact row churn (rows_added / rows_removed)
+
+`status = changed` only says a table's contents differ, not by how much: a table
+that dropped 5,000 rows and inserted 5,000 different ones has `delta = 0` and, on
+counts alone, is indistinguishable from an untouched table (or from one that
+swapped a single row). To measure it exactly, run the snapshot with `HASHDIR`
+set and pass both hash dirs to the comparator:
+
+```bash
+DBNAME=zfin OUTFILE=/tmp/before.csv HASHDIR=/tmp/before.hashes \
+  server_apps/DB_maintenance/postgres/snapshot_table_summary.sh
+# ...load the other dump...
+DBNAME=zfin OUTFILE=/tmp/after.csv HASHDIR=/tmp/after.hashes \
+  server_apps/DB_maintenance/postgres/snapshot_table_summary.sh
+
+DBNAME=zfin BEFORE=/tmp/before.csv AFTER=/tmp/after.csv \
+  BEFORE_HASHDIR=/tmp/before.hashes AFTER_HASHDIR=/tmp/after.hashes \
+  OUT=/tmp/table_load_comparison.csv \
+  server_apps/DB_maintenance/postgres/compare_table_summaries.sh
+```
+
+With `HASHDIR`, the snapshot also writes one sorted per-row-hash file per table
+(`<HASHDIR>/<schema>.<table>.md5`); the comparator computes `rows_added` /
+`rows_removed` for each `changed` table by a sorted-merge (`comm`) of the two
+files — exact down to a single row. The report gains `rows_added` / `rows_removed`
+columns and is ordered by total churn. Cost: ~33 bytes per row on disk (~3 GB for
+a full ZFIN DB per snapshot), so it needs disk headroom the plain counts mode
+does not. `compareLoads` (the single-pair gradle task) runs counts-only; the
+daily-sweep harness (below) turns churn on.
+
+## Daily sweep across many loads (`docker/compare-loads-series.sh`)
+
+To compare a run of consecutive daily unloads (e.g. "how did each day change over
+the last 10 days?"), the sweep driver steps **backward** through the dated dumps
+and produces one churn report per consecutive pair. Each dump is loaded exactly
+once: the snapshot of day D is the "before" of the (D → D+1) report and, one step
+later, the "after" of the (D-1 → D) report.
+
+It is host-side because the dumps usually live on a (read-only, sshfs) mount while
+`gradle loaddb` only works inside the container, so it stages each dump locally,
+`docker exec`s the load/snapshot/compare, and cleans up. Only one dump (~1.3 GB)
+and two days of per-row hashes (~3 GB each) are on disk at a time, with a
+free-space floor that aborts before filling the disk. It is **resumable**: a
+re-run skips any day whose snapshot+hashes already exist and any report already
+written, so an interrupted sweep continues without re-loading.
+
+```bash
+# 3-day trial (2 reports), newest dumps on the mount:
+REPORTS=2 docker/compare-loads-series.sh
+# full 10-report sweep:
+REPORTS=10 docker/compare-loads-series.sh
+# explicit dates (newest -> oldest):
+DATES="2026.08.13.1 2026.08.12.1 2026.08.11.1" docker/compare-loads-series.sh
+```
+
+Output lands under `build/db-load-comparison/series/`: `snapshots/<date>.csv`,
+`reports/<older>_to_<newer>.csv` (with churn columns), and `index.csv` (per-day
+`changed/added/removed` counts and total rows_added/rows_removed). Config is via
+env vars (`CELL_MOUNT`, `LOCAL_UNLOADS`, `CONTAINER`, `START`, `MIN_FREE_GB`, …);
+defaults suit the local `dazed` stack. Budget ~25–30 min per day (load + hashing
+snapshot).
+
 ## Known limitation: ID-churning loads
 
 The content hash is computed over the full row (`md5(row::text)`), which includes
@@ -72,18 +135,7 @@ tables be compared on their stable content instead of on regenerated IDs.
 
 ## Future TODO
 
-- **Quantify row churn.** The `changed` status is a boolean: it says a table's
-  contents differ but not by how much. A table that dropped 5,000 rows and
-  inserted 5,000 different ones shows `delta = 0` and is indistinguishable here
-  from an unchanged table (and from one that swapped a single row). Report
-  per-table `rows_added` / `rows_removed` — the rows whose per-row hash is in the
-  after snapshot but not the before, and vice versa — so churn is measured
-  independent of the net row-count delta. This implies snapshotting per-row
-  hashes (or diffing them on the fly for tables flagged `changed`) rather than
-  only the single aggregate hash. Real loads make this concrete: a 2026.07.05 →
-  2026.07.06 comparison flagged many warehouse / fast-search tables as `changed`
-  with `delta = 0` because they are fully rebuilt with regenerated IDs each load.
-
 - **Move out of `build.gradle`.** Move the `compareLoads` orchestration into the
   `zfin-utils` command so it lives with the other operational tooling rather than
-  the build.
+  the build. The daily-sweep driver (`docker/compare-loads-series.sh`) could then
+  call that instead of shelling into the container.
