@@ -15,6 +15,7 @@ changes still surface.
 | `build.gradle` → `compareLoads` | Orchestrates: load before → snapshot → load after → snapshot → compare. |
 | `server_apps/jenkins/jobs/Compare-Database-Loads/config.xml` | Jenkins job; selects the two backup files the same way `Load-Database` does. |
 | `docker/compare-loads-series.sh` | Backward daily-sweep driver: steps through many dated unloads and produces a churn report for each consecutive pair. |
+| `server_apps/DB_maintenance/postgres/unchanged_since.sh` | Post-run: from the accumulated snapshots, reports how far back each table has been unchanged. |
 
 ## Running it
 
@@ -101,25 +102,54 @@ It is host-side because the dumps usually live on a (read-only, sshfs) mount whi
 `gradle loaddb` only works inside the container, so it stages each dump locally,
 `docker exec`s the load/snapshot/compare, and cleans up. Only one dump (~1.3 GB)
 and two days of per-row hashes (~3 GB each) are on disk at a time, with a
-free-space floor that aborts before filling the disk. It is **resumable**: a
-re-run skips any day whose snapshot+hashes already exist and any report already
-written, so an interrupted sweep continues without re-loading.
+free-space floor that aborts before filling the disk.
 
 ```bash
 # 3-day trial (2 reports), newest dumps on the mount:
-REPORTS=2 docker/compare-loads-series.sh
+docker/compare-loads-series.sh --days 2
 # full 10-report sweep:
-REPORTS=10 docker/compare-loads-series.sh
-# explicit dates (newest -> oldest):
-DATES="2026.08.13.1 2026.08.12.1 2026.08.11.1" docker/compare-loads-series.sh
+docker/compare-loads-series.sh --days 10
+# start from a specific date, or give an explicit newest->oldest list:
+docker/compare-loads-series.sh --mount /mnt/cell --start 2026.08.13.1 --days 5
+docker/compare-loads-series.sh --dates "2026.08.13.1 2026.08.12.1 2026.08.11.1"
+docker/compare-loads-series.sh --help    # all flags
 ```
 
-Output lands under `build/db-load-comparison/series/`: `snapshots/<date>.csv`,
-`reports/<older>_to_<newer>.csv` (with churn columns), and `index.csv` (per-day
-`changed/added/removed` counts and total rows_added/rows_removed). Config is via
-env vars (`CELL_MOUNT`, `LOCAL_UNLOADS`, `CONTAINER`, `START`, `MIN_FREE_GB`, …);
-defaults suit the local `dazed` stack. Budget ~25–30 min per day (load + hashing
-snapshot).
+Config is via CLI flags (`--mount`, `--days`, `--start`, `--dates`, `--container`,
+`--local-unloads`, `--ctr-unloads`, `--min-free-gb`, `--outrel`), each with an env
+fallback; defaults suit the local `dazed` stack. Budget ~25–30 min per day (load +
+hashing snapshot).
+
+**Resumable.** Each day's snapshot CSV and hash dir are promoted atomically
+(written to `.tmp`/`.partial`, renamed on success), and a re-run skips any day
+whose snapshot already exists and any report already written. So an interrupted
+sweep — or a later run with a larger `--days` — continues without re-loading
+finished days; it picks up at the first missing day, regenerating a pruned hash
+dir only if the boundary report still needs it.
+
+Output lands under `build/db-load-comparison/series/`:
+- `snapshots/<date>.csv` — per-date table summaries; **kept permanently** (tiny),
+  they are the durable state the resume and the unchanged-since analysis build on.
+- `reports/<older>_to_<newer>.csv` — per-pair churn reports.
+- `index.csv` — per-day `changed/added/removed` counts and total rows_added/removed.
+- `unchanged_since.csv` — see below.
+
+### How far back has each table been unchanged? (`unchanged_since.sh`)
+
+After the sweep (and standalone, any time), `unchanged_since.sh <snapshots_dir>`
+walks the accumulated snapshots newest→oldest and reports, per table, the oldest
+date its content still matches today:
+
+```
+blast_hit: unchanged since = 2026.08.01.1     # an older snapshot differs -> pinned
+blast_hit: unchanged since <= 2026.08.03.1    # matched to the oldest snapshot -> lower bound
+```
+
+Output columns: `schema_name,table_name,latest_row_count,unchanged_since,bound`
+(`bound` = `exact` for `=`, `at_least` for `<=`). Because it reads the retained
+snapshots rather than the per-pair reports, it spans **every** snapshot you have
+across all past sweeps — so `<=` bounds tighten into exact `=` dates as your
+history deepens, with nothing rewritten.
 
 ## Known limitation: ID-churning loads
 
