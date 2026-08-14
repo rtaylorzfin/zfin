@@ -92,6 +92,23 @@ require_disk() {
 # Run a command from $SOURCEROOT in the container with a login shell.
 ctr() { docker exec "$CONTAINER" bash -lc "cd \$SOURCEROOT && $*"; }
 
+# Kill any lingering background step if the sweep is interrupted.
+trap 'jobs -p | xargs -r kill 2>/dev/null' EXIT INT TERM
+
+# Run a command in the background (output silenced) while printing an
+# elapsed-time heartbeat every 30s, so long silent steps (copy, load) show they
+# are alive. Returns the command's exit status.
+with_heartbeat() {
+    local label="$1"; shift
+    "$@" >/dev/null 2>&1 &
+    local pid=$! start=$SECONDS
+    while kill -0 "$pid" 2>/dev/null; do
+        sleep 30
+        kill -0 "$pid" 2>/dev/null && log "    ...$label — $((SECONDS - start))s elapsed"
+    done
+    wait "$pid"
+}
+
 have_snapshot() { ctr "test -s $OUTREL/snapshots/$1.csv" 2>/dev/null; }
 have_hashes()   { ctr "test -d $OUTREL/hashes/$1"       2>/dev/null; }
 have_report()   { ctr "test -s $OUTREL/reports/$1.csv"  2>/dev/null; }
@@ -100,26 +117,34 @@ have_report()   { ctr "test -s $OUTREL/reports/$1.csv"  2>/dev/null; }
 # dir are promoted atomically so an interrupted run never leaves them looking
 # complete; the snapshot CSV is promoted last, as the "day done" sentinel.
 load_and_snapshot() {
-    local date="$1" bak bakname
+    local date="$1" bak bakname size
     require_disk
     local baks=("$CELL_MOUNT/$date"/*.bak)     # glob, not `ls | head` (avoids SIGPIPE)
     bak="${baks[0]}"
     [[ -f "$bak" ]] || die "no .bak in $CELL_MOUNT/$date"
-    bakname=$(basename "$bak")
+    bakname=$(basename "$bak"); size=$(du -h "$bak" | cut -f1)
 
-    log "=== $date : staging $bakname ($(du -h "$bak" | cut -f1)) ==="
+    log "[$date] copying dump $bakname ($size) from mount..."
     mkdir -p "$LOCAL_UNLOADS/$date"
-    cp -f "$bak" "$LOCAL_UNLOADS/$date/$bakname"
+    with_heartbeat "copying $date" cp -f "$bak" "$LOCAL_UNLOADS/$date/$bakname" \
+        || die "copy failed for $date"
 
-    log "$date : loading (drops + recreates the DB)"
-    ctr "gradle loaddb -Dunload=$CTR_UNLOADS/$date/$bakname" >/dev/null
+    log "[$date] loading into DB — drop + pg_restore (~15 min)..."
+    with_heartbeat "loading $date" \
+        docker exec "$CONTAINER" bash -lc "cd \$SOURCEROOT && gradle loaddb -Dunload=$CTR_UNLOADS/$date/$bakname" \
+        || die "loaddb failed for $date"
 
-    log "$date : freeing staged dump, snapshotting (with per-row hashes)"
+    log "[$date] freeing staged dump, snapshotting tables + per-row hashes (~15 min)..."
     rm -rf "${LOCAL_UNLOADS:?}/$date"          # 1.3 GB back before we write hashes
+    # Stream the snapshot's per-table output: show every 50th table and the
+    # summary lines, so the pane ticks along while ~520 tables are hashed.
     ctr "rm -rf $OUTREL/snapshots/$date.csv.tmp $OUTREL/hashes/$date.partial \
-      && DBNAME=\$DBNAME OUTFILE=$OUTREL/snapshots/$date.csv.tmp HASHDIR=$OUTREL/hashes/$date.partial bash $SNAP \
-      && rm -rf $OUTREL/hashes/$date && mv $OUTREL/hashes/$date.partial $OUTREL/hashes/$date \
-      && mv $OUTREL/snapshots/$date.csv.tmp $OUTREL/snapshots/$date.csv" >/dev/null
+      && DBNAME=\$DBNAME OUTFILE=$OUTREL/snapshots/$date.csv.tmp HASHDIR=$OUTREL/hashes/$date.partial bash $SNAP" \
+      | awk '/^snap /{c++; if (c%50==0){printf "    ...%d tables hashed\n", c; fflush()}; next}
+             /^Snapshotting|^done\./{print "    "$0; fflush()}'
+    # Promote atomically only after the snapshot succeeded (snapshot CSV last).
+    ctr "rm -rf $OUTREL/hashes/$date && mv $OUTREL/hashes/$date.partial $OUTREL/hashes/$date \
+      && mv $OUTREL/snapshots/$date.csv.tmp $OUTREL/snapshots/$date.csv"
 }
 
 # ---- resolve the newest->oldest date-dir sequence ---------------------------
@@ -162,7 +187,7 @@ for date in "${dates[@]}"; do
             # pruned by an earlier run (snapshot exists but hashes are gone).
             have_hashes "$date" || { log "$date : hashes pruned, reloading to regenerate"; load_and_snapshot "$date"; }
             have_hashes "$prev" || { log "$prev : hashes pruned, reloading to regenerate"; load_and_snapshot "$prev"; }
-            log "$date : comparing $date -> $prev  ->  reports/$rpt.csv"
+            log "[$date → $prev] comparing (churn) -> reports/$rpt.csv"
             ctr "DBNAME=\$DBNAME BEFORE=$OUTREL/snapshots/$date.csv AFTER=$OUTREL/snapshots/$prev.csv \
                  BEFORE_HASHDIR=$OUTREL/hashes/$date AFTER_HASHDIR=$OUTREL/hashes/$prev \
                  OUT=$OUTREL/reports/$rpt.csv.tmp bash $CMP \
