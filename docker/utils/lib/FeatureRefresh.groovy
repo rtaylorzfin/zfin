@@ -33,7 +33,7 @@ class FeatureRefresh {
         if (all) {
             def parent = REPO.parentFile
             dirs = ((parent.listFiles() ?: []) as List)
-                    .findAll { it.isDirectory() && it.name.startsWith('wt-') && new File(it, '.zenv/activate').isFile() }
+                    .findAll { it.isDirectory() && it.name.startsWith('wt-') && new File(it, '.zenv/zenv.properties').isFile() }
                     .sort { it.name }
             if (!dirs) die("no .zenv found under $parent (nothing to refresh)")
         } else {
@@ -56,7 +56,7 @@ class FeatureRefresh {
                      '--compose', spec.composeSource, '--env-file', spec.envFile, '--copy']
             if (spec.tag) a += ['--tag', spec.tag]
             if (spec.host) a += ['--host', spec.host]
-            info("refreshing ${dir.name} (project ${spec.project})${spec.legacy ? ' -- migrating a pre-bundle .zenv' : ''}")
+            info("refreshing ${dir.name} (project ${spec.project})")
             new CreateZenv().run(a, zfinUtil)
         }
         info("done -- re-source each stack's activate script to pick it up:  source <dir>/.zenv/activate")

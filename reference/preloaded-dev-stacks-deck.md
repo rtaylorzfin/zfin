@@ -103,8 +103,8 @@ COMPOSE_PROJECT_NAME   COMPOSE_FILE   COMPOSE_ENV_FILES
 …and puts **`z`** on `PATH` plus shell functions `zrun` `zexec` `zup` `zstop` `zdown`
 `zpull` `zlog` `zrestart` `zstatus` `zfeature` `zbuild`.
 
-> No `.zenv` active → stack commands walk up from the cwd, find the nearest `.zenv` and
-> target it for that invocation (`./z run -c "…"`, announced on stderr). Activation wins;
+> No `.zenv` active → stack commands resolve the checkout root (via git) and target the
+> `.zenv` there for that invocation (`./z run -c "…"`, announced on stderr). Activation wins;
 > being inside another stack's tree while one is active warns instead of guessing.
 
 A feature's `.zenv` is a **self-contained bundle** — copies of `z` + `lib/` (`bin/`) and of

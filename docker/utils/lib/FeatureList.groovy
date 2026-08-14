@@ -16,14 +16,12 @@ class FeatureList {
         }
         // .zenv health: a bundle is a frozen copy of the origin tooling + compose files, so
         // compare its recorded fingerprint against the origin's current one -- `stale` means
-        // `z feature refresh` has something to do. `legacy` is a .zenv from before bundling
-        // (still symlinked back to the origin); `?` means the origin has no tooling to compare
-        // against (primary checked out on a branch without it).
+        // `z feature refresh` has something to do. `-` means no readable .zenv at all (never
+        // provisioned, or predates zenv.properties -> re-run create-zenv); `copy(?)` means the
+        // origin has no tooling to compare against (primary on a branch without it).
         def originUtils = new File(zfinUtil.REPO, 'docker/utils')
-        def zenvState = { File wt ->
-            def spec = zfinUtil.zenvVars(new File(wt, '.zenv'))
+        def zenvState = { spec ->
             if (!spec) return '-'
-            if (spec.legacy) return 'legacy'
             if (spec.mode == 'link') return 'link'
             def now = zfinUtil.bundleHash(originUtils, (spec.composeSource ?: '').tokenize(':').collect { new File(it) })
             if (!now) return 'copy(?)'
@@ -36,12 +34,13 @@ class FeatureList {
             def proj   = field(env, 'COMPOSE_PROJECT_NAME') ?: wt.name.replaceFirst('^wt-', '')
             def host   = field(env, 'DOCKER_VIRTUAL_HOST')
             def branch = captureOutput(['git', '-C', wt.absolutePath, 'rev-parse', '--abbrev-ref', 'HEAD']) ?: '?'
-            def act    = new File(wt, '.zenv/activate')
-            def data   = (act.isFile() && act.text.contains('shared-db')) ? 'shared' : 'own'
+            // One read of the .zenv per row: which overlay it activates IS the data mode.
+            def spec   = zfinUtil.zenvVars(new File(wt, '.zenv'))
+            def data   = spec?.compose?.contains('shared-db') ? 'shared' : 'own'
             def state  = running.contains(proj) ? 'up' : 'down'
-            row(proj, branch, data, zenvState(wt), state, host ? "https://$host" : '', wt.name)
+            row(proj, branch, data, zenvState(spec), state, host ? "https://$host" : '', wt.name)
         }
         println "\nZENV: copy = self-contained bundle, in step with the origin tooling;" +
-                " copy(stale)/legacy -> z feature refresh <ticket>"
+                " copy(stale) -> z feature refresh <ticket>"
     }
 }

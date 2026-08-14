@@ -41,10 +41,23 @@ class FeatureRemove {
         // 1. tear down the Docker stack. Use the feature's own compose file list + env (from its
         //    .zenv) so down -v resolves exactly this stack; check:false so a partial/missing
         //    stack doesn't abort the rest of the teardown.
+        // Compose files come from the feature's own .zenv. Teardown has to work on a
+        // half-provisioned or already-mangled feature too (that's when you need it most), so a
+        // missing/unreadable .zenv falls back to the origin's compose files rather than dying --
+        // same pair the .zenv would have been built from.
         def spec = zfinUtil.zenvVars(new File(wt, '.zenv'))
         def compose = ['docker', 'compose', '-p', slug]
         if (env.isFile()) compose += ['--env-file', env.absolutePath]
-        if (spec?.compose) compose += spec.compose.tokenize(':').collectMany { ['-f', it] }
+        if (spec?.compose) {
+            compose += spec.compose.tokenize(':').collectMany { ['-f', it] }
+        } else {
+            def dockerDir = zfinUtil.DOCKER
+            def shared = env.isFile() && env.text.contains('shared-db')
+            def overlay = shared ? 'docker-compose.shared-db.yml' : 'docker-compose.preloaded.yml'
+            info("no readable .zenv under $wt -- using the origin compose files ($overlay)")
+            compose += ['-f', new File(dockerDir, 'docker-compose.yml').absolutePath,
+                        '-f', new File(dockerDir, overlay).absolutePath]
+        }
         info("down -v the '$slug' stack")
         runCommand(compose + ['down', '-v'], [check: false])
 

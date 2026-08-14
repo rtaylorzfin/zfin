@@ -86,18 +86,33 @@ class FreshInstall {
             println("   ✓ db dump: loaddb will use ${newest.name}/${dumps.last().name}")
         }
 
-// getLatestSolrIndex (build.gradle) restores from <solr-unloads>/v9 and needs FLAT
-// snapshot.* dirs (Solr 9 format, ZFIN-10171). A legacy full-SOLR_HOME dump, or a
-// snapshot nested under a wrapper dir (v9/<inst>/snapshot.*), won't restore -- catch
-// it here instead of failing after the image build + full db load.
+// getLatestSolrIndex (build.gradle) restores from <solr-unloads>/<instance>/v9 and needs
+// snapshot.* dirs in there (Solr 9 format, ZFIN-10171); the instance segment defaults to
+// `zfindb`, the shared production snapshot everyone restores from (-PsolrSourceInstance
+// overrides it, and backups are written per-instance so a dev index build can't clobber it --
+// see reference/solr-reindex.md). Legacy full-SOLR_HOME dumps can't be restored at all.
+// Check the SAME path the task reads: this check used to look at <solr-unloads>/v9, one
+// segment short, so a machine with only the pre-ZFIN-10171 layout got a green light here and
+// then failed in `z build load-solr` with "no snapshots at ..." -- after the image build and
+// the full db load, i.e. the most expensive possible place to find out.
         def solrUnloads = expandTilde(dotenv['DOCKER_SOLR_UNLOADS_PATH'])
         if (solrUnloads) {
-            def v9 = new File(solrUnloads, 'v9')
-            def snaps = v9.isDirectory() ? (v9.listFiles() ?: [] as File[]).findAll { it.isDirectory() && it.name.startsWith('snapshot.') } : []
-            if (!snaps) die("solr dump: no flat snapshot.* dir under ${v9} (Solr 9 format).\n" +
-                    "   getLatestSolrIndex needs v9/snapshot.<ts>/ directly -- not a legacy full-SOLR_HOME\n" +
-                    "   dump or a nested wrapper (v9/<inst>/snapshot.*). Fetch/move one, then re-run.")
-            println("   ✓ solr dump: getLatestSolrIndex will use v9/${snaps.max { it.lastModified() }.name}")
+            def instance = 'zfindb'
+            def v9 = new File(new File(solrUnloads, instance), 'v9')
+            def snapsIn = { File d -> d.isDirectory() ? (d.listFiles() ?: [] as File[]).findAll { it.isDirectory() && it.name.startsWith('snapshot.') } : [] }
+            def snaps = snapsIn(v9)
+            if (!snaps) {
+                // Name the legacy layout explicitly if that's what's there -- "no snapshots"
+                // reads like "you have no backup" when the truth is "it's one dir too high".
+                def legacy = snapsIn(new File(solrUnloads, 'v9'))
+                die("solr dump: no snapshot.* dir under ${v9} (Solr 9 format).\n" +
+                        (legacy ? "   Found ${legacy.size()} snapshot(s) at ${new File(solrUnloads, 'v9')} instead -- that's the\n" +
+                                "   pre-ZFIN-10171 layout, one level too high. Move it into place:\n" +
+                                "     mkdir -p ${v9} && mv ${legacy.max { it.lastModified() }} ${v9}/\n"
+                                : "   getLatestSolrIndex needs ${instance}/v9/snapshot.<ts>/ -- not a legacy\n" +
+                                "   full-SOLR_HOME dump. Fetch one, then re-run.\n"))
+            }
+            println("   ✓ solr dump: getLatestSolrIndex will use ${instance}/v9/${snaps.max { it.lastModified() }.name}")
         }
 
 // --- 2 & 4. choices (prompt interactively; dry-run uses defaults) ----------------

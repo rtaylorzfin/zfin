@@ -129,9 +129,9 @@ Flags for a subcommand:  z feature <sub> --help   (e.g. z feature new --help)'''
         break
 
     // stack lifecycle -> StackOps (op is args[0]). These are the commands that need a TARGET,
-    // so they're the ones that get auto-detection: with no .zenv activated, resolveStack walks
-    // up from cwd, finds the nearest stack and targets it for this invocation (`./z run -c
-    // "gradle dirtydeploy"` just works). Activation still wins. Deliberately NOT applied to the
+    // so they're the ones that get auto-detection: with no .zenv activated, resolveStack asks git
+    // for this checkout's root and targets the .zenv there (`./z run -c "gradle dirtydeploy"`
+    // just works, from any subdirectory). Activation still wins. Deliberately NOT applied to the
     // origin-side commands (feature/build/shared/fresh-install) -- they pass -p/-f/--env-file
     // explicitly and shouldn't silently inherit whichever tree you happen to stand in.
     case ['run', 'exec', 'up', 'stop', 'down', 'pull', 'log', 'restart', 'status']:
