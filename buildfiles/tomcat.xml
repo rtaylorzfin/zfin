@@ -1,31 +1,34 @@
 <?xml version="1.0" encoding="UTF-8"?>
 <project name="tomcat" basedir=".">
-    <target name="docker-tomcat-start" description="Starts tomcat (docker compose)">
-        <exec executable="/usr/bin/docker" failifexecutionfails="true">
-            <arg value="compose"/>
-	    <arg value="-f"/>
-	    <arg value="/opt/zfin/source_roots/zfin.org/docker/docker-compose.yml"/>
-            <arg value="start"/>
-            <arg value="tomcat"/>
-        </exec>
-        <echo message=":TOMCAT START SUCCESSFUL:"/>
+    <!-- Tomcat lifecycle is a HOST operation. These targets used to shell out to
+         `docker compose ... start|stop tomcat` through the /var/run/docker.sock that was mounted
+         into the compile container, which was wrong twice over:
+           1. Control of the host Docker daemon from inside a build container is root-equivalent
+              on the host: the blast radius we're deliberately shrinking (see
+              workbench/claude-sidecar.md); the socket is no longer mounted.
+           2. They never worked for a feature stack anyway: no -p was passed and the container
+              gets no COMPOSE_PROJECT_NAME, so compose derived the project name from the compose
+              file's directory ("docker") and silently acted on nothing.
+         Restart from the host instead, where the .zenv (or z's cwd auto-detection) already
+         targets the right stack. The target names stay so muscle memory gets this message
+         instead of the old silent no-op. -->
+    <target name="tomcat-lifecycle-moved">
+        <fail>
+Tomcat lifecycle moved to the HOST -- run one of these there, not in the compile container:
+
+  z restart tomcat          (or zrestart tomcat -- acts on the active/auto-detected stack)
+  z stop tomcat  /  z up tomcat
+
+Nothing inside compile can start a sibling container: /var/run/docker.sock is no longer mounted.
+A code-only change usually needs no restart at all -- ROOT.xml sets reloadable="true", so
+`gradle dirtydeploy` makes Tomcat reload the webapp on its own.
+        </fail>
     </target>
 
-    <target name="docker-tomcat-stop" description="Stops tomcat (docker compose)">
-        <exec executable="/usr/bin/docker" failifexecutionfails="true">
-            <arg value="compose"/>
-	        <arg value="-f"/>
-	        <arg value="/opt/zfin/source_roots/zfin.org/docker/docker-compose.yml"/>
-            <arg value="stop"/>
-            <arg value="tomcat"/>
-        </exec>
-        <echo message=":TOMCAT STOP SUCCESSFUL:"/>
-    </target>
-
-    <target name="tomcat-stop" depends="docker-tomcat-stop"
-            description="Stops tomcat"/>
-    <target name="tomcat-start" depends="docker-tomcat-start"
-            description="Starts tomcat"/>
+    <target name="tomcat-stop" depends="tomcat-lifecycle-moved"
+            description="Moved to the host: z stop tomcat"/>
+    <target name="tomcat-start" depends="tomcat-lifecycle-moved"
+            description="Moved to the host: z up tomcat"/>
 
     <!-- Aliases for start and stop -->
     <target name="start-tomcat" depends="tomcat-start" description="Alias"></target>
@@ -73,9 +76,9 @@
         </exec>
     </target>
 
-    <target name="tomcat-restart" depends="tomcat-stop,tomcat-start"
-            description="Restarts tomcat"/>
-    <target name="restart" depends="tomcat-restart" description="Restarts tomcat for the appropriate environment"/>
+    <target name="tomcat-restart" depends="tomcat-lifecycle-moved"
+            description="Moved to the host: z restart tomcat"/>
+    <target name="restart" depends="tomcat-restart" description="Moved to the host: z restart tomcat"/>
     <target name="restart-tomcat" depends="tomcat-restart" description="Alias"/>
 
     <!-- an alias to create-mutant-instance with a more explanatory name -->

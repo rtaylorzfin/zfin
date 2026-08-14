@@ -71,7 +71,11 @@ services:
       - ${DOCKER_GFF3_PATH}:/opt/zfin/gff3
       - ${DOCKER_SSH_AUTH_SOCK}:/run/host-services/ssh-auth.sock
       - ~/.ssh/known_hosts:/home/gradle/.ssh/known_hosts
-      - /var/run/docker.sock:/var/run/docker.sock
+      # NO /var/run/docker.sock here, on purpose. Mounting the host daemon socket into a build
+      # container is root-equivalent on the host, which is the single biggest reason `compile`
+      # could not be the home for an autonomous agent (workbench/claude-sidecar.md). Its only
+      # consumer was buildfiles/tomcat.xml's docker-tomcat-start/stop, which were also broken for
+      # feature stacks (no -p). Tomcat lifecycle is a host operation: `z restart tomcat`.
       - maven_cache:/home/gradle/.m2
       - gradle_cache:/home/gradle/.gradle
       - npm_cache:/home/gradle/.npm

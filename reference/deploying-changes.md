@@ -21,7 +21,7 @@ docker compose -f ~/zfin/docker/docker-compose.yml run --rm compile \
 | `home/css/**` or `home/javascript/**` (CSS, SCSS, JS, TSX) | `gradle dirtydeploy` | `npmBuild` rebuilds the webpack bundles **and** `dirtycopy` syncs the new `asset-manifest.json` into Tomcat's classpath. |
 | JSPs / tag files | `gradle jspcopy` (or `gradle dirtycopy`) | Tomcat recompiles JSPs on next request. |
 | `*.hbm.xml`, `*.properties` under `source/` | `gradle dirtycopy` | These get copied onto the Tomcat classpath. |
-| Hibernate config (`conf/hibernate.cfg.xml`), `log4j2.xml` | `gradle dirtycopy` + restart Tomcat | Read once at app startup. |
+| Hibernate config (`conf/hibernate.cfg.xml`), `log4j2.xml` | `gradle dirtycopy` + `z restart tomcat` (from the **host** — see below) | Read once at app startup. |
 | Static assets (images, downloads, ZFIN/, zf_info/) | `gradle make` | Copies under `$TARGETROOT/home/`. |
 
 When in doubt, `gradle dirtydeploy` covers everything except the `gradle make`

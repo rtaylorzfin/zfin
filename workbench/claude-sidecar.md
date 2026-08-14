@@ -3,6 +3,71 @@
 Status: **not built** — a design we may adopt later. Captured so the reasoning
 (and the safety gotchas) aren't lost.
 
+## Decision (2026-08-14): harden `compile` first, sidecar later (maybe never)
+
+Rather than build the sidecar, we're removing the dangerous capabilities from `compile`. Step 1
+is done: **`/var/run/docker.sock` is no longer mounted** (`docker/docker-compose.yml`), and the
+`sudo chown` of it is gone from `docker/compile/more_bash_profile`.
+
+That cost almost nothing, because the socket had exactly one consumer in the whole repo:
+`buildfiles/tomcat.xml`'s `docker-tomcat-start` / `docker-tomcat-stop` (reached via `ant
+restart-tomcat`). Nothing else referenced them — no Jenkins job, no GoCD stage, no Ant/Gradle
+target, no docs, and no Testcontainers anywhere in the test tree. They were also **already
+broken for feature stacks**: they ran `docker compose -f <abs path> stop tomcat` with no `-p`,
+and the container gets no `COMPOSE_PROJECT_NAME`, so compose derived the project from the compose
+file's directory (`docker`) and silently acted on nothing. Those targets now `<fail>` with a
+message pointing at the host command.
+
+**Tomcat lifecycle is a host operation**: `z restart tomcat` (the `.zenv`, or `z`'s cwd
+auto-detection, already targets the right stack). `z` itself refuses to run inside a container,
+which is the same stance from the other direction.
+
+### Rejected: restarting tomcat from inside compile via the shutdown port
+
+Tempting — it would keep an in-container restart button without the socket — but it needs three
+changes, and the last two are worse than what they replace:
+
+1. **Unreachable as configured.** `lib/Java/tomcat/conf/server.xml` has
+   `<Server port="@SERVER-SHUTDOWN-PORT@" shutdown="SHUTDOWN">` with no `address`, and Tomcat
+   defaults that socket to `localhost` — i.e. loopback *inside the tomcat container*. Reaching it
+   from `compile` needs `address="0.0.0.0"`, and this template also deploys to staging/prod, so
+   it would need a new dev-only token.
+2. **Nothing restarts it.** SHUTDOWN stops the JVM, the container's main process exits, and it
+   stays down: `mailpit` is the only service in the compose file with a `restart:` policy. Adding
+   `restart: unless-stopped` to tomcat would be required (and `unless-stopped`, not `always`, so
+   a deliberate `zstop`/`zdown` isn't resurrected).
+3. **It's an unauthenticated kill switch** on the feature's compose network — the magic word is
+   the only credential, and any container on that network can send it.
+
+### Also considered: the Tomcat Manager app
+
+The standard-conventions way to get an in-container button: `GET /manager/text/reload?path=/`.
+Needs (a) the app deployed — the image stages it at `/usr/local/tomcat/webapps.dist/manager`, and
+`$CATALINA_BASE`'s `<Host>` is `autoDeploy="false"`, so the clean route is a `manager.xml` context
+file beside `ROOT.xml` with `docBase` pointing at the dist path; (b) a `manager-script` user in
+`tomcat-users.xml`, which is comment-only today; (c) an override of manager's shipped
+`RemoteCIDRValve allow="127.0.0.0/8,::1/128"`, since a call from `compile` arrives from the
+compose bridge subnet; (d) instance-conditional wiring so it never reaches prod.
+
+Not adopted, for two reasons. It buys little: `ROOT.xml` already sets `reloadable="true"`, so
+Tomcat's background scanner reloads the webapp when `WEB-INF/classes`/`lib` change — which is what
+`gradle dirtydeploy` does — and a reload still re-initializes Spring (root + 3 dispatcher
+contexts) and Hibernate (290 mappings), i.e. most of ZFIN's startup cost. And it *increases* the
+capability we're trying to shrink: `manager-script` can deploy an arbitrary WAR, which is RCE
+inside the container, where the shutdown port could only stop the JVM.
+
+### Still open: the SSH agent socket
+
+Removing `docker.sock` closes the worst hole but **not** the push hole. `compile` still mounts
+`${DOCKER_SSH_AUTH_SOCK}`, so anything running there — including
+`--dangerously-skip-permissions` — can `git push` and SSH out with your credentials. Making that
+mount opt-in (a Compose profile, or a separate `compile-push` service) is what turns
+[[git-push-manual]] from a preference into a structural guarantee. Until then, `compile` is
+hardened but not a sandbox.
+
+What a real sidecar would still add beyond a hardened `compile`: restricted network egress, a
+minimal purpose-built `~/.claude`, and no shared gradle/maven cache volumes.
+
 ## Goal
 
 Run Claude *inside* a per-feature container with `--dangerously-skip-permissions`

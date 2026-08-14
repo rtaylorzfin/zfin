@@ -1,4 +1,6 @@
 
 sudo /bin/chown gradle /run/host-services/ssh-auth.sock
-sudo /bin/chown gradle /var/run/docker.sock
+# No docker.sock chown: the socket is deliberately NOT mounted into compile any more (host
+# daemon control from a build container is root-equivalent on the host). Tomcat lifecycle is a
+# host operation now -- `z restart tomcat`. See workbench/claude-sidecar.md.
 /opt/zfin/source_roots/zfin.org/docker/compile/generate_base.sh
