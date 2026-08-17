@@ -16,6 +16,7 @@ changes still surface.
 | `server_apps/jenkins/jobs/Compare-Database-Loads/config.xml` | Jenkins job; selects the two backup files the same way `Load-Database` does. |
 | `docker/compare-loads-series.sh` | Backward daily-sweep driver: steps through many dated unloads and produces a churn report for each consecutive pair. |
 | `server_apps/DB_maintenance/postgres/unchanged_since.sh` | Post-run: from the accumulated snapshots, reports how far back each table has been unchanged. |
+| `docker/drill-table-churn.sh` | Drill into ONE table between two loads: real (meaningful-column) churn vs raw churn. |
 
 ## Running it
 
@@ -151,17 +152,48 @@ snapshots rather than the per-pair reports, it spans **every** snapshot you have
 across all past sweeps — so `<=` bounds tighten into exact `=` dates as your
 history deepens, with nothing rewritten.
 
-## Known limitation: ID-churning loads
+### Drilling into one table: real churn vs surrogate/metadata churn
 
-The content hash is computed over the full row (`md5(row::text)`), which includes
-`zdb_id` and date/audit columns. A load that drops old rows and reloads
-equivalent data with fresh IDs will therefore show as `changed` even though the
-data is semantically the same.
+The sweep counts churn over the whole row, so a table rebuilt each load with a
+regenerated surrogate serial key and/or a load timestamp shows ~100% churn even
+when its meaningful content barely moved. `drill-table-churn.sh` recomputes the
+churn for a single table over its **meaningful columns only** — dropping
+date/time-typed columns and integer/bigint surrogate keys (`id` / `*_id`; ZFIN's
+real identifiers are stable text ZDB IDs, which are kept), plus any `--exclude`
+you add.
 
-**Future improvement:** per-table "meaningful-column" hashing that excludes
-id/date metadata, following the pattern already used by
-`lib/DB_functions/mgte_hash_full.sql` / `mgte_hash_min.sql`. That would let churn
-tables be compared on their stable content instead of on regenerated IDs.
+```bash
+docker/drill-table-churn.sh --table ui.publication_expression_display \
+  --before 2026.08.12.1 --after 2026.08.13.1
+```
+
+It never runs `loaddb`: `pg_restore -t` pulls just that one table from each dump
+into a throwaway scratch DB, and a set-difference (`EXCEPT ALL` over a per-row
+hash) counts raw vs meaningful adds/removes. Example output shows the difference
+starkly — a fast-search/warehouse table whose entire daily churn is noise:
+
+```
+=== ui.publication_expression_display   (2026.07.05.1 -> 2026.07.06.1) ===
+  excluded as churn: ped_id created_at
+  raw churn (whole row):   +475753 / -475753
+  REAL churn (meaningful): +0 / -0
+```
+
+Give a dated unload dir (resolved on the mount) or a direct `.bak` path for
+`--before`/`--after`. The table's column layout and PK are read from the live DB,
+so the table must exist there.
+
+## Known limitation: ID-churning loads (sweep reports)
+
+The sweep's per-pair reports hash the full row (`md5(row::text)`), which includes
+surrogate keys and date/audit columns, so a rebuilt-with-fresh-IDs table shows as
+`changed` with large churn there. Use `drill-table-churn.sh` (above) to see the
+real content churn for any table flagged that way.
+
+**Possible future improvement:** fold meaningful-column hashing into the sweep
+itself (a second per-row hash over meaningful columns) so every report carries a
+`real_rows_added`/`real_rows_removed` alongside the raw churn, instead of drilling
+in table by table — at the cost of more per-row hash storage.
 
 ## Future TODO
 
