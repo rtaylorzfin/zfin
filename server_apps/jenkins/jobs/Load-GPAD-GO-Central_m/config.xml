@@ -86,7 +86,7 @@ echo "DANRE_MOD_GPAD_URL   = $DANRE_MOD_GPAD_URL"
 echo "GAF_LOAD_REPORT_ONLY = $GAF_LOAD_REPORT_ONLY"
 echo "RUN_MGTE_CLEANUP     = $RUN_MGTE_CLEANUP"
 
-bash $SQL/mgte_snapshot.sh before "$OUT" --others GOA Noctua PAINT "FP Inferences" UniProt
+bash $SQL/mgte_snapshot.sh before "$OUT" --others --all GOA Noctua PAINT "FP Inferences" UniProt
 ]]></command>
         </hudson.tasks.Shell>
         <hudson.tasks.Shell>
@@ -168,8 +168,8 @@ set -e
 SQL=$SOURCEROOT/server_apps/DB_maintenance/gafLoad
 OUT=$TARGETROOT/server_apps/DB_maintenance/gafLoad/Load-GPAD-GO-Central_m-dbdiff
 
-bash $SQL/mgte_snapshot.sh after "$OUT" --others GOA Noctua PAINT "FP Inferences" UniProt
-bash $SQL/mgte_csvdiff.sh        "$OUT" --others GOA Noctua PAINT "FP Inferences" UniProt
+bash $SQL/mgte_snapshot.sh after "$OUT" --others --all GOA Noctua PAINT "FP Inferences" UniProt
+bash $SQL/mgte_csvdiff.sh        "$OUT" --others --all GOA Noctua PAINT "FP Inferences" UniProt
 ]]></command>
         </hudson.tasks.Shell>
     </builders>
