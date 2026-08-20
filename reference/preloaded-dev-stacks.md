@@ -107,7 +107,7 @@ Preloaded image Dockerfiles: `docker/postgresql/preloaded.Dockerfile`,
 Two ways in. **Without activating anything**, the tracked repo-root launcher works from any
 checkout or worktree — stack ops (`run`/`exec`/`up`/`stop`/`down`/`pull`/`log`/`restart`/`status`)
 resolve the checkout root via git and target the `.zenv` there for the one invocation (one stack
-per checkout, so no search and no ambiguity — a nested checkout gets its own root, not yours):
+per checkout, one `.zenv` at its root — nothing to search for):
 
 ```bash
 ./z run -c "gradle dirtydeploy"    # >> targeting 'zfin-10454' from …/.zenv (no .zenv activated)

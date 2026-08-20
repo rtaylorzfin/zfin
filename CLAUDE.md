@@ -40,7 +40,7 @@ Key points:
 - `zrun` with no args drops into an interactive login shell in `compile` at `SOURCEROOT`.
 - Pass `-u root` (and similar docker flags) for `run`/`exec`; it may come before or after the service name, e.g. `zrun -u root -c "…"` or `zexec -u root jenkins`.
 - Stack ops (run/exec/up/stop/down/pull/log/restart/status) act on the **active `.zenv` stack**: activation exports `COMPOSE_PROJECT_NAME`/`COMPOSE_FILE`/`COMPOSE_ENV_FILES`, which `docker compose` reads natively. `build`/`create-zenv`/`fresh-install` don't require activation (CI/bootstrap).
-- **No activation needed for stack ops**: with no `.zenv` active they ask git for the checkout root and target the `.zenv` there for that one invocation (announced on stderr) — so `./z run -c "gradle dirtydeploy"` works from anywhere inside a checkout or feature worktree. One stack per checkout, so there's no searching and no ambiguity. Activation always wins; if a `.zenv` is active while you stand in a *different* stack's tree, `z` says so rather than silently acting on the wrong one.
+- **No activation needed for stack ops**: with no `.zenv` active they ask git for the checkout root and target the `.zenv` there for that one invocation (announced on stderr) — so `./z run -c "gradle dirtydeploy"` works from anywhere inside a checkout or feature worktree. One stack per checkout, one `.zenv` at its root, so there's nothing to search for. Activation always wins; if a `.zenv` is active while you stand in a *different* stack's tree, `z` says so rather than silently acting on the wrong one.
 
 ```bash
 zrun -c "gradle compileJava"      # compile Java

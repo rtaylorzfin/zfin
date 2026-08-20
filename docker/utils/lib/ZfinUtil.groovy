@@ -52,12 +52,10 @@ class ZfinUtil {
      *  makes `./z run -c "..."` work straight out of a checkout with no
      *  `source .zenv/activate >/dev/null &&` in front of it.
      *
-     *  One stack per checkout, and its .zenv sits at the repo/worktree ROOT -- so ask git where
-     *  that root is instead of walking parent directories. Same result from any subdirectory,
-     *  but it stops at the repo boundary by construction: a checkout nested inside another
-     *  stack's tree resolves to its own root (no .zenv -> no stack) rather than silently
-     *  adopting the outer one. Non-git directories still work (create-zenv accepts any dir):
-     *  they just have to BE the stack dir.
+     *  One stack per checkout, and its .zenv sits at the repo/worktree ROOT -- so there is
+     *  nothing to search for: ask git where the root is and look there. Works from any
+     *  subdirectory. Non-git directories still work (create-zenv accepts any dir); they just
+     *  have to BE the stack dir.
      *
      *  `source .zenv/activate` remains the explicit path and always WINS -- but if a .zenv is
      *  active while you stand in a different stack's tree, say so: silently acting on the wrong
