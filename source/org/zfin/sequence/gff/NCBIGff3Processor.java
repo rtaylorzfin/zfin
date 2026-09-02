@@ -47,6 +47,9 @@ public class NCBIGff3Processor {
         Configurator.setLevel("htsjdk.tribble.gff.Gff3Codec", org.apache.logging.log4j.Level.ERROR);
     }
 
+    /** Attribute key under which the resolved ZFIN gene ZDB ID is cached on a gff3_ncbi record. */
+    static final String GENE_ID_ATTRIBUTE_KEY = "gene_id";
+
     private ReportBuilder.SummaryTable summaryTableLoad;
     private ReportBuilder.SummaryTable summaryTableFeatureHisto;
     private ReportBuilder.SummaryTable summaryTableGeneLocation;
@@ -415,6 +418,22 @@ public class NCBIGff3Processor {
 
     private void addGeneIDToAttributes() {
         HibernateUtil.createTransaction();
+
+        // Clear the gene_id pairs from any previous run before deriving them again. These
+        // cache the NCBI-Gene-ID -> ZFIN-gene answer taken from db_link, and db_link moves
+        // underneath them every time the NCBI gene load runs. Without this delete a second
+        // run leaves two gene_id pairs on the same record and Gff3Ncbi.getGeneZdbID() picks
+        // between them with findAny(), so the gene a record resolves to becomes arbitrary.
+        // Done before the records are read back so their lazy attribute collections are
+        // populated from the post-delete state.
+        int clearedGeneIdPairs = HibernateUtil.currentSession()
+            .createMutationQuery("delete from Gff3NcbiAttributePair where key = :key")
+            .setParameter("key", GENE_ID_ATTRIBUTE_KEY)
+            .executeUpdate();
+        HibernateUtil.currentSession().flush();
+        HibernateUtil.currentSession().clear();
+        log.info("Cleared " + clearedGeneIdPairs + " stale " + GENE_ID_ATTRIBUTE_KEY + " attribute pairs from a previous run.");
+
         Map<String, Object> params = new HashMap<>();
         params.put("feature", "gene");
 
@@ -449,7 +468,7 @@ public class NCBIGff3Processor {
                 String zfinID = genbankZFINMap.get(geneID);
                 if (zfinID != null) {
                     Gff3NcbiAttributePair pair = new Gff3NcbiAttributePair();
-                    pair.setKey("gene_id");
+                    pair.setKey(GENE_ID_ATTRIBUTE_KEY);
                     pair.setValue(zfinID);
                     pair.setGff3Ncbi(gff3NcbiRecord);
                     HibernateUtil.currentSession().persist(pair);
