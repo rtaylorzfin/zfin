@@ -240,27 +240,62 @@ The offending row was an `ND` root-term annotation
 included `igfbp2a` / `GO:0005520` / IDA on `ZDB-PUB-040611-2` — an
 unrelated, valid, DOI-cited annotation that simply shared the batch.
 
-### Why the Java guard did not catch it
+### Why validation did not catch it: time-of-check vs time-of-use
 
-`HibernateMarkerGoTermEvidenceRepository.addEvidence` has a root-term
-check, but it is gated:
+`isValidMarkerGoTerm` **is** called, ungated, at `GafService.java:172`,
+for every entry. The problem is not a missing check — it is *when* the
+check runs.
 
-```java
-if (markerGoTermEvidenceToAdd.getGoTerm().isRoot() && !isInternalLoad) {
-```
+Validation sweeps all 459,621 entries up front, against **committed**
+database state. Inserts happen later, in batches. Between the two, the
+load changes the very state the rule depends on. The four consecutive ids
+generated for `crygm2d3` (`ZDB-GENE-060918-2`) show it exactly:
 
-and `GafLoadJob` passes `isInternalLoad = gafParser instanceof GpadParser`,
-which is **true for every GPAD load**, `DanreModGpadParser` included. The
-guard is therefore disabled on exactly the path that now carries most of
-our annotations, leaving the database trigger as the only enforcement —
-and the trigger fires mid-batch, when it is already too late to salvage
-the other 99 rows.
+| id | term | evidence |
+|---|---|---|
+| `…-111185` | structural constituent of eye lens (MF) | IBA |
+| `…-111186` | **lens development** (BP) | IBA |
+| `…-111187` | **visual perception** (BP) | IBA |
+| `…-111188` | **biological_process** (root) | **ND** |
 
-Note `isValidMarkerGoTerm` implements the same check and is *not* gated;
-the error summary's many `Cannot add root-term annotation …` entries come
-from that path. So the rule is enforced inconsistently: some root-term
-conflicts are caught cleanly as validation errors, others reach the
-trigger and take a batch with them.
+At validation time the gene had one annotation — `GO:0005212`,
+molecular_function — and zero biological_process rows, so the ND root
+row passed correctly. At insert time 111186 and 111187 landed first, and
+111188 hit `p_marker_has_goterm`, which counts rows *within the open
+transaction* and saw two. Exception, batch aborted.
+
+The file contradicts itself: it supplies both "here are two BP
+annotations for this gene" and "we have no BP data for this gene". The
+inconsistency is only detectable once the earlier rows exist.
+
+### The rule, and the two implementations of it
+
+The three roots (`GO:0003674`, `GO:0008150`, `GO:0005575`) carry `ND` —
+"no biological data available" — asserting that the gene was curated for
+that aspect and nothing was found. Once any real annotation exists in
+that aspect the ND claim is false, so the two must never coexist. The
+database enforces this in both directions: `p_marker_has_goterm` blocks
+adding ND over real data, and `p_check_drop_go_root_term` deletes a stale
+root annotation when a real term arrives. It is a real invariant and
+should be kept.
+
+|  | Java `isValidMarkerGoTerm` | trigger `p_marker_has_goterm` |
+|---|---|---|
+| fires on | the `term_is_root` flag | hardcoded `GO:0003674`/`GO:0008150`/`GO:0005575` |
+| counts | same-ontology annotations with a different term | same-ontology annotations excluding that root |
+| sees | committed state, at validation time | uncommitted same-transaction rows |
+
+The rules are equivalent; only the visibility differs, and that gap is
+the bug. (`term_is_root` also flags `PATO:0000000`, which the trigger
+does not list — irrelevant for GO annotations.) A third, redundant copy
+of the same check sits in `addEvidence`, gated on `!isInternalLoad` and
+therefore inert for GPAD loads; it is not what let this through, but
+three implementations of one rule is its own liability.
+
+The fix is therefore **not** to relax the rule. It is to drop the ND row
+when the same run supplies real annotations for that gene and aspect —
+what `p_check_drop_go_root_term` already does when the ordering happens
+to be the other way round.
 
 ### Consequences for reading any load report
 
