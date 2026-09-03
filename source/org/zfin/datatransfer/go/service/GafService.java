@@ -44,6 +44,7 @@ import java.text.ParseException;
 import java.text.SimpleDateFormat;
 import java.util.*;
 import java.util.regex.Pattern;
+import java.util.stream.Collectors;
 
 import static org.zfin.repository.RepositoryFactory.getMarkerGoTermEvidenceRepository;
 
@@ -684,14 +685,17 @@ public class GafService {
             }
         }
         else if (pubMedID.regionMatches(true, 0, "DOI:", 0, 4)) {
-            String doi = pubMedID.substring(4);
+            // GPAD references are single-valued in practice, but the ZFIN branch above already
+            // tolerates "ZFIN:...|PMID:...", so accept a pipe-qualified DOI the same way.
+            String doi = pubMedID.substring(4).split("\\|")[0];
             List<Publication> publications = RepositoryFactory.getPublicationRepository().getPublicationByDoi(doi);
             if (publications == null || publications.isEmpty()) {
-                throw new GafValidationError("No pub found for DOI: " + pubMedID, gafEntry);
+                throw new GafValidationError("No pub found for DOI: " + doi, gafEntry);
             } else if (publications.size() == 1) {
                 publication = publications.getFirst();
             } else {
-                throw new GafValidationError("Multiple pubs found for DOI: " + pubMedID, gafEntry);
+                throw new GafValidationError("Multiple pubs found for DOI: " + doi + " ["
+                    + publications.stream().map(Publication::getZdbID).collect(Collectors.joining(", ")) + "]", gafEntry);
             }
         }
 
