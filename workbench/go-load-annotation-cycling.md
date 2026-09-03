@@ -1,4 +1,7 @@
-# GO annotation cycling between the Noctua and GO Central GPAD loads
+# GO load: failures that silently destroy or discard annotations
+
+Two related hazards in the GAF/GPAD load, plus the annotation cycling
+between the two GPAD jobs that led to finding them.
 
 Notes from investigating ZFIN-10358 (accept DOIs as pub IDs in GO loads),
 which turned up a larger problem belonging to ZFIN-10025: two scheduled
@@ -213,10 +216,66 @@ release 1184 applied, still unmapped:
   459,621 rows. This was NOT the cause of the 13-hour hang (§4.2 was),
   but it remains a latent scaling concern.
 
-## 7. Reference
+## 7. The write-side twin: one bad row aborts a batch of good ones
+
+§1 is about failures causing deletions. The same "one row poisons many"
+shape exists on the insert path, and was hit while verifying ZFIN-10358.
+
+`GafLoadJob.addAnnotations` inserts in batches of `BATCH_SIZE = 100`
+inside a single transaction. Postgres aborts the entire batch on the
+first failing statement, and the catch block rolls the transaction back
+and logs one `Failed to add batch:` listing every row in it. So a single
+rejected row discards up to 99 valid neighbours, and the run summary's
+`added:` count reports the diff's *intent*, not what committed.
+
+Observed on build #4 of `Load-GPAD-GO-Central_m`:
+
+```
+ERROR: FAIL!: This marker already has non-root go terms
+       --it can not be assigned this root term.
+```
+
+The offending row was an `ND` root-term annotation
+(`ZDB-GENE-060918-2`, `GO:0008150`, `GO_REF:0000015`). Collateral damage
+included `igfbp2a` / `GO:0005520` / IDA on `ZDB-PUB-040611-2` — an
+unrelated, valid, DOI-cited annotation that simply shared the batch.
+
+### Why the Java guard did not catch it
+
+`HibernateMarkerGoTermEvidenceRepository.addEvidence` has a root-term
+check, but it is gated:
+
+```java
+if (markerGoTermEvidenceToAdd.getGoTerm().isRoot() && !isInternalLoad) {
+```
+
+and `GafLoadJob` passes `isInternalLoad = gafParser instanceof GpadParser`,
+which is **true for every GPAD load**, `DanreModGpadParser` included. The
+guard is therefore disabled on exactly the path that now carries most of
+our annotations, leaving the database trigger as the only enforcement —
+and the trigger fires mid-batch, when it is already too late to salvage
+the other 99 rows.
+
+Note `isValidMarkerGoTerm` implements the same check and is *not* gated;
+the error summary's many `Cannot add root-term annotation …` entries come
+from that path. So the rule is enforced inconsistently: some root-term
+conflicts are caught cleanly as validation errors, others reach the
+trigger and take a batch with them.
+
+### Consequences for reading any load report
+
+- `added:` in `_summary.txt` counts what the diff intended to insert, not
+  what committed. Cross-check against the database.
+- One `Failed to add batch:` entry can mean up to 100 lost annotations,
+  and the genuinely-bad row is not necessarily the one listed first.
+
+## 8. Reference
 
 - `GafService.findOutdatedEntries`, `removeEntries`, `getPublication`
 - `GafLoadJob.execute` — per-source removal loop
 - `DanreModSourceOrganization` — `assigned_by` → owning org
 - `GpadParser.postProcessing` — ECO → GO evidence code
+- `GafLoadJob.addAnnotations` — batch insert; `BATCH_SIZE = 100`
+- `HibernateMarkerGoTermEvidenceRepository.addEvidence` /
+  `isValidMarkerGoTerm` — the gated and ungated root-term checks
 - ZFIN-10358 (DOI resolution), ZFIN-10025 (unified DANRE-mod load)
