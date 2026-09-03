@@ -17,6 +17,10 @@ public class GafJobData {
     private List<GafEntry> cellEntries = new ArrayList<>();
     private List<GafEntry> subsetFailureEntries = new ArrayList<>();
     private List<GafValidationError> errors = new ArrayList<>();
+    // Rows that threw during validation. They reach none of newEntries/updateEntries/
+    // existingEntries, so the removal diff cannot see them -- tracked here so the load can tell
+    // "absent from the file" apart from "we failed to evaluate it".
+    private List<GafEntry> rejectedEntries = new ArrayList<>();
     // Merged/retyped object ids corrected against zdb_replaced_data during load, each as
     // {oldId, newId, newSymbol} — surfaced in the load report.
     private List<String[]> remappedMarkerIds = new ArrayList<>();
@@ -65,6 +69,17 @@ public class GafJobData {
         errors.add(gafValidationError);
     }
 
+    /**
+     * The GafEntry behind a validation error. GafValidationError only stringifies the entry into
+     * its message, so the structured row is otherwise lost -- and it is needed to work out which
+     * organization's input we failed to fully evaluate. See GafService.findOutdatedEntries.
+     */
+    public void addRejectedEntry(GafEntry gafEntry) {
+        if (gafEntry != null) {
+            rejectedEntries.add(gafEntry);
+        }
+    }
+
     public List<GafValidationError> getErrors() {
         Collections.sort(errors);
         return errors;
@@ -88,6 +103,10 @@ public class GafJobData {
 
     public List<GafJobEntry> getRemovedEntries() {
         return removedEntries;
+    }
+
+    public List<GafEntry> getRejectedEntries() {
+        return rejectedEntries;
     }
     public int getInfPipeCount() {
         return infPipeCount;
