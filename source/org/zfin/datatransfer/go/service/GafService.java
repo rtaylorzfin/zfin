@@ -208,6 +208,8 @@ public class GafService {
                 logger.debug("Validation error: " + gafValidationError.getMessage() + " for " + gafEntry);
                 if (!gafValidationError.getMessage().contains("GO_REF:0000043"))
                     gafJobData.addError(gafValidationError);
+                // Keep the row itself: findOutdatedEntries needs to know we failed to evaluate it.
+                gafJobData.addRejectedEntry(gafEntry);
             }
 
             ++count;
@@ -337,6 +339,38 @@ public class GafService {
 
         if (zdbIdsOutdated != null)
             generateRemovedEntriesReport(gafJobData, zdbIdsOutdated);
+    }
+
+    /**
+     * How many rows we failed to evaluate would have been owned by this organization.
+     *
+     * <p>findOutdatedEntries subtracts what the file produced from what the organization owns, so
+     * a row that threw during validation looks exactly like a row the file never mentioned -- and
+     * its database counterpart is deleted. That turns any parsing or lookup bug into silent data
+     * loss (ZFIN-10358: an unresolvable DOI removed the annotation a previous load had created).
+     *
+     * <p>A rejected row still carries its {@code assigned_by} and its raw reference string, which
+     * is all {@link DanreModSourceOrganization#resolve} needs, so rejections can be attributed to
+     * an owning organization even when the lookup that failed was the publication itself.</p>
+     */
+    public long countRejectedEntriesForOrganization(GafJobData gafJobData, GafOrganization gafOrganization) {
+        List<GafEntry> rejected = gafJobData.getRejectedEntries();
+        if (CollectionUtils.isEmpty(rejected)) {
+            return 0;
+        }
+        if (!perSourceOrganization) {
+            // Single-org load: every rejected row belongs to the one organization being pruned.
+            return rejected.size();
+        }
+        GafOrganization.OrganizationEnum target =
+            GafOrganization.OrganizationEnum.getType(gafOrganization.getOrganization());
+        return rejected.stream()
+            .filter(entry -> DanreModSourceOrganization.resolve(entry.getCreatedBy(), entry.getPubmedId()) == target)
+            .count();
+    }
+
+    public int countEvidencesForOrganization(GafOrganization gafOrganization) {
+        return markerGoTermEvidenceRepository.getEvidencesForGafOrganization(gafOrganization).size();
     }
 
     public void removeEntries(GafJobData gafJobData) {
