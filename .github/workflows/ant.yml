@@ -32,6 +32,8 @@ jobs:
     - uses: wtfjoke/setup-groovy@v1
       with:
         groovy-version: '4.0.29'
+    - name: Assert working dir does not exist in PR
+      run: '[ ! -d "workbench" ] || echo "::warning::The temp workbench directory exists"'
     - name: Build with Ant
       run: |
        export GROOVY_BIN=`which groovy`
@@ -44,3 +46,4 @@ jobs:
        groovy ./commons/env/PropertiesProcessor.groovy -o ./home/WEB-INF/zfin.properties
        source ./commons/env/load-properties.bash ./home/WEB-INF/zfin.properties
        ant do unittests
+
