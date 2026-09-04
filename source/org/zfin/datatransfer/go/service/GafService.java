@@ -220,7 +220,70 @@ public class GafService {
 
         } // end of gaf entry for loop
 
+        dropRootTermsSupersededInThisRun(gafJobData);
+
         gafJobData.markStopTime();
+    }
+
+    /**
+     * Drop root-term annotations that this same run supersedes.
+     *
+     * <p>The three GO roots (GO:0003674, GO:0008150, GO:0005575) carry ND -- "no biological data
+     * available" -- asserting the gene was curated for that aspect and nothing was found. Once a
+     * real annotation exists in that aspect the ND claim is false, so the two must not coexist.
+     * The database enforces this from both sides: p_marker_has_goterm rejects a root term when
+     * non-root annotations exist, and p_check_drop_go_root_term deletes a stale root annotation
+     * when a real term arrives.
+     *
+     * <p>isValidMarkerGoTerm applies the same rule during validation, but against COMMITTED state.
+     * When a single input file supplies both the ND row and real annotations for the same gene and
+     * aspect -- which DANRE-mod does -- the ND row passes validation (nothing committed yet) and
+     * then trips the trigger at insert time, once the real rows have been written inside the same
+     * transaction. Postgres aborts the whole batch, so one self-contradictory row discards up to
+     * BATCH_SIZE-1 valid neighbours (ZFIN-10358: this is what stopped a DOI-cited annotation from
+     * being recreated).
+     *
+     * <p>Resolving it in the direction the database already prefers -- the real annotation wins,
+     * the ND row is dropped -- makes the insert consistent with the invariant instead of relaxing
+     * it. Only newEntries are considered: a real annotation already committed would have been
+     * caught by isValidMarkerGoTerm.
+     */
+    private void dropRootTermsSupersededInThisRun(GafJobData gafJobData) {
+        Set<MarkerGoTermEvidence> newEntries = gafJobData.getNewEntries();
+
+        // (marker, ontology) pairs this run supplies a real (non-root) annotation for
+        Set<String> aspectsWithRealAnnotation = new HashSet<>();
+        for (MarkerGoTermEvidence entry : newEntries) {
+            if (!entry.getGoTerm().isRoot()) {
+                aspectsWithRealAnnotation.add(aspectKey(entry));
+            }
+        }
+        if (aspectsWithRealAnnotation.isEmpty()) {
+            return;
+        }
+
+        List<MarkerGoTermEvidence> superseded = newEntries.stream()
+            .filter(entry -> entry.getGoTerm().isRoot())
+            .filter(entry -> aspectsWithRealAnnotation.contains(aspectKey(entry)))
+            .toList();
+
+        for (MarkerGoTermEvidence entry : superseded) {
+            newEntries.remove(entry);
+            gafJobData.addError(new GafValidationError(
+                "Root-term annotation " + entry.getGoTerm().getOboID() + " for marker '"
+                + entry.getMarker().getAbbreviation() + "' dropped: this load also supplies "
+                + "non-root " + entry.getGoTerm().getOntology() + " annotations for it"));
+        }
+        if (!superseded.isEmpty()) {
+            String message = "Dropped " + superseded.size()
+                + " root-term annotation(s) superseded by non-root annotations in the same run.";
+            logger.info(message);
+            System.out.println(message);
+        }
+    }
+
+    private static String aspectKey(MarkerGoTermEvidence entry) {
+        return entry.getMarker().getZdbID() + "|" + entry.getGoTerm().getOntology();
     }
 
     protected ReferenceDatabase[] getUniprotRelatedDatabases() {
