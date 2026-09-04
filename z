@@ -1,0 +1,12 @@
+#!/usr/bin/env bash
+# ./z -- repo-root front door for the ZFIN dev-stack tooling (see CLAUDE.md, reference/
+# preloaded-dev-stacks.md). A thin exec into docker/utils/z, which is the real (Groovy) front
+# door and self-locates its lib/ from there -- this file exists so the common case reads well
+# from a fresh checkout, with nothing sourced and nothing on PATH:
+#
+#   ./z run -c "gradle dirtydeploy"     # stack ops auto-target the nearest .zenv (cwd upward)
+#   ./z feature new ZFIN-123
+#   ./z status
+#
+# After `source .zenv/activate`, plain `z` (plus zrun/zup/...) is the same tooling on PATH.
+exec "$(dirname "$0")/docker/utils/z" "$@"

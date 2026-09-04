@@ -55,9 +55,6 @@ Named volumes are managed by Docker. Bind mounts (prefixed with `$DOCKER_*`) are
 | `$DOCKER_BLASTSERVER_BLAST_DATABASE_PATH` | `/opt/zfin/blastdb` | compile, tomcat, tomcatdebug, blast, jenkins |
 | `$DOCKER_ABBLAST_PATH` | `/opt/ab-blast` | compile, tomcat, tomcatdebug, blast, jenkins |
 | `$DOCKER_HHATLAS_PATH` | `/opt/zfin/hh_atlas` | httpd |
-| `$DOCKER_SSH_AUTH_SOCK` | `/run/host-services/ssh-auth.sock` | compile |
-| `/var/run/docker.sock` | `/var/run/docker.sock` | compile |
-| `~/.ssh/known_hosts` | `/home/gradle/.ssh/known_hosts` | compile |
 
 ### Service Environment Variables (from `.env`)
 
