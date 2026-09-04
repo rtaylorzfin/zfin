@@ -148,6 +148,7 @@ export interface AssayDTO {
     sslpOutcrossedPcr: string | null;
     additionalInfo: string | null;
     attachments: AssayFileDTO[];
+    protocolDocuments: AssayFileDTO[];
 }
 
 export interface AssayFileDTO {
