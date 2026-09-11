@@ -450,7 +450,7 @@ public class GafService {
          */
 
         for (MarkerGoTermEvidence existingMarkerGoTermEvidence : existingEvidenceList) {
-            if (isMoreSpecificAnnotation(existingMarkerGoTermEvidence, markerGoTermEvidenceToAdd)) {
+            if (isSameAnnotation(existingMarkerGoTermEvidence, markerGoTermEvidenceToAdd)) {
                 throw new GafAnnotationExistsError(gafEntry, existingMarkerGoTermEvidence);
             }
         }
@@ -837,11 +837,27 @@ public class GafService {
         return null;
     }
 
-    protected boolean isMoreSpecificAnnotation(MarkerGoTermEvidence existingMarkerGoTermEvidence, MarkerGoTermEvidence markerGoTermEvidenceToAdd)
-        throws GafValidationError {
-
-        return existingMarkerGoTermEvidence.isSameButGo(markerGoTermEvidenceToAdd) &&
-            ontologyRepository.isParentChildRelationshipExist(markerGoTermEvidenceToAdd.getGoTerm(), existingMarkerGoTermEvidence.getGoTerm());
+    /**
+     * Is this annotation already stored?
+     *
+     * <p>Descendant filtering was removed deliberately (ZFIN-10358). Under the unified DANRE-mod
+     * load ZFIN is purely a consumer of GO annotations, including its own Noctua curation, so the
+     * incoming file is authoritative about which terms a gene carries. Suppressing an annotation
+     * because a more specific one exists second-guessed that, and did so destructively: it deleted
+     * ~3,200 existing annotations per run, created and removed ~1,500 more within the load, and
+     * its outcome depended on database row order. 404 of the deletions were not even redundant --
+     * the ancestry check followed regulates and occurs_in edges, so "angiogenesis" was treated as
+     * implied by "positive regulation of angiogenesis".
+     *
+     * <p>What remains is a plain identity test. It still has to be here: the old check doubled as
+     * exact-match detection, because all_term_contains holds distance-0 self pairs, so
+     * isParentChildRelationshipExist(X, X) was true. Without an explicit same-term comparison the
+     * load would re-add every annotation it already has.
+     */
+    protected boolean isSameAnnotation(MarkerGoTermEvidence existingMarkerGoTermEvidence, MarkerGoTermEvidence markerGoTermEvidenceToAdd) {
+        return existingMarkerGoTermEvidence.isSameButGo(markerGoTermEvidenceToAdd)
+            && existingMarkerGoTermEvidence.getGoTerm().getZdbID()
+                   .equals(markerGoTermEvidenceToAdd.getGoTerm().getZdbID());
     }
 
     public void addAnnotation(MarkerGoTermEvidence markerGoTermEvidenceToAdd, GafJobData gafJobData, boolean isInternalLoad)
