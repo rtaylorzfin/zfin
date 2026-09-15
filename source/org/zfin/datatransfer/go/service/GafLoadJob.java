@@ -91,6 +91,10 @@ public class GafLoadJob extends AbstractValidateDataReportTask {
     // reports, but perform NO database writes (no add/update/remove, no LoadFileLog). Lets
     // the unified DANRE-mod load be QC'd against staging through the real pipeline safely.
     protected Boolean reportOnly; //default to false
+    // Set when the removal-safety guard withheld deletions for at least one organization, so the
+    // job can exit non-zero and the operator is not left thinking the prune succeeded.
+    protected boolean removalBlocked = false;
+    private static final double DEFAULT_MAX_REMOVAL_FRACTION = 0.10d;
 
     private boolean isReportOnly() {
         return reportOnly != null && reportOnly;
@@ -181,10 +185,14 @@ public class GafLoadJob extends AbstractValidateDataReportTask {
                 // each source only prunes the annotations it owns (no cross-source mass-deletes).
                 for (GafOrganization.OrganizationEnum orgEnum : DanreModSourceOrganization.allTargetOrganizations()) {
                     GafOrganization org = RepositoryFactory.getMarkerGoTermEvidenceRepository().getGafOrganization(orgEnum);
+                    int before = gafJobData.getRemovedEntries().size();
                     gafService.generateRemovedEntries(gafJobData, org);
+                    checkRemovalIsSafe(gafJobData, org, gafJobData.getRemovedEntries().size() - before);
                 }
             } else {
+                int before = gafJobData.getRemovedEntries().size();
                 gafService.generateRemovedEntries(gafJobData, gafOrganization);
+                checkRemovalIsSafe(gafJobData, gafOrganization, gafJobData.getRemovedEntries().size() - before);
             }
             List<GafJobEntry> optional = Optional.ofNullable(gafJobData.getRemovedEntries()).orElse(new ArrayList<>());
             System.out.println("Removed entries: " + optional.size());
@@ -271,6 +279,13 @@ public class GafLoadJob extends AbstractValidateDataReportTask {
             if (gafParser.isErrorEncountered()) {
                 System.out.println(gafParser.getErrorMessage());
                 System.err.println(gafParser.getErrorMessage());
+                exitCode = 2;
+            }
+
+            // Withheld deletions must not look like a clean prune.
+            if (removalBlocked) {
+                logger.error("Removal-safety guard withheld deletions for at least one organization.");
+                System.out.println("Removal-safety guard withheld deletions for at least one organization.");
                 exitCode = 2;
             }
 
@@ -522,6 +537,75 @@ public class GafLoadJob extends AbstractValidateDataReportTask {
      *             downloadUrl2
      *             downloadUrl3
      */
+    /**
+     * Removal-safety guard (ZFIN-10025).
+     *
+     * <p>{@code GafService.findOutdatedEntries} removes everything an organization owns that the
+     * file did not produce. A row that threw during validation reaches none of
+     * newEntries/updateEntries/existingEntries, so it is indistinguishable from a row the file
+     * never contained -- and its database counterpart is deleted. Any parsing or lookup bug in
+     * this load is therefore silent data loss, not merely a failure to add. ZFIN-10358 is the
+     * worked example: an unresolvable DOI deleted the annotation an earlier load had created.
+     *
+     * <p>We cannot reliably tell which existing rows the rejected entries would have matched --
+     * the lookup that failed is often the one needed to identify them. So rather than guess, this
+     * refuses to prune an organization whose input we demonstrably failed to fully evaluate,
+     * whenever the removal is also large enough to matter. The load continues and still reports
+     * the diff; only the deletion is withheld.
+     *
+     * <p>Tunable with GAF_MAX_REMOVAL_FRACTION (default 0.10). Set GAF_ALLOW_LARGE_REMOVAL=true to
+     * proceed anyway, for a genuine bulk retirement.
+     */
+    private void checkRemovalIsSafe(GafJobData gafJobData, GafOrganization org, int removedForOrg) {
+        if (removedForOrg <= 0) {
+            return;
+        }
+        long rejected = gafService.countRejectedEntriesForOrganization(gafJobData, org);
+        int owned = gafService.countEvidencesForOrganization(org);
+        double fraction = owned == 0 ? 0d : (double) removedForOrg / (double) owned;
+        double limit = maxRemovalFraction();
+
+        String detail = String.format(
+            "%s: removing %d of %d annotations (%.1f%%); %d input rows for this organization were rejected",
+            org.getOrganization(), removedForOrg, owned, fraction * 100d, rejected);
+
+        if (rejected > 0 && fraction > limit) {
+            String message = "REMOVAL BLOCKED — " + detail
+                + ". Rejected rows are indistinguishable from absent rows, so these deletions may be "
+                + "spurious. Fix the rejections (see the error summary), or set "
+                + "GAF_ALLOW_LARGE_REMOVAL=true to proceed anyway.";
+            if (envTrue("GAF_ALLOW_LARGE_REMOVAL")) {
+                logger.warn("GAF_ALLOW_LARGE_REMOVAL=true, proceeding despite: " + message);
+                System.out.println("WARNING: " + message + " (overridden)");
+                return;
+            }
+            logger.error(message);
+            System.out.println(message);
+            removalBlocked = true;
+            gafJobData.getRemovedEntries().removeIf(entry -> removalOwnedBy(entry, org));
+        } else {
+            logger.info("Removal check passed — " + detail);
+            System.out.println("Removal check passed — " + detail);
+        }
+    }
+
+    private boolean removalOwnedBy(GafJobEntry entry, GafOrganization org) {
+        return org.getOrganization().equals(entry.getOrganizationCreatedBy());
+    }
+
+    private static double maxRemovalFraction() {
+        String configured = System.getenv("GAF_MAX_REMOVAL_FRACTION");
+        if (configured == null || configured.isBlank()) {
+            return DEFAULT_MAX_REMOVAL_FRACTION;
+        }
+        try {
+            return Double.parseDouble(configured.trim());
+        } catch (NumberFormatException e) {
+            logger.warn("Unparseable GAF_MAX_REMOVAL_FRACTION [" + configured + "], using default");
+            return DEFAULT_MAX_REMOVAL_FRACTION;
+        }
+    }
+
     public static void main(String[] args) {
         initLog4J();
         setLoggerToInfoLevel(logger);

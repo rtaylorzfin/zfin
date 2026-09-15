@@ -208,6 +208,8 @@ public class GafService {
                 logger.debug("Validation error: " + gafValidationError.getMessage() + " for " + gafEntry);
                 if (!gafValidationError.getMessage().contains("GO_REF:0000043"))
                     gafJobData.addError(gafValidationError);
+                // Keep the row itself: findOutdatedEntries needs to know we failed to evaluate it.
+                gafJobData.addRejectedEntry(gafEntry);
             }
 
             ++count;
@@ -403,6 +405,38 @@ public class GafService {
             generateRemovedEntriesReport(gafJobData, zdbIdsOutdated);
     }
 
+    /**
+     * How many rows we failed to evaluate would have been owned by this organization.
+     *
+     * <p>findOutdatedEntries subtracts what the file produced from what the organization owns, so
+     * a row that threw during validation looks exactly like a row the file never mentioned -- and
+     * its database counterpart is deleted. That turns any parsing or lookup bug into silent data
+     * loss (ZFIN-10358: an unresolvable DOI removed the annotation a previous load had created).
+     *
+     * <p>A rejected row still carries its {@code assigned_by} and its raw reference string, which
+     * is all {@link DanreModSourceOrganization#resolve} needs, so rejections can be attributed to
+     * an owning organization even when the lookup that failed was the publication itself.</p>
+     */
+    public long countRejectedEntriesForOrganization(GafJobData gafJobData, GafOrganization gafOrganization) {
+        List<GafEntry> rejected = gafJobData.getRejectedEntries();
+        if (CollectionUtils.isEmpty(rejected)) {
+            return 0;
+        }
+        if (!perSourceOrganization) {
+            // Single-org load: every rejected row belongs to the one organization being pruned.
+            return rejected.size();
+        }
+        GafOrganization.OrganizationEnum target =
+            GafOrganization.OrganizationEnum.getType(gafOrganization.getOrganization());
+        return rejected.stream()
+            .filter(entry -> DanreModSourceOrganization.resolve(entry.getCreatedBy(), entry.getPubmedId()) == target)
+            .count();
+    }
+
+    public int countEvidencesForOrganization(GafOrganization gafOrganization) {
+        return markerGoTermEvidenceRepository.getEvidencesForGafOrganization(gafOrganization).size();
+    }
+
     public void removeEntries(GafJobData gafJobData) {
         for (GafJobEntry gafJobEntry : gafJobData.getRemovedEntries()) {
             RepositoryFactory.getInfrastructureRepository().deleteActiveDataByZdbID(gafJobEntry.getZdbID());
@@ -481,7 +515,7 @@ public class GafService {
          */
 
         for (MarkerGoTermEvidence existingMarkerGoTermEvidence : existingEvidenceList) {
-            if (isMoreSpecificAnnotation(existingMarkerGoTermEvidence, markerGoTermEvidenceToAdd)) {
+            if (isSameAnnotation(existingMarkerGoTermEvidence, markerGoTermEvidenceToAdd)) {
                 throw new GafAnnotationExistsError(gafEntry, existingMarkerGoTermEvidence);
             }
         }
@@ -871,11 +905,27 @@ public class GafService {
         return null;
     }
 
-    protected boolean isMoreSpecificAnnotation(MarkerGoTermEvidence existingMarkerGoTermEvidence, MarkerGoTermEvidence markerGoTermEvidenceToAdd)
-        throws GafValidationError {
-
-        return existingMarkerGoTermEvidence.isSameButGo(markerGoTermEvidenceToAdd) &&
-            ontologyRepository.isParentChildRelationshipExist(markerGoTermEvidenceToAdd.getGoTerm(), existingMarkerGoTermEvidence.getGoTerm());
+    /**
+     * Is this annotation already stored?
+     *
+     * <p>Descendant filtering was removed deliberately (ZFIN-10358). Under the unified DANRE-mod
+     * load ZFIN is purely a consumer of GO annotations, including its own Noctua curation, so the
+     * incoming file is authoritative about which terms a gene carries. Suppressing an annotation
+     * because a more specific one exists second-guessed that, and did so destructively: it deleted
+     * ~3,200 existing annotations per run, created and removed ~1,500 more within the load, and
+     * its outcome depended on database row order. 404 of the deletions were not even redundant --
+     * the ancestry check followed regulates and occurs_in edges, so "angiogenesis" was treated as
+     * implied by "positive regulation of angiogenesis".
+     *
+     * <p>What remains is a plain identity test. It still has to be here: the old check doubled as
+     * exact-match detection, because all_term_contains holds distance-0 self pairs, so
+     * isParentChildRelationshipExist(X, X) was true. Without an explicit same-term comparison the
+     * load would re-add every annotation it already has.
+     */
+    protected boolean isSameAnnotation(MarkerGoTermEvidence existingMarkerGoTermEvidence, MarkerGoTermEvidence markerGoTermEvidenceToAdd) {
+        return existingMarkerGoTermEvidence.isSameButGo(markerGoTermEvidenceToAdd)
+            && existingMarkerGoTermEvidence.getGoTerm().getZdbID()
+                   .equals(markerGoTermEvidenceToAdd.getGoTerm().getZdbID());
     }
 
     public void addAnnotation(MarkerGoTermEvidence markerGoTermEvidenceToAdd, GafJobData gafJobData, boolean isInternalLoad)
