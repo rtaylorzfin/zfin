@@ -42,7 +42,6 @@
             TOMCAT:
             tomcat-restart: Restarts tomcat
             tomcat-start: Start tomcat
-            tomcat-debug-start: Start tomcat and allow remote debugging on port $JPDA_ADDRESS
             tomcat-stop: Stop tomcat
             tomcat-kill: Forced tomcat stop
             tail-tomcat: tail -f $CATALINA_BASE/logs/catalina.out

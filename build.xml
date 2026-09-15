@@ -419,8 +419,6 @@
         <echo>If properties are defined as true, they will show up that way, otherwise will just produce string
             version.
         </echo>
-        <echo message="Is informix: ${isinformix}"/>
-        <echo message="Is mutant: ${ismutant}"/>
         <echo message="Not production: ${notproduction}"/>
     </target>
 
