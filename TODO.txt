@@ -4,6 +4,37 @@ Goal: given two dated DB unload files, load each via `gradle loaddb`, snapshot e
 table (row count + content hash), and emit a per-table before/after comparison summary.
 Driven automatically by a Jenkins job that mirrors Load-Database's file selection.
 
+================================================================================
+NEXT STEPS (as of 2026-09-16) — current state: mount ~/remotes/cell is back;
+11 daily snapshots on disk (08.06..08.16); DB idle. Core tooling all built,
+tested, committed (7 commits, unpushed). Context docs: workbench/
+surrogate-id-churn-audit.md + db-load-comparison-session-notes.md.
+================================================================================
+[ ] Verify/finish the full daily sweep: docker/compare-loads-series.sh --days 10
+    (resumes from existing snapshots). Confirm reports/ + index.csv + unchanged_since.csv
+    cover the full window.
+[ ] Run the deferred DB-heavy churn confirmation now that the DB is idle:
+    drill-table-churn.sh across the 15 top churners + a live pg_constraint FK-reference
+    check per surrogate id. Quantifies real-vs-surrogate churn behind the audit buckets.
+[ ] Surrogate-id stabilization (see workbench/surrogate-id-churn-audit.md), in order:
+      (a) exclude _old / _temp / _bkup tables from the unload (cheap; also shrinks dumps)
+      (b) incremental-apply (ZFIN-10350 pattern) the URL-exposed display tables
+          ui.term_phenotype_display (tpd_id), ui.chebi_phenotype_display (cpd_id)
+          -> also stabilizes the junction tables that store those ids
+      (c) then internal fast_search tables (pheno_term_fast_search first; TODO already
+          filed in its regen header), expression_term_fast_search, genotype_figure_fast_search,
+          sequence_feature_chromosome_location_generated
+[ ] Confirm whether ui.publication_expression_display.ped_id actually reaches a client
+    (serving path may build rows fresh); locate the missing fish_components base-table DDL.
+[ ] Add a fail-fast mount check to compare-loads-series.sh (error clearly instead of
+    dying mid-run when ~/remotes/cell has dropped).
+[ ] Move compareLoads out of build.gradle into the zfin-utils command.
+[ ] (maybe) fold meaningful-column hashing into the sweep so reports carry
+    real_rows_added/removed directly (costs more per-row hash storage).
+[ ] Before merge: git rm the temporary committed scratch (TODO.txt + the 3 workbench
+    files, each in its own commit); then push (manual - git-push-manual).
+================================================================================
+
 Parts:
 [x] snapshot script  server_apps/DB_maintenance/postgres/snapshot_table_summary.sh
 [x] compare script    server_apps/DB_maintenance/postgres/compare_table_summaries.sh
@@ -31,8 +62,8 @@ Future TODO: move compareLoads out of build.gradle into the zfin-utils command.
     as history deepens; nothing rewritten. Ran as post-run hook by the driver.
 [x] DONE: 3-day trial (08.13->08.12->08.11) ran green. Reports + index + unchanged_since ok.
     index: 08.12->08.13 = 113 changed/7 added, ~7.57M churn; 08.11->08.12 = 110 changed.
-[ ] NEXT: full 10-day sweep (docker/compare-loads-series.sh --days 10). Resumes from the
-    3 trial days already done -> ~7 more loads (~3.5 hr). Awaiting go-ahead.
+[~] full 10-day sweep: in progress; 11 snapshots on disk (08.06..08.16) as of 2026-09-16.
+    See NEXT STEPS at top to verify completion. (superseded)
 
 Fixed along the way: two `| head` + `set -o pipefail` SIGPIPE (exit 141) bugs (compare and
 unchanged_since console summaries) -> awk-internal row limiting. Disk: freed 15.8G via
@@ -44,10 +75,9 @@ docker prune (unused images/cache; no user files, solr volume kept) -> ~30G free
     churn via EXCEPT ALL. Validated 07.05->07.06: publication_expression_display raw
     476k/476k -> REAL 0/0 (all ped_id+created_at noise); curation +811/-9 real (net +802).
 
-BLOCKER (needs Ryan): sshfs mount ~/remotes/cell dropped -> stalled the --days 10 sweep at
-08.10 and blocks August drill-downs. Remount, then `docker/compare-loads-series.sh --days 10`
-RESUMES from the 3 finished trial days. Drill-downs can also use local /research dumps via
---mount /research/zunloads/databases/zfindb.
+[RESOLVED] sshfs mount ~/remotes/cell had dropped (stalled the sweep, blocked August
+drill-downs); remounted, sweep resumed. Note for future: drill-downs can also use local
+/research dumps via --mount /research/zunloads/databases/zfindb.
 
 Possible future: fold meaningful-column hashing into the sweep so every report carries
 real_rows_added/removed (costs more per-row hash storage) instead of per-table drilling.
