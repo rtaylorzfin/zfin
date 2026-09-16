@@ -1,0 +1,2 @@
+Continue on macdev with: claude --resume ba54cb9f-7a61-4c83-bbf0-c1757f610663
+
