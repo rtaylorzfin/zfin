@@ -1,0 +1,67 @@
+Feature: before/after table-summary across two DB loads (branch zfin-compare-db-loads)
+
+Goal: given two dated DB unload files, load each via `gradle loaddb`, snapshot every
+table (row count + content hash), and emit a per-table before/after comparison summary.
+Driven automatically by a Jenkins job that mirrors Load-Database's file selection.
+
+Parts:
+[x] snapshot script  server_apps/DB_maintenance/postgres/snapshot_table_summary.sh
+[x] compare script    server_apps/DB_maintenance/postgres/compare_table_summaries.sh
+[x] gradle task       build.gradle: compareLoads -Dbefore=<dump> -Dafter=<dump>
+[x] jenkins job       server_apps/jenkins/jobs/Compare-Database-Loads/config.xml
+[x] doc               doc/compare-database-loads.md
+
+Known limitation (documented): content hash includes zdb_id / date columns, so ID-churning
+loads (drop + reload of equivalent data) flag as `changed`. Future TODO: per-table
+meaningful-column hashing (cf. lib/DB_functions/mgte_hash_*.sql).
+
+Future TODO: move compareLoads out of build.gradle into the zfin-utils command.
+
+[x] DONE: row churn (rows_added / rows_removed per table). snapshot HASHDIR mode writes
+    sorted per-row md5 files; compare uses comm to count exact adds/removes for changed
+    tables. Tested: t_swap 1/1 at delta0, t_rebuild 5/5, t_same 0/0. content_hash formula
+    unified across modes (COLLATE "C"). Needs ~3GB/day disk (freed 15.8GB via docker prune).
+
+[x] DONE: backward daily-sweep driver docker/compare-loads-series.sh. CLI flags
+    (--mount/--days/--start/--dates/--container/...), env fallback. Atomic snapshot/hash
+    promotion + resume (skip days with snapshot, reports already written; regen pruned
+    hashes only if a boundary report needs them). Larger --days later just extends window.
+[x] DONE: unchanged_since.sh reads accumulated snapshots (durable, cross-run) -> per table
+    latest_row_count + unchanged_since (= exact / <= lower-bound). Bounds tighten to exact
+    as history deepens; nothing rewritten. Ran as post-run hook by the driver.
+[x] DONE: 3-day trial (08.13->08.12->08.11) ran green. Reports + index + unchanged_since ok.
+    index: 08.12->08.13 = 113 changed/7 added, ~7.57M churn; 08.11->08.12 = 110 changed.
+[ ] NEXT: full 10-day sweep (docker/compare-loads-series.sh --days 10). Resumes from the
+    3 trial days already done -> ~7 more loads (~3.5 hr). Awaiting go-ahead.
+
+Fixed along the way: two `| head` + `set -o pipefail` SIGPIPE (exit 141) bugs (compare and
+unchanged_since console summaries) -> awk-internal row limiting. Disk: freed 15.8G via
+docker prune (unused images/cache; no user files, solr volume kept) -> ~30G free.
+
+[x] DONE: meaningful-column churn drill-down docker/drill-table-churn.sh. Per table, two
+    loads: pg_restore -t just that table into a scratch DB (no full loaddb), auto-exclude
+    date/time cols + int/bigint surrogate keys (id/*_id; sole int PK), compare raw vs REAL
+    churn via EXCEPT ALL. Validated 07.05->07.06: publication_expression_display raw
+    476k/476k -> REAL 0/0 (all ped_id+created_at noise); curation +811/-9 real (net +802).
+
+BLOCKER (needs Ryan): sshfs mount ~/remotes/cell dropped -> stalled the --days 10 sweep at
+08.10 and blocks August drill-downs. Remount, then `docker/compare-loads-series.sh --days 10`
+RESUMES from the 3 finished trial days. Drill-downs can also use local /research dumps via
+--mount /research/zunloads/databases/zfindb.
+
+Possible future: fold meaningful-column hashing into the sweep so every report carries
+real_rows_added/removed (costs more per-row hash storage) instead of per-table drilling.
+
+Design note: snapshot hashes each row then aggregates in hash order (ORDER BY the
+row's own md5), NOT by PK/all-columns. This is deterministic, key-agnostic, and
+avoids ORDER BY failures on PK-less tables with unorderable column types (json/xml).
+
+Tested (against dazed zfindb, psql 18):
+[x] snapshot script runs on 200+ real tables incl. large (1.5M rows) and empty
+[x] snapshot determinism: two runs of same data -> byte-identical CSV
+[x] hash order-independent (same rows, different insert order -> same hash)
+[x] hash change-sensitive (one changed value -> different hash); empty -> '' stable
+[x] compare script: all four statuses correct (added/removed/changed/unchanged),
+    incl. same-count-but-content-changed -> changed; CSV artifact + console summary
+[x] build.gradle parses; GradleException usage matches 8 existing sites
+[ ] full gradle compareLoads dry-run with two real dumps (destructive; not yet run)
