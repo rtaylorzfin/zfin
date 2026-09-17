@@ -1,7 +1,52 @@
 <?xml version='1.0' encoding='UTF-8'?>
 <project>
   <actions/>
-  <description>Port of the perl-based NCBI-Gene-Load to Java</description>
+  <description>Port of the perl-based NCBI-Gene-Load to Java. Reconciles ZFIN &lt;-&gt; NCBI Gene
+cross-references and RefSeq accessions. Runs `gradle ncbiPort` (= :ncbiLoadPort ->
+org.zfin.datatransfer.ncbi.NCBIDirectPort) in the Jenkins workspace.
+
+INPUTS (external):
+  ftp://ftp.ncbi.nlm.nih.gov/refseq/release/RELEASE_NUMBER
+  ftp://ftp.ncbi.nlm.nih.gov/refseq/release/release-catalog/RefSeq-release&lt;N&gt;.catalog.gz
+        (filtered to 'Danio rerio'; override: OVERRIDE_REFSEQ_CATALOG)
+  ftp://ftp.ncbi.nlm.nih.gov/gene/DATA/gene2accession.gz
+        (filtered to taxon 7955; override: OVERRIDE_GENE2ACCESSION)
+  ftp://ftp.ncbi.nlm.nih.gov/gene/DATA/GENE_INFO/Non-mammalian_vertebrates/Danio_rerio.gene_info.gz
+  ftp://ftp.ncbi.nlm.nih.gov/gene/DATA/ARCHIVE/gene2vega.gz
+  https://eutils.ncbi.nlm.nih.gov/entrez/eutils/efetch.fcgi
+        (efetch step, builds seq.fasta for accession lengths; SKIP_EFETCH / FORCE_EFETCH)
+
+INPUTS (produced by sibling tasks, read from $SOURCEROOT):
+  ncbi_matches_through_ensembl.csv   (NcbiMatchThroughEnsemblTask)
+  ncbi_gene_symbol_matches.csv       (NcbiGeneSymbolMatchTask)
+
+OUTPUT (tables written) - via the SQL files in server_apps/data_transfer/NCBIGENE/:
+  db_link                                        insert new NCBI/RefSeq/GenBank accessions,
+                                                 delete withdrawn ones
+  record_attribution                             attributions for added/removed links
+  zdb_active_data                                rows removed for deleted dblinks
+  reference_protein                              rows tied to deleted dblinks
+  marker_annotation_status                       full rebuild (DELETE then INSERT)
+  marker_assembly                                gene &lt;-&gt; assembly rows
+  sequence_feature_chromosome_location_generated genomic locations for newly linked genes
+  gff3_ncbi_attribute                            attributes for newly linked genes
+  ncbi_gene_load / ncbi_gene_delete /
+  tmp_pre_ncbi_gene_delete                       staging tables loaded from the .unl files
+
+REFERENCE TABLES (used for matching/protection from deletion):
+  db_link                    current ZFIN accessions - the core comparison set
+  foreign_db_contains        resolves the fdbcont row for each accession type
+  marker / marker_relationship / marker_type_group_member
+                             gene identity, EST/clone -&gt; gene traversal, type filtering
+  record_attribution         protects curator-attributed links from deletion
+  expression_experiment2     protects dblinks in use by expression data
+  ortholog_external_reference   ortholog-side NCBI references
+  external_resource.ncbi_danio_rerio_gene_info_ensembl
+                             NCBI -&gt; Ensembl ID map for the one-way-gene matching
+  vocabulary_term            NCBI annotation-status vocabulary
+  assembly                   assembly PK for marker_assembly rows
+
+Full I/O documentation: reference/data-load-jobs.md#ncbi-gene-load-java</description>
   <keepDependencies>false</keepDependencies>
 
   <properties>

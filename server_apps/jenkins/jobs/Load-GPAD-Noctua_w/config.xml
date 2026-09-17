@@ -1,7 +1,32 @@
 <?xml version='1.0' encoding='UTF-8'?>
 <project>
   <actions/>
-  <description>Import the GPAD file that comes from Noctua (GO) and contains Zebrafish-related annotations</description>
+  <description>Import the GPAD file that comes from Noctua (GO) and contains Zebrafish-related annotations.
+
+INPUT (external):
+  https://current.geneontology.org/products/upstream_and_raw_data/noctua_zfin.gpad.gz
+  (override with the NOCTUA_GPAD_URL environment variable)
+
+OUTPUT (tables written):
+  marker_go_term_evidence               - annotations added; annotations previously loaded
+                                          for the "Noctua" organization but absent from the
+                                          new file are removed
+  inference_group_member                - inferred-from entries
+  marker_go_term_annotation_extension_group / _extension
+  noctua_model                          - Noctua model IDs seen in the file
+  load_file_log                         - one row per successful run
+
+REFERENCE TABLES (used for matching/validation):
+  eco_go_mapping        ECO evidence code -&gt; GO evidence code
+  db_link               UniProt/RNAcentral accession -&gt; ZFIN gene
+  marker                gene lookup by ZDB ID; clone -&gt; gene traversal
+  term / term_subset / ontology_subset
+                        GO term lookup, obsolete check, "Do Not Annotate" subsets
+  publication           PMID / DOI / GO_REF -&gt; ZFIN publication
+  go_evidence_code      evidence code validation
+  zdb_replaced_data     remap merged/replaced ZDB IDs
+
+Full I/O documentation: reference/data-load-jobs.md#load-gpad-noctua_w</description>
   <keepDependencies>false</keepDependencies>
     <properties>
         <hudson.model.ParametersDefinitionProperty>
