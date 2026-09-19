@@ -392,20 +392,10 @@ public class UniprotSecondaryTermLoadTask extends AbstractScriptWrapper {
     private void calculatePipelineActions() {
         /* The following could be all handled by the same class in a refactoring: */
         // TODO: refactor this area
-        // Something like this: pipeline.addHandler(new RemoveFromLostUniProtsActionCreator(List.of(INTERPRO, EC, PFAM, PROSITE)), RemoveFromLostUniProtsActionProcessor.class);
-        // And could even combine the Add and Remove handlers into one class that calls out to the two classes
         pipeline.addHandler(new RemoveFromLostUniProtsActionCreator(INTERPRO), RemoveFromLostUniProtsActionProcessor.class);
         pipeline.addHandler(new AddNewDBLinksFromUniProtsActionCreator(INTERPRO), AddNewDBLinksFromUniProtsActionProcessor.class);
-
-        pipeline.addHandler(new RemoveFromLostUniProtsActionCreator(EC), RemoveFromLostUniProtsActionProcessor.class);
-        pipeline.addHandler(new AddNewDBLinksFromUniProtsActionCreator(EC), AddNewDBLinksFromUniProtsActionProcessor.class);
-
-        pipeline.addHandler(new RemoveFromLostUniProtsActionCreator(PFAM), RemoveFromLostUniProtsActionProcessor.class);
-        pipeline.addHandler(new AddNewDBLinksFromUniProtsActionCreator(PFAM), AddNewDBLinksFromUniProtsActionProcessor.class);
-
-        pipeline.addHandler(new RemoveFromLostUniProtsActionCreator(PROSITE), RemoveFromLostUniProtsActionProcessor.class);
-        pipeline.addHandler(new AddNewDBLinksFromUniProtsActionCreator(PROSITE), AddNewDBLinksFromUniProtsActionProcessor.class);
-        /* The above could be refactored to all be handled by the same class */
+        // EC, PFAM, and PROSITE dblinks were retired by ZFIN-10418: no consumer outside the load
+        // itself ever read them, and EC only existed to feed the ec2go derivation ZFIN-10344 removes.
 
         // ZFIN-10344 / ZFIN-10025: the three *2go GO-mapping streams below are what the unified
         // DANRE-mod GO load is meant to take over. They are GATED rather than deleted so both
