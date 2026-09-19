@@ -1,0 +1,50 @@
+# Member overlay for a feature stack routed by the review proxy. `z feature new` picks it and
+# records it in the stack's .env as ZFIN_COMPOSE_OVERLAYS:
+#
+#   docker-compose.yml [+ docker-compose.shared-db.yml] + this
+#
+# --shared-db adds the data overlay; an own-data stack has none, its volumes coming from a seed.
+# This file goes last either way, so its httpd changes win if a data overlay ever touches httpd.
+#
+# Everything expressible as a VALUE has moved to the stack's .env, read by the base file: the
+# loopback port defaults, DOCKER_EXTERNAL_VHOST/DOCKER_REVIEW_VHOST for who routes the stack,
+# DOCKER_SOLR_MEM_LIMIT/DOCKER_SOLR_HEAP for its solr sizing (StackConfig.featureEnv). What is
+# left is what a value cannot say: joining a network, and suppressing a service.
+#
+# TODO: revisit whether even these two belong here, with docker-compose.shared-db.yml -- the
+# same shape, also two entries -- reviewed at the same time. Measured so far:
+#   certbot   COULD move. `profiles: ["certs"]` in the base plus COMPOSE_PROFILES=certs in each
+#             .env works (compose reads it from --env-file). Not done because it inverts the
+#             default: certbot starts for everyone today, and after it only for stacks that opt
+#             in, so every instance and plain dev stack needs a key we do not generate.
+#   networks  Does NOT move. Networks take no `profiles`, and `external: true` passes `config`
+#             and fails at `up` -- so a base file that always joined zfin_review_net would break
+#             every stack on a host without the proxy, `docker compose up` on a clean checkout
+#             included. Inverting it (the proxy joins each stack's network, as --shared-db does
+#             for db/solr) removes the overlay but trades declared membership for runtime state
+#             that has to be re-established whenever the proxy is recreated.
+#
+# httpd is what gets routed: it is the HTTP front door, so TLS, OIDC and the paths to tomcat,
+# solr, jenkins and mailpit are all in its config. Routing straight at tomcat would mean
+# reimplementing that (review-stacks.md 11); tomcat also cannot be multi-homed (shared-db.yml).
+#
+# VIRTUAL_PROTO/VIRTUAL_PORT stay at the base file's https/443: plain http to httpd loops the
+# four admin paths and drops the `Secure` session cookie (review-stacks.md 3.4).
+#
+# Details: docker-compose.review.yml, reference/dev-stacks.md.
+services:
+  httpd:
+    networks:
+      default: {}
+      review: {}
+
+  # Nothing forwards an ACME challenge to a routed stack, so certbot exits 1 on every `up` and
+  # reads as a failure in `docker ps -a`. Nothing depends on it; the certbot_data mount is empty
+  # either way.
+  certbot:
+    profiles: ["review-certs"]
+
+networks:
+  review:
+    external: true
+    name: zfin_review_net
