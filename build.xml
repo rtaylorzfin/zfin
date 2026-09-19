@@ -371,8 +371,18 @@
     <target name="deploy-without-tests"
             depends="cleanClasses,pre-deploy,build-properties,unittests-quiet,restart"/>
 
-    <target name="deploy-without-tests-and-tomcat-restart"
+    <!-- Deploy with neither the test run nor a tomcat restart. The restart moved to the host
+         (see buildfiles/tomcat.xml), so this is what anything running inside the compile
+         container wants; `z build deploy` stops and starts the app tier either side of it. -->
+    <target name="deploy-no-tests-no-restart"
             depends="cleanClasses,pre-deploy,build-properties,unittests-quiet"/>
+
+    <!-- Renamed: the old name parsed as "without tests, and WITH a tomcat restart", which is the
+         opposite of what it did. Fails loudly rather than silently not existing, because a
+         caller outside this repo (a GoCD pipeline, a Jenkins job) may still use it. -->
+    <target name="deploy-without-tests-and-tomcat-restart">
+        <fail>deploy-without-tests-and-tomcat-restart was renamed to deploy-no-tests-no-restart.</fail>
+    </target>
 
     <target name="pre-deploy" depends="do,gwt,npmInstall,npmBuild,deployGitInfoFile,gradle-tomcat-deploy"
             description="Target to compile all classes (excluding jsp files) and then deploy the necessary files to user's web environment.">
@@ -419,8 +429,6 @@
         <echo>If properties are defined as true, they will show up that way, otherwise will just produce string
             version.
         </echo>
-        <echo message="Is informix: ${isinformix}"/>
-        <echo message="Is mutant: ${ismutant}"/>
         <echo message="Not production: ${notproduction}"/>
     </target>
 
