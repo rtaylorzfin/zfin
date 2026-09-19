@@ -28,13 +28,20 @@ OPENIDC_CRYPTOPASSPHRASE=passphrase-changeme
 OPENIDC_CLIENTID=dazed.zfin.org
 OPENIDC_CLIENTSECRET=secret-from-keycloak
 DOCKER_GFF3_PATH=/research/zprod/gff3/
-DOCKER_HTTPD_HTTP_PORT=8080-8089
-DOCKER_HTTPD_HTTPS_PORT=8443-8452
-ZFIN_RELEASE=latest
-
-DOCKER_HTTPD_HTTP_PORT=127.0.0.2:8084
-DOCKER_HTTPD_HTTPS_PORT=127.0.0.2:443
+# Ranges, not fixed ports: Docker takes the first free one, so these need no attention when
+# another stack (or a proxy owning 0.0.0.0:443) is already on the box. A fixed :443 cannot
+# bind at all once something holds the wildcard on that port.
+DOCKER_HTTPD_HTTP_PORT=127.0.0.2:18080-18099
+DOCKER_HTTPD_HTTPS_PORT=127.0.0.2:18443-18462
 DOCKER_JENKINS_HTTP_PORT=127.0.0.2:9499
+# Dev stacks are served at <slug>.zfin.test -> give the self-signed cert a matching SAN.
+# (Opt-in: the compose default is false, so staging/prod keep a zfin.org-only cert.)
+ZFIN_DEV_CERT_SAN=true
 
 # To override OIDC settings for local development Set the following to "true"
 # DISABLE_OIDC=false
+
+# Parent for everything the dev tooling owns -- see reference/dev-tree-layout.md
+# REQUIRED: no default. Recommended layout puts repos/ worktrees/ review/ archive/
+# cache/ and mounts/ under it.
+ZFIN_DEV_ROOT=~/zfin-dev
