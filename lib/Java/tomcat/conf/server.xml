@@ -77,6 +77,20 @@
       <Host name="@DOMAIN-NAME@"  appBase="webapps"
             unpackWARs="false" autoDeploy="false">
 
+        <!-- Honour the proxy headers httpd (and anything in front of it) already sends.
+             Without this, request.getScheme() and getRemoteAddr() report the LAST hop: httpd
+             proxies /action/ to http://tomcat:2008 from its :80 vhost, so every absolute URL
+             the app builds from request.getRequestURL() comes out http. JSESSIONID is Secure,
+             so a browser then drops the session on the next request. That is how solving a
+             captcha used to redirect straight back to the challenge, forever.
+             internalProxies covers the RFC1918 ranges Docker bridges live on, so only a
+             neighbouring container can set these headers; a real client cannot forge them. -->
+        <Valve className="org.apache.catalina.valves.RemoteIpValve"
+               remoteIpHeader="x-forwarded-for"
+               protocolHeader="x-forwarded-proto"
+               protocolHeaderHttpsValue="https"
+               internalProxies="10\.\d{1,3}\.\d{1,3}\.\d{1,3}|192\.168\.\d{1,3}\.\d{1,3}|169\.254\.\d{1,3}\.\d{1,3}|127\.\d{1,3}\.\d{1,3}\.\d{1,3}|172\.1[6-9]\.\d{1,3}\.\d{1,3}|172\.2[0-9]\.\d{1,3}\.\d{1,3}|172\.3[0-1]\.\d{1,3}\.\d{1,3}" />
+
         <Valve className="org.apache.catalina.valves.AccessLogValve" directory="logs"
                prefix="localhost_access_log" suffix=".txt"
                pattern="%h %l %u %t &quot;%r&quot; %s %b" />

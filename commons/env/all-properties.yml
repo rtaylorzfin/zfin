@@ -428,6 +428,11 @@ instance_environment:
 # If an instance is NOT listed here, it uses the real email addresses above.
 # -----------------------------------------------------------------------------
 email_overrides:
+  # Feature/review stacks (DOCKER_INSTANCE=feature, set by `z feature new`). Required, not
+  # optional: an instance absent from this section uses the REAL curator addresses, so a dev
+  # stack running a load job could mail them. Dev stacks also send via mailpit, but that is a
+  # second line of defence, not a reason to omit the first.
+  feature: "informix@zfin.org"
   cell: "rtaylor@zfin.org"
   confused: "ryanm@zfin.org"
   coral: "rtaylor@zfin.org"
@@ -467,6 +472,21 @@ email_overrides:
 # This ensures defaults_by_environment is applied correctly before these overrides.
 # -----------------------------------------------------------------------------
 instance_overrides:
+  # ---------------------------------------------------------------------------------------
+  # `feature` -- the instance every per-feature dev stack runs as (`z feature new` writes
+  # DOCKER_INSTANCE=feature into the stack's docker/.env). Before this existed, feature stacks
+  # inherited whatever instance the base .env named (e.g. coral) and so generated that host's
+  # properties, including DOMAIN_NAME=zfin.org -- meaning a stack served at
+  # zfin-1234.review.zfin.test still emitted absolute links, and mail still pointed, at
+  # PRODUCTION. Mostly invisible until review URLs made stacks shareable.
+  #
+  # DOMAIN_NAME follows the stack's own hostname. Note ${env.X} THROWS when the variable is
+  # unset, which is deliberate containment: this instance is only usable where
+  # DOCKER_VIRTUAL_HOST is exported, which is every compose service and nowhere else.
+  # See workbench/review-stacks.md 8.
+  feature:
+    DOMAIN_NAME: "${env.DOCKER_VIRTUAL_HOST}"
+    PRIMARY_COLOR: "#6a1b9a"   # distinct on sight: you are on a feature stack, not a real site
   franklin: { }  # All values now in prod_defaults
   test:
     PRIMARY_COLOR: "#ffa000"
