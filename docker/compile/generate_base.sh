@@ -5,32 +5,53 @@ CERTDIR=/opt/zfin/tls/certs
 KEYDIR=/opt/zfin/tls/private
 KEYSTOREDIR=/opt/apache/apache-tomcat/conf
 CERT_HOSTNAME=zfin.org
+# Base SAN = the production hostname. Staging/prod serve real *.zfin.org letsencrypt certs
+# and keep exactly this.
+CERT_SAN="DNS:${CERT_HOSTNAME}"
+# DEV opt-in only: per-feature dev stacks are served at <slug>.zfin.test, so when
+# ZFIN_DEV_CERT_SAN=true the self-signed cert also covers the .zfin.test wildcard (one label
+# -> z10286.zfin.test, zfh-a.zfin.test, ...) plus the apex and localhost. Off by default so
+# it never leaks into a staging/prod cert.
+if [ "${ZFIN_DEV_CERT_SAN:-false}" = "true" ]; then
+  CERT_SAN="${CERT_SAN}, DNS:*.zfin.test, DNS:zfin.test, DNS:localhost"
+fi
 
-if [ ! -d $CERTDIR ]
+# Opt out entirely: a container that serves no TLS has no use for a certificate, and giving
+# it one means handing it the stack's private key for nothing. The claude sidecar sets this --
+# it does not mount tls_certs, so without the skip the cert was regenerated into a throwaway
+# layer on EVERY login shell (the `if [ ! -f ]` guards below only work when the volume
+# persists), printing "writing RSA key" each time it was entered.
+if [ "${ZFIN_SKIP_CERT_SETUP:-false}" = "true" ]; then
+  CERT_SETUP=skip
+else
+  CERT_SETUP=do
+fi
+
+if [ "$CERT_SETUP" = "do" ] && [ ! -d $CERTDIR ]
 then
   mkdir $CERTDIR
 fi
 
-if [ ! -d $KEYDIR ]
+if [ "$CERT_SETUP" = "do" ] && [ ! -d $KEYDIR ]
 then
   mkdir $KEYDIR
 fi
 
-if [ ! -f $KEYDIR/zfin.org.key ]
+if [ "$CERT_SETUP" = "do" ] && [ ! -f $KEYDIR/zfin.org.key ]
 then
   openssl genrsa -des3 -passout pass:so32hsf -out $KEYDIR/zfin.org.pass.key 2048
   openssl rsa -passin pass:so32hsf -in $KEYDIR/zfin.org.pass.key -out $KEYDIR/zfin.org.key
   rm $KEYDIR/zfin.org.pass.key
 fi
 
-if [ ! -f $CERTDIR/zfin.org.crt ]
+if [ "$CERT_SETUP" = "do" ] && [ ! -f $CERTDIR/zfin.org.crt ]
 then
   openssl req -new -key $KEYDIR/zfin.org.key -out $CERTDIR/zfin.org.csr \
     -subj "/C=US/ST=Oregon/L=Eugene/O=University of Oregon/OU=ZFIN/CN=${CERT_HOSTNAME}"
 
   #ssl extensions (https://eengstrom.github.io/musings/self-signed-tls-certs-v.-chrome-on-macos-catalina)
   echo "[v3_ca]" > $CERTDIR/ssl-extensions.cnf
-  echo "subjectAltName = DNS:${CERT_HOSTNAME}" >>  $CERTDIR/ssl-extensions.cnf
+  echo "subjectAltName = ${CERT_SAN}" >>  $CERTDIR/ssl-extensions.cnf
   echo "extendedKeyUsage = serverAuth" >>  $CERTDIR/ssl-extensions.cnf
 
   openssl x509 -req -days 365 \
@@ -42,7 +63,7 @@ then
   rm $CERTDIR/zfin.org.csr $CERTDIR/ssl-extensions.cnf
 fi
 
-if [ ! -f $KEYSTOREDIR/keystore ]
+if [ "$CERT_SETUP" = "do" ] && [ ! -f $KEYSTOREDIR/keystore ]
 then
   openssl pkcs12 -export -name tomcat -in $CERTDIR/zfin.org.crt -inkey $KEYDIR/zfin.org.key -password pass:changeit -out $CERTDIR/zfin.org.p12 
   keytool -importkeystore -destkeystore $KEYSTOREDIR/keystore -srckeystore $CERTDIR/zfin.org.p12 -srcstoretype pkcs12 -alias tomcat -srcstorepass changeit -deststorepass changeit

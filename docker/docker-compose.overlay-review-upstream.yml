@@ -1,0 +1,37 @@
+# Overlay for running the review proxy BEHIND another nginx-proxy that already owns the host's
+# :80/:443 -- ZFIN's `ngproxy` on the shared Docker VMs. Used by `z review up --upstream`.
+#
+#   client ──https──▶ ngproxy ──▶ this proxy ──▶ the right stack's httpd
+#
+# Two changes from the standalone proxy: publish nothing (ngproxy holds those ports; we are
+# reached over the Docker network), and claim the zone as ONE wildcard vhost, so ngproxy needs
+# a single entry rather than one per ticket. An exact vhost still beats a wildcard, so
+# cell.zfin.org keeps going straight to cell-httpd-1.
+#
+# https/443 to us, not http -- ZFIN's JSESSIONID is `Secure`, so a plain-http hop drops the
+# session and anything session-bound restarts silently (review-stacks.md 3.4a).
+#
+# Also set ZFIN_REVIEW_TRUSTED_PROXY to ngproxy's CIDR, or the IP allowlist sees ngproxy as the
+# client for every request and allows or denies everyone uniformly.
+#
+# `proxy` here is OURS (zfin-review-proxy). Every `ngproxy` named above is IT's container, which
+# this file never modifies -- it joins a network ngproxy already watches, nothing more.
+services:
+  proxy:
+    ports: !reset null
+    environment:
+      # The STOCK variable, on purpose: this one container is what the upstream should see.
+      # Routed stacks use ZFIN_VIRTUAL_HOST, which the upstream's stock template ignores.
+      VIRTUAL_HOST: "*.${ZFIN_REVIEW_ZONE}"
+      VIRTUAL_PROTO: https
+      VIRTUAL_PORT: "443"
+      # The client-facing cert is the upstream's problem; a wildcard needs DNS-01 there.
+      LETSENCRYPT_HOST: "${ZFIN_REVIEW_LETSENCRYPT_HOST:-}"
+    networks:
+      - zfin_review_net
+      - upstream
+
+networks:
+  upstream:
+    external: true
+    name: ${ZFIN_REVIEW_UPSTREAM_NET:?set ZFIN_REVIEW_UPSTREAM_NET to a network the upstream proxy is on}
