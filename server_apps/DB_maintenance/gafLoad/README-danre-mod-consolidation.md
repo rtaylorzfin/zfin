@@ -26,7 +26,7 @@ Status: **pre-cutover.** The `load-gpad-danre-mod` Ant target still *defaults* t
 than hardcoded, so it can be overridden.
 
 > **`Load-GPAD-GO-Central_m` is DISABLED until cutover** (decided 2026-08-14), and enabling it
-> is one half of a two-part switch — see open decision 3. The other half is turning the
+> is one half of a two-part switch — see open decision 2. The other half is turning the
 > secondary load's `*2go` GO streams off (`LOAD_INTERPRO2GO_EC2GO=false`, `LOAD_KW2GO=false`)
 > and purging the pre-existing `UniProt`-org **interpro2go + ec2go** rows (70,062 — *not*
 > kw2go, which has no successor). Do those together: enabled while
@@ -127,8 +127,7 @@ qualifier-relation agree (`getLikeMarkerGoTermEvidencesButGo`), and then GO-term
 inferences are compared (`isMoreSpecificAnnotation`). Any one field differing means no match: the
 incoming row counts as **added** and the stored row as **removed**.
 
-That is why a representation change looks like loss. The `ECO:0007322` gap (finding 3) was
-exactly this — the file carried the same gene→GO under the same `GO_REF:0000044`, only tagged
+That is why a representation change looks like loss. The `ECO:0007322` gap was exactly this — the file carried the same gene→GO under the same `GO_REF:0000044`, only tagged
 with an ECO we had not mapped, so ~24k stored rows were flagged for removal while the
 corresponding incoming rows errored out. One mapping row fixed both sides.
 
@@ -142,7 +141,7 @@ map has to encode the same rules or the first cutover diff is churn instead of a
   why Noctua owns them.
 - **`GOC` → dropped today.** `GoaGafParser` rejects `createdBy == "GOC"`, so DANRE-mod's
   `GO_REF:0000108` rows are **net-new content no current load ingests** — a consolidation gain to
-  decide on, not a regression (open decision 5).
+  decide on, not a regression (open decision 3).
 - **`GO_Central` / `GO_REF:0000033` (phylo IBA) → GOA.** ~48k rows. The standalone FP-Inference
   file is only ~1,809 rows and is a small overlapping subset, which is what makes FP-Inference
   redundant under consolidation.
@@ -275,49 +274,13 @@ annotation churn rather than what a gene loses. Use the table above.
 ⚠️ Some accessions have a gene↔protein `db_link` gap (e.g. ppardb/A9C4A5) — genuinely uncovered
 by either file, independent of subsumption.
 
-### 2a. RESOLVED (2026-08-07) — `DANRE-uniprot` adds nothing; use `DANRE-mod`
+### 2a. The load consumes `DANRE-mod`, not `DANRE-uniprot`
 
-Open decision #2 (source file) is settled. `DANRE-uniprot` was mapped accession→ZFIN gene
-through `db_link` (`ZDB-FDBCONT-040412-47`, 89,836 accessions → gene), collapsed to distinct
-`(gene, relation, GO, GO_REF, ECO)`, and diffed against `DANRE-mod` of the **same
-vintage**:
-
-| | distinct annotations | (gene, GO) pairs |
-|---|--:|--:|
-| `DANRE-uniprot` (191,821 raw rows) | 136,853 | 104,444 |
-| `DANRE-mod` (142,612 raw rows) | 136,891 | 104,486 |
-| in both | 136,844 | 104,439 |
-| **`DANRE-uniprot` ONLY** | **9** | **5** |
-| `DANRE-mod` ONLY | 47 | 47 |
-
-Per stream, gene-collapsed: InterPro2GO **28,501 in both**; EC2GO **3,161 in both** — i.e.
-the "43,882 vs 28,691" and "5,400 vs 3,161" surpluses in the table above were **raw
-per-accession rows**, not additional annotations. Multiple UniProt accessions map to one
-ZFIN gene, so the protein-keyed file restates the same annotation once per accession.
-
-**Conclusion: consuming `DANRE-uniprot`, or both files, buys ~9 annotations and costs an
-accession→gene mapping layer with its own `db_link` gaps. Stay on `DANRE-mod`.** This also
-removes the only argument for deferring the kw2go decision to a source-file change.
-
-_Reproduce: map each `DANRE-uniprot` subject accession to ZFIN genes via `db_link` on the
-`UniProtKB` container (`fdb_db_name = 'UniProtKB'`), collapse to distinct
-`(gene, relation, GO, GO_REF, ECO)`, and set-diff against the same tuples from `DANRE-mod`._
-
-### 3. `ECO:0007322 → IEA` mapping (done)
-`DANRE-mod` tags ~17,350 UniProtKB-SubCell annotations with `ECO:0007322` ("curator
-inference used in automatic assertion"), a granular code not in GO's flat
-`gaf-eco-mapping.txt`, so it was never in `eco_go_mapping`. `GpadParser.postProcessing`
-rejects unmapped ECO codes. Migration
-`source/org/zfin/db/postGmakePostloaddb/1184/migrations/0010-ZFIN-10025-eco-0007322-subcell-iea-mapping.sql`
-maps it to **IEA** (the automatic-assertion sibling of `ECO:0000501`/`ECO:0000256`, and how
-these SubCell rows are already stored under `ZDB-PUB-120306-4`/`GO_REF:0000044`). This lets
-them load and match instead of erroring + being flagged for removal.
-
-### 4. `GafLoadJob` parser resolved by bean name (done)
-`DanreModGpadParser extends GpadParser`, which made `GafLoadJob`'s by-type
-`getBean(GpadParser.class)` ambiguous and crashed the legacy `Load-GPAD-Noctua_w` job on
-startup — during the coexistence window it must keep running. Fixed by resolving the
-parser by conventional bean name.
+Gene-collapsed, the two files carry the same content — `DANRE-uniprot` ONLY is on the order of
+**9 annotations**, its apparent surplus being raw per-accession rows. Consuming it would add an
+accession→gene mapping layer, with its own `db_link` gaps, for nothing. It also has no
+gene-product-form field, so it cannot rescue finding 10 either. Settled; do not re-open without
+new evidence.
 
 ### 5. GOA churn is turnover, not loss
 GOA's 42,131 deletes / 50,585 adds are almost all IEA representation change + monthly
@@ -369,36 +332,6 @@ annotations load under their current markers (nc.terc, fbxw12, nc.rny2, sno.scar
 the report's new section reports **58** corrected IDs (superset of the 11 above — the
 entryId remap was fully broken before, so every merged subject id was erroring).
 
-### 7. `EXP` evidence code added so experimental annotations load (done)
-
-105 rows per run were rejected with `invalid evidence code: EXP`. The cause was **missing
-reference data, not a parser exclusion.** Worth stating plainly, because
-`FpInferenceGafParser.EXCLUDED_EVIDENCE_CODES` is the obvious suspect and is not the culprit —
-it never applies to this path, since `GpadParser` bypasses `isValidGafEntry`. The real chain:
-
-1. the GPAD row carries `ECO:0000269` (experimental evidence, manual assertion)
-2. `eco_go_mapping` **already** maps `ECO:0000269` → `EXP` (GO's canonical mapping)
-3. `GafService:387` looks `EXP` up in `go_evidence_code`, gets null, and throws
-
-Migration `1184/migrations/0030-ZFIN-10025-add-exp-go-evidence-code.sql` adds the one missing
-row (idempotent, `goev_display_order` 18 — next free after ISO).
-
-The migration alone is **not** sufficient: `DTOConversionService:582` calls
-`GoEvidenceCodeEnum.valueOf()` on the stored code, so EXP rows would throw
-`IllegalArgumentException` on any curation-UI path touching those genes. `GoEvidenceCodeEnum`
-therefore gains `EXP`, with `getInferenceCategories` → empty (all 105 rows have an empty
-with/from), `getInferenceCategoryCardinality` → 0, and `EXP` added to the **filtered-out** group
-in `getCodeEnumForPub` alongside IEA/IBA/ND — it is import-only, not curator-assignable, and
-without that it falls to `default: add` and appears in the curator's evidence dropdown.
-
-The legacy GAF path is untouched and still drops EXP.
-
-_Verified (2026-08-11, fresh 2026.07.05.1 baseline, report-only):_ `invalid evidence code: EXP`
-**105 → 0**; EXP rows in the added set **0 → 105**; total added 111,213 → 111,318 (+105 exactly).
-The rows resolve to real genes, PMID-backed pubs and mapped RO qualifiers (e.g. `pycard`
-`part_of` `ZDB-PUB-180526-8`). NB the details file serializes `MarkerGoTermEvidence`, whose
-`toString` emits the evidence **name** — grep for `inferred from experiment`, not `EXP`.
-
 ### 8. Upstream defect: the production file duplicates 53% of its rows (open, GO-side)
 
 The published DANRE-mod file contains **459,621 data rows that collapse to 214,064 distinct
@@ -422,53 +355,6 @@ load behaviour, not 245k. The costs are operational: **~57 min instead of ~20**,
 in which ~186k of ~195k entries are "Duplicate annotation entry", burying the ~7.7k real ones.
 
 Not a blocker; worth reporting upstream and worth knowing before anyone reads a load report.
-
-### 9. Annotation-extension groups doubled on every load (done)
-
-Reported as a suspected *reporting* bug: the GOA GAF details report showed single annotations
-whose with/from-and-extensions ran to thousands of lines, one or two IDs repeated over and over,
-while the incoming files, the UI and Alliance all looked fine. It was not a reporting bug — the
-report printed exactly what was stored, and ZFIN manufactured the rows locally.
-
-`updateEvidence` called `session.save()` on every annotation-extension group.
-`mgtaeg_annotation_extension_group_id` is `@GeneratedValue(IDENTITY)`, so `save()` on an
-already-persisted group cannot update it — it assigns a fresh id and INSERTs a second copy,
-leaving the original. The update path arrives with the annotation loaded **from the database**
-(`GafService` takes the `existing` object out of `GafAnnotationExistsError` and mutates only
-`modifiedWhen`), so its collection holds every group already stored. Each run that saw a newer
-date turned N groups into 2N.
-
-Powers of two are the fingerprint. On the 2026.07.05.1 snapshot: **328,727** groups / **328,983**
-extension rows, of which **99.6% redundant**; `syn2b` at exactly 2¹⁶ = 65,536 and `syn1` at ~2¹⁸ =
-262,140, each carrying a *single* distinct extension value. Four annotations — all IntAct IPI on
-one publication — accounted for essentially all of it. Rows written by the preceding build sat at
-exactly 2, i.e. one doubling caught in the act.
-
-The fix skips groups that already have an id; genuinely new groups are inserted as before
-(replacing an existing group's contents was never supported here — `save()` could only add).
-Migration `1184/migrations/0040-ZFIN-10025-dedupe-annotation-extension-groups.sql` collapses the
-backlog, keeping one group per (annotation, **distinct extension-set**) so annotations with
-several genuinely different groups keep all of them; `mgtae_extension_group_id` is
-`ON DELETE CASCADE`.
-
-_Verified on the live bloat:_ 328,727 → **1,053** groups, 328,983 → **1,309** extension rows;
-`syn1`/`syn2b` collapse to 1 group each while `fbxo7` keeps 13 groups across 9 distinct values and
-`cdh23` keeps 2; a second run reports 0 to remove. The migration ranks with `row_number()` rather
-than a correlated `group_id > (select min(...))` subquery — the latter ran >15 min against the
-unindexed 328,727-row CTE and had to be cancelled; the window function takes 3.5 s.
-
-This affected the **legacy and unified loads equally** (both call `updateEvidence`), so the fix
-covers both.
-
-Fixed alongside it, though *not* a cause of the bloat: `MarkerGoTermAnnotationExtnGroup.equals()`
-returned an unconditional `true` with no `hashCode()` override. It escaped notice because the
-missing `hashCode` masked it — instances fell back on identity hash codes and usually landed in
-different buckets of the group set, so `equals` was never consulted; and the comparison path
-flattens groups into a `HashSet` of *extensions*, which always had a correct
-`equals`/`hashCode`. On a bucket collision, however, the set silently dropped a group, which is
-not a remote possibility at 262,140 of them. Identity is now the database id, deliberately not
-the contents: `mgtAnnoExtns` is lazy and mutable, so content-based equality would force
-initialization on every set operation and could change a group's hash while it sat in a set.
 
 ### 10. Gene product form IDs are not carried by GPAD — 42,279 → 0 (open, accept or not)
 
@@ -510,12 +396,7 @@ nothing), so the backfill can only ever fill rows that predate the column fallin
 
 1. **Noctua loss** (finding 1) — GO/curator conversation. 5,103 annotations, of which 2,819
    are ND, leaving **~2,284 experimental**.
-2. ~~**Source file** — `DANRE-mod` vs `DANRE-uniprot` vs both.~~ **✅ DECIDED 2026-08-07:
-   stay on `DANRE-mod`.** Gene-collapsed, the two files carry the same content —
-   `DANRE-uniprot` ONLY = **9 annotations** (see §2a). Its apparent surplus was raw
-   per-accession rows. Consuming it would add an accession→gene mapping layer, with its own
-   `db_link` gaps, for nothing.
-3. **`*2go` ownership org** — route the `*2go` GO_REFs to the same org the secondary load
+2. **`*2go` ownership org** — route the `*2go` GO_REFs to the same org the secondary load
    uses (`UniProt`) or add an explicit `UniProt`-org purge/migration at cutover, so old and
    new copies don't coexist. **Sequencing decided 2026-08-14:** `Load-GPAD-GO-Central_m` stays
    **disabled** and the secondary load's flags stay **on** until one coordinated switch —
@@ -526,9 +407,9 @@ nothing), so the backfill can only ever fill rows that predate the column fallin
    as **`cutover-purge-uniprot-2go.sql`** in this directory — deliberately not a liquibase
    migration, so a routine `liquibasePostBuild` cannot fire it. It refuses to run unless the
    GOA-org replacement is already present, and it covers interpro2go + ec2go **only**; kw2go is
-   excluded pending decision 4. Note it is a **net reduction**: −24,604 interpro2go and −299
+   excluded pending decision 3. Note it is a **net reduction**: −24,604 interpro2go and −299
    ec2go, because the GPAD file under-covers both (finding 2). Not yet run anywhere.
-4. **kw2go (UniProtKB-Keyword, 41,027 rows)** — no file successor (GO retired
+3. **kw2go (UniProtKB-Keyword, 41,027 rows)** — no file successor (GO retired
    `GO_REF:0000004`), and **the `uniprotkb_kw2go` mapping file itself is slated for
    retirement** (still served as of 2026-08-14: HTTP 200, 70 KB, modified 2026-08-08). So
    "keep loading them" is not on the table — the choice is **freeze or delete**:
@@ -552,111 +433,23 @@ nothing), so the backfill can only ever fill rows that predate the column fallin
    is smaller than local file")`, rethrown as a `RuntimeException`. The message points at the
    wrong thing and the timing is GO's, not ours. ⚠️ **No longer entangled with #2** —
    `DANRE-uniprot` carries the same content (§2a), so no source-file change rescues these.
-5. ~~**`GO_REF:0000108` (GOC)** — adopt (net-new content) or keep rejecting?~~
-   **✅ DECIDED 2026-09-03 (ZFIN-10464 comment 6): adopt.** 3,157 distinct (gene, GO)
-   annotations over 2,576 genes (7,766 raw error occurrences — the inflation is the file's own
-   row duplication, finding 8), re-measured on the 2026-08-13 full write run. Doug created
-   **`ZDB-PUB-260903-15`** on PROD for the GO_REF and confirmed both evidence codes map to
-   **IEA**.
+4. **`GO_REF:0000115` (RNAcentral, 45)** — map or leave. Still open.
 
-   Implemented on `zfin-10464-go-load-cutover`, and it takes **both** halves — neither alone
-   suffices. `eco_go_mapping` rows for `ECO:0000366` (5,614) and `ECO:0000364` (2,152); the
-   sets are closed both ways, every `GO_REF:0000108` row carries one of the two and every row
-   carrying either cites `GO_REF:0000108`. Plus a `GoDefaultPublication` entry, because
-   `getGoRefPubs()` is an explicit allowlist and is what populates `goRefPubMap` — the enum
-   constant on its own is not enough. Without both, `"Goref ID is not known or loaded"` sits at
-   ~7,800; with them, ~45.
+5. **Relation → `qualifier_relation`** — confirm every col-3 RO/BFO relation resolves.
+6. **Phylo IBA org** — `GO_REF:0000033` → **`PAINT`**, keyed on the reference rather than
+   `assigned_by` (the latter is only nearly a proxy, and the few rows that differ would be
+   mis-homed). Implemented.
 
-   ⚠️ The ECO half is **superseded by decision 6's file switch**, which supplies both codes as
-   IEA from GO's own derived mapping. Keep the migration regardless: the mapping load fires only
-   from `LoadOntology`, not from the GO load.
-6. **`GO_REF:0000115` (RNAcentral, 45)** — map or leave. Re-counted on the same run. Still open.
-
-   **`ECO:0005547`** (66 rows / 65 pairs from ComplexPortal on the latest count) — ✅ **cause
-   settled (ZFIN-10464 comments 14–16).** It is a **mapping gap**, not a violation of GO's
-   `allowed_reference: GO_REF:0000114` constraint in
-   [`eco-usage-constraints.yaml`](https://github.com/geneontology/go-site/blob/master/metadata/eco-usage-constraints.yaml)
-   — Pascale confirmed the constraint should not error. The term is simply absent from the flat
-   mapping file.
-
-   **The fix is to switch `getECOGOMapping.groovy` from the flat file to GO's derived one:**
-
-   | | |
-   |---|---|
-   | now | `http://purl.obolibrary.org/obo/eco/gaf-eco-mapping.txt` (via the GitHub raw copy) |
-   | switch to | `http://purl.obolibrary.org/obo/eco/gaf-eco-mapping-derived.txt` |
-
-   Measured 2026-09-22 against the published files and a live database: the derived file is a
-   strict **superset** — all 26 flat mappings verbatim, 1,422 total, every ECO term of which
-   already exists in `term`, so the join drops nothing and `eco_go_mapping` goes **39 → 1,426**.
-   The insert is `on conflict … do nothing` with no delete, so nothing loaded can be lost.
-
-   Two changes ride along, both required:
-
-   - **The columns are reversed.** Flat is `CODE ⇥ Default ⇥ ECO`, derived is
-     `ECO ⇥ CODE ⇥ [Default]`, so the parser's `split()[0]`/`split()[2]` becomes `[1]`/`[0]`.
-     `[2]` breaks outright — 1,396 of 1,422 rows have an empty third column. ⚠️ The derived
-     file's own header comment still documents the *old* order; it is wrong, go by the data.
-   - **`uniqueResult()` cannot take a dual-coded term.**
-     `HibernateOntologyRepository.getEcoEvidenceCode` ends in `criteria.uniqueResult()`, called
-     per row from `GpadParser.postProcessing`, so two mappings for one ECO term throw
-     `NonUniqueResultException`. Five terms end up dual-coded: `ECO:0000031` (ISS + **ISA**),
-     `ECO:0000262` (ISS + **ISM**), `ECO:0007295` (**EXP + IEA**, both from the file), plus
-     `ECO:0000255` (ISM + ISS) and `ECO:0000320` (IKR + IMR) which are **already dual in the
-     database today** — so this is a latent bug the switch widens, not one it creates. The
-     `Default` marker is no tiebreaker: `ECO:0007295` carries it on neither row.
-
-   The switch also subsumes the hand-written IEA mappings for `ECO:0000364`/`ECO:0000366`
-   (decision 5) and `ECO:0007322` (release 1184). Keep those migrations: `LoadOntology` is the
-   only thing that runs this load, and it does not run as part of the GO load.
-7. ~~**`EXP` evidence (105)**~~ **✅ DONE 2026-08-11** (decision per ZFIN-10258; see finding 7a).
-   All 105 EXP (`ECO:0000269`) rows are `assigned_by=UniProt` and PMID-attributed —
-   literature-backed experimental annotations, not the default-excluded GAF-path EXP
-   (verified 2026-07-09: 100% UniProt / 100% PMID).
-8. **Relation → `qualifier_relation`** — confirm every col-3 RO/BFO relation resolves.
-9. ~~**Phylo IBA org**~~ **✅ DECIDED 2026-08-14: `GO_REF:0000033` → `PAINT`.** The `PAINT`
-   org already existed in the schema (pk 4) and was empty; it is GO's Phylogenetic Annotation and
-   INference Tool, the producer of that reference. **Not an unused label we co-opted:** ZFIN once
-   ran its own PAINT load — `PaintGafParser`, which stamped `GO_REF:0000033` on every row it
-   parsed, plus the `load-gaf-paint` Ant target and `PaintGafServiceTest` with
-   `gene_association.paint_zfin` fixtures. That job has no Jenkins trigger and its upstream
-   `pre-submission` URL is long dead, which is why the org sat empty. Routing phylo there returns
-   the annotations to the organization built for them. Decisive fact: the legacy `FP Inferences`
-   rows sit on `ZDB-PUB-110330-1` — the *same publication* as the unified file's phylo rows —
-   so they are the same kind of annotation differing only in `assigned_by` (`GOC` vs
-   `GO_Central`). Left in `GOA`, phylo is indistinguishable from UniProt/InterPro IEA in every
-   per-org report, and retiring the FP-Inference job strands its rows in an org no load owns.
-   Keyed on the **reference**, not `assigned_by`: the latter is only nearly a proxy (62,197 of
-   62,221 `GO_Central` rows are on the PAINT reference) and the 24 that are not would be
-   mis-homed into PAINT's removal scope.
-
-   ⚠️ **The code change alone does NOT re-home existing rows** — verified on a real write run,
-   not predicted. The matcher keys on publication/marker/evidence/flag/qualifier-relation and
-   deliberately *not* on organization, so an incoming phylo row matches the stored GOA copy, is
-   counted as "existing", and that row stays in GOA. Only unmatched rows are inserted, and only
-   those get PAINT. A 4,000-row slice against the 2026.07.05.1 baseline put 1,077 into PAINT
-   while 878 matched rows stayed in GOA — phylo split across three orgs. **That split is a
-   tripwire, not just untidiness:** the GOA rows survive only *because* matching is org-agnostic;
-   incoming phylo now resolves to PAINT, so if matching ever became org-aware, GOA's removal pass
-   would find ~62k unmatched rows and prune them. Cutover must therefore run
-   `cutover-rehome-phylo-to-paint.sql` (39,939 rows on the 2026.07.05.1 baseline; ~62k on a
-   post-load database).
-
-   _Verified end-to-end 2026-08-17_ (2026.07.05.1 baseline, real writes, full published file):
-   the re-homing moved **39,939** rows `GOA` → `PAINT`, everything else untouched; the load then
-   took `PAINT` to **62,196** (598 deletes / 22,855 adds / 3,490 updates) and left **0** phylo in
-   `GOA`. `PAINT` ends up holding nothing but `ZDB-PUB-110330-1`, so `mgte_dbdiff_PAINT.xlsx` is a
-   phylo report by construction — run the re-homing *before* the BEFORE snapshot and the workbook
-   shows only what the load did, not the org move. Crucially the load's own totals were
-   **unchanged** from the pre-phylo run (processed 459,621 / added 111,318 / updated 32 / errors
-   195,528 / existing 152,743), confirming this is an organization change, not a content change.
+   ⚠️ **The code change alone does not re-home existing rows.** The matcher deliberately does not
+   key on organization, so an incoming phylo row matches the stored GOA copy and that row stays
+   in GOA; only unmatched rows are inserted with `PAINT`. Cutover must therefore run
+   `cutover-rehome-phylo-to-paint.sql` — see RUNBOOK §13, which sequences it. Left undone, phylo
+   splits across GOA and PAINT and survives only because matching is org-agnostic.
 
    ⚠️ **Separate, still open: the FP-Inference rows are not rescued by this.** Of their 1,623
-   distinct (gene, GO) pairs only **479** are reproduced by the new load's phylo content —
-   **1,144 are FP-only**. Giving phylo its own org gives those rows a natural home but does not
-   supply their content. Retiring `Load-GAF-FP-Inference_m` without migrating them loses 1,144
-   pairs; leaving them stranded in `FP Inferences` means no load ever refreshes or prunes them.
-   Decide at cutover — **ZFIN-10464 decision 7**, still open.
+   distinct (gene, GO) pairs only ~480 are reproduced by the new load's phylo content; the rest
+   are FP-only. Giving phylo its own org gives those rows a natural home but does not supply
+   their content. Decide at cutover — **ZFIN-10464 decision 7**, still open.
 
    **Where those rows come from.** `Load-GAF-FP-Inference_m` — enabled but with an empty cron
    `spec`, so it runs only when triggered — calls Ant `load-gaf-fpinference`, i.e. `GafLoadJob`
@@ -678,37 +471,15 @@ nothing), so the backfill can only ever fill rows that predate the column fallin
    preserves superseded predictions sitting beside fresh GO phylo content on the same genes, with
    nothing marking them stale and no load to refresh or prune them. ⚠️ Not yet proven — the
    subsumption closure (`mgte_subsumption.sh`) has not been run against them.
-10. **Gene product form IDs (finding 10)** — accept the loss, or not? **42,279 → 0** on every
+7. **Gene product form IDs (finding 10)** — accept the loss, or not? **42,279 → 0** on every
    load. GAF col 17 carried it; GPAD 2.0 has no equivalent column and neither DANRE file supplies
    one, so this is upstream and not a parser gap we can close. Reaches no download file and no UI.
    Recommend accepting explicitly rather than letting a 42,279-row field empty silently.
-11. **First-cutover removal scope** — the initial map must reproduce legacy ownership closely
+8. **First-cutover removal scope** — the initial map must reproduce legacy ownership closely
    enough that the first real diff is ~no-op rather than a mass add+remove. Findings 1 and 5
    quantify what is left after the `ECO:0007322` fix; this is the go/no-go check, run
    report-only, immediately before flipping the flag.
-12. **Descendant filtering** — ✅ **DECIDED 2026-09-08 (ZFIN-10464 comment 8), tracked as
-   ZFIN-10518: remove it entirely.** The filter suppressed an incoming annotation when the
-   database held a more specific one from the same lineage. Doug: *"With this new load, we are now purely consumers
-   of the GO annotations, including the ones we make in Noctua. In that light, I suggest we stop
-   doing this descendent filtering all together."* The file is authoritative.
-
-   The filter was also actively harmful: it deleted ~3,200 existing annotations per run, created
-   and removed ~1,500 more within the load, and depended on database row order. 404 of the
-   deletions were not even redundant, because the ancestry check followed `regulates` and
-   `occurs_in` edges as well as `is_a`/`part_of` — so "angiogenesis" was treated as implied by
-   "positive regulation of angiogenesis". Removed on `zfin-10464-go-load-cutover`;
-   `isSameAnnotation` replaces it as a plain identity test, and
-   `isParentChildRelationshipExist` now has no caller anywhere in `org.zfin.datatransfer.go`.
-
-   ⚠️ **The removal is global, not GPAD-only.** ZFIN-10518 is titled for the new GO Central load,
-   but `load-gaf-paint`, `load-gaf-goa`, `load-noctua-gpad`, `load-gaf-fpinference` and
-   `load-gpad-danre-mod` all run through the same `GafLoadJob` → `GafService.isSameAnnotation`
-   path — there is no GPAD-only variant without adding a conditional. Doug's wording was "stop
-   doing this descendent filtering **all together**", and the legacy loads retire at cutover, so
-   global is the intent rather than an overreach. It does mean the three legacy loads stop
-   suppressing ancestors **before** they are retired; that is a change in their favour, since the
-   filter was deleting ~3,200 existing annotations per run.
-13. **ND filtering** — **NEW, open, nothing built.** ZFIN-10464 comment 12 (2026-09-19). Doug,
+9. **ND filtering** — **NEW, open, nothing built.** ZFIN-10464 comment 12 (2026-09-19). Doug,
    relaying Pascale: GO/GOA know that `ND` annotations coexist with real ones on the same GO
    aspect and **plan** an upstream filter, but it is not in place. He asks ZFIN to implement one,
    *"either a filter on the incoming file or after the load."*
@@ -719,12 +490,12 @@ nothing), so the backfill can only ever fill rows that predate the column fallin
    constraints already disallow root terms with descendants, which argues this is a schema rule
    rather than load policy.
 
-   Do not conflate this with decision 12. That filter was **removed** because ZFIN consumes what
+   Do not conflate this with the descendant filtering removed under ZFIN-10518. That filter went because ZFIN consumes what
    GO asserts; this one is **added** policy covering a case GO itself calls a defect, and it is
    narrower — same aspect, ND vs non-ND, not general ancestry. Doug's follow-up (comment 13,
    *"I'll check with Pascale on this…"*) is still unanswered, so settle scope before writing
    code.
-14. **The NOT qualifier is invisible to every diff** — **open defect in the reporting, nothing
+10. **The NOT qualifier is invisible to every diff** — **open defect in the reporting, nothing
    built.** `snapshot_mgte.sql` does not select `mrkrgoev_gflag_name`, so it is absent from the
    before/after snapshots and therefore from every workbook, per-org and `ALL` alike. Two
    consequences: a `NOT` annotation and its positive twin collapse onto the same key, and a

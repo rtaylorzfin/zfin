@@ -162,10 +162,9 @@ select count(*) groups from marker_go_term_annotation_extension_group;"
 
 Expect a count in the **low thousands**; a **six-figure** one means `0040` has not run. (The
 exact number depends on how many annotations the DB holds — a post-load DB measured 1,053 — so
-read the order of magnitude, not the digits.) The pre-fix load doubled every annotation's
-extension groups on each pass (README finding 9), reaching 328,727 on this baseline, and a DB
-carrying that backlog produces a `_details.txt` in which a single annotation's extensions run to
-thousands of lines.
+read the order of magnitude, not the digits.) Before migration `0040` the load doubled every annotation's extension
+groups on each pass, and a DB carrying that backlog produces a `_details.txt` in which a single
+annotation's extensions run to thousands of lines.
 
 ---
 
@@ -237,7 +236,7 @@ config edit:
 | `RUN_MGTE_CLEANUP` | `true` | run the dedupe before the AFTER snapshot |
 | `MGTE_CLEANUP_CSVS` | `true` | keep the cleanup's CSVs in `<jobName>-dbdiff` |
 
-⚠️ **The job ships DISABLED** (it is half of the cutover switch — see README open decision 3).
+⚠️ **The job ships DISABLED** (it is half of the cutover switch — see README open decision 2).
 For a QC run, enable it, run it, and disable it again; do not leave it enabled, and do not treat
 enabling it as the cutover.
 
@@ -359,9 +358,7 @@ updates with `org` as the only changed column.
 > `FileUtils.deleteDirectory()` on `<baseDir>/<jobName>`. A BEFORE snapshot written there is gone
 > before the load even downloads, and the diff step then dies with
 > `mgte_before_GOA.csv (No such file or directory)`. Use any other directory — `mydiff` above, or
-> the `<jobName>-dbdiff` convention the Jenkins jobs now use. This bit all three Jenkins jobs
-> (fixed 2026-08-10); the manual runs in the reports escaped it only because they happened to use
-> a separate directory.
+> the `<jobName>-dbdiff` convention the Jenkins jobs use.
 
 **Diff:**
 
@@ -382,13 +379,13 @@ changes only `org`, and the `*2go` handover changes `org` **and** `created_by`
 statement* turns both into updates, so its `deletes` sheet is the number that actually matters at
 cutover: statements ZFIN no longer asserts from any source.
 
-> **The key and ignore lists live in `mgte_csvdiff.sh`, once** — they used to be duplicated
-> verbatim in all three GO job configs and could drift apart silently. Key = every identity
-> column; ignore = `zdb_id` (so a recycled id counts as unchanged rather than delete+add) plus
-> the five derived readable columns, which ride along for eyeballing the sheets. Changing either
-> list makes the numbers incomparable to the 2026-07-07 and 2026-08-07 reports, so change it
-> knowingly. Note `protein_acc` is in neither list: it is compared but not matched on, so a
-> UniProt isoform reassignment surfaces as an update rather than as a delete+add pair.
+> **The key and ignore lists live in `mgte_csvdiff.sh`, once** — keep them there rather than in
+> the job configs, where they drift apart silently. Key = every identity column; ignore =
+> `zdb_id` (so a recycled id counts as unchanged rather than delete+add) plus the five derived
+> readable columns, which ride along for eyeballing the sheets. Changing either list makes the
+> numbers incomparable to earlier runs, so change it knowingly. Note `protein_acc` is in neither
+> list: it is compared but not matched on, so a UniProt isoform reassignment surfaces as an
+> update rather than as a delete+add pair.
 
 **Subsumption:**
 
@@ -533,8 +530,8 @@ Per-org: GOA 109,656 → **174,878**, Noctua 36,025 → **31,446**, FP Inference
 unchanged. Annotation-extension groups should stay in the low thousands rather than doubling.
 
 > `added` and `errors` are the measured run adjusted by the 105 `EXP` rows that migration `0030`
-> turned from errors into adds (README finding 7a); the per-org GOA figure is confirmed directly
-> against a post-load database.
+> turned from errors into adds; the per-org GOA figure is confirmed directly against a post-load
+> database.
 
 Errors are dominated by 187,923 `Duplicate annotation entry` — an artifact of the file's own row
 duplication, not of the load (README finding 8). `README-danre-mod-consolidation.md` interprets
@@ -570,7 +567,7 @@ LOAD_INTERPRO2GO_EC2GO=false <the Jenkins job's normal invocation>
 The two are separate flags because they are separate decisions. InterPro2GO/EC2GO have a
 successor in `DANRE-mod` (README finding 2); kw2go does not — GO retired `GO_REF:0000004`, so
 turning `LOAD_KW2GO` off loses ~28k annotations outright. That one is still an open decision
-(README open decision 4); do not flip it as a pair with the other.
+(README open decision 3); do not flip it as a pair with the other.
 
 ---
 
@@ -636,7 +633,7 @@ inside the run.
 
 1. `UniProt-Secondary-Term-Load/config.xml` — set `<defaultValue>false</defaultValue>` for
    `LOAD_INTERPRO2GO_EC2GO`, and for `LOAD_KW2GO` **only if kw2go is being retired**
-   (README open decision 4). See §11.
+   (README open decision 3). See §11.
 2. `Load-GPAD-GO-Central_m/config.xml` — `<disabled>false</disabled>`.
 3. `ant deploy-jobs`, then reload — see §12, and **never while a build is running**.
 
@@ -651,7 +648,7 @@ Run `Load-GPAD-GO-Central_m` with:
 |---|---|
 | `GAF_LOAD_REPORT_ONLY` | `false` |
 | `RUN_CUTOVER_SCRIPTS` | `true` |
-| `RUN_KW2GO_PURGE` | `true` **only if deleting kw2go** (decision 4) |
+| `RUN_KW2GO_PURGE` | `true` **only if deleting kw2go** (decision 3) |
 | `RUN_MGTE_CLEANUP` | `true` |
 
 That single run executes, in order:
@@ -674,7 +671,7 @@ Three things that are easy to get wrong:
 
 > ⚠️ **`RUN_CUTOVER_SCRIPTS` runs three scripts, not two.** The phylo re-home is easy to forget
 > and is not optional: without it phylo ends up split across GOA and PAINT, surviving only
-> because matching is org-agnostic (README decision 9).
+> because matching is org-agnostic (README decision 6).
 
 > ⚠️ **The job will finish UNSTABLE, and that is normal rather than exceptional.** Exit code 2
 > means "completed with errors", and `<unstableReturn>2</unstableReturn>` maps it to UNSTABLE
@@ -724,4 +721,4 @@ Re-measure rather than quoting these — they move with the input file.
   download block, `UNIPROT_KW2GO_FILE_URL`, the `Add`/`RemoveSpKeywordTermToGo*` classes, and the
   Jenkins parameter.
 - `FP Inferences` is **not** covered by any of this — the purges do not touch it and the load does
-  not own it. Decision 7 is still open (README decision 9's follow-up).
+  not own it. It is ZFIN-10464 decision 7, still open (README decision 6's follow-up).
