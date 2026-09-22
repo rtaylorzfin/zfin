@@ -130,7 +130,7 @@ load had created under a `ZFIN:ZDB-PUB-…` citation.
 Note this hazard predates the branch — `main` has always behaved this way. The
 guard is an improvement that does not yet work, not a regression.
 
-## 3. Switch the ECO→GO mapping to GO's derived file (new)
+## 3. Switch the ECO→GO mapping to GO's derived file — ✅ DONE 2026-09-22
 
 Per ZFIN-10464 comments 14–16 (2026-09-21). `ECO:0005547` (66 rows / 65 pairs
 from ComplexPortal) was originally read as a violation of GO's
@@ -184,6 +184,38 @@ switch widens rather than one it creates. The derived file's `Default` marker is
 no tiebreaker — `ECO:0007295` carries it on neither row. Decide a policy
 (deterministic pick at lookup, or one row per term at load time) rather than
 letting it throw.
+
+**Done, and verified against the live stack.** `eco_go_mapping` went 41 → 1,422 rows over 1,420
+ECO terms, and every DANRE-mod evidence code now resolves. Outcomes:
+
+| check | result |
+|---|---|
+| `ECO:0005547` — the whole point | **NAS** |
+| `ECO:0000031` (had ISS; file says ISA) | **ISS** — unchanged |
+| `ECO:0000262` (curated ISS; file says ISM) | **ISS** — unchanged |
+| `ECO:0007295` (EXP + IEA, no Default) | unmapped, skipped and reported |
+| ECO terms with >1 code | **2** — the two that were already dual; none added |
+| DANRE-mod codes still unmapped | **none** |
+
+Three things the implementation had to handle that were not in the original plan:
+
+- **The PURL 302s to https, and Java will not follow a cross-protocol redirect.**
+  `new URL(...).openStream()` returned the 9-line HTML redirect page; four of its lines split
+  into two whitespace-separated fields, so they parsed as mappings and the old `mappingCount == 0`
+  guard passed. The load would have replaced the table with junk. Caught by running it, not by
+  reading it. Now follows redirects explicitly, requires an `ECO:` CURIE in column 1, and refuses
+  fewer than 500 mappings.
+- **The loader only fills gaps.** An ECO term that already resolves is never touched, so no
+  stored annotation's evidence code can change underneath us and the curated mappings
+  (DLOAD-672, ZFIN-9426) survive. This is what keeps `ECO:0000031` on ISS and `ECO:0000262` on
+  its curated ISS.
+- **A term the file maps several ways with no `Default` is skipped, not guessed.** Leaving it
+  unmapped surfaces as a visible "invalid eco code"; picking one silently mislabels every row.
+
+`getEcoEvidenceCode` no longer uses `uniqueResult()`, which would throw
+`NonUniqueResultException` on `ECO:0000255` or `ECO:0000320` — both already dual in the database
+today. It now orders by id, takes the oldest and warns. That was a live latent bug independent
+of this switch.
 
 Note the switch also subsumes this branch's
 `1185/…/0030-ZFIN-10464-eco-goref-0000108-mappings.sql` (`ECO:0000364`,

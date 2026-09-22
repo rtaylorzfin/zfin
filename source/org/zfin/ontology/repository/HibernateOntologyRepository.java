@@ -5,6 +5,8 @@ import jakarta.persistence.criteria.CriteriaBuilder;
 import jakarta.persistence.criteria.CriteriaQuery;
 import jakarta.persistence.criteria.Root;
 import org.apache.commons.collections4.CollectionUtils;
+import org.apache.logging.log4j.LogManager;
+import org.apache.logging.log4j.Logger;
 import org.hibernate.Session;
 import org.hibernate.query.Query;
 import org.springframework.stereotype.Repository;
@@ -33,6 +35,8 @@ import static java.util.stream.Collectors.toList;
  */
 @Repository
 public class HibernateOntologyRepository implements OntologyRepository {
+
+    private static final Logger LOG = LogManager.getLogger(HibernateOntologyRepository.class);
 
 
     /**
@@ -140,12 +144,35 @@ public class HibernateOntologyRepository implements OntologyRepository {
         return query.getSingleResult().intValue();
     }
 
+    /**
+     * The GO evidence code an ECO term maps to, or null when it maps to none.
+     *
+     * <p>Ordered and single-result rather than {@code uniqueResult()}, which throws
+     * {@link jakarta.persistence.NonUniqueResultException} the moment an ECO term has two
+     * mappings. That is not hypothetical: {@code ECO:0000255} (ISM + ISS) and {@code ECO:0000320}
+     * (IKR + IMR) are both dual in the database today, so the old form would have failed the
+     * whole load on the first row carrying either. It survived only because no input file has
+     * used them.
+     *
+     * <p>Ordering by id means the oldest mapping wins, which matches how
+     * {@code insert_eco_go_map.sql} loads GO's file -- it only fills terms that have no mapping,
+     * so an existing code is never displaced by a later import.
+     */
     @Override
     public EcoGoEvidenceCodeMapping getEcoEvidenceCode(GenericTerm term) {
         Session session = HibernateUtil.currentSession();
-        Query<EcoGoEvidenceCodeMapping> criteria = session.createQuery("from EcoGoEvidenceCodeMapping where ecoTerm = :ecoTerm ", EcoGoEvidenceCodeMapping.class);
+        Query<EcoGoEvidenceCodeMapping> criteria = session.createQuery(
+            "from EcoGoEvidenceCodeMapping where ecoTerm = :ecoTerm order by id", EcoGoEvidenceCodeMapping.class);
         criteria.setParameter("ecoTerm", term);
-        return criteria.uniqueResult();
+        List<EcoGoEvidenceCodeMapping> mappings = criteria.list();
+        if (mappings.isEmpty()) {
+            return null;
+        }
+        if (mappings.size() > 1) {
+            LOG.warn("ECO term " + term.getOboID() + " maps to " + mappings.size()
+                + " GO evidence codes; using the oldest (" + mappings.get(0).getEvidenceCode() + ")");
+        }
+        return mappings.get(0);
     }
 
     @Override
