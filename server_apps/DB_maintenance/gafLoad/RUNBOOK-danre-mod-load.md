@@ -622,3 +622,100 @@ $CLI get-job Load-GPAD-GO-Central_m | grep cleanupCsvDir
 Do **not** try to reload over plain HTTP. `curl -X POST .../jobs/reload` returns
 **403 "No valid crumb"**, and fetching a crumb first returns 403 as well, because `useSecurity`
 is on and `/jobs/crumbIssuer` itself requires authentication. The CLI handles both.
+
+---
+
+## 13. The cutover itself
+
+The ticket's original write-up had the cutover as a list of hand-run `psql` invocations
+interleaved with the job. It does not need to be: `Load-GPAD-GO-Central_m` now carries flags that
+sequence the whole thing, and **one parameterised run is the cutover**. Driving it by hand is
+strictly worse — the scripts have an ordering constraint the flags already satisfy, and the
+before/after snapshot window only spans the data changes if they happen inside the run.
+
+### Before the window (code and config, deployable in advance)
+
+1. `UniProt-Secondary-Term-Load/config.xml` — set `<defaultValue>false</defaultValue>` for
+   `LOAD_INTERPRO2GO_EC2GO`, and for `LOAD_KW2GO` **only if kw2go is being retired**
+   (README open decision 4). See §11.
+2. `Load-GPAD-GO-Central_m/config.xml` — `<disabled>false</disabled>`.
+3. `ant deploy-jobs`, then reload — see §12, and **never while a build is running**.
+
+Enabling the job and flipping the secondary load's flags must land together. Job-only duplicates
+the content across two organizations; flags-only drops it with nothing supplying it.
+
+### The window — one job run
+
+Run `Load-GPAD-GO-Central_m` with:
+
+| parameter | value |
+|---|---|
+| `GAF_LOAD_REPORT_ONLY` | `false` |
+| `RUN_CUTOVER_SCRIPTS` | `true` |
+| `RUN_KW2GO_PURGE` | `true` **only if deleting kw2go** (decision 4) |
+| `RUN_MGTE_CLEANUP` | `true` |
+
+That single run executes, in order:
+
+    BEFORE snapshot (--others --all)
+      -> load
+      -> cutover-rehome-phylo-to-paint.sql
+      -> cutover-purge-uniprot-2go.sql
+      -> cutover-purge-uniprot-kw2go.sql        (RUN_KW2GO_PURGE only)
+      -> dedup cleanup
+      -> AFTER snapshot -> csvdiff -> subsumption workbook
+
+Three things that are easy to get wrong:
+
+> ⚠️ **`RUN_KW2GO_PURGE` does nothing on its own.** The cutover step returns early unless
+> `RUN_CUTOVER_SCRIPTS=true`, and the kw2go check sits inside it. Setting only `RUN_KW2GO_PURGE`
+> silently purges nothing.
+
+> ⚠️ **The manual list omitted `cutover-rehome-phylo-to-paint.sql` entirely.** It names only the
+> two purges. `RUN_CUTOVER_SCRIPTS` runs all three, which is another reason to prefer the flag
+> over transcribing the steps — the re-home is not optional (README decision 9: without it, phylo
+> ends up split across GOA and PAINT and only survives because matching is org-agnostic).
+
+> ⚠️ **The job will finish non-zero / UNSTABLE, and that is expected on current code.** The
+> removal-safety guard logs *"Removal-safety guard withheld deletions for at least one
+> organization"* and exits 2 while withholding nothing (`workbench/TODO.md` items 1–2). Observed
+> on the 2026-09-22 rehearsal: it announced the block and still reported `removed: 47,129`. Do
+> not read the non-zero exit as a failed load — check the summary. Any wrapper using `set -e`
+> stops here, **before** the cutover scripts.
+
+### Verify
+
+```sql
+-- kw2go gone (only if RUN_KW2GO_PURGE was set)
+select count(*) from marker_go_term_evidence where mrkrgoev_source_zdb_id = 'ZDB-PUB-020723-1';   -- 0
+
+-- UniProt org emptied by the two purges
+select count(*) from marker_go_term_evidence e
+  join marker_go_term_evidence_annotation_organization o on o.mrkrgoevas_pk_id = e.mrkrgoev_annotation_organization
+ where o.mrkrgoevas_annotation_organization = 'UniProt';                                          -- 0
+
+-- phylo fully re-homed: GOA 0, PAINT ~62k, FP Inferences untouched at 1,623
+select o.mrkrgoevas_annotation_organization, count(*) from marker_go_term_evidence e
+  join marker_go_term_evidence_annotation_organization o on o.mrkrgoevas_pk_id = e.mrkrgoev_annotation_organization
+ group by 1 order by 2 desc;
+```
+
+Then read `mgte_subsumption.xlsx` (§6) — the `true_loss` sheet is the number to sign off, not the
+`deletes` sheet, which overstates by roughly 2×.
+
+Measured on the 2026-09-22 rehearsal (seed `2026-09-19`): 31,818 pairs lost, of which **15,852
+true loss**, 14,644 subsumed, 1,322 specificity lost. kw2go accounts for **9,889** of the true
+loss — so **5,963 under the freeze branch**. Note that is meaningfully below the "~11k" the
+ticket originally carried for kw2go.
+
+### After the window
+
+- Schedule the new job; unschedule `Load-GAF-GOA_m`, `Load-GPAD-Noctua_w`,
+  `Load-GAF-FP-Inference_m`, `Load-GPAD-Noctua-Daily-Trigger_d`.
+- Email notifications in `email-configuration.production.properties`.
+- Keep the old jobs for a while — their build history is the only record of the legacy loads.
+- Later, remove the kw2go code: the two handler registrations, `loadKeyword2Go()`, the gated
+  download block, `UNIPROT_KW2GO_FILE_URL`, the `Add`/`RemoveSpKeywordTermToGo*` classes, and the
+  Jenkins parameter.
+- `FP Inferences` is **not** covered by any of this — the purges do not touch it and the load does
+  not own it. Decision 7 is still open (README decision 9's follow-up).
