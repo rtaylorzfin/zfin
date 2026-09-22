@@ -627,11 +627,10 @@ is on and `/jobs/crumbIssuer` itself requires authentication. The CLI handles bo
 
 ## 13. The cutover itself
 
-The ticket's original write-up had the cutover as a list of hand-run `psql` invocations
-interleaved with the job. It does not need to be: `Load-GPAD-GO-Central_m` now carries flags that
-sequence the whole thing, and **one parameterised run is the cutover**. Driving it by hand is
-strictly worse — the scripts have an ordering constraint the flags already satisfy, and the
-before/after snapshot window only spans the data changes if they happen inside the run.
+**One parameterised run of `Load-GPAD-GO-Central_m` is the cutover.** Its flags sequence the
+whole thing. Do not run the purge scripts by hand: they have an ordering constraint the flags
+already satisfy, and the before/after snapshot window only spans the data changes if they happen
+inside the run.
 
 ### Before the window (code and config, deployable in advance)
 
@@ -673,10 +672,9 @@ Three things that are easy to get wrong:
 > "kw2go was not" is 41,027 rows and an open decision, and a silent no-op would leave the
 > operator believing it happened.
 
-> ⚠️ **The manual list omitted `cutover-rehome-phylo-to-paint.sql` entirely.** It names only the
-> two purges. `RUN_CUTOVER_SCRIPTS` runs all three, which is another reason to prefer the flag
-> over transcribing the steps — the re-home is not optional (README decision 9: without it, phylo
-> ends up split across GOA and PAINT and only survives because matching is org-agnostic).
+> ⚠️ **`RUN_CUTOVER_SCRIPTS` runs three scripts, not two.** The phylo re-home is easy to forget
+> and is not optional: without it phylo ends up split across GOA and PAINT, surviving only
+> because matching is org-agnostic (README decision 9).
 
 > ⚠️ **The job will finish UNSTABLE, and that is normal rather than exceptional.** Exit code 2
 > means "completed with errors", and `<unstableReturn>2</unstableReturn>` maps it to UNSTABLE
@@ -712,10 +710,9 @@ select o.mrkrgoevas_annotation_organization, count(*) from marker_go_term_eviden
 Then read `mgte_subsumption.xlsx` (§6) — the `true_loss` sheet is the number to sign off, not the
 `deletes` sheet, which overstates by roughly 2×.
 
-Measured on the 2026-09-22 rehearsal (seed `2026-09-19`): 31,818 pairs lost, of which **15,852
-true loss**, 14,644 subsumed, 1,322 specificity lost. kw2go accounts for **9,889** of the true
-loss — so **5,963 under the freeze branch**. Note that is meaningfully below the "~11k" the
-ticket originally carried for kw2go.
+For scale, from a full rehearsal against a pre-cutover baseline: ~31,800 pairs lost, of which
+roughly half are subsumed and **~15,900 are true loss**, kw2go accounting for ~9,900 of that.
+Re-measure rather than quoting these — they move with the input file.
 
 ### After the window
 

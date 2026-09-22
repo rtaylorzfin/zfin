@@ -64,11 +64,10 @@ README's strict `is_a` + `part of` closure — **not** `all_term_contains`, whic
 
 ## 3. Method
 
-1. Baseline: stack `zfin-10464`, seed `2026-09-19`. Baseline orgs **UniProt 111,089 /
-   GOA 106,815 / Noctua 36,034 / FP Inferences 1,623**, PAINT empty, 255,561 total. GOA matches
-   the build #6 figure exactly, so this is comparable to the earlier analysis. It is *not* the
-   `2026.07.05.1` dump the 2026-07/08 reports used — say so in the write-up rather than letting
-   anyone diff the two.
+1. Baseline: a pre-cutover database. Record the per-org counts before starting — every figure
+   below is read against them, and it is the cheapest guard against measuring the wrong thing.
+   State which dump or seed was used in the write-up: figures from different baselines are not
+   comparable, and will be compared if you do not say.
 2. One full-cutover run: `GAF_LOAD_REPORT_ONLY=false`, `RUN_CUTOVER_SCRIPTS=true`,
    `RUN_KW2GO_PURGE=true`, `RUN_MGTE_CLEANUP=true`.
 3. Take `mgte_dbdiff_ALL.xlsx` `deletes` as the raw figure.
@@ -82,85 +81,7 @@ this number minus that slice — no second run needed.
 
 ---
 
-## 4. Ballpark, ahead of the measurement
-
-Sources: the 2026-08-31 VM run's artifacts (measured directly, see §5), and the counts already
-recorded in `README-danre-mod-consolidation.md`. **Every figure below is provisional.**
-
-### Gross rows deleted at cutover — order of 67,800
-
-| component | rows | note |
-|---|---:|---|
-| `*2go` purge | **−24,903** net | 70,062 removed, 45,159 replaced by the new load (interpro2go −24,604, ec2go −299) |
-| kw2go purge | **−41,027** | only if *delete* is chosen; **0** under *freeze* |
-| the load's own removals | **~1,880** | measured on the 2026-08-31 run |
-
-### Genuine loss — order of 14,000, plus an unquantified `*2go` residue
-
-| component | pairs with no successor | confidence |
-|---|---:|---|
-| kw2go (delete branch) | **10,907** | documented; 15,030 reproduced + 14,471 subsumed already netted out |
-| Noctua | **~2,284** experimental | documented (5,103 total, 2,819 of them ND) |
-| FP Inferences | **1,144** | documented (1,623 pairs, only 479 reproduced) |
-| `*2go` residue | **≤ 24,903 rows, pairs unknown** | ⚠️ subsumption never computed for this slice |
-| **offsetting gain** | **+3,157 pairs / 2,576 genes** | `GO_REF:0000108`, once this branch lands |
-
-So: **~14,300 pairs of genuine loss that we can currently defend**, against which the `*2go`
-residue is the one real unknown and could be anything from a small number to most of 24,903.
-Under the kw2go *freeze* branch the defensible figure drops to **~3,400**.
-
-Two caveats worth saying out loud to the team:
-
-- The `*2go` residue is the gap in our knowledge, not a number we are withholding. It is also
-  the single largest term. Everything else has been counted at least once.
-- These components were each measured on different runs against different baselines. The point
-  of the pending measurement is to produce all of them from **one** before/after pair.
-
-## 5. What the 2026-08-31 VM run actually shows
-
-Artifacts: `/tmp/test-load-gpad-go-central-2-jenkins-artifacts`. Read carefully — this is a
-**steady-state second run, not a cutover**: PAINT was already populated (26,648), UniProt was
-untouched at 111,089, so the cutover scripts did not run. It also predates `--all`, so there is
-no `ALL` workbook; the figures below are reconstructed from the per-org before/after CSVs.
-It finished **UNSTABLE**.
-
-    rows: before 319,035  after 317,161  net -1,874
-    lost at per-org identity key : 1,880 rows
-    lost at ALL_KEY (statement)  : 1,880 rows over 1,861 distinct keys
-    lost at (gene, GO) pair      : 1,880 rows over 1,859 distinct pairs
-
-That the figure barely moves across all three keys is itself the finding: these are real
-disappearances, not re-keying artifacts.
-
-**What is being lost is upstream refinement, not knowledge.** By `created_by`: UniProt 1,224,
-InterPro 625, everything else 11. By aspect: molecular_function 1,512. The top terms are the
-generic parents you would expect GOA to replace with something specific:
-
-    GO:0016740 transferase activity   517      GO:0016020 membrane            111
-    GO:0016301 kinase activity        423      GO:0005524 ATP binding          54
-    GO:0016787 hydrolase activity     143      GO:0008233 peptidase activity   49
-
-Strongly suggestive of subsumption rather than loss — but **not yet proven**, because the
-closure check of §2(c) has not been run against them. Do not quote this as "no real loss" until
-it has.
-
-**The error profile also prices two open decisions** (10,871 errors total):
-
-| count | category | bearing |
-|---:|---|---|
-| 7,811 | `Goref ID is not known or loaded` | `GO_REF:0000108` — **fixed on this branch**, drops to ~45 |
-| 2,409 | `Cannot add root-term annotation … non-root annotations existent` | **decision 13, ND filtering** — far bigger than the comment-10 example suggested |
-| 521 | Duplicate annotation entry | the file's own row duplication (finding 8) |
-| 24 | `invalid evidence code: ECO:0005547` | **decision 6** — fixed by the derived-file switch |
-| 38 / 23 / 18 | PMID not found / gene not found / Do Not Annotate | residual |
-
-⚠️ The 2,409 root-term rejections matter beyond their own count. Rejected rows reach none of
-`existingEntries`/`newEntries`/`updateEntries`, so `findOutdatedEntries` cannot distinguish them
-from rows the file never contained — which is the removal hazard TODO items 1–2 exist for. They
-are a candidate cause of removals elsewhere in the diff, and the guard that was supposed to
-catch exactly this does not work.
-
-## 6. The tables this ticket touches
+## 4. The tables this ticket touches
 
 Row counts from the `zfin-10464` stack (seed `2026-09-19`), before the rehearsal.
 
@@ -196,7 +117,7 @@ Not involved, despite the name: `marker_go_term_evidence_annotation_created_by_s
 HGNC, MGI, UniProtKB, IntAct). The `mrkrgoev_annotation_organization_created_by` column is free
 text carrying `InterPro`, `GO_Central`, `GOC` and similar, none of which appear in that lookup.
 
-## 7. Where the FP Inferences rows came from
+## 5. Where the FP Inferences rows came from
 
 Answering it properly, because decision 7 (freeze vs delete) reads differently once you know.
 
@@ -245,10 +166,11 @@ defensible than the raw count suggests.
 ⚠️ Not yet proven: the subsumption closure of §2(c) has not been run against these 1,143. The
 burden of proof has shifted, but "no real loss" is not yet a claim we can make.
 
-## 8. MEASURED — full-cutover rehearsal, 2026-09-22
+## 6. Measured loss
 
-Stack `zfin-10464`, seed `2026-09-19`, real writes, load + all three cutover scripts inside one
-before/after window. **This supersedes the §4 ballpark.**
+From a full rehearsal: stack `zfin-10464`, seed `2026-09-19`, real writes, load plus all three
+cutover scripts inside one before/after window. Re-derive rather than quoting — every figure here
+moves with the input file.
 
 **Org movement**
 
@@ -280,13 +202,11 @@ The pair figure is the curator-meaningful one. Its composition:
 
 By org: UniProt 26,929, Noctua 4,128, GOA 761. By evidence: IEA 27,087, ND 2,831, IMP 860.
 
-### The `*2go` residue is 1,827 pairs, not ~24,903
+### The `*2go` residue is small
 
-§4 flagged this as the largest unknown and put it at "≤ 24,903 rows, pairs unknown". Measured, it
-is **1,827 pairs** — because the purge deletes ~70,062 UniProt-org rows while the load supplies
-GOA replacements covering nearly the same `(gene, GO)` ground. The row count was never the pair
-count. **The §4 ballpark was pessimistic on its own biggest term; correct the record with the
-team.**
+**1,827 pairs**, despite the purge deleting ~70,062 UniProt-org rows: the load supplies GOA
+replacements covering nearly the same `(gene, GO)` ground. The row count is not the pair count,
+and estimating this from rows overstates it by more than an order of magnitude.
 
 ### Subsumption applied — the final number
 
@@ -322,35 +242,26 @@ by two organizations before the cutover is counted under each.)
 
 kw2go is 62% of the true loss, so decision 4 still dominates every other open question combined.
 
-Corroboration: the ad-hoc 2026-08 analysis put kw2go's true loss at 10,907; the committed tooling
-measures **9,889** on a different baseline — 9% apart, close enough to trust the method and far
-enough apart that quoting the old figure would have been wrong. The old query was never committed
-and could not be re-run, which is exactly why this is now tooling.
+Corroboration: an independent earlier analysis put kw2go's true loss at 10,907 on a different
+baseline, against 9,889 here — close enough to trust the method, far enough apart that the figure
+has to be re-derived per run rather than quoted.
 
-Cross-checks that the method is sound: kw2go's 24,544 sits where the documented 40,408 pairs
-minus ~15,030 reproduced predicts; Noctua ND lands on 2,831 against a documented 2,819; and
-`FP Inferences` shows **zero** loss, confirming the load still does not touch it.
+Cross-checks that the method is sound: kw2go's 24,544 is what 40,408 pairs minus ~15,030
+reproduced predicts; Noctua ND lands within a dozen of the 2,819 counted independently; and
+`FP Inferences` shows **zero** loss, confirming the load does not touch it.
 
-### Two things this run also proved
+### What else a first-cutover run looks like
 
-- **The `GO_REF:0000108` fix works in a real write run.** `Goref ID is not known or loaded` went
-  **7,811 → 45**, exactly as the commit message predicted.
-- **The broken guard is reproduced on current code.** It logged *"Removal-safety guard withheld
-  deletions for at least one organization"*, exited 2 — and the summary still reported
-  `removed: 47,129`, within nine rows of build #6's 47,138. TODO item 1 confirmed.
+`Duplicate annotation entry` dominates the error summary — the file's own row duplication
+colliding with rows the same run just inserted, so it is far larger on a first run than a second.
+The load exits non-zero, so any driver using `set -e` stops before the cutover scripts.
 
-Caveats: `191,600 Duplicate annotation entry` errors are the file's own row duplication colliding
-with rows this same first run inserted (521 on a second run). `ECO:0005547` still errors 24 times,
-as intended — the derived-file switch is deliberately not in this run. The load exits non-zero via
-the guard, so any driver with `set -e` stops before the cutover scripts.
-
-## 9. Status
+## 7. Status
 
 - [x] Branch rebased onto main, compiles and deploys clean
 - [x] Stack `zfin-10464` provisioned from seed `2026-09-19`, migration verified applied
 - [x] Baseline org counts captured
-- [x] 2026-08-31 artifacts mined for the ballpark
-- [x] Full-cutover rehearsal run — done 2026-09-22, see §8 (load took 59m36s)
+- [x] Full-cutover rehearsal run — see §6
 - [x] Subsumption pass — built as `mgte_subsumption.sh`/`.sql`, wired into the job, run
 - [ ] `gflag` blind-spot check against the two snapshots
 - [x] `*2go` residue quantified — 1,827 pairs, far below the ballpark

@@ -542,11 +542,9 @@ nothing), so the backfill can only ever fill rows that predate the column fallin
 
    Subsumption is computed on a strict `is_a` + `part of` closure, deliberately *not*
    `all_term_contains` — that table also encodes `regulates` and `positively regulates`
-   (verified), which would overstate it. ✅ **That closure is now committed tooling**
-   (`mgte_subsumption.sh` / `.sql`) rather than the one-off query these figures originally came
-   from, which was never committed and could not be re-run. Measured reproducibly on the
-   2026-09-22 rehearsal, kw2go's true loss is **9,889** pairs against the 10,907 recorded here;
-   prefer the tooling's number and re-derive rather than quoting either from memory. ⚠️ **Do not
+   (verified), which would overstate it. The closure is implemented in **`mgte_subsumption.sh` /
+   `.sql`**; re-derive these figures with it rather than quoting them, as they move with the
+   input file. ⚠️ **Do not
    simply leave the flag on.** When the file stops being served the secondary load *fails on
    the download*, taking the dblink/domain/PDB half with it: `createTempFile` leaves a 0-byte
    destination, so `downloadFileViaWget` size-checks against the server, a missing file returns
@@ -575,11 +573,11 @@ nothing), so the backfill can only ever fill rows that predate the column fallin
 6. **`GO_REF:0000115` (RNAcentral, 45)** — map or leave. Re-counted on the same run. Still open.
 
    **`ECO:0005547`** (66 rows / 65 pairs from ComplexPortal on the latest count) — ✅ **cause
-   settled 2026-09-21 (ZFIN-10464 comments 14–16), fix not yet written.** This was originally
-   read as a violation of GO's `allowed_reference: GO_REF:0000114` constraint in
-   [`eco-usage-constraints.yaml`](https://github.com/geneontology/go-site/blob/master/metadata/eco-usage-constraints.yaml).
-   Pascale, via Doug, said it should not error, and on re-tracing it is a **mapping gap, not the
-   constraint** — the term is simply absent from the flat mapping file we consume.
+   settled (ZFIN-10464 comments 14–16).** It is a **mapping gap**, not a violation of GO's
+   `allowed_reference: GO_REF:0000114` constraint in
+   [`eco-usage-constraints.yaml`](https://github.com/geneontology/go-site/blob/master/metadata/eco-usage-constraints.yaml)
+   — Pascale confirmed the constraint should not error. The term is simply absent from the flat
+   mapping file.
 
    **The fix is to switch `getECOGOMapping.groovy` from the flat file to GO's derived one:**
 
@@ -668,8 +666,8 @@ nothing), so the backfill can only ever fill rows that predate the column fallin
    quantify what is left after the `ECO:0007322` fix; this is the go/no-go check, run
    report-only, immediately before flipping the flag.
 12. **Descendant filtering** — ✅ **DECIDED 2026-09-08 (ZFIN-10464 comment 8), tracked as
-   ZFIN-10518: remove it entirely.** The load used to suppress an incoming annotation when the database held a more
-   specific one from the same lineage. Doug: *"With this new load, we are now purely consumers
+   ZFIN-10518: remove it entirely.** The filter suppressed an incoming annotation when the
+   database held a more specific one from the same lineage. Doug: *"With this new load, we are now purely consumers
    of the GO annotations, including the ones we make in Noctua. In that light, I suggest we stop
    doing this descendent filtering all together."* The file is authoritative.
 
