@@ -550,13 +550,63 @@ nothing), so the backfill can only ever fill rows that predate the column fallin
    is smaller than local file")`, rethrown as a `RuntimeException`. The message points at the
    wrong thing and the timing is GO's, not ours. ⚠️ **No longer entangled with #2** —
    `DANRE-uniprot` carries the same content (§2a), so no source-file change rescues these.
-5. **`GO_REF:0000108` (GOC)** — adopt (net-new content) or keep rejecting? **Bigger than the
-   ~2,125 recorded earlier: re-measured on the 2026-08-13 full write run against the current
-   file, it is 3,157 distinct (gene, GO) annotations over 2,576 genes** (7,766 raw error
-   occurrences — the inflation is the file's own row duplication, finding 8). This is now the
-   largest single open decision by volume after kw2go.
-6. **`GO_REF:0000115` (RNAcentral, 45)** and **`ECO:0005547` (manual, 24)** — map or leave.
-   Both re-counted on the same run.
+5. ~~**`GO_REF:0000108` (GOC)** — adopt (net-new content) or keep rejecting?~~
+   **✅ DECIDED 2026-09-03 (ZFIN-10464 comment 6): adopt.** 3,157 distinct (gene, GO)
+   annotations over 2,576 genes (7,766 raw error occurrences — the inflation is the file's own
+   row duplication, finding 8), re-measured on the 2026-08-13 full write run. Doug created
+   **`ZDB-PUB-260903-15`** on PROD for the GO_REF and confirmed both evidence codes map to
+   **IEA**.
+
+   Implemented on `zfin-10464-go-load-cutover`, and it takes **both** halves — neither alone
+   suffices. `eco_go_mapping` rows for `ECO:0000366` (5,614) and `ECO:0000364` (2,152); the
+   sets are closed both ways, every `GO_REF:0000108` row carries one of the two and every row
+   carrying either cites `GO_REF:0000108`. Plus a `GoDefaultPublication` entry, because
+   `getGoRefPubs()` is an explicit allowlist and is what populates `goRefPubMap` — the enum
+   constant on its own is not enough. Without both, `"Goref ID is not known or loaded"` sits at
+   ~7,800; with them, ~45.
+
+   ⚠️ The ECO half is **superseded by decision 6's file switch**, which supplies both codes as
+   IEA from GO's own derived mapping. Keep the migration regardless: the mapping load fires only
+   from `LoadOntology`, not from the GO load.
+6. **`GO_REF:0000115` (RNAcentral, 45)** — map or leave. Re-counted on the same run. Still open.
+
+   **`ECO:0005547`** (66 rows / 65 pairs from ComplexPortal on the latest count) — ✅ **cause
+   settled 2026-09-21 (ZFIN-10464 comments 14–16), fix not yet written.** This was originally
+   read as a violation of GO's `allowed_reference: GO_REF:0000114` constraint in
+   [`eco-usage-constraints.yaml`](https://github.com/geneontology/go-site/blob/master/metadata/eco-usage-constraints.yaml).
+   Pascale, via Doug, said it should not error, and on re-tracing it is a **mapping gap, not the
+   constraint** — the term is simply absent from the flat mapping file we consume.
+
+   **The fix is to switch `getECOGOMapping.groovy` from the flat file to GO's derived one:**
+
+   | | |
+   |---|---|
+   | now | `http://purl.obolibrary.org/obo/eco/gaf-eco-mapping.txt` (via the GitHub raw copy) |
+   | switch to | `http://purl.obolibrary.org/obo/eco/gaf-eco-mapping-derived.txt` |
+
+   Measured 2026-09-22 against the published files and a live database: the derived file is a
+   strict **superset** — all 26 flat mappings verbatim, 1,422 total, every ECO term of which
+   already exists in `term`, so the join drops nothing and `eco_go_mapping` goes **39 → 1,426**.
+   The insert is `on conflict … do nothing` with no delete, so nothing loaded can be lost.
+
+   Two changes ride along, both required:
+
+   - **The columns are reversed.** Flat is `CODE ⇥ Default ⇥ ECO`, derived is
+     `ECO ⇥ CODE ⇥ [Default]`, so the parser's `split()[0]`/`split()[2]` becomes `[1]`/`[0]`.
+     `[2]` breaks outright — 1,396 of 1,422 rows have an empty third column. ⚠️ The derived
+     file's own header comment still documents the *old* order; it is wrong, go by the data.
+   - **`uniqueResult()` cannot take a dual-coded term.**
+     `HibernateOntologyRepository.getEcoEvidenceCode` ends in `criteria.uniqueResult()`, called
+     per row from `GpadParser.postProcessing`, so two mappings for one ECO term throw
+     `NonUniqueResultException`. Five terms end up dual-coded: `ECO:0000031` (ISS + **ISA**),
+     `ECO:0000262` (ISS + **ISM**), `ECO:0007295` (**EXP + IEA**, both from the file), plus
+     `ECO:0000255` (ISM + ISS) and `ECO:0000320` (IKR + IMR) which are **already dual in the
+     database today** — so this is a latent bug the switch widens, not one it creates. The
+     `Default` marker is no tiebreaker: `ECO:0007295` carries it on neither row.
+
+   The switch also subsumes the hand-written IEA mappings for `ECO:0000364`/`ECO:0000366`
+   (decision 5) and `ECO:0007322` (release 1184). Keep those migrations: `LoadOntology` is the
+   only thing that runs this load, and it does not run as part of the GO load.
 7. ~~**`EXP` evidence (105)**~~ **✅ DONE 2026-08-11** (decision per ZFIN-10258; see finding 7a).
    All 105 EXP (`ECO:0000269`) rows are `assigned_by=UniProt` and PMID-attributed —
    literature-backed experimental annotations, not the default-excluded GAF-path EXP
@@ -604,7 +654,7 @@ nothing), so the backfill can only ever fill rows that predate the column fallin
    **1,144 are FP-only**. Giving phylo its own org gives those rows a natural home but does not
    supply their content. Retiring `Load-GAF-FP-Inference_m` without migrating them loses 1,144
    pairs; leaving them stranded in `FP Inferences` means no load ever refreshes or prunes them.
-   Decide at cutover (ZFIN-10464).
+   Decide at cutover — **ZFIN-10464 decision 7**, still open.
 10. **Gene product form IDs (finding 10)** — accept the loss, or not? **42,279 → 0** on every
    load. GAF col 17 carried it; GPAD 2.0 has no equivalent column and neither DANRE file supplies
    one, so this is upstream and not a parser gap we can close. Reaches no download file and no UI.
@@ -613,6 +663,34 @@ nothing), so the backfill can only ever fill rows that predate the column fallin
    enough that the first real diff is ~no-op rather than a mass add+remove. Findings 1 and 5
    quantify what is left after the `ECO:0007322` fix; this is the go/no-go check, run
    report-only, immediately before flipping the flag.
+12. **Descendant filtering** — ✅ **DECIDED 2026-09-08 (ZFIN-10464 comment 8): remove it
+   entirely.** The load used to suppress an incoming annotation when the database held a more
+   specific one from the same lineage. Doug: *"With this new load, we are now purely consumers
+   of the GO annotations, including the ones we make in Noctua. In that light, I suggest we stop
+   doing this descendent filtering all together."* The file is authoritative.
+
+   The filter was also actively harmful: it deleted ~3,200 existing annotations per run, created
+   and removed ~1,500 more within the load, and depended on database row order. 404 of the
+   deletions were not even redundant, because the ancestry check followed `regulates` and
+   `occurs_in` edges as well as `is_a`/`part_of` — so "angiogenesis" was treated as implied by
+   "positive regulation of angiogenesis". Removed on `zfin-10464-go-load-cutover`;
+   `isSameAnnotation` replaces it as a plain identity test.
+13. **ND filtering** — **NEW, open, nothing built.** ZFIN-10464 comment 12 (2026-09-19). Doug,
+   relaying Pascale: GO/GOA know that `ND` annotations coexist with real ones on the same GO
+   aspect and **plan** an upstream filter, but it is not in place. He asks ZFIN to implement one,
+   *"either a filter on the incoming file or after the load."*
+
+   Worked example (comment 10), all on one gene: `GO:0008150` (`biological_process`, **ND**,
+   ZFIN / `GO_REF:0000015`, Noctua) alongside `GO:0002088` (`lens development`) and `GO:0007601`
+   (`visual perception`), both **IBA**, GO_Central / `GO_REF:0000033`, PAINT. ZFIN's own database
+   constraints already disallow root terms with descendants, which argues this is a schema rule
+   rather than load policy.
+
+   Do not conflate this with decision 12. That filter was **removed** because ZFIN consumes what
+   GO asserts; this one is **added** policy covering a case GO itself calls a defect, and it is
+   narrower — same aspect, ND vs non-ND, not general ancestry. Doug's follow-up (comment 13,
+   *"I'll check with Pascale on this…"*) is still unanswered, so settle scope before writing
+   code.
 
 ## The diff key, and why `protein_acc` is in neither list
 

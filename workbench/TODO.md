@@ -1,9 +1,15 @@
 # TODO before this branch becomes a PR
 
+Draft PR: **rtaylorzfin/zfin#55** (fork, `zfin-10464-go-load-cutover` → `main`).
+Open against the fork only; nothing is filed upstream.
+
 **The removal-safety guard on this branch does not work.** It was written and
 committed during ZFIN-10358, split out of that PR as out of scope, and only
-afterwards found to be non-functional. Do not open a PR from this branch until
-both problems below are addressed.
+afterwards found to be non-functional. Do not promote this to an upstream PR
+until items 1 and 2 below are addressed.
+
+Items 3 and 4 came out of the Jira thread after this file was written; they are
+not blockers for the guard, but they are cutover work that lives nowhere else.
 
 ---
 
@@ -87,9 +93,94 @@ load had created under a `ZFIN:ZDB-PUB-…` citation.
 Note this hazard predates the branch — `main` has always behaved this way. The
 guard is an improvement that does not yet work, not a regression.
 
+## 3. Switch the ECO→GO mapping to GO's derived file (new)
+
+Per ZFIN-10464 comments 14–16 (2026-09-21). `ECO:0005547` (66 rows / 65 pairs
+from ComplexPortal) was originally read as a violation of GO's
+`allowed_reference: GO_REF:0000114` constraint in `eco-usage-constraints.yaml`.
+Pascale, via Doug, said it should not error — and on re-tracing it is a **mapping
+gap, not the constraint**: the term is simply absent from the flat file we
+consume. `ECO:0005547 → NAS` is present in the derived file.
+
+`getECOGOMapping.groovy` currently pulls the GitHub raw copy of the flat
+`gaf-eco-mapping.txt`. Switch it to the permanent PURL of the derived file,
+which GO's own header says to prefer:
+
+    http://purl.obolibrary.org/obo/eco/gaf-eco-mapping-derived.txt
+
+**Measured 2026-09-22** against the current published files and a live ZFIN
+database:
+
+- The derived file is a strict **superset**: all 26 flat mappings appear in it
+  verbatim, and it carries 1,422. Every one of its ECO terms already exists in
+  ZFIN's `term` table, so the join in `insert_eco_go_map.sql` drops nothing.
+  `eco_go_mapping` goes **39 → 1,426 rows** (1,387 new).
+- The load is additive by construction — `on conflict … do nothing`, no delete —
+  so no currently-loaded mapping can be lost. "Additive only" is therefore safe
+  at the file level. It is **not** safe at the lookup, see below.
+
+Two things have to change with the URL:
+
+**(a) The columns are reversed.** Flat is `CODE ⇥ Default ⇥ ECO`; derived is
+`ECO ⇥ CODE ⇥ [Default]`. So `evidence_code = line.split()[0]` /
+`eco_term = line.split()[2]` must become `[1]` / `[0]`. `[2]` would break
+outright: 1,396 of the 1,422 rows have an empty third column.
+⚠️ The derived file's own header comment still describes the **old** column
+order ("1. GAF evidence code, 2. ECO ID"). It is wrong; go by the data.
+
+**(b) `uniqueResult()` cannot survive a dual-coded ECO term.**
+`HibernateOntologyRepository.getEcoEvidenceCode` ends in `criteria.uniqueResult()`,
+called per row from `GpadParser.postProcessing`, so two mappings for one term
+throw `NonUniqueResultException` and fail the load. Five terms are dual-coded
+after the switch:
+
+| ECO term | today | after | |
+|---|---|---|---|
+| `ECO:0000255` | ISM + ISS | unchanged | **already dual in prod** |
+| `ECO:0000320` | IKR + IMR | unchanged | **already dual in prod** |
+| `ECO:0000031` | ISS | + ISA | new |
+| `ECO:0000262` | ISS (curated, DLOAD-672) | + ISM | new |
+| `ECO:0007295` | — | EXP + IEA | both rows from the file |
+
+Two of those are live in the database **today**, so this is a latent bug the
+switch widens rather than one it creates. The derived file's `Default` marker is
+no tiebreaker — `ECO:0007295` carries it on neither row. Decide a policy
+(deterministic pick at lookup, or one row per term at load time) rather than
+letting it throw.
+
+Note the switch also subsumes this branch's
+`1185/…/0030-ZFIN-10464-eco-goref-0000108-mappings.sql` (`ECO:0000364`,
+`ECO:0000366` → IEA) and the already-merged
+`1184/…/0010-ZFIN-10025-eco-0007322-subcell-iea-mapping.sql` (`ECO:0007322` →
+IEA) — all three are in the derived file. **Keep the migrations anyway:** the
+mapping load only fires from `LoadOntology/build.xml`, not from the GO load, so
+on a restored database the migration is what puts them there in time.
+
+## 4. ND filtering (new, unbuilt)
+
+Doug, ZFIN-10464 comment 12 (2026-09-19), relaying Pascale: GO/GOA know about
+ND annotations coexisting with real ones on the same aspect and **plan** a filter
+upstream, but it is not in place. He asks ZFIN to implement one — "either a
+filter on the incoming file or after the load."
+
+The worked example from comment 10 is a root term: `GO:0008150`
+(`biological_process`, ND, ZFIN/`GO_REF:0000015`, Noctua) sitting alongside
+`GO:0002088` and `GO:0007601` (IBA, GO_Central/`GO_REF:0000033`, PAINT) on the
+same gene. ZFIN's own database constraints already disallow root terms with
+descendants, which makes this look less like load policy than a schema rule.
+
+This is separate from the descendant filtering removed in this branch — that was
+removed on Doug's instruction (comment 8) because ZFIN is now purely a consumer.
+ND filtering is narrower and is **added** policy, not restored policy. Nothing is
+built for it yet, and Doug's comment 13 ("I'll check with Pascale on this") is
+still unanswered, so scope it before writing code.
+
 ## Related
 
 - ZFIN-10358 — where this was found; that PR does **not** contain the guard
 - ZFIN-10025 — the unified DANRE-mod load
+- ZFIN-10464 comments 5–8 — Doug's decisions that this branch implements:
+  `GO_REF:0000108` → `ZDB-PUB-260903-15` with both ECO codes as IEA (comment 6),
+  and dropping descendant filtering entirely (comment 8)
 - The cutover purge scripts are unaffected either way: they delete via SQL, not
   via the load's removal diff.
