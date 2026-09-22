@@ -61,8 +61,30 @@ public class GafJobData {
         subsetFailureEntries.add(entry);
     }
 
+    /**
+     * Records a removal without an owning organization. Only the ND-replacement path in
+     * {@link org.zfin.datatransfer.go.service.GafService#addAnnotation} uses this: that row has
+     * already been deleted by the time it is recorded, so it is report data rather than something
+     * the removal-safety guard can withhold.
+     */
     public void addRemoved(MarkerGoTermEvidence markerGoTermEvidence) {
         removedEntries.add(new GafJobEntry(markerGoTermEvidence));
+    }
+
+    /**
+     * Records a removal produced by an organization's removal pass, tagged with that organization.
+     *
+     * <p>The tag is set here rather than inferred later. The previous guard tried to recover it by
+     * comparing the owning organization against {@code organizationCreatedBy}, which is the GPAD
+     * {@code assigned_by} column -- {@code GOA}/{@code Noctua}/{@code PAINT} against
+     * {@code UniProt}/{@code InterPro}/{@code ZFIN}/{@code GO_Central}. Those namespaces do not
+     * intersect for the organizations this load prunes, so the match never fired and the guard
+     * withheld nothing while reporting that it had.
+     */
+    public void addRemoved(MarkerGoTermEvidence markerGoTermEvidence, String owningOrganization) {
+        GafJobEntry entry = new GafJobEntry(markerGoTermEvidence);
+        entry.setOwningOrganization(owningOrganization);
+        removedEntries.add(entry);
     }
 
     public void addError(GafValidationError gafValidationError) {

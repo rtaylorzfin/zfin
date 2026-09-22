@@ -3,17 +3,54 @@
 Draft PR: **rtaylorzfin/zfin#55** (fork, `zfin-10464-go-load-cutover` → `main`).
 Open against the fork only; nothing is filed upstream.
 
-**The removal-safety guard on this branch does not work.** It was written and
-committed during ZFIN-10358, split out of that PR as out of scope, and only
-afterwards found to be non-functional. Do not promote this to an upstream PR
-until items 1 and 2 below are addressed.
+~~**The removal-safety guard on this branch does not work.**~~ ✅ **FIXED 2026-09-22.**
+Items 1 and 2 were addressed together, because fixing either alone makes things
+worse: a working guard on the old threshold would have blocked the cutover
+itself. See "How it was fixed" below. The two sections are kept as the record of
+what was wrong.
 
 Items 3 and 4 came out of the Jira thread after this file was written; they are
 not blockers for the guard, but they are cutover work that lives nowhere else.
 
 ---
 
-## 1. The guard blocks nothing (bug)
+## How it was fixed
+
+Withholding is now driven by **attribution, not volume**.
+
+`GafService.findRemovalKeysAttributableToRejections` identifies the removals a
+rejected row could actually account for, matched on (marker ZDB id, GO id), and
+**only those are withheld**. Removals with no corresponding rejection are rows
+the file genuinely dropped, and they are applied — so a legitimate first cutover
+is no longer blocked, while the ZFIN-10358 case (1.3% of one organization) now
+trips regardless of how small it is.
+
+- **Item 1** — the owning organization is recorded on each `GafJobEntry` when the
+  removal pass creates it (`GafJobData.addRemoved(mgte, org)`), so withholding no
+  longer infers ownership from `organizationCreatedBy`.
+- **Item 2** — `GAF_MAX_REMOVAL_FRACTION` survives as a purely **advisory** volume
+  warning: it marks the build for review and never withholds.
+- `GAF_ALLOW_LARGE_REMOVAL` is now a Jenkins parameter, and **no longer suppresses
+  UNSTABLE** — forcing a prune is a reason to look harder, not a reason to go green.
+
+Matching deliberately ignores the evidence code: a row rejected *because* its ECO
+term had no mapping still carries the raw ECO id, so keying on evidence would miss
+exactly the rejections most likely to cause a spurious delete.
+
+Rejections that never resolved a gene (`Gene not found for ID`, or a GAF-path
+UniProtKB accession) cannot be attributed to any removal. They are counted and
+reported, never acted on — guessing would withhold arbitrary rows.
+
+**Tested.** `RemovalAttributionUnitTest`, 8 cases, no database. Verified by
+mutation: reintroducing the `organizationCreatedBy` comparison fails
+`matchingDoesNotDependOnOrganizationCreatedBy` and
+`aRemovalMatchingARejectedRowIsWithheld`. The original defect's whole character
+was that it looked correct at runtime, so a passing build proves nothing on its
+own.
+
+---
+
+## 1. The guard blocks nothing (bug) — FIXED, kept as the record
 
 `GafLoadJob.removalOwnedBy` compares two different namespaces:
 
@@ -51,7 +88,7 @@ owning org is known at the point each entry is added — `GafJobData.addRemoved`
 could record it, or `generateRemovedEntriesReport` could return that org's
 entries as a list the caller keeps separate.
 
-## 2. The 10% threshold cannot tell a first run from a runaway (design)
+## 2. The 10% threshold cannot tell a first run from a runaway (design) — FIXED, kept as the record
 
 `GAF_MAX_REMOVAL_FRACTION` defaults to 0.10. Had the guard worked, build #6 would
 have blocked **47,138 legitimate removals** — a first run against a freshly

@@ -30,6 +30,7 @@ import java.util.*;
 import java.util.concurrent.Callable;
 import java.util.concurrent.ExecutorService;
 import java.util.concurrent.Executors;
+import java.util.stream.Collectors;
 
 import static org.zfin.repository.RepositoryFactory.getInfrastructureRepository;
 import static org.zfin.util.ZfinSystemUtils.envTrue;
@@ -93,7 +94,10 @@ public class GafLoadJob extends AbstractValidateDataReportTask {
     protected Boolean reportOnly; //default to false
     // Set when the removal-safety guard withheld deletions for at least one organization, so the
     // job can exit non-zero and the operator is not left thinking the prune succeeded.
-    protected boolean removalBlocked = false;
+    // Set when a removal pass produced something an operator has to look at -- either withheld
+    // deletions, or deletions let through under an explicit override. Drives exit code 2.
+    protected boolean removalNeedsReview = false;
+    protected int withheldRemovals = 0;
     private static final double DEFAULT_MAX_REMOVAL_FRACTION = 0.10d;
 
     private boolean isReportOnly() {
@@ -282,10 +286,13 @@ public class GafLoadJob extends AbstractValidateDataReportTask {
                 exitCode = 2;
             }
 
-            // Withheld deletions must not look like a clean prune.
-            if (removalBlocked) {
-                logger.error("Removal-safety guard withheld deletions for at least one organization.");
-                System.out.println("Removal-safety guard withheld deletions for at least one organization.");
+            // A prune that was tampered with -- or deliberately forced -- must not look clean.
+            if (removalNeedsReview) {
+                String message = withheldRemovals > 0
+                    ? "Removal-safety guard withheld " + withheldRemovals + " deletion(s) attributable to rejected rows."
+                    : "Removal-safety guard: deletions attributable to rejected rows were applied under GAF_ALLOW_LARGE_REMOVAL.";
+                logger.error(message);
+                System.out.println(message);
                 exitCode = 2;
             }
 
@@ -538,7 +545,7 @@ public class GafLoadJob extends AbstractValidateDataReportTask {
      *             downloadUrl3
      */
     /**
-     * Removal-safety guard (ZFIN-10025).
+     * Removal-safety guard (ZFIN-10025, reworked under ZFIN-10464).
      *
      * <p>{@code GafService.findOutdatedEntries} removes everything an organization owns that the
      * file did not produce. A row that threw during validation reaches none of
@@ -547,50 +554,82 @@ public class GafLoadJob extends AbstractValidateDataReportTask {
      * this load is therefore silent data loss, not merely a failure to add. ZFIN-10358 is the
      * worked example: an unresolvable DOI deleted the annotation an earlier load had created.
      *
-     * <p>We cannot reliably tell which existing rows the rejected entries would have matched --
-     * the lookup that failed is often the one needed to identify them. So rather than guess, this
-     * refuses to prune an organization whose input we demonstrably failed to fully evaluate,
-     * whenever the removal is also large enough to matter. The load continues and still reports
-     * the diff; only the deletion is withheld.
+     * <p><b>What changed.</b> The first version of this guard asked "is this organization removing
+     * more than 10% of what it owns, and did anything get rejected?", then tried to withhold by
+     * comparing the owning organization against {@code organizationCreatedBy}. Both halves were
+     * wrong:
      *
-     * <p>Tunable with GAF_MAX_REMOVAL_FRACTION (default 0.10). Set GAF_ALLOW_LARGE_REMOVAL=true to
-     * proceed anyway, for a genuine bulk retirement.
+     * <ul>
+     *   <li>the withholding matched nothing, because {@code organizationCreatedBy} is the GPAD
+     *       {@code assigned_by} column and does not share a namespace with the organization names
+     *       this load prunes. It announced a block and deleted everything anyway;</li>
+     *   <li>fraction-of-owned is the wrong signal in both directions. A first run against a legacy
+     *       database legitimately removes tens of percent, so a working guard would have blocked
+     *       the cutover itself; and the defect it exists for was 1.3% of one organization, well
+     *       under the threshold.</li>
+     * </ul>
+     *
+     * <p><b>What it does now.</b> Withholding is driven by attribution, not volume:
+     * {@code findRemovalKeysAttributableToRejections} identifies the removals a rejected row could
+     * actually account for, matched on (marker, GO term), and only those are withheld. Removals
+     * with no corresponding rejection are rows the file genuinely dropped and are applied. The
+     * owning organization is recorded on each entry when the removal pass creates it, so
+     * withholding no longer has to guess which entries belong to whom.
+     *
+     * <p>GAF_MAX_REMOVAL_FRACTION survives as a purely advisory volume warning (default 0.10): it
+     * reports and marks the build for review, and never withholds anything.
+     *
+     * <p>GAF_ALLOW_LARGE_REMOVAL=true applies the attributable removals anyway, for a genuine bulk
+     * retirement or a first cutover. It deliberately still marks the run for review -- forcing a
+     * prune is exactly the case that should not produce a green build.
      */
     private void checkRemovalIsSafe(GafJobData gafJobData, GafOrganization org, int removedForOrg) {
         if (removedForOrg <= 0) {
             return;
         }
-        long rejected = gafService.countRejectedEntriesForOrganization(gafJobData, org);
+        List<GafEntry> rejectedForOrg = gafService.rejectedEntriesForOrganization(gafJobData, org);
         int owned = gafService.countEvidencesForOrganization(org);
         double fraction = owned == 0 ? 0d : (double) removedForOrg / (double) owned;
-        double limit = maxRemovalFraction();
+
+        Set<String> suspectKeys = gafService.findRemovalKeysAttributableToRejections(gafJobData, org);
+        List<GafJobEntry> attributable = GafService.removalsAttributableTo(
+            gafJobData.getRemovedEntries(), org.getOrganization(), suspectKeys);
 
         String detail = String.format(
-            "%s: removing %d of %d annotations (%.1f%%); %d input rows for this organization were rejected",
-            org.getOrganization(), removedForOrg, owned, fraction * 100d, rejected);
+            "%s: removing %d of %d annotations (%.1f%%); %d input rows rejected; %d removal(s) attributable to a rejected row",
+            org.getOrganization(), removedForOrg, owned, fraction * 100d, rejectedForOrg.size(), attributable.size());
 
-        if (rejected > 0 && fraction > limit) {
-            String message = "REMOVAL BLOCKED — " + detail
-                + ". Rejected rows are indistinguishable from absent rows, so these deletions may be "
-                + "spurious. Fix the rejections (see the error summary), or set "
-                + "GAF_ALLOW_LARGE_REMOVAL=true to proceed anyway.";
+        if (!attributable.isEmpty()) {
+            String message = "REMOVAL AT RISK — " + detail
+                + ". A rejected row is indistinguishable from a row the file omitted, so these "
+                + "deletions may be spurious. Fix the rejections (see the error summary), or set "
+                + "GAF_ALLOW_LARGE_REMOVAL=true to apply them anyway.";
+            removalNeedsReview = true;
             if (envTrue("GAF_ALLOW_LARGE_REMOVAL")) {
-                logger.warn("GAF_ALLOW_LARGE_REMOVAL=true, proceeding despite: " + message);
-                System.out.println("WARNING: " + message + " (overridden)");
-                return;
+                // Still flagged: an override is a reason to look harder, not a reason to go green.
+                logger.warn("GAF_ALLOW_LARGE_REMOVAL=true, applying anyway: " + message);
+                System.out.println("WARNING (overridden): " + message);
+            } else {
+                logger.error(message);
+                System.out.println(message);
+                Set<GafJobEntry> withhold = new HashSet<>(attributable);
+                gafJobData.getRemovedEntries().removeIf(withhold::contains);
+                withheldRemovals += attributable.size();
+                System.out.println("Withheld " + attributable.size() + " deletion(s) for " + org.getOrganization()
+                    + "; the remaining " + (removedForOrg - attributable.size()) + " will be applied.");
             }
-            logger.error(message);
+        } else if (fraction > maxRemovalFraction()) {
+            // Advisory only. Large is not the same as wrong -- a first cutover is legitimately
+            // large -- so this reports and never withholds.
+            String message = "LARGE REMOVAL — " + detail
+                + ". None of it is attributable to a rejected row, so nothing is withheld; review the diff.";
+            logger.warn(message);
             System.out.println(message);
-            removalBlocked = true;
-            gafJobData.getRemovedEntries().removeIf(entry -> removalOwnedBy(entry, org));
+            removalNeedsReview = true;
         } else {
             logger.info("Removal check passed — " + detail);
             System.out.println("Removal check passed — " + detail);
         }
-    }
-
-    private boolean removalOwnedBy(GafJobEntry entry, GafOrganization org) {
-        return org.getOrganization().equals(entry.getOrganizationCreatedBy());
     }
 
     private static double maxRemovalFraction() {

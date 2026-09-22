@@ -355,13 +355,15 @@ public class GafService {
     }
 
 
-    public void generateRemovedEntriesReport(GafJobData gafJobData, Collection<String> zdbIdsToDrop) {
+    public void generateRemovedEntriesReport(GafJobData gafJobData, Collection<String> zdbIdsToDrop,
+                                             GafOrganization gafOrganization) {
 
+        String owningOrganization = gafOrganization == null ? null : gafOrganization.getOrganization();
         if (CollectionUtils.isNotEmpty(zdbIdsToDrop)) {
             for (String zdbIdToDrop : zdbIdsToDrop) {
                 MarkerGoTermEvidence markerGoTermEvidence = markerGoTermEvidenceRepository.getMarkerGoTermEvidenceByZdbID(zdbIdToDrop);
 
-                gafJobData.addRemoved(markerGoTermEvidence);
+                gafJobData.addRemoved(markerGoTermEvidence, owningOrganization);
             }
         }
     }
@@ -402,7 +404,7 @@ public class GafService {
         Collection<String> zdbIdsOutdated = findOutdatedEntries(gafJobData, gafOrganization);
 
         if (zdbIdsOutdated != null)
-            generateRemovedEntriesReport(gafJobData, zdbIdsOutdated);
+            generateRemovedEntriesReport(gafJobData, zdbIdsOutdated, gafOrganization);
     }
 
     /**
@@ -418,19 +420,114 @@ public class GafService {
      * an owning organization even when the lookup that failed was the publication itself.</p>
      */
     public long countRejectedEntriesForOrganization(GafJobData gafJobData, GafOrganization gafOrganization) {
+        return rejectedEntriesForOrganization(gafJobData, gafOrganization).size();
+    }
+
+    public List<GafEntry> rejectedEntriesForOrganization(GafJobData gafJobData, GafOrganization gafOrganization) {
         List<GafEntry> rejected = gafJobData.getRejectedEntries();
         if (CollectionUtils.isEmpty(rejected)) {
-            return 0;
+            return List.of();
         }
         if (!perSourceOrganization) {
             // Single-org load: every rejected row belongs to the one organization being pruned.
-            return rejected.size();
+            return rejected;
         }
         GafOrganization.OrganizationEnum target =
             GafOrganization.OrganizationEnum.getType(gafOrganization.getOrganization());
         return rejected.stream()
             .filter(entry -> DanreModSourceOrganization.resolve(entry.getCreatedBy(), entry.getPubmedId()) == target)
-            .count();
+            .collect(Collectors.toList());
+    }
+
+    /**
+     * The removals this organization's pass produced that a rejected row could actually account
+     * for, matched on (marker, GO term).
+     *
+     * <p>This is the signal the removal guard acts on. The hazard is specific: a row that threw
+     * during validation reaches none of newEntries/updateEntries/existingEntries, so
+     * findOutdatedEntries cannot distinguish it from a row the file never contained and deletes
+     * its database counterpart. That hazard applies <em>only</em> to removals a rejected row
+     * would have matched. A removal with no corresponding rejection is a row the file genuinely
+     * dropped, and withholding it would be wrong.
+     *
+     * <p>Volume is deliberately not part of this. A first run against a legacy database removes a
+     * large fraction legitimately, and the defect this guard exists for (ZFIN-10358) was 1.3% of
+     * one organization -- so a fraction threshold blocks the cases it should allow and allows the
+     * case it should block.
+     *
+     * <p>Matching uses the marker ZDB id and the GO id, and deliberately not the evidence code:
+     * a row rejected <em>because</em> its ECO term had no mapping still carries the raw ECO id
+     * rather than a three-letter code, so keying on evidence would silently miss exactly the
+     * rejections most likely to cause a spurious delete. Over-matching is the safe direction here.
+     */
+    public Set<String> findRemovalKeysAttributableToRejections(GafJobData gafJobData,
+                                                               GafOrganization gafOrganization) {
+        return attributionKeys(rejectedEntriesForOrganization(gafJobData, gafOrganization));
+    }
+
+    /**
+     * Pure form of the above: the (marker, GO term) keys a set of rejected rows could account for.
+     * Static and free of any repository so the guard's core can be tested without a database --
+     * the previous guard's defect was that it silently matched nothing, which is exactly the kind
+     * of thing a unit test catches and a passing build does not.
+     */
+    public static Set<String> attributionKeys(Collection<GafEntry> rejectedEntries) {
+        Set<String> keys = new HashSet<>();
+        if (rejectedEntries == null) {
+            return keys;
+        }
+        for (GafEntry rejected : rejectedEntries) {
+            String marker = markerZdbIdOf(rejected);
+            if (marker == null || rejected.getGoTermId() == null) {
+                // Rejections that never resolved a gene (e.g. "Gene not found for ID") cannot be
+                // attributed to any particular removal. Counted and reported, never acted on --
+                // guessing here would withhold arbitrary rows.
+                continue;
+            }
+            keys.add(attributionKey(marker, rejected.getGoTermId()));
+        }
+        return keys;
+    }
+
+    /**
+     * The removals belonging to {@code owningOrganization} that one of {@code suspectKeys} covers.
+     *
+     * <p>Organization membership is read from the tag the removal pass set when it created the
+     * entry, not inferred from a column. That is the whole correction: the previous guard compared
+     * the organization name against {@code organizationCreatedBy}, which carries the GPAD
+     * {@code assigned_by} value, so it matched nothing and withheld nothing.
+     */
+    public static List<GafJobEntry> removalsAttributableTo(Collection<GafJobEntry> removals,
+                                                           String owningOrganization,
+                                                           Set<String> suspectKeys) {
+        if (removals == null || suspectKeys == null || suspectKeys.isEmpty()) {
+            return List.of();
+        }
+        return removals.stream()
+            .filter(entry -> owningOrganization != null
+                          && owningOrganization.equals(entry.getOwningOrganization()))
+            .filter(entry -> entry.getMarkerZdbID() != null && entry.getGoTermID() != null)
+            .filter(entry -> suspectKeys.contains(
+                attributionKey(entry.getMarkerZdbID(), entry.getGoTermID())))
+            .collect(Collectors.toList());
+    }
+
+    /**
+     * The gene a raw file row refers to, as a ZDB id, or null when it does not carry one.
+     * GPAD entity ids are prefixed ("ZFIN:ZDB-GENE-000112-47"); GAF-path loads may carry a
+     * UniProtKB accession instead, which is not resolvable here and yields null.
+     */
+    private static String markerZdbIdOf(GafEntry gafEntry) {
+        String entryId = gafEntry.getEntryId();
+        if (entryId == null) {
+            return null;
+        }
+        String bare = entryId.startsWith("ZFIN:") ? entryId.substring("ZFIN:".length()) : entryId;
+        return bare.startsWith("ZDB-") ? bare : null;
+    }
+
+    public static String attributionKey(String markerZdbID, String goTermID) {
+        return markerZdbID + "|" + goTermID;
     }
 
     public int countEvidencesForOrganization(GafOrganization gafOrganization) {
