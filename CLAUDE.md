@@ -3,6 +3,27 @@
 ## Git Commits
 - Do not add `Co-Authored-By` or any AI attribution lines to commit messages.
 
+## Comments and Docs
+
+Write for someone reading the code a year from now, who does not know a branch ever existed.
+
+- **No "what used to be".** Do not narrate how the code or a ticket looked before the change —
+  no "this used to…", "the original write-up had…", "previously this compared…", no summaries
+  of what an earlier revision got wrong. Git history and the ticket hold that. Describe what
+  the code does and why it has to be that way.
+- **No development-cycle detail.** Dates, build numbers, "verified on", "observed in build #6",
+  "found by running it", which iteration introduced what — all out.
+- **Be wary of measured numbers.** Row counts, error totals and percentages drift, and a stale
+  number is read as current. Put them in the ticket or a report. In a comment, only when the
+  number is the reason the code is shaped that way, and then say what it is a count of and
+  when it was taken.
+- **Prefer no comment to one that will rot.** A comment that goes out of date is worse than
+  none. Keep the ones that stop someone reverting a deliberate choice — why this table and not
+  the obvious other one, why this field and not the one that looks right — and cut the rest.
+- Reference docs in `reference/` and `server_apps/**/README-*.md` are living documents, not
+  changelogs: update them in place to describe the current state. Decisions worth keeping
+  (what was chosen, and why) belong there; the path taken to reach them does not.
+
 ## Tech Stack
 
 - **Backend**: Java 21 (`source`/`targetCompatibility = 21` in `build.gradle`), Hibernate 6.x / Jakarta Persistence, Lombok, Apache Commons (CSV, IO, Lang), Jackson
