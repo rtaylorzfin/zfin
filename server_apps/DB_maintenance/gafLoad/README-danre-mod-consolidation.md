@@ -657,6 +657,27 @@ nothing), so the backfill can only ever fill rows that predate the column fallin
    supply their content. Retiring `Load-GAF-FP-Inference_m` without migrating them loses 1,144
    pairs; leaving them stranded in `FP Inferences` means no load ever refreshes or prunes them.
    Decide at cutover — **ZFIN-10464 decision 7**, still open.
+
+   **Where those rows come from.** `Load-GAF-FP-Inference_m` — enabled but with an empty cron
+   `spec`, so it runs only when triggered — calls Ant `load-gaf-fpinference`, i.e. `GafLoadJob`
+   with the organization fixed to `FP Inferences` and `FpInferenceGafParser`, against
+   `https://current.geneontology.org/products/upstream_and_raw_data/zfin-prediction.gaf`.
+   Note `upstream_and_raw_data`: these are GO's **raw PANTHER predictions**, a different pipeline
+   stage from the released `DANRE-mod` product. The file is uniform — 100% IBA /
+   `GO_REF:0000033` / `assigned_by=GOC`, subjects keyed on UniProtKB accessions — and so are the
+   stored rows, all on `ZDB-PUB-110330-1`.
+
+   **Why the FP-only pairs have no successor is not a gene-mapping problem.** Of the ~1,000 genes
+   carrying them, the overwhelming majority are present in `DANRE-mod` and most already carry
+   phylo annotations there; only a couple of dozen are absent entirely. GO knows these genes and
+   is making phylo calls for them — just not these ones, and the orphaned terms are generic
+   parents (signal transduction, GPCR signaling, transmembrane transport, synapse). They read as
+   stale predictions GO has since refined or dropped.
+
+   That shifts the decision: freezing them in the dead org does not preserve unique knowledge, it
+   preserves superseded predictions sitting beside fresh GO phylo content on the same genes, with
+   nothing marking them stale and no load to refresh or prune them. ⚠️ Not yet proven — the
+   subsumption closure (`mgte_subsumption.sh`) has not been run against them.
 10. **Gene product form IDs (finding 10)** — accept the loss, or not? **42,279 → 0** on every
    load. GAF col 17 carried it; GPAD 2.0 has no equivalent column and neither DANRE file supplies
    one, so this is upstream and not a parser gap we can close. Reaches no download file and no UI.
@@ -703,6 +724,17 @@ nothing), so the backfill can only ever fill rows that predate the column fallin
    narrower — same aspect, ND vs non-ND, not general ancestry. Doug's follow-up (comment 13,
    *"I'll check with Pascale on this…"*) is still unanswered, so settle scope before writing
    code.
+14. **The NOT qualifier is invisible to every diff** — **open defect in the reporting, nothing
+   built.** `snapshot_mgte.sql` does not select `mrkrgoev_gflag_name`, so it is absent from the
+   before/after snapshots and therefore from every workbook, per-org and `ALL` alike. Two
+   consequences: a `NOT` annotation and its positive twin collapse onto the same key, and a
+   `not` → null flip is not visible anywhere. The column is small — on the order of a hundred
+   `not` rows and a hundred `contributes to` — but these are negated statements, and silently
+   turning one positive is the worst failure a loss report can have.
+
+   Fixing it by adding the column to `KEY`/`ALL_KEY` in `mgte_csvdiff.sh` makes all figures
+   incomparable to earlier runs, so it is not a free change; a targeted check against the two
+   snapshots, reported alongside, is the cheaper route.
 
 ## The diff key, and why `protein_acc` is in neither list
 
