@@ -662,7 +662,7 @@ public class GoaGafServiceTest extends AbstractDatabaseTest {
         parentTerms = ontologyRepository.getParentDirectTerms(existingEvidence.getGoTerm());
         newEvidence.setGoTerm(parentTerms.iterator().next());
 
-        // ZFIN-10358: descendant filtering was removed -- an ancestor of an existing annotation is
+        // ZFIN-10518: descendant filtering was removed -- an ancestor of an existing annotation is
         // now a DIFFERENT annotation, to be stored alongside it rather than suppressed.
         assertFalse(existingEvidence.equals(newEvidence));
         assertFalse("a parent term is not the same annotation",

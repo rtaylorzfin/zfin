@@ -1005,9 +1005,10 @@ public class GafService {
     /**
      * Is this annotation already stored?
      *
-     * <p>Descendant filtering was removed deliberately (ZFIN-10358). Under the unified DANRE-mod
-     * load ZFIN is purely a consumer of GO annotations, including its own Noctua curation, so the
-     * incoming file is authoritative about which terms a gene carries. Suppressing an annotation
+     * <p>Descendant filtering was removed deliberately (ZFIN-10518; curator decision in
+     * ZFIN-10464 comment 8). Under the unified DANRE-mod load ZFIN is purely a consumer of GO
+     * annotations, including its own Noctua curation, so the incoming file is authoritative about
+     * which terms a gene carries. Suppressing an annotation
      * because a more specific one exists second-guessed that, and did so destructively: it deleted
      * ~3,200 existing annotations per run, created and removed ~1,500 more within the load, and
      * its outcome depended on database row order. 404 of the deletions were not even redundant --
@@ -1018,6 +1019,15 @@ public class GafService {
      * exact-match detection, because all_term_contains holds distance-0 self pairs, so
      * isParentChildRelationshipExist(X, X) was true. Without an explicit same-term comparison the
      * load would re-add every annotation it already has.
+     *
+     * <p><b>Scope: this removes the filter for every GO load, not only the GPAD one.</b>
+     * load-gaf-paint, load-gaf-goa, load-noctua-gpad, load-gaf-fpinference and
+     * load-gpad-danre-mod all run through GafLoadJob and this method, so there is no
+     * GPAD-only variant without adding a conditional. ZFIN-10518 is titled for the new load, but
+     * the decision it records -- "stop doing this descendent filtering all together" -- is
+     * global, and the legacy loads are being retired at cutover anyway. Until then they too stop
+     * suppressing ancestors, which is a behaviour change in their favour: the filter was deleting
+     * ~3,200 existing annotations per run.
      */
     protected boolean isSameAnnotation(MarkerGoTermEvidence existingMarkerGoTermEvidence, MarkerGoTermEvidence markerGoTermEvidenceToAdd) {
         return existingMarkerGoTermEvidence.isSameButGo(markerGoTermEvidenceToAdd)

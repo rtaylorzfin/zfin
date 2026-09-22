@@ -667,8 +667,8 @@ nothing), so the backfill can only ever fill rows that predate the column fallin
    enough that the first real diff is ~no-op rather than a mass add+remove. Findings 1 and 5
    quantify what is left after the `ECO:0007322` fix; this is the go/no-go check, run
    report-only, immediately before flipping the flag.
-12. **Descendant filtering** — ✅ **DECIDED 2026-09-08 (ZFIN-10464 comment 8): remove it
-   entirely.** The load used to suppress an incoming annotation when the database held a more
+12. **Descendant filtering** — ✅ **DECIDED 2026-09-08 (ZFIN-10464 comment 8), tracked as
+   ZFIN-10518: remove it entirely.** The load used to suppress an incoming annotation when the database held a more
    specific one from the same lineage. Doug: *"With this new load, we are now purely consumers
    of the GO annotations, including the ones we make in Noctua. In that light, I suggest we stop
    doing this descendent filtering all together."* The file is authoritative.
@@ -678,7 +678,17 @@ nothing), so the backfill can only ever fill rows that predate the column fallin
    deletions were not even redundant, because the ancestry check followed `regulates` and
    `occurs_in` edges as well as `is_a`/`part_of` — so "angiogenesis" was treated as implied by
    "positive regulation of angiogenesis". Removed on `zfin-10464-go-load-cutover`;
-   `isSameAnnotation` replaces it as a plain identity test.
+   `isSameAnnotation` replaces it as a plain identity test, and
+   `isParentChildRelationshipExist` now has no caller anywhere in `org.zfin.datatransfer.go`.
+
+   ⚠️ **The removal is global, not GPAD-only.** ZFIN-10518 is titled for the new GO Central load,
+   but `load-gaf-paint`, `load-gaf-goa`, `load-noctua-gpad`, `load-gaf-fpinference` and
+   `load-gpad-danre-mod` all run through the same `GafLoadJob` → `GafService.isSameAnnotation`
+   path — there is no GPAD-only variant without adding a conditional. Doug's wording was "stop
+   doing this descendent filtering **all together**", and the legacy loads retire at cutover, so
+   global is the intent rather than an overreach. It does mean the three legacy loads stop
+   suppressing ancestors **before** they are retired; that is a change in their favour, since the
+   filter was deleting ~3,200 existing annotations per run.
 13. **ND filtering** — **NEW, open, nothing built.** ZFIN-10464 comment 12 (2026-09-19). Doug,
    relaying Pascale: GO/GOA know that `ND` annotations coexist with real ones on the same GO
    aspect and **plan** an upstream filter, but it is not in place. He asks ZFIN to implement one,
