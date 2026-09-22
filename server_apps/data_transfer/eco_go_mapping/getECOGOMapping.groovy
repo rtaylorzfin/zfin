@@ -12,17 +12,27 @@ ZfinProperties.init("${System.getenv()['ZFIN_PROPERTIES_PATH']}")
 // for the DANRE-mod load is ECO:0005547 -> NAS, the last code the file uses that we cannot map.
 //
 // The PURL, not the GitHub raw URL: GO's own header says "Always use this URL".
-DOWNLOAD_URL = "http://purl.obolibrary.org/obo/eco/gaf-eco-mapping-derived.txt"
+// https, not http: both resolve, but the http form redirects http -> https, and
+// HttpURLConnection will not follow a redirect that changes protocol. Starting on https keeps
+// the one hop it does make same-protocol, and avoids a plaintext request for good measure.
+DOWNLOAD_URL = "https://purl.obolibrary.org/obo/eco/gaf-eco-mapping-derived.txt"
 final WORKING_DIR = new File("${ZfinPropertiesEnum.TARGETROOT}/server_apps/data_transfer/eco_go_mapping")
 WORKING_DIR.mkdirs()
 
 // both files have to land in WORKING_DIR: ant runs this script with its working directory in
 // SOURCEROOT, but insert_eco_go_map.sql \copy's gafeco.txt out of TARGETROOT
-// Follow redirects by hand. The PURL answers 302 to an https:// URL, and HttpURLConnection
-// refuses to follow a redirect that changes protocol -- new URL(...).openStream() therefore
-// returns the 9-line HTML redirect page, not the mapping file. Four of those lines parse as
-// whitespace-separated pairs, so the old "bail if zero mappings" check passed and the load would
-// have replaced eco_go_mapping's contents with junk. Observed, not theorised.
+// Follow redirects by hand rather than relying on openStream(). The PURL always redirects (to
+// raw.githubusercontent.com today), and three things make doing it explicitly worth the lines:
+//
+//   - openStream() sets no timeouts at all, so a stalled fetch hangs the load indefinitely;
+//   - it throws nothing useful on a non-200, it just hands you the error body;
+//   - HttpURLConnection silently refuses to follow a redirect that CHANGES PROTOCOL. With the
+//     http:// form of this PURL that is exactly what happens: openStream() returns the 9-line
+//     HTML redirect page, four of whose lines split into two whitespace-separated fields and
+//     parse as mappings -- so the old "bail if zero mappings" check passed and the load would
+//     have replaced eco_go_mapping's contents with junk. Observed on 2026-09-22, not theorised.
+//     DOWNLOAD_URL is https so that case cannot arise, but it would return the moment anyone
+//     retyped the URL, or GO redirected somewhere with a different scheme.
 InputStream openFollowingRedirects(String url) {
     String current = url
     for (int hop = 0; hop < 5; hop++) {
