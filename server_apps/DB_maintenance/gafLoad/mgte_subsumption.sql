@@ -8,25 +8,19 @@
 --   cd <the -dbdiff directory> && psql -v ON_ERROR_STOP=1 -h $PGHOST -d $DBNAME \
 --        -f $SOURCEROOT/server_apps/DB_maintenance/gafLoad/mgte_subsumption.sql
 --
--- Every path below is RELATIVE, because \copy is a client-side meta-command that does NOT
--- interpolate psql variables -- `-v outdir=...` then `\copy ... :'outdir'/x.csv` silently
--- resolves to a file named ":" (verified). Resolving relative to psql's working directory is the
--- one mechanism that needs no string substitution, so the caller cd's into the diff directory.
+-- Paths below are RELATIVE: \copy is a client-side meta-command and does NOT interpolate psql
+-- variables, so the caller cd's into the diff directory instead.
 --
--- WHY THIS IS NOT ALREADY IN THE DIFF
--- mgte_csvdiff.sh is a key-based set difference with no ontology awareness whatsoever, and the
--- load's own report counts flat lists of rows it acted on. Neither can tell "ZFIN no longer says
--- this" from "ZFIN says something more specific instead". Before this script the distinction was
--- made by hand: the 14,471-subsumed / 10,907-true-loss figures quoted in
--- cutover-purge-uniprot-kw2go.sql came from a query that was never committed and cannot be
--- re-run. That is the reason this exists as tooling rather than as another one-off.
+-- mgte_csvdiff.sh is a key-based set difference with no ontology awareness, and the load's own
+-- report counts flat lists of rows it acted on. Neither can tell "ZFIN no longer says this" from
+-- "ZFIN says something more specific instead".
 --
 -- THREE BUCKETS, NOT TWO
 --   subsumed          the gene retains a STRICT DESCENDANT of the lost term. The statement still
 --                     holds, more precisely. No loss.
---   specificity_lost  the gene retains only a STRICT ANCESTOR. ZFIN still asserts something, but
---                     less precisely than before. Partial loss -- previously invisible, and worth
---                     separating: "we kept the parent" is much weaker than "we kept a child".
+--   specificity_lost  the gene retains only a STRICT ANCESTOR. Still asserted, less precisely --
+--                     worth its own bucket, since keeping the parent is much weaker than keeping
+--                     a child.
 --   true_loss         nothing in that lineage survives on that gene.
 --
 -- Pairs reproduced under a different organization or source never reach this script: at the
@@ -55,8 +49,8 @@ create temp table mgte_after_all (like mgte_before_all);
 \copy mgte_before_all from 'mgte_before_ALL.csv' with (format csv, header true)
 \copy mgte_after_all  from 'mgte_after_ALL.csv'  with (format csv, header true)
 
--- Pair identity is the ZDB marker id plus the ZDB term id, not the readable gene/go_id: a gene
--- abbreviation can change between snapshots and would then read as a loss plus an addition.
+-- Keyed on ZDB ids, not the readable gene/go_id: an abbreviation change between snapshots would
+-- otherwise read as a loss plus an addition.
 create temp table pair_before as select distinct marker, term from mgte_before_all;
 create temp table pair_after  as select distinct marker, term from mgte_after_all;
 
@@ -67,9 +61,8 @@ select b.marker, b.term from pair_before b
 create index on pair_lost (marker);
 create index on pair_lost (term);
 
--- Only the terms that can matter: lost terms (the ancestors we descend FROM) and terms still held
--- by a gene that lost something (the candidate descendants). Closing over all of GO would be
--- pointless work.
+-- Only terms still held by a gene that lost something; closing over all of GO would be wasted
+-- work.
 create temp table kept_term as
 select distinct a.marker, a.term
   from pair_after a
@@ -107,8 +100,7 @@ with recursive u(root, node) as (
 select root, node from u where root <> node;
 create index on ancestor (root, node);
 
--- Subsumed wins over specificity_lost when both hold: a gene can keep a child AND a parent of the
--- lost term, and keeping the child is the stronger statement.
+-- Subsumed wins when both hold: keeping a child is the stronger statement.
 create temp table classified as
 select l.marker, l.term,
        case when exists (select 1 from kept_term k join descendant d on d.node = k.term
@@ -136,8 +128,8 @@ select b.source, count(distinct (c.marker, c.term)) as pairs
   from classified c join mgte_before_all b on b.marker = c.marker and b.term = c.term
  where c.bucket = 'true_loss' group by 1 order by 2 desc limit 15;
 
--- One row per lost pair, with the readable columns and, where one exists, an example of the term
--- that covers it -- so a curator can check the verdict rather than trust it.
+-- One row per lost pair, with an example of the covering term where one exists, so a curator can
+-- check the verdict rather than trust it.
 create temp table detail as
 select c.bucket, b.org, b.gene, b.go_id, b.go_term, b.go_aspect, b.source, b.evidence,
        kt.term_ont_id as covering_go_id, kt.term_name as covering_go_term

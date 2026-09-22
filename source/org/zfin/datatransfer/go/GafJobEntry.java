@@ -22,9 +22,8 @@ public class GafJobEntry {
     // Captured at construction time so downstream consumers (e.g. report builders)
     // can render structured columns without re-parsing the toString() blob.
     private String marker;
-    // The marker's ZDB id, not just its abbreviation. Needed to join a removal against the raw
-    // file rows that were rejected: GpadParser fills GafEntry.entryId with "ZFIN:ZDB-GENE-..."
-    // and never fills markerAbbrev at all, so an abbreviation is not a key the two sides share.
+    // Needed to join a removal against rejected raw file rows, which carry a ZDB id and no
+    // abbreviation.
     private String markerZdbID;
     private String evidenceCode;
     private String qualifierRelation;
@@ -35,9 +34,7 @@ public class GafJobEntry {
     private String withFrom;
     private String annotationExtensions;
     private String noctuaModelId;
-    // Which organization's removal pass produced this entry. Recorded when the entry is created,
-    // because that is the only point at which it is known for certain. Null for entries that are
-    // not organization removals (the ND-replacement path in GafService.addAnnotation).
+    // Which organization's removal pass produced this entry; null when it is not one.
     private String owningOrganization;
 
     public GafJobEntry(String zdbID) {
@@ -117,9 +114,6 @@ public class GafJobEntry {
     public String getMarker()                { return marker; }
     public String getMarkerZdbID()           { return markerZdbID; }
 
-    // Setters for the three fields the removal-safety guard matches on. Package-visible would be
-    // enough for production -- only the removal pass and its tests set them -- but GafJobEntry
-    // lives in a different package from GafService, so these are public like the rest.
     public void setMarkerZdbID(String markerZdbID)                     { this.markerZdbID = markerZdbID; }
     public void setGoTermID(String goTermID)                           { this.goTermID = goTermID; }
     public void setOrganizationCreatedBy(String organizationCreatedBy) { this.organizationCreatedBy = organizationCreatedBy; }

@@ -440,37 +440,20 @@ public class GafService {
     }
 
     /**
-     * The removals this organization's pass produced that a rejected row could actually account
-     * for, matched on (marker, GO term).
+     * The removals this organization's pass produced that a rejected row could account for,
+     * matched on (marker, GO term).
      *
-     * <p>This is the signal the removal guard acts on. The hazard is specific: a row that threw
-     * during validation reaches none of newEntries/updateEntries/existingEntries, so
-     * findOutdatedEntries cannot distinguish it from a row the file never contained and deletes
-     * its database counterpart. That hazard applies <em>only</em> to removals a rejected row
-     * would have matched. A removal with no corresponding rejection is a row the file genuinely
-     * dropped, and withholding it would be wrong.
-     *
-     * <p>Volume is deliberately not part of this. A first run against a legacy database removes a
-     * large fraction legitimately, and the defect this guard exists for (ZFIN-10358) was 1.3% of
-     * one organization -- so a fraction threshold blocks the cases it should allow and allows the
-     * case it should block.
-     *
-     * <p>Matching uses the marker ZDB id and the GO id, and deliberately not the evidence code:
-     * a row rejected <em>because</em> its ECO term had no mapping still carries the raw ECO id
-     * rather than a three-letter code, so keying on evidence would silently miss exactly the
-     * rejections most likely to cause a spurious delete. Over-matching is the safe direction here.
+     * <p>Matching ignores the evidence code: a row rejected because its ECO term had no mapping
+     * still carries the raw ECO id rather than a three-letter code, so keying on evidence would
+     * miss the rejections most likely to cause a spurious delete. Over-matching is the safe
+     * direction.
      */
     public Set<String> findRemovalKeysAttributableToRejections(GafJobData gafJobData,
                                                                GafOrganization gafOrganization) {
         return attributionKeys(rejectedEntriesForOrganization(gafJobData, gafOrganization));
     }
 
-    /**
-     * Pure form of the above: the (marker, GO term) keys a set of rejected rows could account for.
-     * Static and free of any repository so the guard's core can be tested without a database --
-     * the previous guard's defect was that it silently matched nothing, which is exactly the kind
-     * of thing a unit test catches and a passing build does not.
-     */
+    /** Pure form of the above, free of any repository so it is testable without a database. */
     public static Set<String> attributionKeys(Collection<GafEntry> rejectedEntries) {
         Set<String> keys = new HashSet<>();
         if (rejectedEntries == null) {
@@ -479,9 +462,7 @@ public class GafService {
         for (GafEntry rejected : rejectedEntries) {
             String marker = markerZdbIdOf(rejected);
             if (marker == null || rejected.getGoTermId() == null) {
-                // Rejections that never resolved a gene (e.g. "Gene not found for ID") cannot be
-                // attributed to any particular removal. Counted and reported, never acted on --
-                // guessing here would withhold arbitrary rows.
+                // A rejection that never resolved a gene cannot be tied to a particular removal.
                 continue;
             }
             keys.add(attributionKey(marker, rejected.getGoTermId()));
@@ -492,10 +473,9 @@ public class GafService {
     /**
      * The removals belonging to {@code owningOrganization} that one of {@code suspectKeys} covers.
      *
-     * <p>Organization membership is read from the tag the removal pass set when it created the
-     * entry, not inferred from a column. That is the whole correction: the previous guard compared
-     * the organization name against {@code organizationCreatedBy}, which carries the GPAD
-     * {@code assigned_by} value, so it matched nothing and withheld nothing.
+     * <p>Organization membership comes from the tag the removal pass set on the entry, never from
+     * {@code organizationCreatedBy} -- that column carries the GPAD {@code assigned_by} value,
+     * which shares no namespace with the organization names this load prunes.
      */
     public static List<GafJobEntry> removalsAttributableTo(Collection<GafJobEntry> removals,
                                                            String owningOrganization,
@@ -513,9 +493,8 @@ public class GafService {
     }
 
     /**
-     * The gene a raw file row refers to, as a ZDB id, or null when it does not carry one.
-     * GPAD entity ids are prefixed ("ZFIN:ZDB-GENE-000112-47"); GAF-path loads may carry a
-     * UniProtKB accession instead, which is not resolvable here and yields null.
+     * The gene a raw file row refers to, as a ZDB id, or null when it does not carry one. GPAD
+     * entity ids are prefixed ("ZFIN:ZDB-GENE-..."); a GAF-path UniProtKB accession yields null.
      */
     private static String markerZdbIdOf(GafEntry gafEntry) {
         String entryId = gafEntry.getEntryId();
@@ -1005,29 +984,15 @@ public class GafService {
     /**
      * Is this annotation already stored?
      *
-     * <p>Descendant filtering was removed deliberately (ZFIN-10518; curator decision in
-     * ZFIN-10464 comment 8). Under the unified DANRE-mod load ZFIN is purely a consumer of GO
+     * <p>Descendant filtering was removed deliberately (ZFIN-10518): ZFIN is a consumer of GO
      * annotations, including its own Noctua curation, so the incoming file is authoritative about
-     * which terms a gene carries. Suppressing an annotation
-     * because a more specific one exists second-guessed that, and did so destructively: it deleted
-     * ~3,200 existing annotations per run, created and removed ~1,500 more within the load, and
-     * its outcome depended on database row order. 404 of the deletions were not even redundant --
-     * the ancestry check followed regulates and occurs_in edges, so "angiogenesis" was treated as
-     * implied by "positive regulation of angiogenesis".
+     * which terms a gene carries. What remains is a plain identity test, and it has to stay --
+     * the old ancestry check doubled as exact-match detection, because all_term_contains holds
+     * distance-0 self pairs. Without an explicit same-term comparison the load would re-add every
+     * annotation it already has.
      *
-     * <p>What remains is a plain identity test. It still has to be here: the old check doubled as
-     * exact-match detection, because all_term_contains holds distance-0 self pairs, so
-     * isParentChildRelationshipExist(X, X) was true. Without an explicit same-term comparison the
-     * load would re-add every annotation it already has.
-     *
-     * <p><b>Scope: this removes the filter for every GO load, not only the GPAD one.</b>
-     * load-gaf-paint, load-gaf-goa, load-noctua-gpad, load-gaf-fpinference and
-     * load-gpad-danre-mod all run through GafLoadJob and this method, so there is no
-     * GPAD-only variant without adding a conditional. ZFIN-10518 is titled for the new load, but
-     * the decision it records -- "stop doing this descendent filtering all together" -- is
-     * global, and the legacy loads are being retired at cutover anyway. Until then they too stop
-     * suppressing ancestors, which is a behaviour change in their favour: the filter was deleting
-     * ~3,200 existing annotations per run.
+     * <p>This applies to every GO load, not only the GPAD one: they all reach this method through
+     * GafLoadJob.
      */
     protected boolean isSameAnnotation(MarkerGoTermEvidence existingMarkerGoTermEvidence, MarkerGoTermEvidence markerGoTermEvidenceToAdd) {
         return existingMarkerGoTermEvidence.isSameButGo(markerGoTermEvidenceToAdd)

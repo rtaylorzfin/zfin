@@ -147,16 +147,9 @@ public class HibernateOntologyRepository implements OntologyRepository {
     /**
      * The GO evidence code an ECO term maps to, or null when it maps to none.
      *
-     * <p>Ordered and single-result rather than {@code uniqueResult()}, which throws
-     * {@link jakarta.persistence.NonUniqueResultException} the moment an ECO term has two
-     * mappings. That is not hypothetical: {@code ECO:0000255} (ISM + ISS) and {@code ECO:0000320}
-     * (IKR + IMR) are both dual in the database today, so the old form would have failed the
-     * whole load on the first row carrying either. It survived only because no input file has
-     * used them.
-     *
-     * <p>Ordering by id means the oldest mapping wins, which matches how
-     * {@code insert_eco_go_map.sql} loads GO's file -- it only fills terms that have no mapping,
-     * so an existing code is never displaced by a later import.
+     * <p>Not {@code uniqueResult()}: eco_go_mapping permits several codes per ECO term and a few
+     * terms carry two, which would throw. Oldest wins, matching insert_eco_go_map.sql's rule that
+     * an existing mapping is never displaced by a later import.
      */
     @Override
     public EcoGoEvidenceCodeMapping getEcoEvidenceCode(GenericTerm term) {

@@ -9,14 +9,11 @@
 #
 # Env: PGHOST, DBNAME, SOURCEROOT.
 #
-# Run this AFTER mgte_csvdiff.sh. It answers the question the diff structurally cannot: of the
-# pairs that disappeared, which ones does ZFIN still cover by another term on the same gene?
-# mgte_csvdiff.sh is a key-based set difference with no ontology awareness, and the load's own
-# report counts flat lists of rows it acted on -- neither can separate "ZFIN no longer says this"
-# from "ZFIN says something more specific instead".
+# Run AFTER mgte_csvdiff.sh. Of the pairs that disappeared, which does ZFIN still cover by another
+# term on the same gene? The diff cannot say -- it has no ontology awareness.
 #
-# It needs the --all snapshot pair specifically, not the per-org files: a pair that moved
-# organization is not lost, and only the ALL view can see that.
+# Needs the --all snapshot pair, not the per-org files: a pair that moved organization is not
+# lost, and only the ALL view can see that.
 set -euo pipefail
 
 OUT="${1:?usage: mgte_subsumption.sh <outdir>}"
@@ -31,9 +28,7 @@ for f in mgte_before_ALL.csv mgte_after_ALL.csv; do
     }
 done
 
-# cd rather than pass paths: \copy does not interpolate psql variables, so relative paths
-# resolved against psql's working directory are the only substitution-free option. See the
-# comment block in mgte_subsumption.sql.
+# cd rather than pass paths: \copy does not interpolate psql variables.
 cd "$OUT"
 psql -v ON_ERROR_STOP=1 -h "$PGHOST" -d "$DBNAME" -f "$SQL/mgte_subsumption.sql"
 
@@ -43,8 +38,7 @@ gradle csv2xlsx --args="$OUT/mgte_subsumption.xlsx \
     $OUT/mgte_subsumption_subsumed.csv \
     $OUT/mgte_subsumption_specificity_lost.csv"
 
-# The workbook is the artifact; the per-bucket CSVs were only its input. Mirrors
-# CSVDIFF_XLSX_ONLY in mgte_csvdiff.sh.
+# The workbook is the artifact; the CSVs were only its input. Mirrors CSVDIFF_XLSX_ONLY.
 rm -f "$OUT"/mgte_subsumption_true_loss.csv \
       "$OUT"/mgte_subsumption_subsumed.csv \
       "$OUT"/mgte_subsumption_specificity_lost.csv

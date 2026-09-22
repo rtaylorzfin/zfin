@@ -94,8 +94,7 @@ public class GafLoadJob extends AbstractValidateDataReportTask {
     protected Boolean reportOnly; //default to false
     // Set when the removal-safety guard withheld deletions for at least one organization, so the
     // job can exit non-zero and the operator is not left thinking the prune succeeded.
-    // Set when a removal pass produced something an operator has to look at -- either withheld
-    // deletions, or deletions let through under an explicit override. Drives exit code 2.
+    // Withheld deletions, or deletions let through under an override. Drives exit code 2.
     protected boolean removalNeedsReview = false;
     protected int withheldRemovals = 0;
     private static final double DEFAULT_MAX_REMOVAL_FRACTION = 0.10d;
@@ -286,7 +285,7 @@ public class GafLoadJob extends AbstractValidateDataReportTask {
                 exitCode = 2;
             }
 
-            // A prune that was tampered with -- or deliberately forced -- must not look clean.
+            // A withheld or forced prune must not look clean.
             if (removalNeedsReview) {
                 String message = withheldRemovals > 0
                     ? "Removal-safety guard withheld " + withheldRemovals + " deletion(s) attributable to rejected rows."
@@ -545,43 +544,22 @@ public class GafLoadJob extends AbstractValidateDataReportTask {
      *             downloadUrl3
      */
     /**
-     * Removal-safety guard (ZFIN-10025, reworked under ZFIN-10464).
+     * Removal-safety guard.
      *
-     * <p>{@code GafService.findOutdatedEntries} removes everything an organization owns that the
-     * file did not produce. A row that threw during validation reaches none of
+     * <p>{@code findOutdatedEntries} removes everything an organization owns that the file did not
+     * produce. A row that threw during validation reaches none of
      * newEntries/updateEntries/existingEntries, so it is indistinguishable from a row the file
-     * never contained -- and its database counterpart is deleted. Any parsing or lookup bug in
-     * this load is therefore silent data loss, not merely a failure to add. ZFIN-10358 is the
-     * worked example: an unresolvable DOI deleted the annotation an earlier load had created.
+     * never contained and its database counterpart is deleted -- turning any parsing or lookup bug
+     * into silent data loss.
      *
-     * <p><b>What changed.</b> The first version of this guard asked "is this organization removing
-     * more than 10% of what it owns, and did anything get rejected?", then tried to withhold by
-     * comparing the owning organization against {@code organizationCreatedBy}. Both halves were
-     * wrong:
+     * <p>Only removals a rejected row could account for are withheld, matched on (marker, GO term).
+     * Volume is deliberately not part of that decision: a first run against a legacy database
+     * legitimately removes a large fraction, while the kind of defect this exists for can be a
+     * fraction of a percent. GAF_MAX_REMOVAL_FRACTION is therefore advisory only -- it marks the
+     * build for review and never withholds.
      *
-     * <ul>
-     *   <li>the withholding matched nothing, because {@code organizationCreatedBy} is the GPAD
-     *       {@code assigned_by} column and does not share a namespace with the organization names
-     *       this load prunes. It announced a block and deleted everything anyway;</li>
-     *   <li>fraction-of-owned is the wrong signal in both directions. A first run against a legacy
-     *       database legitimately removes tens of percent, so a working guard would have blocked
-     *       the cutover itself; and the defect it exists for was 1.3% of one organization, well
-     *       under the threshold.</li>
-     * </ul>
-     *
-     * <p><b>What it does now.</b> Withholding is driven by attribution, not volume:
-     * {@code findRemovalKeysAttributableToRejections} identifies the removals a rejected row could
-     * actually account for, matched on (marker, GO term), and only those are withheld. Removals
-     * with no corresponding rejection are rows the file genuinely dropped and are applied. The
-     * owning organization is recorded on each entry when the removal pass creates it, so
-     * withholding no longer has to guess which entries belong to whom.
-     *
-     * <p>GAF_MAX_REMOVAL_FRACTION survives as a purely advisory volume warning (default 0.10): it
-     * reports and marks the build for review, and never withholds anything.
-     *
-     * <p>GAF_ALLOW_LARGE_REMOVAL=true applies the attributable removals anyway, for a genuine bulk
-     * retirement or a first cutover. It deliberately still marks the run for review -- forcing a
-     * prune is exactly the case that should not produce a green build.
+     * <p>GAF_ALLOW_LARGE_REMOVAL applies the attributable removals anyway, for a bulk retirement or
+     * a first cutover, and still marks the run for review.
      */
     private void checkRemovalIsSafe(GafJobData gafJobData, GafOrganization org, int removedForOrg) {
         if (removedForOrg <= 0) {
@@ -606,7 +584,6 @@ public class GafLoadJob extends AbstractValidateDataReportTask {
                 + "GAF_ALLOW_LARGE_REMOVAL=true to apply them anyway.";
             removalNeedsReview = true;
             if (envTrue("GAF_ALLOW_LARGE_REMOVAL")) {
-                // Still flagged: an override is a reason to look harder, not a reason to go green.
                 logger.warn("GAF_ALLOW_LARGE_REMOVAL=true, applying anyway: " + message);
                 System.out.println("WARNING (overridden): " + message);
             } else {
@@ -619,8 +596,6 @@ public class GafLoadJob extends AbstractValidateDataReportTask {
                     + "; the remaining " + (removedForOrg - attributable.size()) + " will be applied.");
             }
         } else if (fraction > maxRemovalFraction()) {
-            // Advisory only. Large is not the same as wrong -- a first cutover is legitimately
-            // large -- so this reports and never withholds.
             String message = "LARGE REMOVAL — " + detail
                 + ". None of it is attributable to a rejected row, so nothing is withheld; review the diff.";
             logger.warn(message);

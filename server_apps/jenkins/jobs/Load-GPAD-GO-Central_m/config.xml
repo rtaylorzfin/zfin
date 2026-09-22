@@ -59,12 +59,12 @@ Only check this if that decision was "delete", and set LOAD_KW2GO=false on UniPr
         </hudson.model.BooleanParameterDefinition>
         <hudson.model.BooleanParameterDefinition>
           <name>GAF_ALLOW_LARGE_REMOVAL</name>
-          <description>Apply deletions that the removal-safety guard attributes to rejected input rows, instead of withholding them. A rejected row reaches none of the load's add/update/existing sets, so it is indistinguishable from a row the file omitted and its database counterpart would be deleted -- the guard withholds exactly those deletions. Tick this for a genuine bulk retirement or a first cutover, where large removals are expected and correct. The run is still marked UNSTABLE either way: forcing a prune is a reason to look harder at the diff, not a reason to get a green build. Removals with no matching rejection are applied regardless and are unaffected by this flag.</description>
+          <description>Apply deletions the removal-safety guard attributes to rejected input rows, instead of withholding them. A rejected row is indistinguishable from a row the file omitted, so its database counterpart would be deleted; the guard withholds exactly those. Tick this for a bulk retirement or a first cutover, where large removals are expected. The run is still marked UNSTABLE either way. Removals with no matching rejection are applied regardless and are unaffected by this flag.</description>
           <defaultValue>false</defaultValue>
         </hudson.model.BooleanParameterDefinition>
         <hudson.model.StringParameterDefinition>
           <name>GAF_MAX_REMOVAL_FRACTION</name>
-          <description>Advisory only, and does not withhold anything. If an organization removes more than this fraction of what it owns AND none of the removal is attributable to a rejected row, the run is marked UNSTABLE with a LARGE REMOVAL notice so the diff gets read. Blank uses the 0.10 default. This used to gate the withholding itself, which was wrong in both directions -- a first cutover legitimately removes tens of percent, and the defect the guard exists for was 1.3% of one organization.</description>
+          <description>Advisory only; it never withholds anything. If an organization removes more than this fraction of what it owns AND none of the removal is attributable to a rejected row, the run is marked UNSTABLE with a LARGE REMOVAL notice so the diff gets read. Blank uses the 0.10 default.</description>
           <defaultValue></defaultValue>
           <trim>true</trim>
         </hudson.model.StringParameterDefinition>
@@ -119,12 +119,9 @@ set -e
 #
 # It also sits before the AFTER snapshot on purpose: the point of a rehearsal is a single diff
 # spanning load + cutover.
-# RUN_KW2GO_PURGE is read further down, INSIDE this step -- so with RUN_CUTOVER_SCRIPTS unset it
-# would quietly purge nothing and the build would still go green. Refuse instead of no-opping:
-# the gap between "kw2go was deleted" and "kw2go was not" is 41,027 rows and an open curator
-# decision (ZFIN-10344), and the operator who ticked the box believes it happened. Exit 1 rather
-# than 2 -- this is a misconfigured run, not a run that completed with errors, so it should read
-# as FAILURE and not UNSTABLE.
+# RUN_KW2GO_PURGE is read INSIDE this step, so without RUN_CUTOVER_SCRIPTS it would quietly purge
+# nothing while the build went green. Exit 1, not 2: a misconfigured run is a FAILURE, not a run
+# that completed with errors.
 if [ "$RUN_KW2GO_PURGE" = "true" ] && [ "$RUN_CUTOVER_SCRIPTS" != "true" ]; then
     echo "ERROR: RUN_KW2GO_PURGE=true requires RUN_CUTOVER_SCRIPTS=true." >&2
     echo "       The kw2go purge runs inside the cutover step, so on its own this flag does" >&2
@@ -196,13 +193,9 @@ OUT=$TARGETROOT/server_apps/DB_maintenance/gafLoad/Load-GPAD-GO-Central_m-dbdiff
 bash $SQL/mgte_snapshot.sh after "$OUT" --others --all GOA Noctua PAINT "FP Inferences" UniProt
 bash $SQL/mgte_csvdiff.sh        "$OUT" --others --all GOA Noctua PAINT "FP Inferences" UniProt
 
-# Ontology-aware classification of the pairs the diff says disappeared (ZFIN-10464). The diff
-# itself is a key-based set difference and cannot tell "ZFIN no longer says this" from "ZFIN says
-# something more specific instead"; this splits the loss into subsumed / specificity_lost /
-# true_loss. Needs the --all snapshots, which is why it sits after them.
-#
-# Non-fatal on purpose: it is a reporting refinement, and a failure here must not mask the load's
-# own result or lose the workbooks already written above.
+# Splits the pairs the diff says disappeared into subsumed / specificity_lost / true_loss. Needs
+# the --all snapshots, hence its position. Non-fatal: a reporting refinement must not mask the
+# load's own result or lose the workbooks written above.
 bash $SQL/mgte_subsumption.sh "$OUT" || echo "WARNING: mgte_subsumption.sh failed; the csvdiff workbooks above are unaffected"
 ]]></command>
         </hudson.tasks.Shell>

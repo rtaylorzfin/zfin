@@ -1,77 +1,33 @@
 #!/bin/bash
 //usr/bin/env groovy -cp "$GROOVY_CLASSPATH:." "$0" $@; exit $?
 
+import org.apache.commons.io.FileUtils
 import org.zfin.properties.ZfinProperties
 import org.zfin.properties.ZfinPropertiesEnum
 
 ZfinProperties.init("${System.getenv()['ZFIN_PROPERTIES_PATH']}")
-// GO's DERIVED mapping, not the flat one (ZFIN-10464). The flat file carries only the 26
-// high-level equivalence mappings; the derived file propagates a GO evidence code down to child
-// ECO terms and carries 1,422. Measured 2026-09-22: it is a strict superset -- all 26 flat
-// mappings appear in it verbatim -- so nothing currently mapped can be lost. The gap this closes
-// for the DANRE-mod load is ECO:0005547 -> NAS, the last code the file uses that we cannot map.
+// GO's DERIVED mapping, not the flat one: the flat file carries only the high-level equivalence
+// mappings, the derived one propagates a GO evidence code down to child ECO terms and is a strict
+// superset of it.
 //
 // The PURL, not the GitHub raw URL: GO's own header says "Always use this URL".
-// https, not http: both resolve, but the http form redirects http -> https, and
-// HttpURLConnection will not follow a redirect that changes protocol. Starting on https keeps
-// the one hop it does make same-protocol, and avoids a plaintext request for good measure.
+// It must be https: the PURL redirects to an https target, and Java will not follow a redirect
+// that changes protocol, so the http form silently yields the redirect page instead of the file.
 DOWNLOAD_URL = "https://purl.obolibrary.org/obo/eco/gaf-eco-mapping-derived.txt"
 final WORKING_DIR = new File("${ZfinPropertiesEnum.TARGETROOT}/server_apps/data_transfer/eco_go_mapping")
 WORKING_DIR.mkdirs()
 
 // both files have to land in WORKING_DIR: ant runs this script with its working directory in
 // SOURCEROOT, but insert_eco_go_map.sql \copy's gafeco.txt out of TARGETROOT
-// Follow redirects by hand rather than relying on openStream(). The PURL always redirects (to
-// raw.githubusercontent.com today), and three things make doing it explicitly worth the lines:
-//
-//   - openStream() sets no timeouts at all, so a stalled fetch hangs the load indefinitely;
-//   - it throws nothing useful on a non-200, it just hands you the error body;
-//   - HttpURLConnection silently refuses to follow a redirect that CHANGES PROTOCOL. With the
-//     http:// form of this PURL that is exactly what happens: openStream() returns the 9-line
-//     HTML redirect page, four of whose lines split into two whitespace-separated fields and
-//     parse as mappings -- so the old "bail if zero mappings" check passed and the load would
-//     have replaced eco_go_mapping's contents with junk. Observed on 2026-09-22, not theorised.
-//     DOWNLOAD_URL is https so that case cannot arise, but it would return the moment anyone
-//     retyped the URL, or GO redirected somewhere with a different scheme.
-InputStream openFollowingRedirects(String url) {
-    String current = url
-    for (int hop = 0; hop < 5; hop++) {
-        HttpURLConnection conn = (HttpURLConnection) new URL(current).openConnection()
-        conn.instanceFollowRedirects = false
-        conn.connectTimeout = 30000
-        conn.readTimeout = 120000
-        int code = conn.responseCode
-        if (code in [301, 302, 303, 307, 308]) {
-            String location = conn.getHeaderField("Location")
-            conn.disconnect()
-            if (!location) {
-                throw new IOException("$current returned $code with no Location header")
-            }
-            current = new URL(new URL(current), location).toString()   // resolve relative redirects
-            continue
-        }
-        if (code != HttpURLConnection.HTTP_OK) {
-            throw new IOException("$current returned HTTP $code")
-        }
-        return conn.inputStream
-    }
-    throw new IOException("too many redirects starting from $url")
-}
-
 File downloadedFile = new File(WORKING_DIR, DOWNLOAD_URL.tokenize("/")[-1])
-def out = new BufferedOutputStream(new FileOutputStream(downloadedFile))
-out << openFollowingRedirects(DOWNLOAD_URL)
-out.close()
+// Timeouts matter more than they look: without them a stalled fetch hangs the load indefinitely.
+FileUtils.copyURLToFile(new URL(DOWNLOAD_URL), downloadedFile, 30000, 120000)
 
 File outputFile = new File(WORKING_DIR, "gafeco.txt")
 
-// COLUMN ORDER IS REVERSED FROM THE FLAT FILE.
-//   flat     CODE <tab> Default <tab> ECO      -> code was [0], eco was [2]
-//   derived  ECO  <tab> CODE    <tab> [Default] -> eco is  [0], code is [1]
-// Indexing [2] would break outright: 1,396 of the 1,422 rows have an empty third column.
-// The derived file's own header comment still documents the OLD order and is wrong; this
-// follows the data. Note split() on whitespace also drops the trailing empty field, so a row
-// without "Default" yields a 2-element array -- hence the length check rather than [2].
+// Columns are ECO <tab> CODE <tab> [Default] -- reversed from the flat file, and the opposite of
+// what this file's own header comment claims. Most rows have no third field, and split() drops
+// the trailing empty, hence the length check.
 mappingCount = 0
 defaultCount = 0
 outputFile.withWriter { outFile ->
@@ -85,15 +41,13 @@ outputFile.withWriter { outFile ->
                         }
                         eco_term = fields[0]
                         evidence_code = fields[1]
-                        // Validate the shape rather than just the row count. A redirect stub or
-                        // an error page yields lines that split into two fields perfectly well;
-                        // what it cannot do is put an ECO CURIE in the first column.
+                        // A stub or error page splits into two fields perfectly well; what it
+                        // cannot do is put an ECO CURIE in the first column.
                         if (!eco_term.startsWith("ECO:")) {
                             throw new IOException("${downloadedFile.name}: expected an ECO id in column 1, got [$eco_term] on line: $line")
                         }
-                        // "Default" marks an ECO term equivalent to the GO code, i.e. one of the
-                        // 26 mappings the flat file used to carry. Passed through so the loader
-                        // can use it to break a tie when one ECO term maps to several codes.
+                        // "Default" marks an ECO term equivalent to the GO code. Passed through
+                        // so the loader can break a tie when a term maps to several codes.
                         is_default = (fields.length > 2 && fields[2] == "Default") ? "Default" : ""
                         if (is_default) {
                             defaultCount++
@@ -104,13 +58,11 @@ outputFile.withWriter { outFile ->
             }
     }
 }
-// One summary line rather than 1,422 -- the flat file was small enough to echo, this is not.
 println("parsed $mappingCount ECO->GO mappings ($defaultCount marked Default) from ${downloadedFile.name}")
 
-// Bail rather than \copy a short file into a load that would then report success: a truncated
-// or error-page download has to be a failure, not a no-op. The floor is well below the 1,422
-// GO publishes and well above anything a stub or a partial transfer produces -- the old check
-// was `== 0`, which a 4-line redirect page walked straight through.
+// Bail rather than \copy a short file into a load that would report success: a truncated or
+// error-page download has to be a failure, not a no-op. The floor sits well below what GO
+// publishes and well above anything a stub or partial transfer produces.
 MINIMUM_EXPECTED_MAPPINGS = 500
 if (mappingCount < MINIMUM_EXPECTED_MAPPINGS) {
     System.err.println("Only $mappingCount mappings parsed out of ${downloadedFile.absolutePath}, expected at least "
