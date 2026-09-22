@@ -108,6 +108,20 @@ set -e
 #
 # It also sits before the AFTER snapshot on purpose: the point of a rehearsal is a single diff
 # spanning load + cutover.
+# RUN_KW2GO_PURGE is read further down, INSIDE this step -- so with RUN_CUTOVER_SCRIPTS unset it
+# would quietly purge nothing and the build would still go green. Refuse instead of no-opping:
+# the gap between "kw2go was deleted" and "kw2go was not" is 41,027 rows and an open curator
+# decision (ZFIN-10344), and the operator who ticked the box believes it happened. Exit 1 rather
+# than 2 -- this is a misconfigured run, not a run that completed with errors, so it should read
+# as FAILURE and not UNSTABLE.
+if [ "$RUN_KW2GO_PURGE" = "true" ] && [ "$RUN_CUTOVER_SCRIPTS" != "true" ]; then
+    echo "ERROR: RUN_KW2GO_PURGE=true requires RUN_CUTOVER_SCRIPTS=true." >&2
+    echo "       The kw2go purge runs inside the cutover step, so on its own this flag does" >&2
+    echo "       nothing at all -- no rows would be deleted and nothing would say so." >&2
+    echo "       Re-run with both set, or clear RUN_KW2GO_PURGE." >&2
+    exit 1
+fi
+
 if [ "$RUN_CUTOVER_SCRIPTS" != "true" ]; then
     echo "RUN_CUTOVER_SCRIPTS not true -> skipping the cutover scripts"
     exit 0

@@ -667,9 +667,11 @@ That single run executes, in order:
 
 Three things that are easy to get wrong:
 
-> ⚠️ **`RUN_KW2GO_PURGE` does nothing on its own.** The cutover step returns early unless
-> `RUN_CUTOVER_SCRIPTS=true`, and the kw2go check sits inside it. Setting only `RUN_KW2GO_PURGE`
-> silently purges nothing.
+> ⚠️ **`RUN_KW2GO_PURGE` requires `RUN_CUTOVER_SCRIPTS`.** The kw2go purge runs inside the
+> cutover step, so on its own the flag would do nothing. The job now **fails the build (exit 1,
+> FAILURE)** on that combination rather than no-opping — the gap between "kw2go was deleted" and
+> "kw2go was not" is 41,027 rows and an open decision, and a silent no-op would leave the
+> operator believing it happened.
 
 > ⚠️ **The manual list omitted `cutover-rehome-phylo-to-paint.sql` entirely.** It names only the
 > two purges. `RUN_CUTOVER_SCRIPTS` runs all three, which is another reason to prefer the flag
