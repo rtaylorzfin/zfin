@@ -678,12 +678,19 @@ Three things that are easy to get wrong:
 > over transcribing the steps — the re-home is not optional (README decision 9: without it, phylo
 > ends up split across GOA and PAINT and only survives because matching is org-agnostic).
 
-> ⚠️ **The job will finish non-zero / UNSTABLE, and that is expected on current code.** The
-> removal-safety guard logs *"Removal-safety guard withheld deletions for at least one
-> organization"* and exits 2 while withholding nothing (`workbench/TODO.md` items 1–2). Observed
-> on the 2026-09-22 rehearsal: it announced the block and still reported `removed: 47,129`. Do
-> not read the non-zero exit as a failed load — check the summary. Any wrapper using `set -e`
-> stops here, **before** the cutover scripts.
+> ⚠️ **The job will finish UNSTABLE, and that is normal rather than exceptional.** Exit code 2
+> means "completed with errors", and `<unstableReturn>2</unstableReturn>` maps it to UNSTABLE
+> rather than FAILURE; exit 1 (the load threw, transaction rolled back) is FAILURE. A *single*
+> rejected row sets it, and a first run against a legacy database produced 193,717 errors, so
+> "run to completion" can never mean "green build" — read the summary, not the exit code. Any
+> wrapper using `set -e` stops here, **before** the cutover scripts.
+>
+> Exit 2 has two independent causes and they mean different things: parser rejections, and the
+> removal-safety guard. The guard now withholds the removals it can attribute to a rejected row
+> (matched on marker + GO term) and applies the rest, so at a first cutover **expect it to
+> withhold** — set `GAF_ALLOW_LARGE_REMOVAL=true` to apply them anyway. That override
+> deliberately still yields UNSTABLE: forcing a prune is a reason to read the diff, not to go
+> green.
 
 ### Verify
 
