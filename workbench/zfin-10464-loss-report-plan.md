@@ -245,13 +245,78 @@ defensible than the raw count suggests.
 ⚠️ Not yet proven: the subsumption closure of §2(c) has not been run against these 1,143. The
 burden of proof has shifted, but "no real loss" is not yet a claim we can make.
 
-## 8. Status
+## 8. MEASURED — full-cutover rehearsal, 2026-09-22
+
+Stack `zfin-10464`, seed `2026-09-19`, real writes, load + all three cutover scripts inside one
+before/after window. **This supersedes the §4 ballpark.**
+
+**Org movement**
+
+| org | before | after |
+|---|---:|---:|
+| GOA | 106,815 | 117,350 |
+| UniProt | 111,089 | **0** |
+| Noctua | 36,034 | 31,942 |
+| PAINT | 0 | 62,263 |
+| FP Inferences | 1,623 | 1,623 *(untouched — the standing check)* |
+| **total** | **255,561** | **213,178** |
+
+**Loss, counted as keys present before with nothing after**
+
+| | before | after | gone entirely | wholly new |
+|---|---:|---:|---:|---:|
+| statement (`marker,term,evidence,relation`) | 193,647 | 184,305 | **80,229** | 70,887 |
+| **`(gene, GO)` pair** | 159,151 | 153,822 | **31,818** | 26,489 |
+
+The pair figure is the curator-meaningful one. Its composition:
+
+| source | pairs | what it is |
+|---|---:|---|
+| `ZDB-PUB-020723-1` | **24,544** | **kw2go** — the decision-4 *delete* branch. **0 under freeze** |
+| `ZDB-PUB-031118-1` | **2,831** | **Noctua ND** — matches the documented 2,819 almost exactly |
+| `ZDB-PUB-020724-1` | **1,827** | **the `*2go` residue** |
+| `ZDB-PUB-110330-1` | 327 | phylo |
+| `ZDB-PUB-031118-3` | 558 | |
+
+By org: UniProt 26,929, Noctua 4,128, GOA 761. By evidence: IEA 27,087, ND 2,831, IMP 860.
+
+### The `*2go` residue is 1,827 pairs, not ~24,903
+
+§4 flagged this as the largest unknown and put it at "≤ 24,903 rows, pairs unknown". Measured, it
+is **1,827 pairs** — because the purge deletes ~70,062 UniProt-org rows while the load supplies
+GOA replacements covering nearly the same `(gene, GO)` ground. The row count was never the pair
+count. **The §4 ballpark was pessimistic on its own biggest term; correct the record with the
+team.**
+
+### Headline
+
+**31,818 pairs lost under kw2go-delete; 7,274 under kw2go-freeze** — before subsumption, which
+will lower both. kw2go alone is 77% of the loss, so decision 4 dominates everything else.
+
+Cross-checks that the method is sound: kw2go's 24,544 sits where the documented 40,408 pairs
+minus ~15,030 reproduced predicts; Noctua ND lands on 2,831 against a documented 2,819; and
+`FP Inferences` shows **zero** loss, confirming the load still does not touch it.
+
+### Two things this run also proved
+
+- **The `GO_REF:0000108` fix works in a real write run.** `Goref ID is not known or loaded` went
+  **7,811 → 45**, exactly as the commit message predicted.
+- **The broken guard is reproduced on current code.** It logged *"Removal-safety guard withheld
+  deletions for at least one organization"*, exited 2 — and the summary still reported
+  `removed: 47,129`, within nine rows of build #6's 47,138. TODO item 1 confirmed.
+
+Caveats: `191,600 Duplicate annotation entry` errors are the file's own row duplication colliding
+with rows this same first run inserted (521 on a second run). `ECO:0005547` still errors 24 times,
+as intended — the derived-file switch is deliberately not in this run. The load exits non-zero via
+the guard, so any driver with `set -e` stops before the cutover scripts.
+
+## 9. Status
 
 - [x] Branch rebased onto main, compiles and deploys clean
 - [x] Stack `zfin-10464` provisioned from seed `2026-09-19`, migration verified applied
 - [x] Baseline org counts captured
 - [x] 2026-08-31 artifacts mined for the ballpark
-- [ ] Full-cutover rehearsal run — **in progress**, load step is ~74 min
+- [x] Full-cutover rehearsal run — done 2026-09-22, see §8 (load took 59m36s)
 - [ ] Subsumption pass over the `ALL` deletes sheet
 - [ ] `gflag` blind-spot check against the two snapshots
-- [ ] `*2go` residue quantified — the one real gap
+- [x] `*2go` residue quantified — 1,827 pairs, far below the ballpark
