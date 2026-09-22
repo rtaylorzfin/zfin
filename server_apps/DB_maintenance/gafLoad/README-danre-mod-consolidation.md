@@ -540,9 +540,13 @@ nothing), so the backfill can only ever fill rows that predate the column fallin
    subsumed by a more-specific term the gene keeps, leaving **10,907** that genuinely disappear
    under (b).
 
-   Subsumption is computed on a purpose-built strict `is_a` + `part of` closure, deliberately
-   *not* `all_term_contains` — that table also encodes `regulates` and `positively regulates`
-   (verified), which would overstate it. ⚠️ **Do not
+   Subsumption is computed on a strict `is_a` + `part of` closure, deliberately *not*
+   `all_term_contains` — that table also encodes `regulates` and `positively regulates`
+   (verified), which would overstate it. ✅ **That closure is now committed tooling**
+   (`mgte_subsumption.sh` / `.sql`) rather than the one-off query these figures originally came
+   from, which was never committed and could not be re-run. Measured reproducibly on the
+   2026-09-22 rehearsal, kw2go's true loss is **9,889** pairs against the 10,907 recorded here;
+   prefer the tooling's number and re-derive rather than quoting either from memory. ⚠️ **Do not
    simply leave the flag on.** When the file stops being served the secondary load *fails on
    the download*, taking the dblink/domain/PDB half with it: `createTempFile` leaves a 0-byte
    destination, so `downloadFileViaWget` size-checks against the server, a missing file returns

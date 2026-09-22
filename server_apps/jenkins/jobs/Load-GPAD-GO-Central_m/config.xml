@@ -170,6 +170,15 @@ OUT=$TARGETROOT/server_apps/DB_maintenance/gafLoad/Load-GPAD-GO-Central_m-dbdiff
 
 bash $SQL/mgte_snapshot.sh after "$OUT" --others --all GOA Noctua PAINT "FP Inferences" UniProt
 bash $SQL/mgte_csvdiff.sh        "$OUT" --others --all GOA Noctua PAINT "FP Inferences" UniProt
+
+# Ontology-aware classification of the pairs the diff says disappeared (ZFIN-10464). The diff
+# itself is a key-based set difference and cannot tell "ZFIN no longer says this" from "ZFIN says
+# something more specific instead"; this splits the loss into subsumed / specificity_lost /
+# true_loss. Needs the --all snapshots, which is why it sits after them.
+#
+# Non-fatal on purpose: it is a reporting refinement, and a failure here must not mask the load's
+# own result or lose the workbooks already written above.
+bash $SQL/mgte_subsumption.sh "$OUT" || echo "WARNING: mgte_subsumption.sh failed; the csvdiff workbooks above are unaffected"
 ]]></command>
         </hudson.tasks.Shell>
     </builders>

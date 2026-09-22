@@ -288,10 +288,44 @@ GOA replacements covering nearly the same `(gene, GO)` ground. The row count was
 count. **The §4 ballpark was pessimistic on its own biggest term; correct the record with the
 team.**
 
+### Subsumption applied — the final number
+
+Run with `mgte_subsumption.sh` (committed tooling, §2(c) closed). The 31,818 lost pairs partition:
+
+| bucket | pairs | share |
+|---|---:|---:|
+| `true_loss` — nothing in that lineage survives | **15,852** | 49.8% |
+| `subsumed` — gene retains a **more specific** term | **14,644** | 46.0% |
+| `specificity_lost` — gene retains only a **more general** term | **1,322** | 4.2% |
+
+**Nearly half the apparent loss is not loss.** The raw `deletes` figure overstates by about 2×.
+
+True loss by source:
+
+| source | pairs | |
+|---|---:|---|
+| `ZDB-PUB-020723-1` | **9,889** | kw2go — **0 under freeze** |
+| `ZDB-PUB-031118-1` | **2,528** | Noctua ND |
+| `ZDB-PUB-020724-1` | **1,447** | interpro2go |
+| `ZDB-PUB-110330-1` | 351 | phylo |
+| `ZDB-PUB-031118-3` | 150 | ec2go |
+
+By org: UniProt 11,427, Noctua 3,787, GOA 670. (Sums to 15,884, 32 above the total: a pair held
+by two organizations before the cutover is counted under each.)
+
 ### Headline
 
-**31,818 pairs lost under kw2go-delete; 7,274 under kw2go-freeze** — before subsumption, which
-will lower both. kw2go alone is 77% of the loss, so decision 4 dominates everything else.
+| scenario | pairs genuinely lost |
+|---|---:|
+| kw2go **delete** | **15,852** |
+| kw2go **freeze** | **5,963** |
+
+kw2go is 62% of the true loss, so decision 4 still dominates every other open question combined.
+
+Corroboration: the ad-hoc 2026-08 analysis put kw2go's true loss at 10,907; the committed tooling
+measures **9,889** on a different baseline — 9% apart, close enough to trust the method and far
+enough apart that quoting the old figure would have been wrong. The old query was never committed
+and could not be re-run, which is exactly why this is now tooling.
 
 Cross-checks that the method is sound: kw2go's 24,544 sits where the documented 40,408 pairs
 minus ~15,030 reproduced predicts; Noctua ND lands on 2,831 against a documented 2,819; and
@@ -317,6 +351,6 @@ the guard, so any driver with `set -e` stops before the cutover scripts.
 - [x] Baseline org counts captured
 - [x] 2026-08-31 artifacts mined for the ballpark
 - [x] Full-cutover rehearsal run — done 2026-09-22, see §8 (load took 59m36s)
-- [ ] Subsumption pass over the `ALL` deletes sheet
+- [x] Subsumption pass — built as `mgte_subsumption.sh`/`.sql`, wired into the job, run
 - [ ] `gflag` blind-spot check against the two snapshots
 - [x] `*2go` residue quantified — 1,827 pairs, far below the ballpark

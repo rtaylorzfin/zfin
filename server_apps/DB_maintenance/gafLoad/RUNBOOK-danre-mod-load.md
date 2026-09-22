@@ -390,6 +390,47 @@ cutover: statements ZFIN no longer asserts from any source.
 > knowingly. Note `protein_acc` is in neither list: it is compared but not matched on, so a
 > UniProt isoform reassignment surfaces as an update rather than as a delete+add pair.
 
+**Subsumption:**
+
+```bash
+$SOURCEROOT/server_apps/DB_maintenance/gafLoad/mgte_subsumption.sh \
+  $TARGETROOT/server_apps/DB_maintenance/gafLoad/mydiff
+```
+
+Yields `mgte_subsumption.xlsx` (sheets: `true_loss` / `subsumed` / `specificity_lost`). Run it
+**after** `mgte_csvdiff.sh`; the Jenkins job already does.
+
+The diff tells you a `(gene, GO)` pair disappeared. It cannot tell you whether ZFIN still covers
+that statement by another term on the same gene, because it is a key-based set difference with no
+ontology awareness — and the load's own report only counts flat lists of rows it acted on. So the
+`deletes` sheet overstates loss, by a factor of about two in practice. This splits it:
+
+| bucket | meaning |
+|---|---|
+| `subsumed` | the gene retains a **strict descendant** of the lost term — the statement still holds, more precisely. Not a loss |
+| `specificity_lost` | the gene retains only a **strict ancestor** — ZFIN still asserts something, less precisely. Partial loss |
+| `true_loss` | nothing in that lineage survives on that gene |
+
+Pairs reproduced under a different org or source never reach it: at `ALL_KEY` they were never
+lost. So the three buckets partition the `deletes` figure exactly.
+
+It needs the **`--all`** snapshot pair specifically. A pair that merely changed organization is
+not lost, and only the ALL view can see that; pointing this at per-org snapshots would count the
+phylo re-home as tens of thousands of losses.
+
+> ⚠️ **The closure is built from `term_relationship`, deliberately not `all_term_contains`.**
+> The latter is prebuilt and ~6.7M rows, which makes it the obvious thing to reach for, and it is
+> wrong here: it also encodes `regulates` and `positively regulates`. Treating "positive
+> regulation of angiogenesis" as covering "angiogenesis" would score real losses as subsumed and
+> make a cutover look cheaper than it is. Only `is_a` and `part of` are transitive in the sense
+> this question needs. Edge direction is `term_1` = parent, `term_2` = child (verified on
+> `GO:0016301 kinase activity` → `GO:0004672 protein kinase activity`).
+
+Every path inside `mgte_subsumption.sql` is relative and the wrapper `cd`s into the diff
+directory, because `\copy` is a client-side meta-command that does **not** interpolate psql
+variables — `-v outdir=...` plus `\copy … :'outdir'/x.csv` silently resolves to a file named
+`:`. Verified, not assumed.
+
 ---
 
 ## 7. Where the output lands, and getting it out
