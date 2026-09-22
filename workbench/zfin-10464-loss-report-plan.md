@@ -160,7 +160,92 @@ from rows the file never contained — which is the removal hazard TODO items 1�
 are a candidate cause of removals elsewhere in the diff, and the guard that was supposed to
 catch exactly this does not work.
 
-## 6. Status
+## 6. The tables this ticket touches
+
+Row counts from the `zfin-10464` stack (seed `2026-09-19`), before the rehearsal.
+
+**The annotation itself**
+
+| table | rows | role |
+|---|---:|---|
+| `marker_go_term_evidence` | 255,561 | **the table the whole ticket is about.** One row per GO annotation (19 columns). Every loss number counts rows or `(gene, GO)` pairs here |
+| `marker_go_term_evidence_annotation_organization` | 6 | owning-org lookup: `ZFIN`, `FP Inferences`, `GOA`, `PAINT`, `UniProt`, `Noctua`. `PAINT` is pk 4. This is what the phylo re-home rewrites and what every per-org report groups by |
+| `inference_group_member` | 540,364 | the with/from column (col 7). Snapshotted as `inferred_from` |
+| `marker_go_term_annotation_extension_group` | 1,413 | annotation-extension grouping. Was 328,727 before migration 0040 collapsed it |
+| `marker_go_term_annotation_extension` | 1,786 | the extensions themselves |
+| `noctua_model_annotation` | 36,034 | links an annotation to its Noctua model |
+| `noctua_model` | 10,043 | the models |
+
+**Lookups the load resolves through**
+
+| table | rows | role |
+|---|---:|---|
+| `eco_go_mapping` | **41** | ECO term → 3-letter GO evidence code. `GpadParser.postProcessing` hits it once per row. **The derived-file switch takes this to ~1,426** (TODO item 3). 41 not 39 because this branch's migration added `ECO:0000364`/`ECO:0000366` |
+| `term` | — | both the GO terms annotated and the ECO terms mapped; joined on `term_ont_id` |
+| `marker` | — | the gene each annotation is on |
+| `publication` | — | `GO_REF:*` resolve here via `GoDefaultPublication`; `ZDB-PUB-260903-15` is the new `GO_REF:0000108` pub |
+
+**Only for the subsumption pass**
+
+| table | rows | role |
+|---|---:|---|
+| `term_relationship` | 585,900 | the source for a **strict `is_a` + `part of` closure**, which is what §2(c) requires |
+| `all_term_contains` | 6,703,237 | the prebuilt closure. ⚠️ **Do not use it for subsumption** — it also encodes `regulates` and `positively regulates`, which overstates the correction. Named here so nobody reaches for it as the convenient option |
+
+Not involved, despite the name: `marker_go_term_evidence_annotation_created_by_source` (6 rows: ZFIN, BHF-UCL,
+HGNC, MGI, UniProtKB, IntAct). The `mrkrgoev_annotation_organization_created_by` column is free
+text carrying `InterPro`, `GO_Central`, `GOC` and similar, none of which appear in that lookup.
+
+## 7. Where the FP Inferences rows came from
+
+Answering it properly, because decision 7 (freeze vs delete) reads differently once you know.
+
+**Provenance.** Jenkins job `Load-GAF-FP-Inference_m` — still enabled, but with an empty cron
+`spec`, so it only runs when triggered. It calls Ant `load-gaf-fpinference`, i.e. `GafLoadJob`
+with the organization hardcoded to `FP Inferences` and `FpInferenceGafParser`, against:
+
+    https://current.geneontology.org/products/upstream_and_raw_data/zfin-prediction.gaf
+
+Note the path: **`upstream_and_raw_data`**. This is GO's raw PANTHER prediction file for
+zebrafish, a different pipeline stage from the released `DANRE-mod` product. Still served as of
+2026-09-22 (HTTP 200, 563 KB) but **last modified 2026-05-28**.
+
+The file is 1,809 rows and completely uniform: 100% IBA / `GO_REF:0000033` / `assigned_by=GOC`,
+with `PANTHER:PTN…` in with/from, subjects keyed on UniProtKB accessions. The stored rows match:
+all 1,623 are `ZDB-PUB-110330-1` / IBA / GOC, first entered **2017-02-28**, last external load
+**2026-06-22**. The org's own definition still describes them as "annotations made by a Chris
+Mungall script".
+
+The UniProt → ZFIN mapping is not the problem, incidentally: despite the file's `LOC*` symbols the
+stored rows are 1,491 named genes, 84 clone-named and 48 `zgc:` — no `LOC*` at all.
+
+**Why 1,143 have no successor.** Measured 2026-09-22 against the current published `DANRE-mod`
+(62,255 distinct phylo pairs): **480 of the 1,623 reproduced, 1,143 FP-only** — reproducing the
+recorded 479/1,144, the one-pair drift being the file moving. It is **not** a gene-coverage
+problem:
+
+| FP-only: 1,143 pairs over 1,003 genes | |
+|---|---:|
+| genes present in `DANRE-mod` at all | **976** |
+| genes that already carry phylo annotations in `DANRE-mod` | **785** |
+| genes absent from `DANRE-mod` entirely | **27** |
+
+GO knows these genes, and for 785 of them is already making phylo calls — just not these. The
+orphaned terms are generic: `GO:0007165` signal transduction (60), `GO:0007186` GPCR signaling
+(58), `GO:0055085` transmembrane transport (51), `GO:0045202` synapse (40), `GO:0006357`
+regulation of transcription (40), `GO:0005739` mitochondrion (35). The same generic-parent
+signature as the 1,880 per-run losses in §5.
+
+**Reading:** these are stale raw predictions GO has since refined or dropped from its released
+product. That shifts decision 7. "Freeze in the dead org" does not preserve 1,143 unique facts —
+it preserves 1,143 superseded predictions sitting beside fresh GO phylo content on the same 785
+genes, with nothing marking them stale and no load to refresh or prune them. Delete is more
+defensible than the raw count suggests.
+
+⚠️ Not yet proven: the subsumption closure of §2(c) has not been run against these 1,143. The
+burden of proof has shifted, but "no real loss" is not yet a claim we can make.
+
+## 8. Status
 
 - [x] Branch rebased onto main, compiles and deploys clean
 - [x] Stack `zfin-10464` provisioned from seed `2026-09-19`, migration verified applied
