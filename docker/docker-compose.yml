@@ -1,3 +1,24 @@
+# Git, for a worktree. A worktree's `.git` is a FILE holding an absolute path into the main
+# repo (`gitdir: <repo>/.git/worktrees/<slug>`), so a container given only the worktree cannot
+# run git at all -- every call is "fatal: not a git repository". The main .git must be reachable
+# at the SAME absolute path that pointer names, which is why these bind host-path to host-path
+# rather than somewhere tidy. Unset (a plain checkout, whose .git is a real directory) they are
+# harmless self-mounts.
+#
+# Sibling worktrees are READ-ONLY: `git gc` runs `git worktree prune`, which deletes the admin
+# directory of any worktree whose path it cannot see -- in a container, every OTHER feature
+# stack on the host -- and it skips the usual expiry when doing so. Read-only turns silent data
+# loss into a failed delete.
+#
+# Anchored because four services mount the source root and every one of them runs git: the ant
+# build shells out to it, and a missing repo there fails quietly with "Result: 128" rather than
+# stopping the build.
+x-git-mounts:
+  common:   &git-common   "${DOCKER_GIT_COMMON_DIR:-${DOCKER_SOURCE_ROOTS_PATH}/.git}:${DOCKER_GIT_COMMON_DIR:-${DOCKER_SOURCE_ROOTS_PATH}/.git}:rw"
+  siblings: &git-siblings "${DOCKER_GIT_COMMON_DIR:-${DOCKER_SOURCE_ROOTS_PATH}/.git}/worktrees:${DOCKER_GIT_COMMON_DIR:-${DOCKER_SOURCE_ROOTS_PATH}/.git}/worktrees:ro"
+  ours:     &git-ours     "${DOCKER_GIT_WORKTREE_DIR:-${DOCKER_SOURCE_ROOTS_PATH}/.git}:${DOCKER_GIT_WORKTREE_DIR:-${DOCKER_SOURCE_ROOTS_PATH}/.git}:rw"
+  tree:     &git-tree     "${DOCKER_SOURCE_ROOTS_PATH}:${DOCKER_SOURCE_ROOTS_PATH}:rw"
+
 services:
   base:
     build: ./base/
@@ -5,6 +26,12 @@ services:
     environment:
       TZ: ${TZ}
   compile:
+    # NO depends_on here, deliberately. `docker compose run <svc>` starts a service's
+    # dependencies by default, so a `depends_on: db` would silently turn `./z run compile` --
+    # the most-used command in the toolchain -- from "starts nothing" into "boots a 19G
+    # Postgres". That is actively wrong once a stack being down is a normal state:
+    # `./z run compile -c "npm ci"` should not start a database. The build tier is sequenced
+    # explicitly by the commands that need it, not by the graph.
     build:
       context: ./compile/
       args:
@@ -16,7 +43,12 @@ services:
     environment:
       PGHOST: db
       PGUSER: postgres
-      SSH_AUTH_SOCK: /run/host-services/ssh-auth.sock
+      # No SSH_AUTH_SOCK / agent socket / known_hosts anywhere in this service, on purpose:
+      # nothing running in `compile` can push or SSH out with your keys
+      # (workbench/claude-sidecar.md). SSH_USER/HOST are kept because they're plain strings (no
+      # credential) that the remote-fetch tasks put in their error messages. Those tasks
+      # (gradle getdb/getsolr) do not work from here -- copy dumps to the mounted unloads
+      # paths from the host instead.
       SSH_USER: ${DOCKER_SSH_USER}
       SSH_HOST: ${DOCKER_SSH_HOST}
       TZ: ${TZ}
@@ -25,7 +57,9 @@ services:
       KIBANA_SYSTEM_PASSWORD: ${KIBANA_SYSTEM_PASSWORD}
       INSTANCE: ${DOCKER_INSTANCE}
       ZFIN_RELEASE: ${ZFIN_RELEASE}
-      DOCKER_SSH_AUTH_SOCK: ${DOCKER_SSH_AUTH_SOCK}
+      # Dev-only opt-in: adds a *.zfin.test wildcard to the self-signed cert generate_base.sh
+      # makes (see more_bash_profile). Unset -> false -> staging/prod keep a zfin.org-only cert.
+      ZFIN_DEV_CERT_SAN: ${ZFIN_DEV_CERT_SAN:-false}
       DOCKER_SSH_USER: ${DOCKER_SSH_USER}
       DOCKER_SSH_HOST: ${DOCKER_SSH_HOST}
       DOCKER_DB_UNLOADS_PATH: ${DOCKER_DB_UNLOADS_PATH}
@@ -57,6 +91,13 @@ services:
       - catalina_base:/opt/zfin/catalina_bases/zfin.org
       - jenkins_data:/opt/zfin/www_homes/zfin.org/server_apps/jenkins/jenkins-home
       - ${DOCKER_SOURCE_ROOTS_PATH}:/opt/zfin/source_roots/zfin.org:rw
+      # git: the ant build shells out to it (x-git-mounts at the top of this file). Without
+      # these, a worktree-based stack gets 'fatal: not a git repository' and Result: 128,
+      # which ant reports but does not stop for -- so the build 'succeeds' with git data wrong.
+      - *git-common
+      - *git-siblings
+      - *git-ours
+      - *git-tree
       #- nfs-zunloads:/research/zunloads
       - ${DOCKER_DB_UNLOADS_PATH}:/opt/zfin/unloads/db
       - ${DOCKER_SOLR_UNLOADS_PATH}:/opt/zfin/unloads/solr
@@ -68,11 +109,97 @@ services:
       - ${DOCKER_LOADUP_PATH}:/opt/zfin/loadUp
       - ${DOCKER_DOWNLOADS_PATH}:/opt/zfin/download-files
       - ${DOCKER_GFF3_PATH}:/opt/zfin/gff3
-      - ${DOCKER_SSH_AUTH_SOCK}:/run/host-services/ssh-auth.sock
-      - ~/.ssh/known_hosts:/home/gradle/.ssh/known_hosts
-      - /var/run/docker.sock:/var/run/docker.sock
+      # NO /var/run/docker.sock here, on purpose. Mounting the host daemon socket into a build
+      # container is root-equivalent on the host, which is the single biggest reason `compile`
+      # could not be the home for an autonomous agent (workbench/claude-sidecar.md). Its only
+      # consumer was buildfiles/tomcat.xml's docker-tomcat-start/stop, which were also broken for
+      # feature stacks (no -p). Tomcat lifecycle is a host operation: `z restart tomcat`.
       - maven_cache:/home/gradle/.m2
       - gradle_cache:/home/gradle/.gradle
+      - npm_cache:/home/gradle/.npm
+  claude:
+    # The per-feature Claude sidecar (docker/claude/Dockerfile, workbench/claude-sidecar.md).
+    # Reached by the verb that already reaches services -- `./z run claude`, like `./z run
+    # compile` -- so there is no bespoke command and no second way in. The profile keeps it out
+    # of a plain `up`; `docker compose run <svc>` enables a service's own profile.
+    profiles:
+      - claude
+    build:
+      context: ./claude/
+      args:
+        ZFIN_RELEASE: ${ZFIN_RELEASE}
+        DOCKER_ARCH: ${DOCKER_ARCH:-}
+    # Local-only name (no ghcr.io prefix): a developer's agent environment is not registry
+    # material.
+    image: zfin-claude:${ZFIN_RELEASE}${DOCKER_ARCH:-}
+    pull_policy: never
+    environment:
+      PGHOST: db
+      PGUSER: postgres
+      TZ: ${TZ}
+      INSTANCE: ${DOCKER_INSTANCE}
+      ZFIN_RELEASE: ${ZFIN_RELEASE}
+      DOCKER_INSTANCE: ${DOCKER_INSTANCE}
+      DOCKER_VIRTUAL_HOST: ${DOCKER_VIRTUAL_HOST}
+      COMPOSE_PROJECT_NAME: ${COMPOSE_PROJECT_NAME}
+      # Claude Code keeps ~/.claude.json BESIDE ~/.claude, so by default it lands in the
+      # throwaway layer and every entry looks like a first-ever install -- asking you to log in
+      # again with a valid token already present. Point it at the mounted volume and onboarding
+      # happens once.
+      CLAUDE_CONFIG_DIR: /home/gradle/.claude
+      # Serves no TLS, so it needs no cert -- and mounting tls_certs to persist one would hand
+      # it the stack's private key for nothing.
+      ZFIN_SKIP_CERT_SETUP: "true"
+      # Lets a session identify itself rather than infer it: /.dockerenv proves "a container",
+      # this proves "the ZFIN sidecar", where `z`/`zrun` are host commands and refuse.
+      ZFIN_SIDECAR: "true"
+    volumes:
+      # The one feature worktree, read-write -- the point of the thing.
+      - ${DOCKER_SOURCE_ROOTS_PATH}:/opt/zfin/source_roots/zfin.org:rw
+      # git (see x-git-mounts at the top): without these, git cannot run in here at all.
+      - *git-common
+      - *git-siblings
+      - *git-ours
+      - *git-tree
+      # Its own ~/.claude, per stack. `z feature freeze` archives this volume, which is why the
+      # auth token is NOT kept in it -- that comes from a host file, read-only, one file, so the
+      # container can use the token but not rewrite it.
+      - claude_home:/home/gradle/.claude
+      - ${ZFIN_CLAUDE_TOKEN_FILE:-/dev/null}:/run/secrets/claude-token:ro
+      # Dumps read-only, so `loaddb`/`loadsolr` work. Withholding them would buy nothing -- the
+      # sidecar already reaches the live database over the compose network and can read every
+      # row. Contrast /mnt/research, deliberately NOT mounted: that one spans other instances
+      # and production unloads. :ro also means the agent cannot corrupt the dumps every other
+      # stack loads from. (`loaddb` does destroy and rebuild THIS stack's database -- accepted,
+      # because a thaw or re-seed restores it in about two minutes.)
+      - ${DOCKER_DB_UNLOADS_PATH}:/opt/zfin/unloads/db:ro
+      - ${DOCKER_SOLR_UNLOADS_PATH}:/opt/zfin/unloads/solr:ro
+      # Build/deploy targets, so the agent can compile, test and dirtydeploy rather than handing
+      # every build back to a human.
+      - www_data:/opt/zfin/www_homes/zfin.org
+      - catalina_base:/opt/zfin/catalina_bases/zfin.org
+      # Jenkins' home, so `jenkins-cli` works in here as it does in `compile`. This path looks
+      # like part of www_data but is its own volume mounted over that spot, and it holds
+      # secrets/initialAdminPassword and the stored API token -- so this IS a credential, and a
+      # deliberate exception to the no-credentials rule below. Accepted because the blast radius
+      # is one feature stack's own Jenkins, triggering that stack's jobs against that stack's
+      # database -- which the agent can already read directly over the compose network. Nothing
+      # here reaches another stack, the host, or a remote.
+      - jenkins_data:/opt/zfin/www_homes/zfin.org/server_apps/jenkins/jenkins-home
+      - keystore:/opt/apache/apache-tomcat/conf
+      # generate_base.sh's cert steps are guarded by `if [ ! -f ]`; they re-ran on every entry
+      # only because without this mount the cert landed in the throwaway layer. Mounting it
+      # makes the guard work.
+      - tls_certs:/opt/zfin/tls
+      - static_data:/opt/zfin/static
+      - maven_cache:/home/gradle/.m2
+      - gradle_cache:/home/gradle/.gradle
+      - npm_cache:/home/gradle/.npm
+      # NO docker.sock and NO ssh-auth.sock, on purpose: those two mounts are what made
+      # `--dangerously-skip-permissions` in `compile` more dangerous than running on the host.
+      # Omitting them is what makes "the agent cannot push" structural rather than a rule
+      # someone has to remember (workbench/claude-sidecar.md).
+
   db:
     build: ./postgresql/
     image: ghcr.io/zfin/zfin-db:${ZFIN_RELEASE}${DOCKER_ARCH:-}
@@ -90,6 +217,21 @@ services:
       POSTGRES_HOST_AUTH_METHOD: trust
       TZ: ${TZ}
     shm_size: 2g
+    # The readiness definition the app tier's `depends_on: condition: service_healthy` waits
+    # on. Keep the probe in step with StackConfig.DB_PROBE, which is the same check in argv
+    # form for containers started OUTSIDE compose (build-preloaded's throwaway postgres has no
+    # compose healthcheck to read). YAML cannot import Groovy, so this pair is kept in sync by
+    # hand -- both sides carry this note.
+    #
+    # start_period is generous on purpose: a preloaded db is serving in seconds, but a base
+    # stack doing a cold initdb is not, and a healthcheck that gives up early turns a slow
+    # boot into "dependency failed to start".
+    healthcheck:
+      test: ["CMD", "pg_isready", "-U", "postgres", "-d", "zfindb"]
+      interval: 10s
+      timeout: 5s
+      retries: 30
+      start_period: 60s
     ports:
       - "${DOCKER_DB_PORT:-127.0.0.1:5432}:5432"
     volumes:
@@ -105,7 +247,10 @@ services:
     # cache, stack, native libs). Without this the kernel chooses which
     # container to OOM when the host gets tight, and Solr is always the
     # biggest target.
-    mem_limit: 16g
+    # Sized for PROD by default. A feature stack sets DOCKER_SOLR_MEM_LIMIT=6g and
+    # DOCKER_SOLR_HEAP=4g in its .env: one user and low query concurrency need nothing like
+    # this, and several stacks share one Docker VM, where solr at 12g does not come up at all.
+    mem_limit: ${DOCKER_SOLR_MEM_LIMIT:-16g}
     ulimits:
       nofile: 65536
     # Add fishadmin (gid 1076) so the non-root solr user can write backup snapshots to the group-owned unloads dir (which must also be g+w).
@@ -113,7 +258,7 @@ services:
       - "1076"   # fishadmin
     environment:
       SOLR_MODULES: "scripting"
-      SOLR_HEAP: 12g
+      SOLR_HEAP: ${DOCKER_SOLR_HEAP:-12g}
       # solr.max.booleanClauses: Solr 9.x reads this at JVM startup and uses
       # it as the ceiling for IndexSearcher.MAX_CLAUSE_COUNT. The per-core
       # <maxBooleanClauses> in solrconfig.xml can't exceed this JVM-level
@@ -125,7 +270,10 @@ services:
       SOLR_SECURITY_MANAGER_ENABLED: "false"
       TZ: ${TZ}
     ports:
-      - "8983-8992:8983"
+      # Loopback by default: Solr's admin UI and its update handlers are unauthenticated, so
+      # an unset variable must not put them on every interface. Feature stacks set
+      # DOCKER_SOLR_PORT=<loopback-ip>:8983 for the same-port/differ-by-IP scheme.
+      - "${DOCKER_SOLR_PORT:-127.0.0.1:8983-9002}:8983"
     volumes:
       # Single volume covering everything Solr persists. The image's
       # /docker-entrypoint-initdb.d/sync-config.sh refreshes conf/, lib/, and
@@ -138,11 +286,40 @@ services:
       - ${DOCKER_SOLR_UNLOADS_PATH}:/opt/zfin/unloads/solr
   httpd:
     hostname: zfin.org
+    # Ordering, and why every edge is `required: false`: docker-compose.overlay-shared-db.yml
+    # suppresses db/solr with a never-enabled profile, and a HARD dependency on a service no
+    # active profile enables is a startup error. `required: false` skips an absent dependency
+    # and still applies the condition when it is present -- so shared-db stacks need no
+    # override at all.
+    #
+    # These edges exist as much for SHUTDOWN as for startup: compose stops in reverse
+    # dependency order, which is what keeps Tomcat from writing to Postgres while it is being
+    # snapshotted. Stop order follows the graph, not the condition, so the cheapest defensible
+    # condition still buys correct ordering. httpd waits only for tomcat to START: a 502 during
+    # warm-up is self-correcting and needs no tomcat healthcheck.
+    depends_on:
+      tomcat:
+        condition: service_started
+        required: false
     build: ./httpd/
     image: ghcr.io/zfin/zfin-httpd:${ZFIN_RELEASE}${DOCKER_ARCH:-}
     environment:
-      LETSENCRYPT_HOST: ${DOCKER_VIRTUAL_HOST}
-      VIRTUAL_HOST: ${DOCKER_VIRTUAL_HOST}
+      # WHICH PROXY SERVES THIS STACK. DOCKER_VIRTUAL_HOST keeps its meaning -- the hostname
+      # the stack is served at, vendor-neutral, used by the app for its own URLs. Two optional
+      # keys in the stack's .env say who routes it:
+      #
+      #   unset                     an external nginx-proxy sees the stack; acme issues its cert
+      #   DOCKER_EXTERNAL_VHOST=    the review proxy serves it instead: invisible to any
+      #   DOCKER_REVIEW_VHOST=<h>   external proxy, and asks acme for nothing
+      #
+      # `-`, not `:-`: only an UNSET key falls back, so a key present-but-empty stays empty and
+      # an .env that never heard of these is unchanged. Empty is equivalent to deleting the
+      # variable -- nginx-proxy and acme-companion both `continue` past an empty value. One key
+      # covers VIRTUAL_HOST and LETSENCRYPT_HOST because the proxy serving a hostname is the one
+      # that should hold its certificate.
+      LETSENCRYPT_HOST: ${DOCKER_EXTERNAL_VHOST-${DOCKER_VIRTUAL_HOST}}
+      VIRTUAL_HOST: ${DOCKER_EXTERNAL_VHOST-${DOCKER_VIRTUAL_HOST}}
+      ZFIN_VIRTUAL_HOST: ${DOCKER_REVIEW_VHOST-}
       VIRTUAL_PROTO: https
       VIRTUAL_PORT: 443
       OPENIDC_CRYPTOPASSPHRASE: ${OPENIDC_CRYPTOPASSPHRASE}
@@ -151,8 +328,19 @@ services:
       DISABLE_OIDC: ${DISABLE_OIDC:-false}
       TZ: ${TZ}
     ports:
-      - "${DOCKER_HTTPD_HTTP_PORT:-8080-8089}:80"
-      - "${DOCKER_HTTPD_HTTPS_PORT:-8443-8452}:443"
+      # Loopback by default, like every other published port here. Production does NOT arrive
+      # this way -- nginx-proxy reaches httpd by container IP over a shared Docker network
+      # (VIRTUAL_HOST above), so the published port serves only local browsing. An unset
+      # variable therefore means "a developer did not think about it", and the safe reading of
+      # that is 127.0.0.1. Reaching a stack from another machine is an explicit
+      # DOCKER_HTTPD_HTTP_PORT=0.0.0.0:8080 in that host's .env.
+      #
+      # Twenty slots each. Docker fails a container when its range is full, and every stack on
+      # the host draws from these -- routed or not -- so the range is the ceiling on concurrent
+      # stacks. Disk gives out long before it does (tens of GB per stack against ~20 slots),
+      # which is the point: the limit should never be the one that bites.
+      - "${DOCKER_HTTPD_HTTP_PORT:-127.0.0.1:8080-8099}:80"
+      - "${DOCKER_HTTPD_HTTPS_PORT:-127.0.0.1:8443-8462}:443"
     volumes:
       - www_data:/opt/zfin/www_homes/zfin.org
       - static_data:/opt/zfin/static
@@ -172,6 +360,17 @@ services:
       - certbot_data:/etc/letsencrypt
       - www_data:/opt/zfin/www_homes/zfin.org
   tomcat:
+    # db gets service_healthy because Hibernate init genuinely cannot proceed without it --
+    # this is the edge that stops the flaky cold start where Tomcat boots first and throws
+    # connection errors. solr only needs service_started: the app degrades rather than fails
+    # without it, and waiting on a Solr healthcheck would add minutes to every `up`.
+    depends_on:
+      db:
+        condition: service_healthy
+        required: false
+      solr:
+        condition: service_started
+        required: false
     build: ./tomcat/
     image: ghcr.io/zfin/zfin-tomcat:${ZFIN_RELEASE}${DOCKER_ARCH:-}
     environment:
@@ -193,6 +392,13 @@ services:
       - ${DOCKER_GFF3_PATH}:/opt/zfin/gff3
   tomcatdebug:
     hostname: tomcat
+    depends_on:                      # same contract as tomcat
+      db:
+        condition: service_healthy
+        required: false
+      solr:
+        condition: service_started
+        required: false
     build: ./tomcat/
     profiles:
       - debug
@@ -206,7 +412,9 @@ services:
       JPDA_TRANSPORT: dt_socket
     entrypoint: ["catalina.sh", "jpda", "run"]
     ports:
-      - "127.0.0.1:5000:5000"
+      # Feature stacks set DOCKER_TOMCATDEBUG_PORT=<loopback-ip>:5000 so two
+      # stacks can expose the JPDA debug port at once without colliding.
+      - "${DOCKER_TOMCATDEBUG_PORT:-127.0.0.1:5000}:5000"
     volumes:
       - www_data:/opt/zfin/www_homes/zfin.org
       - catalina_base:/opt/zfin/catalina_bases/zfin.org
@@ -230,7 +438,9 @@ services:
       - ${DOCKER_BLASTSERVER_BLAST_DATABASE_PATH}:/opt/zfin/blastdb
   mailpit:
     image: axllent/mailpit
-    container_name: mailpit
+    # No container_name here: a fixed one makes mailpit a global singleton, so only one
+    # project can run it and parallel feature stacks collide on the name "/mailpit".
+    # Unset, compose names it <project>-mailpit-1 like every other service.
     restart: unless-stopped
     environment:
       MP_SMTP_BIND_ADDR: "0.0.0.0:25"
@@ -242,6 +452,12 @@ services:
     volumes:
       - mailpit_data:/data
   jenkins:
+    # Jenkins jobs hit the database directly (PGHOST: db below), so it belongs in the graph --
+    # and, more to the point for freeze, it must stop BEFORE the db it writes to.
+    depends_on:
+      db:
+        condition: service_healthy
+        required: false
     build: 
       context: ./jenkins/
       args:
@@ -249,7 +465,10 @@ services:
         DOCKER_ARCH: ${DOCKER_ARCH:-}
     image: ghcr.io/zfin/zfin-jenkins:${ZFIN_RELEASE}${DOCKER_ARCH:-}
     ports:
-      - "${DOCKER_JENKINS_HTTP_PORT:-9499-9509}:9499"
+      # Loopback-scoped default (like db/tomcatdebug) so an unpinned jenkins never grabs
+      # 0.0.0.0:9499 and blocks every other stack's <loopback-ip>:9499. Feature stacks set
+      # DOCKER_JENKINS_HTTP_PORT=<loopback-ip>:9499.
+      - "${DOCKER_JENKINS_HTTP_PORT:-127.0.0.1:9499-9509}:9499"
     environment:
       PGHOST: db
       PGUSER: postgres
@@ -260,6 +479,13 @@ services:
     volumes:
       #- jenkins_data:/var/jenkins_home
       - ${DOCKER_SOURCE_ROOTS_PATH}:/opt/zfin/source_roots/zfin.org
+      # git: the ant build shells out to it (x-git-mounts at the top of this file). Without
+      # these, a worktree-based stack gets 'fatal: not a git repository' and Result: 128,
+      # which ant reports but does not stop for -- so the build 'succeeds' with git data wrong.
+      - *git-common
+      - *git-siblings
+      - *git-ours
+      - *git-tree
       - www_data:/opt/zfin/www_homes/zfin.org
       - catalina_base:/opt/zfin/catalina_bases/zfin.org
       - downloads_data:/opt/zfin/download-files
@@ -276,6 +502,7 @@ services:
       - ${DOCKER_GFF3_PATH}:/opt/zfin/gff3
       - maven_cache:/home/gradle/.m2
       - gradle_cache:/home/gradle/.gradle
+      - npm_cache:/home/gradle/.npm
       - /etc/localtime:/etc/localtime:ro
       - /etc/timezone:/etc/timezone:ro
   ncbiload:
@@ -288,9 +515,17 @@ services:
       IS_NCBI_LOAD_CONTAINER: "true"
     volumes:
       - ${DOCKER_SOURCE_ROOTS_PATH}:/opt/zfin/source_roots/zfin.org
+      # git: the ant build shells out to it (x-git-mounts at the top of this file). Without
+      # these, a worktree-based stack gets 'fatal: not a git repository' and Result: 128,
+      # which ant reports but does not stop for -- so the build 'succeeds' with git data wrong.
+      - *git-common
+      - *git-siblings
+      - *git-ours
+      - *git-tree
       - ${DOCKER_RESEARCH_PATH}:/mnt/research
       - maven_cache:/home/gradle/.m2
       - gradle_cache:/home/gradle/.gradle
+      - npm_cache:/home/gradle/.npm
   fail2ban:
     build: ./fail2ban/
     image: ghcr.io/zfin/zfin-fail2ban:${ZFIN_RELEASE}${DOCKER_ARCH:-}
@@ -394,8 +629,10 @@ services:
       - jbrowse_data:/data
 
 volumes:
+  claude_home:
   gradle_cache:
   maven_cache:
+  npm_cache:
   www_data:
   static_data:
   httpd_log:
