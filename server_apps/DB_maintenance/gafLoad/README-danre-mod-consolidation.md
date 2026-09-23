@@ -394,8 +394,12 @@ nothing), so the backfill can only ever fill rows that predate the column fallin
 
 ## Open decisions before cutover
 
-1. **Noctua loss** (finding 1) — GO/curator conversation. 5,103 annotations, of which 2,819
-   are ND, leaving **~2,284 experimental**.
+1. **Noctua loss** (finding 1) — GO/curator conversation. **Re-measure before deciding: an
+   upstream GO change has landed since these figures were taken and recaptured most of the loss.**
+   The counts recorded here — 5,103 annotations, 2,819 of them ND, leaving ~2,284 experimental —
+   predate it. Doug's working figure afterwards is on the order of 4,000 still missing, and the
+   open question is how many of those are true losses versus rows GOA filters into its own error
+   reports.
 2. **`*2go` ownership org** — route the `*2go` GO_REFs to the same org the secondary load
    uses (`UniProt`) or add an explicit `UniProt`-org purge/migration at cutover, so old and
    new copies don't coexist. **Sequencing decided 2026-08-14:** `Load-GPAD-GO-Central_m` stays
@@ -446,10 +450,19 @@ nothing), so the backfill can only ever fill rows that predate the column fallin
    `cutover-rehome-phylo-to-paint.sql` — see RUNBOOK §13, which sequences it. Left undone, phylo
    splits across GOA and PAINT and survives only because matching is org-agnostic.
 
-   ⚠️ **Separate, still open: the FP-Inference rows are not rescued by this.** Of their 1,623
-   distinct (gene, GO) pairs only ~480 are reproduced by the new load's phylo content; the rest
-   are FP-only. Giving phylo its own org gives those rows a natural home but does not supply
-   their content. Decide at cutover — **ZFIN-10464 decision 7**, still open.
+   **Separate: the FP-Inference rows are not rescued by this.** Of their 1,623 distinct
+   (gene, GO) pairs only ~480 are reproduced by the new load's phylo content; the rest are
+   FP-only. Giving phylo its own org gives those rows a natural home but does not supply their
+   content.
+
+   **Agreed approach: purge the rows and retire `Load-GAF-FP-Inference_m`**, following the `*2go`
+   pattern. `cutover-purge-fp-inference.sql` implements it.
+
+   ⚠️ **Not yet wired into `RUN_CUTOVER_SCRIPTS`, and it should not be until the premise is
+   re-confirmed.** The agreement was reached on the understanding that the FP annotations arrive
+   in the new GO input file. They mostly do not: ~1,143 of the 1,623 pairs have no successor
+   there. Purging on that basis drops rows nobody intended to drop. The case below argues for
+   purging anyway, for a different reason — confirm on that basis before enabling it.
 
    **Where those rows come from.** `Load-GAF-FP-Inference_m` — enabled but with an empty cron
    `spec`, so it runs only when triggered — calls Ant `load-gaf-fpinference`, i.e. `GafLoadJob`
@@ -484,7 +497,8 @@ nothing), so the backfill can only ever fill rows that predate the column fallin
    aspect and **plan** an upstream filter, but it is not in place. He asks ZFIN to implement one,
    *"either a filter on the incoming file or after the load."*
 
-   Worked example (comment 10), all on one gene: `GO:0008150` (`biological_process`, **ND**,
+   Worked example (comment 10), all on `ZDB-GENE-060918-2` (crygm2d3): `GO:0008150`
+   (`biological_process`, **ND**,
    ZFIN / `GO_REF:0000015`, Noctua) alongside `GO:0002088` (`lens development`) and `GO:0007601`
    (`visual perception`), both **IBA**, GO_Central / `GO_REF:0000033`, PAINT. ZFIN's own database
    constraints already disallow root terms with descendants, which argues this is a schema rule
@@ -494,7 +508,8 @@ nothing), so the backfill can only ever fill rows that predate the column fallin
    GO asserts; this one is **added** policy covering a case GO itself calls a defect, and it is
    narrower — same aspect, ND vs non-ND, not general ancestry. Doug's follow-up (comment 13,
    *"I'll check with Pascale on this…"*) is still unanswered, so settle scope before writing
-   code.
+   code. Note the example row also carries a `noctua-model-id` belonging to the neighbouring gene
+   `ZDB-GENE-060918-3` (crygm2d4), which is a separate question for GO.
 10. **The NOT qualifier is invisible to every diff** — **open defect in the reporting, nothing
    built.** `snapshot_mgte.sql` does not select `mrkrgoev_gflag_name`, so it is absent from the
    before/after snapshots and therefore from every workbook, per-org and `ALL` alike. Two
@@ -506,6 +521,21 @@ nothing), so the backfill can only ever fill rows that predate the column fallin
    Fixing it by adding the column to `KEY`/`ALL_KEY` in `mgte_csvdiff.sh` makes all figures
    incomparable to earlier runs, so it is not a free change; a targeted check against the two
    snapshots, reported alongside, is the cheaper route.
+
+## Why a falling row count is not the same as loss
+
+Two upstream behaviours shrink the row count without ZFIN losing a statement, and both will show
+up in the `ALL` workbook's totals:
+
+- **GO consolidates annotations.** Two rows differing only in their with/from contents — say, two
+  different InterPro domains — are merged upstream into one row carrying both. Two rows become
+  one; the statement is unchanged.
+- **A representation change re-keys a row**, so the incoming row counts as added and the stored
+  one as removed even though the same gene→GO assertion survives.
+
+Count `(gene, GO)` pairs or statements, not rows, and run `mgte_subsumption.sh` over the result —
+it is immune to both, since a merged pair is one pair before and after. The raw `deletes` sheet
+is not.
 
 ## The diff key, and why `protein_acc` is in neither list
 

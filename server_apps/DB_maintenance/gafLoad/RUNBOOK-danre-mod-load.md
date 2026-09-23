@@ -720,5 +720,18 @@ Re-measure rather than quoting these — they move with the input file.
 - Later, remove the kw2go code: the two handler registrations, `loadKeyword2Go()`, the gated
   download block, `UNIPROT_KW2GO_FILE_URL`, the `Add`/`RemoveSpKeywordTermToGo*` classes, and the
   Jenkins parameter.
-- `FP Inferences` is **not** covered by any of this — the purges do not touch it and the load does
-  not own it. It is ZFIN-10464 decision 7, still open (README decision 6's follow-up).
+- **`FP Inferences` is not covered by the flags.** The three scripts `RUN_CUTOVER_SCRIPTS` runs do
+  not touch that org and the unified load does not own it, so once
+  `Load-GAF-FP-Inference_m` is retired nothing refreshes or prunes its ~1,600 rows.
+
+  `cutover-purge-fp-inference.sql` clears them, and is **deliberately not wired into
+  `RUN_CUTOVER_SCRIPTS`** — run it by hand, after confirming the question in README decision 6.
+  The agreement to purge was reached on the understanding that these annotations arrive in the
+  new GO file; most do not, so it is not the like-for-like handover the `*2go` purge is, and
+  unlike that script it cannot refuse to run until a replacement exists.
+
+  > ⚠️ Scope it by **organization**, never by publication. These rows sit on `ZDB-PUB-110330-1`,
+  > which is also the publication the unified load's phylo annotations use — a pub-scoped delete
+  > would take out ~62k PAINT rows this cutover has just put in place.
+
+  Retire `Load-GAF-FP-Inference_m` at the same time, or its next run restores them.
