@@ -10,7 +10,7 @@
 -- ZFIN-10418 / ZFIN-10344. NOT a liquibase migration, deliberately -- same reasoning as
 -- cutover-purge-uniprot-2go.sql: a one-time cutover action that must not fire from a routine
 -- `gradle liquibasePostBuild`. The sibling Pfam/PROSITE cleanup IS a migration
--- (postGmakePostloaddb/1199/migrations/0010-ZFIN-10418-drop-pfam-prosite-dblinks.sql) because
+-- (postGmakePostloaddb/1186/migrations/0010-ZFIN-10418-drop-pfam-prosite-dblinks.sql) because
 -- those two families have no derived-annotation coupling and are safe at any time. EC is not.
 --
 --   psql -v ON_ERROR_STOP=1 -h $PGHOST -d $DBNAME -f cutover-purge-ec-dblinks.sql
