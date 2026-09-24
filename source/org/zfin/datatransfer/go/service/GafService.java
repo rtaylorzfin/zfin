@@ -208,6 +208,8 @@ public class GafService {
                 logger.debug("Validation error: " + gafValidationError.getMessage() + " for " + gafEntry);
                 if (!gafValidationError.getMessage().contains("GO_REF:0000043"))
                     gafJobData.addError(gafValidationError);
+                // Keep the row itself: findOutdatedEntries needs to know we failed to evaluate it.
+                gafJobData.addRejectedEntry(gafEntry);
             }
 
             ++count;
@@ -353,13 +355,15 @@ public class GafService {
     }
 
 
-    public void generateRemovedEntriesReport(GafJobData gafJobData, Collection<String> zdbIdsToDrop) {
+    public void generateRemovedEntriesReport(GafJobData gafJobData, Collection<String> zdbIdsToDrop,
+                                             GafOrganization gafOrganization) {
 
+        String owningOrganization = gafOrganization == null ? null : gafOrganization.getOrganization();
         if (CollectionUtils.isNotEmpty(zdbIdsToDrop)) {
             for (String zdbIdToDrop : zdbIdsToDrop) {
                 MarkerGoTermEvidence markerGoTermEvidence = markerGoTermEvidenceRepository.getMarkerGoTermEvidenceByZdbID(zdbIdToDrop);
 
-                gafJobData.addRemoved(markerGoTermEvidence);
+                gafJobData.addRemoved(markerGoTermEvidence, owningOrganization);
             }
         }
     }
@@ -400,7 +404,113 @@ public class GafService {
         Collection<String> zdbIdsOutdated = findOutdatedEntries(gafJobData, gafOrganization);
 
         if (zdbIdsOutdated != null)
-            generateRemovedEntriesReport(gafJobData, zdbIdsOutdated);
+            generateRemovedEntriesReport(gafJobData, zdbIdsOutdated, gafOrganization);
+    }
+
+    /**
+     * How many rows we failed to evaluate would have been owned by this organization.
+     *
+     * <p>findOutdatedEntries subtracts what the file produced from what the organization owns, so
+     * a row that threw during validation looks exactly like a row the file never mentioned -- and
+     * its database counterpart is deleted. That turns any parsing or lookup bug into silent data
+     * loss (ZFIN-10358: an unresolvable DOI removed the annotation a previous load had created).
+     *
+     * <p>A rejected row still carries its {@code assigned_by} and its raw reference string, which
+     * is all {@link DanreModSourceOrganization#resolve} needs, so rejections can be attributed to
+     * an owning organization even when the lookup that failed was the publication itself.</p>
+     */
+    public long countRejectedEntriesForOrganization(GafJobData gafJobData, GafOrganization gafOrganization) {
+        return rejectedEntriesForOrganization(gafJobData, gafOrganization).size();
+    }
+
+    public List<GafEntry> rejectedEntriesForOrganization(GafJobData gafJobData, GafOrganization gafOrganization) {
+        List<GafEntry> rejected = gafJobData.getRejectedEntries();
+        if (CollectionUtils.isEmpty(rejected)) {
+            return List.of();
+        }
+        if (!perSourceOrganization) {
+            // Single-org load: every rejected row belongs to the one organization being pruned.
+            return rejected;
+        }
+        GafOrganization.OrganizationEnum target =
+            GafOrganization.OrganizationEnum.getType(gafOrganization.getOrganization());
+        return rejected.stream()
+            .filter(entry -> DanreModSourceOrganization.resolve(entry.getCreatedBy(), entry.getPubmedId()) == target)
+            .collect(Collectors.toList());
+    }
+
+    /**
+     * The removals this organization's pass produced that a rejected row could account for,
+     * matched on (marker, GO term).
+     *
+     * <p>Matching ignores the evidence code: a row rejected because its ECO term had no mapping
+     * still carries the raw ECO id rather than a three-letter code, so keying on evidence would
+     * miss the rejections most likely to cause a spurious delete. Over-matching is the safe
+     * direction.
+     */
+    public Set<String> findRemovalKeysAttributableToRejections(GafJobData gafJobData,
+                                                               GafOrganization gafOrganization) {
+        return attributionKeys(rejectedEntriesForOrganization(gafJobData, gafOrganization));
+    }
+
+    /** Pure form of the above, free of any repository so it is testable without a database. */
+    public static Set<String> attributionKeys(Collection<GafEntry> rejectedEntries) {
+        Set<String> keys = new HashSet<>();
+        if (rejectedEntries == null) {
+            return keys;
+        }
+        for (GafEntry rejected : rejectedEntries) {
+            String marker = markerZdbIdOf(rejected);
+            if (marker == null || rejected.getGoTermId() == null) {
+                // A rejection that never resolved a gene cannot be tied to a particular removal.
+                continue;
+            }
+            keys.add(attributionKey(marker, rejected.getGoTermId()));
+        }
+        return keys;
+    }
+
+    /**
+     * The removals belonging to {@code owningOrganization} that one of {@code suspectKeys} covers.
+     *
+     * <p>Organization membership comes from the tag the removal pass set on the entry, never from
+     * {@code organizationCreatedBy} -- that column carries the GPAD {@code assigned_by} value,
+     * which shares no namespace with the organization names this load prunes.
+     */
+    public static List<GafJobEntry> removalsAttributableTo(Collection<GafJobEntry> removals,
+                                                           String owningOrganization,
+                                                           Set<String> suspectKeys) {
+        if (removals == null || suspectKeys == null || suspectKeys.isEmpty()) {
+            return List.of();
+        }
+        return removals.stream()
+            .filter(entry -> owningOrganization != null
+                          && owningOrganization.equals(entry.getOwningOrganization()))
+            .filter(entry -> entry.getMarkerZdbID() != null && entry.getGoTermID() != null)
+            .filter(entry -> suspectKeys.contains(
+                attributionKey(entry.getMarkerZdbID(), entry.getGoTermID())))
+            .collect(Collectors.toList());
+    }
+
+    /**
+     * The gene a raw file row refers to, as a ZDB id, or null when it does not carry one. GPAD
+     * entity ids are prefixed ("ZFIN:ZDB-GENE-..."); a GAF-path UniProtKB accession yields null.
+     */
+    private static String markerZdbIdOf(GafEntry gafEntry) {
+        String entryId = gafEntry.getEntryId();
+        if (entryId == null) {
+            return null;
+        }
+        String bare = entryId.startsWith("ZFIN:") ? entryId.substring("ZFIN:".length()) : entryId;
+        return bare.startsWith("ZDB-") ? bare : null;
+    }
+
+    public static String attributionKey(String markerZdbID, String goTermID) {
+        return markerZdbID + "|" + goTermID;
+    }
+
+    public int countEvidencesForOrganization(GafOrganization gafOrganization) {
+        return markerGoTermEvidenceRepository.getEvidencesForGafOrganization(gafOrganization).size();
     }
 
     public void removeEntries(GafJobData gafJobData) {
@@ -481,7 +591,7 @@ public class GafService {
          */
 
         for (MarkerGoTermEvidence existingMarkerGoTermEvidence : existingEvidenceList) {
-            if (isMoreSpecificAnnotation(existingMarkerGoTermEvidence, markerGoTermEvidenceToAdd)) {
+            if (isSameAnnotation(existingMarkerGoTermEvidence, markerGoTermEvidenceToAdd)) {
                 throw new GafAnnotationExistsError(gafEntry, existingMarkerGoTermEvidence);
             }
         }
@@ -871,11 +981,23 @@ public class GafService {
         return null;
     }
 
-    protected boolean isMoreSpecificAnnotation(MarkerGoTermEvidence existingMarkerGoTermEvidence, MarkerGoTermEvidence markerGoTermEvidenceToAdd)
-        throws GafValidationError {
-
-        return existingMarkerGoTermEvidence.isSameButGo(markerGoTermEvidenceToAdd) &&
-            ontologyRepository.isParentChildRelationshipExist(markerGoTermEvidenceToAdd.getGoTerm(), existingMarkerGoTermEvidence.getGoTerm());
+    /**
+     * Is this annotation already stored?
+     *
+     * <p>Descendant filtering was removed deliberately (ZFIN-10518): ZFIN is a consumer of GO
+     * annotations, including its own Noctua curation, so the incoming file is authoritative about
+     * which terms a gene carries. What remains is a plain identity test, and it has to stay --
+     * the old ancestry check doubled as exact-match detection, because all_term_contains holds
+     * distance-0 self pairs. Without an explicit same-term comparison the load would re-add every
+     * annotation it already has.
+     *
+     * <p>This applies to every GO load, not only the GPAD one: they all reach this method through
+     * GafLoadJob.
+     */
+    protected boolean isSameAnnotation(MarkerGoTermEvidence existingMarkerGoTermEvidence, MarkerGoTermEvidence markerGoTermEvidenceToAdd) {
+        return existingMarkerGoTermEvidence.isSameButGo(markerGoTermEvidenceToAdd)
+            && existingMarkerGoTermEvidence.getGoTerm().getZdbID()
+                   .equals(markerGoTermEvidenceToAdd.getGoTerm().getZdbID());
     }
 
     public void addAnnotation(MarkerGoTermEvidence markerGoTermEvidenceToAdd, GafJobData gafJobData, boolean isInternalLoad)

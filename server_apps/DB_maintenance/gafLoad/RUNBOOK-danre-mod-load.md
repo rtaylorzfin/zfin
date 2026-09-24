@@ -162,10 +162,9 @@ select count(*) groups from marker_go_term_annotation_extension_group;"
 
 Expect a count in the **low thousands**; a **six-figure** one means `0040` has not run. (The
 exact number depends on how many annotations the DB holds — a post-load DB measured 1,053 — so
-read the order of magnitude, not the digits.) The pre-fix load doubled every annotation's
-extension groups on each pass (README finding 9), reaching 328,727 on this baseline, and a DB
-carrying that backlog produces a `_details.txt` in which a single annotation's extensions run to
-thousands of lines.
+read the order of magnitude, not the digits.) Before migration `0040` the load doubled every annotation's extension
+groups on each pass, and a DB carrying that backlog produces a `_details.txt` in which a single
+annotation's extensions run to thousands of lines.
 
 ---
 
@@ -237,7 +236,7 @@ config edit:
 | `RUN_MGTE_CLEANUP` | `true` | run the dedupe before the AFTER snapshot |
 | `MGTE_CLEANUP_CSVS` | `true` | keep the cleanup's CSVs in `<jobName>-dbdiff` |
 
-⚠️ **The job ships DISABLED** (it is half of the cutover switch — see README open decision 3).
+⚠️ **The job ships DISABLED** (it is half of the cutover switch — see README open decision 2).
 For a QC run, enable it, run it, and disable it again; do not leave it enabled, and do not treat
 enabling it as the cutover.
 
@@ -359,9 +358,7 @@ updates with `org` as the only changed column.
 > `FileUtils.deleteDirectory()` on `<baseDir>/<jobName>`. A BEFORE snapshot written there is gone
 > before the load even downloads, and the diff step then dies with
 > `mgte_before_GOA.csv (No such file or directory)`. Use any other directory — `mydiff` above, or
-> the `<jobName>-dbdiff` convention the Jenkins jobs now use. This bit all three Jenkins jobs
-> (fixed 2026-08-10); the manual runs in the reports escaped it only because they happened to use
-> a separate directory.
+> the `<jobName>-dbdiff` convention the Jenkins jobs use.
 
 **Diff:**
 
@@ -382,13 +379,54 @@ changes only `org`, and the `*2go` handover changes `org` **and** `created_by`
 statement* turns both into updates, so its `deletes` sheet is the number that actually matters at
 cutover: statements ZFIN no longer asserts from any source.
 
-> **The key and ignore lists live in `mgte_csvdiff.sh`, once** — they used to be duplicated
-> verbatim in all three GO job configs and could drift apart silently. Key = every identity
-> column; ignore = `zdb_id` (so a recycled id counts as unchanged rather than delete+add) plus
-> the five derived readable columns, which ride along for eyeballing the sheets. Changing either
-> list makes the numbers incomparable to the 2026-07-07 and 2026-08-07 reports, so change it
-> knowingly. Note `protein_acc` is in neither list: it is compared but not matched on, so a
-> UniProt isoform reassignment surfaces as an update rather than as a delete+add pair.
+> **The key and ignore lists live in `mgte_csvdiff.sh`, once** — keep them there rather than in
+> the job configs, where they drift apart silently. Key = every identity column; ignore =
+> `zdb_id` (so a recycled id counts as unchanged rather than delete+add) plus the five derived
+> readable columns, which ride along for eyeballing the sheets. Changing either list makes the
+> numbers incomparable to earlier runs, so change it knowingly. Note `protein_acc` is in neither
+> list: it is compared but not matched on, so a UniProt isoform reassignment surfaces as an
+> update rather than as a delete+add pair.
+
+**Subsumption:**
+
+```bash
+$SOURCEROOT/server_apps/DB_maintenance/gafLoad/mgte_subsumption.sh \
+  $TARGETROOT/server_apps/DB_maintenance/gafLoad/mydiff
+```
+
+Yields `mgte_subsumption.xlsx` (sheets: `true_loss` / `subsumed` / `specificity_lost`). Run it
+**after** `mgte_csvdiff.sh`; the Jenkins job already does.
+
+The diff tells you a `(gene, GO)` pair disappeared. It cannot tell you whether ZFIN still covers
+that statement by another term on the same gene, because it is a key-based set difference with no
+ontology awareness — and the load's own report only counts flat lists of rows it acted on. So the
+`deletes` sheet overstates loss, by a factor of about two in practice. This splits it:
+
+| bucket | meaning |
+|---|---|
+| `subsumed` | the gene retains a **strict descendant** of the lost term — the statement still holds, more precisely. Not a loss |
+| `specificity_lost` | the gene retains only a **strict ancestor** — ZFIN still asserts something, less precisely. Partial loss |
+| `true_loss` | nothing in that lineage survives on that gene |
+
+Pairs reproduced under a different org or source never reach it: at `ALL_KEY` they were never
+lost. So the three buckets partition the `deletes` figure exactly.
+
+It needs the **`--all`** snapshot pair specifically. A pair that merely changed organization is
+not lost, and only the ALL view can see that; pointing this at per-org snapshots would count the
+phylo re-home as tens of thousands of losses.
+
+> ⚠️ **The closure is built from `term_relationship`, deliberately not `all_term_contains`.**
+> The latter is prebuilt and ~6.7M rows, which makes it the obvious thing to reach for, and it is
+> wrong here: it also encodes `regulates` and `positively regulates`. Treating "positive
+> regulation of angiogenesis" as covering "angiogenesis" would score real losses as subsumed and
+> make a cutover look cheaper than it is. Only `is_a` and `part of` are transitive in the sense
+> this question needs. Edge direction is `term_1` = parent, `term_2` = child (verified on
+> `GO:0016301 kinase activity` → `GO:0004672 protein kinase activity`).
+
+Every path inside `mgte_subsumption.sql` is relative and the wrapper `cd`s into the diff
+directory, because `\copy` is a client-side meta-command that does **not** interpolate psql
+variables — `-v outdir=...` plus `\copy … :'outdir'/x.csv` silently resolves to a file named
+`:`. Verified, not assumed.
 
 ---
 
@@ -492,8 +530,8 @@ Per-org: GOA 109,656 → **174,878**, Noctua 36,025 → **31,446**, FP Inference
 unchanged. Annotation-extension groups should stay in the low thousands rather than doubling.
 
 > `added` and `errors` are the measured run adjusted by the 105 `EXP` rows that migration `0030`
-> turned from errors into adds (README finding 7a); the per-org GOA figure is confirmed directly
-> against a post-load database.
+> turned from errors into adds; the per-org GOA figure is confirmed directly against a post-load
+> database.
 
 Errors are dominated by 187,923 `Duplicate annotation entry` — an artifact of the file's own row
 duplication, not of the load (README finding 8). `README-danre-mod-consolidation.md` interprets
@@ -529,7 +567,7 @@ LOAD_INTERPRO2GO_EC2GO=false <the Jenkins job's normal invocation>
 The two are separate flags because they are separate decisions. InterPro2GO/EC2GO have a
 successor in `DANRE-mod` (README finding 2); kw2go does not — GO retired `GO_REF:0000004`, so
 turning `LOAD_KW2GO` off loses ~28k annotations outright. That one is still an open decision
-(README open decision 4); do not flip it as a pair with the other.
+(README open decision 3); do not flip it as a pair with the other.
 
 ---
 
@@ -581,3 +619,119 @@ $CLI get-job Load-GPAD-GO-Central_m | grep cleanupCsvDir
 Do **not** try to reload over plain HTTP. `curl -X POST .../jobs/reload` returns
 **403 "No valid crumb"**, and fetching a crumb first returns 403 as well, because `useSecurity`
 is on and `/jobs/crumbIssuer` itself requires authentication. The CLI handles both.
+
+---
+
+## 13. The cutover itself
+
+**One parameterised run of `Load-GPAD-GO-Central_m` is the cutover.** Its flags sequence the
+whole thing. Do not run the purge scripts by hand: they have an ordering constraint the flags
+already satisfy, and the before/after snapshot window only spans the data changes if they happen
+inside the run.
+
+### Before the window (code and config, deployable in advance)
+
+1. `UniProt-Secondary-Term-Load/config.xml` — set `<defaultValue>false</defaultValue>` for
+   `LOAD_INTERPRO2GO_EC2GO`, and for `LOAD_KW2GO` **only if kw2go is being retired**
+   (README open decision 3). See §11.
+2. `Load-GPAD-GO-Central_m/config.xml` — `<disabled>false</disabled>`.
+3. `ant deploy-jobs`, then reload — see §12, and **never while a build is running**.
+
+Enabling the job and flipping the secondary load's flags must land together. Job-only duplicates
+the content across two organizations; flags-only drops it with nothing supplying it.
+
+### The window — one job run
+
+Run `Load-GPAD-GO-Central_m` with:
+
+| parameter | value |
+|---|---|
+| `GAF_LOAD_REPORT_ONLY` | `false` |
+| `RUN_CUTOVER_SCRIPTS` | `true` |
+| `RUN_KW2GO_PURGE` | `true` **only if deleting kw2go** (decision 3) |
+| `RUN_MGTE_CLEANUP` | `true` |
+
+That single run executes, in order:
+
+    BEFORE snapshot (--others --all)
+      -> load
+      -> cutover-rehome-phylo-to-paint.sql
+      -> cutover-purge-uniprot-2go.sql
+      -> cutover-purge-uniprot-kw2go.sql        (RUN_KW2GO_PURGE only)
+      -> dedup cleanup
+      -> AFTER snapshot -> csvdiff -> subsumption workbook
+
+Three things that are easy to get wrong:
+
+> ⚠️ **`RUN_KW2GO_PURGE` requires `RUN_CUTOVER_SCRIPTS`.** The kw2go purge runs inside the
+> cutover step, so on its own the flag would do nothing. The job now **fails the build (exit 1,
+> FAILURE)** on that combination rather than no-opping — the gap between "kw2go was deleted" and
+> "kw2go was not" is 41,027 rows and an open decision, and a silent no-op would leave the
+> operator believing it happened.
+
+> ⚠️ **`RUN_CUTOVER_SCRIPTS` runs three scripts, not two.** The phylo re-home is easy to forget
+> and is not optional: without it phylo ends up split across GOA and PAINT, surviving only
+> because matching is org-agnostic (README decision 6).
+
+> ⚠️ **The job will finish UNSTABLE, and that is normal rather than exceptional.** Exit code 2
+> means "completed with errors", and `<unstableReturn>2</unstableReturn>` maps it to UNSTABLE
+> rather than FAILURE; exit 1 (the load threw, transaction rolled back) is FAILURE. A *single*
+> rejected row sets it, and a first run against a legacy database produced 193,717 errors, so
+> "run to completion" can never mean "green build" — read the summary, not the exit code. Any
+> wrapper using `set -e` stops here, **before** the cutover scripts.
+>
+> Exit 2 has two independent causes and they mean different things: parser rejections, and the
+> removal-safety guard. The guard now withholds the removals it can attribute to a rejected row
+> (matched on marker + GO term) and applies the rest, so at a first cutover **expect it to
+> withhold** — set `GAF_ALLOW_LARGE_REMOVAL=true` to apply them anyway. That override
+> deliberately still yields UNSTABLE: forcing a prune is a reason to read the diff, not to go
+> green.
+
+### Verify
+
+```sql
+-- kw2go gone (only if RUN_KW2GO_PURGE was set)
+select count(*) from marker_go_term_evidence where mrkrgoev_source_zdb_id = 'ZDB-PUB-020723-1';   -- 0
+
+-- UniProt org emptied by the two purges
+select count(*) from marker_go_term_evidence e
+  join marker_go_term_evidence_annotation_organization o on o.mrkrgoevas_pk_id = e.mrkrgoev_annotation_organization
+ where o.mrkrgoevas_annotation_organization = 'UniProt';                                          -- 0
+
+-- phylo fully re-homed: GOA 0, PAINT ~62k, FP Inferences untouched at 1,623
+select o.mrkrgoevas_annotation_organization, count(*) from marker_go_term_evidence e
+  join marker_go_term_evidence_annotation_organization o on o.mrkrgoevas_pk_id = e.mrkrgoev_annotation_organization
+ group by 1 order by 2 desc;
+```
+
+Then read `mgte_subsumption.xlsx` (§6) — the `true_loss` sheet is the number to sign off, not the
+`deletes` sheet, which overstates by roughly 2×.
+
+For scale, from a full rehearsal against a pre-cutover baseline: ~31,800 pairs lost, of which
+roughly half are subsumed and **~15,900 are true loss**, kw2go accounting for ~9,900 of that.
+Re-measure rather than quoting these — they move with the input file.
+
+### After the window
+
+- Schedule the new job; unschedule `Load-GAF-GOA_m`, `Load-GPAD-Noctua_w`,
+  `Load-GAF-FP-Inference_m`, `Load-GPAD-Noctua-Daily-Trigger_d`.
+- Email notifications in `email-configuration.production.properties`.
+- Keep the old jobs for a while — their build history is the only record of the legacy loads.
+- Later, remove the kw2go code: the two handler registrations, `loadKeyword2Go()`, the gated
+  download block, `UNIPROT_KW2GO_FILE_URL`, the `Add`/`RemoveSpKeywordTermToGo*` classes, and the
+  Jenkins parameter.
+- **`FP Inferences` is not covered by the flags.** The three scripts `RUN_CUTOVER_SCRIPTS` runs do
+  not touch that org and the unified load does not own it, so once
+  `Load-GAF-FP-Inference_m` is retired nothing refreshes or prunes its ~1,600 rows.
+
+  `cutover-purge-fp-inference.sql` clears them, and is **deliberately not wired into
+  `RUN_CUTOVER_SCRIPTS`** — run it by hand, after confirming the question in README decision 6.
+  The agreement to purge was reached on the understanding that these annotations arrive in the
+  new GO file; most do not, so it is not the like-for-like handover the `*2go` purge is, and
+  unlike that script it cannot refuse to run until a replacement exists.
+
+  > ⚠️ Scope it by **organization**, never by publication. These rows sit on `ZDB-PUB-110330-1`,
+  > which is also the publication the unified load's phylo annotations use — a pub-scoped delete
+  > would take out ~62k PAINT rows this cutover has just put in place.
+
+  Retire `Load-GAF-FP-Inference_m` at the same time, or its next run restores them.
