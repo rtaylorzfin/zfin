@@ -120,6 +120,7 @@ before starting work in that area:
 | [gradle-deployment.md](reference/gradle-deployment.md) | Gradle task → file-flow schematics (SOURCEROOT → TARGETROOT) |
 | [table-regeneration.md](reference/table-regeneration.md) | Rename-and-recreate pattern for regenerating denormalized/generated tables without deadlocks |
 | [solr-reindex.md](reference/solr-reindex.md) | Solr `site_index` reindex pipeline (DIH + Java indexer steps) |
+| [compare-database-loads.md](reference/compare-database-loads.md) | Whole-DB table snapshot/compare tooling: capture every table's row count + content hash, diff two captures to see what changed |
 | [load-gaf-goa.md](reference/load-gaf-goa.md) | Monthly Load-GAF-GOA job that syncs GO annotations from EBI GOA |
 | [react-18-upgrade.md](reference/react-18-upgrade.md) | React 16 → 18 upgrade notes |
 | [zirc-reading-guide.md](reference/zirc-reading-guide.md) | Curated entry point into the ZIRC line-submission codebase; links to the other `zirc-*` architecture/design docs |
