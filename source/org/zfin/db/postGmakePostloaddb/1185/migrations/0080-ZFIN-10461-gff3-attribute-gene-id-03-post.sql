@@ -36,7 +36,6 @@ WHERE g.gff_start = s.gstart AND g.gff_end = s.gend
   AND a.gna_gff_pk_id = g.gff_pk_id
   AND a.gna_key = 'gene_id'
   AND a.gna_value = s.old_zdb;
---rollback UPDATE gff3_ncbi_attribute a SET gna_value = s.old_zdb FROM gff3_ncbi g, stg_gff3_gene_id_changed s WHERE g.gff_start = s.gstart AND g.gff_end = s.gend AND substring(g.gff_attributes from 'ID=([^;]+)') = s.gid AND a.gna_gff_pk_id = g.gff_pk_id AND a.gna_key = 'gene_id' AND a.gna_value = s.new_zdb;
 
 --changeset rtaylor:ZFIN-10461-gff3-attribute-gene-id-removed
 DELETE FROM gff3_ncbi_attribute a
@@ -46,7 +45,6 @@ WHERE g.gff_start = s.gstart AND g.gff_end = s.gend
   AND a.gna_gff_pk_id = g.gff_pk_id
   AND a.gna_key = 'gene_id'
   AND a.gna_value = s.old_zdb;
---rollback INSERT INTO gff3_ncbi_attribute (gna_pk_id, gna_gff_pk_id, gna_key, gna_value) SELECT nextval('gff3_ncbi_attribute_seq'), g.gff_pk_id, 'gene_id', s.old_zdb FROM gff3_ncbi g, stg_gff3_gene_id_removed s WHERE g.gff_start = s.gstart AND g.gff_end = s.gend AND substring(g.gff_attributes from 'ID=([^;]+)') = s.gid;
 
 --changeset rtaylor:ZFIN-10461-gff3-attribute-gene-id-added
 INSERT INTO gff3_ncbi_attribute (gna_pk_id, gna_gff_pk_id, gna_key, gna_value)
@@ -54,7 +52,6 @@ SELECT nextval('gff3_ncbi_attribute_seq'), g.gff_pk_id, 'gene_id', s.new_zdb
 FROM gff3_ncbi g, stg_gff3_gene_id_added s
 WHERE g.gff_start = s.gstart AND g.gff_end = s.gend
   AND substring(g.gff_attributes from 'ID=([^;]+)') = s.gid;
---rollback DELETE FROM gff3_ncbi_attribute a USING gff3_ncbi g, stg_gff3_gene_id_added s WHERE g.gff_start = s.gstart AND g.gff_end = s.gend AND substring(g.gff_attributes from 'ID=([^;]+)') = s.gid AND a.gna_gff_pk_id = g.gff_pk_id AND a.gna_key = 'gene_id' AND a.gna_value = s.new_zdb;
 
 -- A handful of features already carried two gene_id rows before this migration (a pre-existing
 -- data-quality issue, not something the three changesets above introduce): the "changed" update
@@ -70,10 +67,6 @@ WHERE gna_pk_id IN (
         FROM gff3_ncbi_attribute WHERE gna_key = 'gene_id'
     ) ranked WHERE rn > 1
 );
---rollback empty -- removes rows already identical to one that is kept; which gna_pk_id was removed is not recoverable
 
--- The staging tables are not dropped here. Liquibase rolls back changesets in reverse order, so
--- a drop-with-recreate-on-rollback step would run its rollback *before* the three changesets
--- above roll back -- and those rollbacks match against this staged data to know what to undo.
--- Recreating the tables empty would make that silently a no-op. Left in place, they double as a
--- small permanent record of exactly what this migration changed.
+--changeset rtaylor:ZFIN-10461-gff3-attribute-gene-id-cleanup
+DROP TABLE IF EXISTS stg_gff3_gene_id_changed, stg_gff3_gene_id_removed, stg_gff3_gene_id_added;

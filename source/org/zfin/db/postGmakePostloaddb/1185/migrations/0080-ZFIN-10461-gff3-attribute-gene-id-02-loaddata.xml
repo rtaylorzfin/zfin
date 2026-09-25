@@ -14,9 +14,6 @@
             <column header="old_zdb" name="old_zdb" type="String"/>
             <column header="new_zdb" name="new_zdb" type="String"/>
         </loadData>
-        <rollback>
-            <sql>DELETE FROM stg_gff3_gene_id_changed</sql>
-        </rollback>
     </changeSet>
 
     <changeSet author="rtaylor" id="ZFIN-10461-gff3-attribute-gene-id-load-removed">
@@ -27,9 +24,6 @@
             <column header="gend" name="gend" type="NUMERIC"/>
             <column header="old_zdb" name="old_zdb" type="String"/>
         </loadData>
-        <rollback>
-            <sql>DELETE FROM stg_gff3_gene_id_removed</sql>
-        </rollback>
     </changeSet>
 
     <changeSet author="rtaylor" id="ZFIN-10461-gff3-attribute-gene-id-load-added">
@@ -40,8 +34,5 @@
             <column header="gend" name="gend" type="NUMERIC"/>
             <column header="new_zdb" name="new_zdb" type="String"/>
         </loadData>
-        <rollback>
-            <sql>DELETE FROM stg_gff3_gene_id_added</sql>
-        </rollback>
     </changeSet>
 </databaseChangeLog>

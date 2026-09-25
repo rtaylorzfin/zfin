@@ -41,10 +41,6 @@ VALUES
     ('14', 'ZDB-GENE-141215-46', '141377552', 37931552, 37938823, 'NCBILoader', 'GRCz12tu'),
     ('1', 'ZDB-GENE-260310-7', '101885706', 60972433, 60978721, 'NCBILoader', 'GRCz12tu')
 ON CONFLICT ON CONSTRAINT uq_sfclg_unique_location DO NOTHING;
--- Rollback matches the full tuple, not just gene/source/assembly: each of these
--- genes has another NCBILoader/GRCz12tu row already (a different accession and
--- coordinates), which a coarser match would delete too.
---rollback DELETE FROM sequence_feature_chromosome_location_generated WHERE (sfclg_data_zdb_id, sfclg_acc_num, sfclg_start, sfclg_end, sfclg_location_source, sfclg_assembly) IN (('ZDB-GENE-001106-5', '137487204', 17542766, 17545495, 'NCBILoader', 'GRCz12tu'), ('ZDB-GENE-030131-2002', '141381820', 55138308, 55146459, 'NCBILoader', 'GRCz12tu'), ('ZDB-GENE-040718-452', '562636', 25908834, 25921057, 'NCBILoader', 'GRCz12tu'), ('ZDB-GENE-041118-14', '137487556', 2789520, 2793747, 'NCBILoader', 'GRCz12tu'), ('ZDB-GENE-050306-35', '101884644', 5888457, 5922712, 'NCBILoader', 'GRCz12tu'), ('ZDB-GENE-061106-4', '101883788', 3548941, 3563612, 'NCBILoader', 'GRCz12tu'), ('ZDB-GENE-070720-19', '141385605', 26008244, 26011301, 'NCBILoader', 'GRCz12tu'), ('ZDB-GENE-071004-9', '100334800', 62234180, 62235671, 'NCBILoader', 'GRCz12tu'), ('ZDB-GENE-071004-94', '100537853', 57736007, 57747250, 'NCBILoader', 'GRCz12tu'), ('ZDB-GENE-080225-10', '137496355', 26443407, 26470994, 'NCBILoader', 'GRCz12tu'), ('ZDB-GENE-081031-87', '110437819', 2991706, 2993926, 'NCBILoader', 'GRCz12tu'), ('ZDB-GENE-081104-135', '402845', 4175208, 4251494, 'NCBILoader', 'GRCz12tu'), ('ZDB-GENE-081104-348', '101887017', 30235766, 30243443, 'NCBILoader', 'GRCz12tu'), ('ZDB-GENE-131127-97', '101884073', 12834427, 12902071, 'NCBILoader', 'GRCz12tu'), ('ZDB-GENE-141215-46', '141377552', 37931552, 37938823, 'NCBILoader', 'GRCz12tu'), ('ZDB-GENE-260310-7', '101885706', 60972433, 60978721, 'NCBILoader', 'GRCz12tu'));
 
 -- Same 16 genes, each already had a marker_annotation_status row (one per
 -- gene, unique_marker_annotation_status). NCBIGff3Processor keys its existing-
@@ -67,4 +63,3 @@ WHERE mas_mrkr_zdb_id IN ('ZDB-GENE-001106-5', 'ZDB-GENE-030131-2002', 'ZDB-GENE
                           'ZDB-GENE-080225-10', 'ZDB-GENE-081031-87', 'ZDB-GENE-081104-135',
                           'ZDB-GENE-081104-348', 'ZDB-GENE-131127-97', 'ZDB-GENE-141215-46',
                           'ZDB-GENE-260310-7');
---rollback UPDATE marker_annotation_status SET mas_vt_pk_id = (SELECT vt.vt_id FROM vocabulary_term vt JOIN vocabulary v ON v.v_id = vt.vt_v_id WHERE v.v_name = 'annotation status' AND vt.vt_name = 'Not in current annotation release') WHERE mas_mrkr_zdb_id IN ('ZDB-GENE-001106-5', 'ZDB-GENE-030131-2002', 'ZDB-GENE-040718-452', 'ZDB-GENE-041118-14', 'ZDB-GENE-050306-35', 'ZDB-GENE-061106-4', 'ZDB-GENE-070720-19', 'ZDB-GENE-071004-9', 'ZDB-GENE-071004-94', 'ZDB-GENE-080225-10', 'ZDB-GENE-081031-87', 'ZDB-GENE-081104-135', 'ZDB-GENE-081104-348', 'ZDB-GENE-131127-97', 'ZDB-GENE-141215-46', 'ZDB-GENE-260310-7');
