@@ -220,7 +220,7 @@
     </target>
 
     <target name="instrument" depends="compile">
-     <taskdef name="instrument" classname="org.hibernate.tool.instrument.javassist.InstrumentTask">
+        <taskdef name="instrument" classname="org.hibernate.tool.instrument.javassist.InstrumentTask">
             <classpath refid="extended.classpath"/>
             <classpath path="${classbin.dir}"/>
         </taskdef>
