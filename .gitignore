@@ -54,6 +54,7 @@ out/
 .env
 .env.local
 .env.development
+.zenv/
 .env.test
 .env.production
 
@@ -78,7 +79,6 @@ temp-ai-*
 .trae
 .vscode
 .windsurf
-CLAUDE.md
 
 # Ontology serialization caches written during test runs.
 # Tests prime them lazily via AbstractOntologyTest.deserializeOrPrime(...).
@@ -92,3 +92,10 @@ test/ontologies/data-transfer/*.ser
 *api-token*
 *.token
 **/tokens/*.txt
+
+# Feature-stack tooling: nothing large lands in the repo any more. `z seed create` writes
+# its tarballs to $ZFIN_ARCHIVE_DIR/seeds/, outside the checkout entirely -- these entries
+# are kept only so a tree that predates that change stays clean.
+docker/postgresql/pgdata.tgz
+docker/solr/solrvar.tgz
+docker/preloaded-app/

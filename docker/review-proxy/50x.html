@@ -1,0 +1,66 @@
+<!doctype html>
+<!--
+  Served by the review proxy for any hostname in the zone that no running stack claims.
+
+  nginx-proxy's generated fallback server picks this up automatically when it exists at
+  /usr/share/nginx/html/errors/50x.html, and ONLY there -- real vhosts get no error_page
+  directive, so a routed stack's genuine 502 still shows its own error, not this.
+
+  Deliberately static and self-contained: no JavaScript, no fetch, no external resources, no
+  Docker socket. It replaced a page that read a generated stacks.json to render live status,
+  which was wrong whenever a stack was started or stopped by anything other than the feature
+  lifecycle commands -- `z up` and `z stop` never refreshed it. A page that does not claim to
+  know the current state cannot be stale about it, and anyone who needs the state has `z`.
+-->
+<html lang="en">
+<head>
+<meta charset="utf-8">
+<meta name="viewport" content="width=device-width, initial-scale=1">
+<title>ZFIN review stacks</title>
+<style>
+  :root { color-scheme: light dark; }
+  body { margin: 0; padding: 3rem 1.25rem; font: 15px/1.6 -apple-system, BlinkMacSystemFont,
+         "Segoe UI", Roboto, Helvetica, Arial, sans-serif; background: #f7f7f8; color: #1d1d1f; }
+  main { max-width: 42rem; margin: 0 auto; }
+  h1 { font-size: 1.5rem; margin: 0 0 .25rem; }
+  .sub { color: #6b6b70; margin: 0 0 2rem; }
+  h2 { font-size: .95rem; text-transform: uppercase; letter-spacing: .04em; color: #6b6b70;
+       margin: 2rem 0 .5rem; }
+  pre { background: #ffffff; border: 1px solid #e3e3e6; border-radius: 6px; padding: .9rem 1rem;
+        overflow-x: auto; margin: 0 0 .75rem; }
+  code { font-family: ui-monospace, SFMono-Regular, Menlo, Consolas, monospace; font-size: .86em; }
+  p { margin: 0 0 .75rem; }
+  .note { color: #6b6b70; font-size: .9em; }
+  @media (prefers-color-scheme: dark) {
+    body { background: #161618; color: #ebebf0; }
+    .sub, h2, .note { color: #9a9aa2; }
+    pre { background: #1e1e21; border-color: #33333a; }
+  }
+</style>
+</head>
+<body>
+<main>
+  <h1>No stack is serving this name</h1>
+  <p class="sub">This host runs ZFIN feature stacks, one per ticket, each at its own URL.</p>
+
+  <p>The stack you asked for does not exist here, is not running, or has been frozen. If
+  someone sent you this link, ask them to bring it back up &mdash; it takes a couple of
+  minutes.</p>
+
+  <h2>If you have the tooling</h2>
+  <pre><code>./z feature ls                 # every stack on this host, and its state
+./z review status              # the proxy, its allowlist, and what it routes</code></pre>
+
+  <h2>To bring one back, or create it</h2>
+  <pre><code>./z feature thaw &lt;ticket&gt;      # restore a frozen stack
+./z feature new &lt;ticket&gt; --up  # provision a new one from a seed</code></pre>
+
+  <h2>If a stack should be here but isn't reachable</h2>
+  <pre><code>docker ps --filter name=&lt;ticket&gt;
+./z review status              # is its hostname listed under routed vhosts?</code></pre>
+
+  <p class="note">A stack joins the proxy when it is created; routing is not retrofittable to
+  a stack made before it. See <code>reference/dev-stacks.md</code>.</p>
+</main>
+</body>
+</html>
