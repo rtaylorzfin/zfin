@@ -55,9 +55,6 @@ Named volumes are managed by Docker. Bind mounts (prefixed with `$DOCKER_*`) are
 | `$DOCKER_BLASTSERVER_BLAST_DATABASE_PATH` | `/opt/zfin/blastdb` | compile, tomcat, tomcatdebug, blast, jenkins |
 | `$DOCKER_ABBLAST_PATH` | `/opt/ab-blast` | compile, tomcat, tomcatdebug, blast, jenkins |
 | `$DOCKER_HHATLAS_PATH` | `/opt/zfin/hh_atlas` | httpd |
-| `$DOCKER_SSH_AUTH_SOCK` | `/run/host-services/ssh-auth.sock` | compile |
-| `/var/run/docker.sock` | `/var/run/docker.sock` | compile |
-| `~/.ssh/known_hosts` | `/home/gradle/.ssh/known_hosts` | compile |
 
 ### Service Environment Variables (from `.env`)
 
@@ -137,8 +134,8 @@ three; gradle deployment tasks rely on `TARGETROOT` and `CATALINA_BASE`.
 patterns:
 
 ```bash
-# Preferred: the zrun helper in ~/bin (defaults to the compile service, always bash -l).
-zrun -c "npm run compile && gradle dirtycopy"
+# Preferred: ./z run from a checkout or worktree (defaults to the compile service, always bash -l).
+./z run -c "npm run compile && gradle dirtycopy"
 
 # Equivalent raw docker compose invocation:
 docker compose --profile compile run --rm --entrypoint bash compile \
@@ -150,7 +147,7 @@ entirely and the build will fail with errors like `EnvironmentPlugin - NODE_ENV 
 variable is undefined`. Pass `-e VAR=value` only as a last resort — prefer fixing the shell
 invocation.
 
-For one-off interactive work, `zrun` with no args drops you into a login shell at
+For one-off interactive work, `./z run` with no args drops you into a login shell at
 `/opt/zfin/source_roots/zfin.org`.
 
 ## Key Deployment Steps (Simplified)
