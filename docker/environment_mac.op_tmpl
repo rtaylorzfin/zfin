@@ -9,7 +9,9 @@ DOCKER_RESEARCH_PATH=~/development/research
 DOCKER_DOWNLOADS_PATH=~/development/download-files
 DOCKER_LOADUP_PATH=~/development/loadUp
 DOCKER_HHATLAS_PATH=~/development/hh_atlas
-DOCKER_SOURCE_ROOTS_PATH="../"
+# ABSOLUTE path of this checkout. It is also mounted at that same path inside containers
+# (git, for the claude sidecar), and a mount target cannot be relative or start with ~.
+DOCKER_SOURCE_ROOTS_PATH=/Users/CHANGEME/zfin-dev/coral
 DOCKER_VIRTUAL_HOST=zfin.org
 COMPOSE_PROJECT_NAME=zfin_org
 DOCKER_INSTANCE=dazed
@@ -26,3 +28,11 @@ OPENIDC_CLIENTSECRET="op://Common/OPENIDC_CLIENTSECRET/password"
 DOCKER_GFF3_PATH=~/development/gff3
 DOCKER_HTTPD_HTTP_PORT=8080-8089
 DOCKER_HTTPD_HTTPS_PORT=8443-8452
+# Dev stacks are served at <slug>.zfin.test -> give the self-signed cert a matching SAN.
+# (Opt-in: the compose default is false, so staging/prod keep a zfin.org-only cert.)
+ZFIN_DEV_CERT_SAN=true
+
+# Parent for everything the dev tooling owns -- see reference/dev-tree-layout.md
+# REQUIRED: no default. Recommended layout puts repos/ worktrees/ review/ archive/
+# cache/ and mounts/ under it.
+ZFIN_DEV_ROOT=~/zfin-dev
