@@ -8,7 +8,8 @@ feature branch. The moment-to-moment development log (per-run chronology, supers
 was scratch and is not merged; its conclusions are here and the per-run history is in the Jira
 tickets.
 
-**How to actually run any of this: `RUNBOOK-danre-mod-load.md`, next to this file.**
+**How to actually run any of this:** the `Load-GPAD-GO-Central_m` Jenkins job's own parameter
+descriptions, which document each flag (`GAF_LOAD_REPORT_ONLY`, `RUN_CUTOVER_SCRIPTS`, etc.).
 
 Related code: `DanreModGpadParser`, `DanreModSourceOrganization`, `GafLoadJob`
 (`source/org/zfin/datatransfer/go/`). QC tooling in this directory: `mgte_snapshot.sh` +
@@ -140,8 +141,8 @@ map has to encode the same rules or the first cutover diff is churn instead of a
   "skip own annotations") and defers them to the Noctua load, which does not filter — which is
   why Noctua owns them.
 - **`GOC` → dropped today.** `GoaGafParser` rejects `createdBy == "GOC"`, so DANRE-mod's
-  `GO_REF:0000108` rows are **net-new content no current load ingests** — a consolidation gain to
-  decide on, not a regression (open decision 3).
+  `GO_REF:0000108` rows are **net-new content no current load ingests** — a consolidation gain,
+  not a regression.
 - **`GO_Central` / `GO_REF:0000033` (phylo IBA) → GOA.** ~48k rows. The standalone FP-Inference
   file is only ~1,809 rows and is a small overlapping subset, which is what makes FP-Inference
   redundant under consolidation.
@@ -263,7 +264,7 @@ that is what determines whether a gene actually still has the term. A lost `(gen
 
 So kw2go is essentially the whole problem: interpro2go and ec2go are reproduced almost entirely
 by the new load (1,935 and 585 pairs unaccounted for, against 41,118 and 4,720), which is what
-makes them safe to hand over. kw2go has no successor at all — see open decision 4.
+makes them safe to hand over. kw2go has no successor at all — see "kw2go" below.
 
 ⚠️ **Granularity matters when comparing to older figures.** This counts distinct `(gene, GO)`,
 the question a curator would ask. An earlier pass counted distinct
@@ -286,51 +287,6 @@ new evidence.
 GOA's 42,131 deletes / 50,585 adds are almost all IEA representation change + monthly
 UniProt turnover (the 7/5 DB is ~3 weeks newer than the 6/17 file) plus net-new content
 (GOC `GO_REF:0000108`, the `*2go` IEAs). Not curation loss.
-
-### 6. Merged/retyped ZFIN IDs aren't remapped on import (small bug, ~23 annotations)
-The Noctua GPAD load (and FP / DANRE-mod, which share `GafLoadJob`) throw
-`No gene found for ID: …` for genes merged or type-changed in ZFIN *after* they were curated
-in Noctua — the file still carries the old id. ~11 genes / ~23 annotations currently; all
-resolve in one hop via `zdb_replaced_data`:
-
-| old id (in file) | resolves to | kind |
-|---|---|---|
-| ZDB-GENE-080305-14 | fbxw12 (ZDB-GENE-090311-15) | merge |
-| ZDB-GENE-080723-5 | si:dkey-199f5.7 (ZDB-GENE-100922-57) | merge |
-| ZDB-GENE-080723-51 | zgc:194215 (ZDB-GENE-080723-25) | merge |
-| ZDB-GENE-131121-474 | ccdc162 (ZDB-GENE-131121-612) | merge |
-| ZDB-GENE-150701-2 | cdh16 (ZDB-GENE-140106-140) | merge |
-| ZDB-GENE-200316-1 | cd44b (ZDB-GENE-110429-2) | merge |
-| ZDB-GENE-080410-2 | nc.terc (ZDB-NCRNAG-080410-1) | type change |
-| ZDB-GENE-090929-315 | nc.rny2 (ZDB-NCRNAG-090929-1) | type change |
-| ZDB-GENE-111201-3 | nc.rny1 (ZDB-NCRNAG-111201-1) | type change |
-| ZDB-GENE-150915-1 | sno.scarna1 (ZDB-SNORNAG-150915-1) | type change |
-| ZDB-LINCRNAG-050208-65 | bin1b (ZDB-GENE-030425-1) | type change |
-
-**Root cause — two gaps in the existing `GafService.replaceMergedZDBIds` (the resolver
-already exists, it just misses these):**
-1. **Prefix mismatch (primary).** It remaps `entryId` at `GafLoadJob:164`, *before* the
-   `ZFIN:` prefix is stripped (line 174), but `replaceAttributeOnGafEntry` does
-   `containsKey(fullEntryId)` against a map keyed by **bare** `ZDB-…` ids — so a
-   `ZFIN:ZDB-GENE-…` entryId never matches. (The with/from remap strips `ZFIN:` correctly;
-   the entryId branch doesn't.) Net: entryId-level merge handling has effectively never
-   worked for the ZFIN-id GPAD loads — which is why even plain GENE→GENE merges error.
-2. **Type coverage.** The map is built only for old-id types `GENE` + `MRPHLNO`
-   (`getReplacedDataMapFromEntities(GENE, MRPHLNO)`), so a non-GENE old id like
-   `ZDB-LINCRNAG-050208-65` is missed even after fixing #1.
-
-**Fix (IMPLEMENTED, ZFIN-10025 branch):** `replaceMergedZDBIds` now strips a leading
-`ZFIN:` before the entryId map lookup (mirroring the with/from handling), broadens the
-replaced-data map to all gene/RNA + morpholino marker types, dedupes, and returns the
-applied remaps as `{oldId, newId, symbol}`. `GafLoadJob` stashes them on `GafJobData`;
-`GafReportBuilder` surfaces them (a summary "IDs corrected (merged/retyped)" count + an INFO
-node listing `old id → current marker`). `getGenes()` already routes `*RNAG` ids to
-`getGeneByID`, so type-changed targets (NCRNAG/SNORNAG) load once remapped.
-
-**Verified** (report-only Noctua run, 2026-07-10): gene-not-found errors → **0**; the
-annotations load under their current markers (nc.terc, fbxw12, nc.rny2, sno.scarna1, …);
-the report's new section reports **58** corrected IDs (superset of the 11 above — the
-entryId remap was fully broken before, so every merged subject id was erroring).
 
 ### 8. Upstream defect: the production file duplicates 53% of its rows (open, GO-side)
 
@@ -370,7 +326,7 @@ It cannot be recovered from either file. **GPAD 2.0 has no gene-product-form col
 `ComplexPortal:*` ×23; `annotation_properties` carries only `id=GOA:…`; zero lines match
 `gene_product_form` or `isoform`). `DANRE-uniprot` uses UniProt accessions as its *subject*, so
 the accession vocabulary is present, but it has no gene-product-form field either and **no
-isoform-level subjects**, so even consuming it — which would reopen decision 2a — could not
+isoform-level subjects**, so even consuming it — which would reopen finding 2a — could not
 reproduce the 16 rows where the field says something a plain accession does not.
 
 ⚠️ **Do not confuse this with the with/from data, which IS carried.** UniProtKB accessions appear
@@ -405,7 +361,7 @@ nothing), so the backfill can only ever fill rows that predate the column fallin
    new copies don't coexist. **Sequencing decided 2026-08-14:** `Load-GPAD-GO-Central_m` stays
    **disabled** and the secondary load's flags stay **on** until one coordinated switch —
    enable the job, set `LOAD_INTERPRO2GO_EC2GO=false` and `LOAD_KW2GO=false`, and purge the
-   `UniProt`-org **interpro2go + ec2go** rows, together — kw2go is excluded, it is decision 4.
+   `UniProt`-org **interpro2go + ec2go** rows, together — kw2go is excluded, see "kw2go" below.
    Either half alone is a defect: job-only duplicates the
    content across two orgs, flags-only drops it with nothing supplying it. The purge is drafted
    as **`cutover-purge-uniprot-2go.sql`** in this directory — deliberately not a liquibase
@@ -439,39 +395,16 @@ nothing), so the backfill can only ever fill rows that predate the column fallin
    `DANRE-uniprot` carries the same content (§2a), so no source-file change rescues these.
 4. **`GO_REF:0000115` (RNAcentral, 45)** — map or leave. Still open.
 
-5. **Relation → `qualifier_relation`** — ✅ **VERIFIED, current file.** `getRelQualifier`
-   (`GafService`) already fails loudly rather than silently on an unresolved relation — an
-   unmatched col-3 value throws `GafValidationError("RO term ... does not exist")`, which
-   rejects that row rather than dropping the qualifier — so this was a check to run, not a gap
-   to close.
-
-   Checked 2026-09-28 against the then-current production file (build 2026-08-04,
-   `current.geneontology.org/annotations/gpad/DANRE-mod.gpad.gz`, 459,621 rows):
-
-   ```bash
-   zcat DANRE-mod.gpad.gz | grep -v '^!' | awk -F'\t' '{print $3}' | sort | uniq -c
-   # every value matches ^(RO|BFO):[0-9]+$ — no bare relation names, no pipe-joined values
-   ```
-
-   All **12** distinct values (`RO:0002327` enables ×146,310 down to `RO:0004034` ×4) resolve to
-   a non-obsolete `term` row via `getTermByOboID` — `lookupRelationTerm` takes the RO/BFO-prefixed
-   branch unconditionally for these, so the ontology allowlist (`ZFIN_RO` / `GO_QUALIFIER`) never
-   comes into play. Counts summed to 459,621, so every row was covered, not just a sample.
-
-   ⚠️ **Re-check against whatever file is actually loaded at cutover**, not this one — GO
-   periodically adds relations, and a newly-introduced RO/BFO term would surface as parser
-   errors in `_error_summary.txt` rather than as a silent qualifier loss, but that only helps if
-   someone reads the summary. The one-liner above is cheap enough to re-run on the release
-   candidate as part of the pre-cutover report-only check (decision 8).
-6. **Phylo IBA org** — `GO_REF:0000033` → **`PAINT`**, keyed on the reference rather than
+5. **Phylo IBA org** — `GO_REF:0000033` → **`PAINT`**, keyed on the reference rather than
    `assigned_by` (the latter is only nearly a proxy, and the few rows that differ would be
    mis-homed). Implemented.
 
    ⚠️ **The code change alone does not re-home existing rows.** The matcher deliberately does not
    key on organization, so an incoming phylo row matches the stored GOA copy and that row stays
    in GOA; only unmatched rows are inserted with `PAINT`. Cutover must therefore run
-   `cutover-rehome-phylo-to-paint.sql` — see RUNBOOK §13, which sequences it. Left undone, phylo
-   splits across GOA and PAINT and survives only because matching is org-agnostic.
+   `cutover-rehome-phylo-to-paint.sql` — sequenced by the `Load-GPAD-GO-Central_m` job's
+   `RUN_CUTOVER_SCRIPTS` parameter. Left undone, phylo splits across GOA and PAINT and survives
+   only because matching is org-agnostic.
 
    **Separate: the FP-Inference rows are not rescued by this.** Of their 1,623 distinct
    (gene, GO) pairs only ~480 are reproduced by the new load's phylo content; the rest are
@@ -507,7 +440,7 @@ nothing), so the backfill can only ever fill rows that predate the column fallin
    preserves superseded predictions sitting beside fresh GO phylo content on the same genes, with
    nothing marking them stale and no load to refresh or prune them. ⚠️ Not yet proven — the
    subsumption closure (`mgte_subsumption.sh`) has not been run against them.
-7. **Gene product form IDs (finding 10)** — accept the loss, or not? **42,279 → 0** on every
+6. **Gene product form IDs (finding 10)** — accept the loss, or not? **42,279 → 0** on every
    load. GAF col 17 carried it; GPAD 2.0 has no equivalent column and neither DANRE file supplies
    one, so this is upstream and not a parser gap we can close. Reaches no download file and no UI.
    Recommend accepting explicitly rather than letting a 42,279-row field empty silently.
@@ -516,11 +449,11 @@ nothing), so the backfill can only ever fill rows that predate the column fallin
    release, so the loss may be temporary rather than permanent — re-check the file's columns
    before assuming it is still absent on a future cutover attempt. Until then the recommendation
    stands: accept explicitly, sourced from GO's own stated intent, not from silence.
-8. **First-cutover removal scope** — the initial map must reproduce legacy ownership closely
+7. **First-cutover removal scope** — the initial map must reproduce legacy ownership closely
    enough that the first real diff is ~no-op rather than a mass add+remove. Findings 1 and 5
    quantify what is left after the `ECO:0007322` fix; this is the go/no-go check, run
    report-only, immediately before flipping the flag.
-9. **ND filtering** — ✅ **IMPLEMENTED (2026-09-28)**, pending Doug/Pascale sign-off on scope.
+8. **ND filtering** — ✅ **IMPLEMENTED (2026-09-28)**, pending Doug/Pascale sign-off on scope.
    ZFIN-10464 comment 12 (2026-09-19). Doug, relaying Pascale: GO/GOA know that `ND` annotations
    coexist with real ones on the same GO aspect and **plan** an upstream filter, but it is not in
    place. He asks ZFIN to implement one, *"either a filter on the incoming file or after the
@@ -586,23 +519,6 @@ nothing), so the backfill can only ever fill rows that predate the column fallin
    confirm with Doug/Pascale before or shortly after cutover, since it changes load behavior. Note
    the example row also carries a `noctua-model-id` belonging to the neighbouring gene
    `ZDB-GENE-060918-3` (crygm2d4), which is a separate question for GO, untouched by this.
-10. **The NOT qualifier is invisible to every diff** — ✅ **FIXED.** `snapshot_mgte.sql` did not
-   select `mrkrgoev_gflag_name`, so it was absent from the before/after snapshots and therefore
-   from every workbook, per-org and `ALL` alike. Two consequences: a `NOT` annotation and its
-   positive twin collapsed onto the same key, and a `not` → null flip was not visible anywhere.
-   The column is small — on the order of a hundred `not` rows and a hundred `contributes to` —
-   but these are negated statements, and silently turning one positive is the worst failure a
-   loss report can have.
-
-   `snapshot_mgte.sql` now selects `mrkrgoev_gflag_name` as `qualifier_flag`, given the same
-   treatment as `protein_acc` — compared but in **neither** `KEY` nor `IGNORE`. That means a
-   flip now surfaces as an `UPDATE` on the matched pair rather than as a silent collapse, without
-   redefining what counts as a delete/add — so existing delete/add figures stay comparable to
-   earlier runs. `mgte_subsumption.sql`'s snapshot table shape was updated to match (the `\copy`
-   maps CSV columns positionally). Re-run `mgte_snapshot.sh`/`mgte_csvdiff.sh` to pick it up —
-   any snapshot CSV taken before this change lacks the column and cannot be diffed against one
-   taken after.
-
 ## Why a falling row count is not the same as loss
 
 Two upstream behaviours shrink the row count without ZFIN losing a statement, and both will show
@@ -637,7 +553,8 @@ hide the change entirely.
 ## Reproduce
 
 Operational detail — resetting to a baseline, verifying it, running the load, and producing the
-workbooks — is in **`RUNBOOK-danre-mod-load.md`**, next to this file. The essentials:
+workbooks — is handled by the `Load-GPAD-GO-Central_m` Jenkins job; see its parameter
+descriptions for what each flag does. The essentials, for running it by hand:
 
 Prefer the wrapper scripts — they carry the key and ignore lists, so a hand-written `csvDiff`
 invocation is how numbers stop being comparable:
