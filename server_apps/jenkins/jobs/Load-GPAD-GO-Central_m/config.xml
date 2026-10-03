@@ -9,7 +9,7 @@
 
     Exit code 2 from the load means "completed with errors" and is mapped to UNSTABLE, not FAILURE — a run with errors is normal, not an abort.
 
-    *** THIS JOB IS DISABLED UNTIL CUTOVER. *** Enabling it is HALF of a two-part switch and must not be done on its own. The other half is turning the UniProt-Secondary load's *2go GO streams OFF (LOAD_INTERPRO2GO_EC2GO=false, LOAD_KW2GO=false on UniProt-Secondary-Term-Load) and purging the pre-existing UniProt-org interpro2go + ec2go rows (70,062). Note the purge deliberately does NOT include kw2go (41,027), which has no successor -- that is a separate decision. Enable this job while those streams are still on and the same InterPro2GO/EC2GO content exists twice, under two different organizations — the secondary load owns its copies as gafOrganization='UniProt' and this load writes its own as 'GOA', so neither prunes the other. Enable it, flip those flags and run the purge together. See server_apps/DB_maintenance/gafLoad/README-danre-mod-consolidation.md, open decisions 3 and 4.</description>
+    *** THIS JOB IS DISABLED UNTIL CUTOVER. *** Enabling it is HALF of a two-part switch and must not be done on its own. The other half is turning the UniProt-Secondary load's *2go GO streams OFF (LOAD_INTERPRO2GO_EC2GO=false, LOAD_KW2GO=false on UniProt-Secondary-Term-Load) and purging the pre-existing UniProt-org interpro2go + ec2go rows (70,062). Note the purge deliberately does NOT include kw2go (41,027) -- that's RUN_KW2GO_PURGE below, kept separately gated since it's a one-way delete with no successor to guard against. Enable this job while those streams are still on and the same InterPro2GO/EC2GO content exists twice, under two different organizations — the secondary load owns its copies as gafOrganization='UniProt' and this load writes its own as 'GOA', so neither prunes the other. Enable it, flip those flags and run the purge together. See server_apps/DB_maintenance/gafLoad/README-danre-mod-consolidation.md ("kw2go", decided: drop, and open decision 4, GO_REF:0000115, still open).</description>
   <keepDependencies>false</keepDependencies>
   <properties>
     <hudson.model.ParametersDefinitionProperty>
@@ -52,9 +52,9 @@ The purge has to run after the load, not before: it refuses to start until the G
           <name>RUN_KW2GO_PURGE</name>
           <description>Additionally delete the 41,027 UniProt-org kw2go rows (cutover-purge-uniprot-kw2go.sql). Ignored unless RUN_CUTOVER_SCRIPTS is also checked.
 
-Kept separate from RUN_CUTOVER_SCRIPTS because it is a separate and still-open decision (ZFIN-10344). Unlike interpro2go and ec2go, kw2go has no successor in either GPAD file, so this is not a swap: of its 40,408 distinct (gene, GO) pairs, 10,907 are a true loss -- no other source supplies them and no more specific term the gene retains implies them.
+Kept separate from RUN_CUTOVER_SCRIPTS because it's a one-way delete with no successor to guard against (ZFIN-10344: decided to drop kw2go, see README). Unlike interpro2go and ec2go, this is not a swap: of its 40,408 distinct (gene, GO) pairs, 10,907 are a true loss -- no other source supplies them and no more specific term the gene retains implies them.
 
-Only check this if that decision was "delete", and set LOAD_KW2GO=false on UniProt-Secondary-Term-Load first, or its next run re-derives every row this deletes.</description>
+Set LOAD_KW2GO=false on UniProt-Secondary-Term-Load first, or its next run re-derives every row this deletes.</description>
           <defaultValue>false</defaultValue>
         </hudson.model.BooleanParameterDefinition>
         <hudson.model.BooleanParameterDefinition>
@@ -144,13 +144,13 @@ $PSQL -f $SQL/cutover-rehome-phylo-to-paint.sql
 echo "=== cutover: purging superseded UniProt-org interpro2go/ec2go ==="
 $PSQL -f $SQL/cutover-purge-uniprot-2go.sql
 
-# kw2go is gated separately: ZFIN-10344 is still open, and unlike the 2go purge this one has no
-# replacement to guard against, so nothing but this flag stops it deleting the wrong thing.
+# kw2go is gated separately: unlike the 2go purge, it has no replacement to guard against, so
+# nothing but this flag stops it deleting the wrong thing.
 if [ "$RUN_KW2GO_PURGE" = "true" ]; then
     echo "=== cutover: RUN_KW2GO_PURGE=true -> deleting UniProt-org kw2go ==="
     $PSQL -f $SQL/cutover-purge-uniprot-kw2go.sql
 else
-    echo "RUN_KW2GO_PURGE not true -> leaving kw2go rows in place (ZFIN-10344 undecided)"
+    echo "RUN_KW2GO_PURGE not true -> leaving kw2go rows in place"
 fi
 ]]></command>
         </hudson.tasks.Shell>

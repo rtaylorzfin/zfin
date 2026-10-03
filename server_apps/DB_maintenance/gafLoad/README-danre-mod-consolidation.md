@@ -46,76 +46,20 @@ this document were measured against the build generated 2026-08-04.
 
 ## How the load owns rows (two org fields — don't conflate them)
 
-Every `marker_go_term_evidence` row carries two organization fields:
+Every `marker_go_term_evidence` row carries two organization fields: **`gafOrganization`**
+(`mrkrgoev_annotation_organization`) = which load owns the row; removal is scoped by this, so
+a source can only prune its own rows. **`organizationCreatedBy`** = the source's own
+`assigned_by` (GPAD col 10).
 
-- **`gafOrganization`** (`mrkrgoev_annotation_organization` → FK to
-  `marker_go_term_evidence_annotation_organization`) = **which load owns the row**
-  (`GOA` / `Noctua` / `FP Inferences` / `UniProt` / …). Removal is scoped by this, so a
-  source can only prune its own rows.
-- **`organizationCreatedBy`** (`mrkrgoev_annotation_organization_created_by`) = the
-  source's own **`assigned_by`** (GPAD col 10: `ZFIN` / `UniProt` / `InterPro` / …).
+`DanreModSourceOrganization` maps `assigned_by`/reference → `gafOrganization`: `ZFIN → Noctua`,
+`GO_REF:0000033 → PAINT`, everything else → `GOA`. So the unified load only ever
+writes/removes in **GOA, Noctua, and PAINT** — never `FP Inferences` or `UniProt`.
 
-`DanreModSourceOrganization` maps `assigned_by → gafOrganization`: `ZFIN → Noctua`,
-everything else → `GOA`. So the unified load only ever writes/removes in the **GOA** and
-**Noctua** orgs.
+⚠️ `organizationCreatedBy = ZFIN` is **not** a safe discriminator: it also tags the
+UniProt-Secondary `*2go` rows. Identify sets by `gafOrganization`.
 
-⚠️ `organizationCreatedBy = ZFIN` is **not** a safe discriminator: it tags both the
-Noctua curated rows *and* the UniProt-Secondary `*2go` rows (see below). Identify sets by
-`gafOrganization`.
-
----
-
-## What the secondary UniProt load consumes (its GO inputs)
-
-The UniProt-Secondary load does **not** ingest ready-made GO annotations — it *derives*
-them in-house by joining two inputs:
-
-**(A) per-protein cross-references** from the primary UniProt load's processed `.dat`
-release (`UNIPROT_INPUT_FILE`): each zebrafish protein's UniProt **keywords**, **InterPro
-domains**, and **EC numbers**.
-
-**(B) GO's `external2go` translation tables**, downloaded at run time, mapping each
-cross-reference to a GO term:
-
-| stream | protein feature (A) | external2go file (B) | pub | evidence |
-|---|---|---|---|---|
-| interpro2go | InterPro domain | `current.geneontology.org/ontology/external2go/interpro2go` | ZDB-PUB-020724-1 | IEA |
-| kw2go ⚠ | UniProt keyword | `…/external2go/uniprotkb_kw2go` | ZDB-PUB-020723-1 | IEA |
-| ec2go | EC number | `…/external2go/ec2go` | ZDB-PUB-031118-3 | IEA |
-
-Plus InterPro `entry.list` (`ftp.ebi.ac.uk/pub/databases/interpro/current_release/entry.list`)
-— the domain catalog, used for the dblink/domain refresh, **not** GO terms.
-
-So each GO row = *(protein has feature F in the UniProt release)* × *(external2go maps
-F → GO term)*, attributed to the stream's pub with evidence IEA. Code:
-`UniprotSecondaryTermLoadTask.loadTranslationFiles()` + `SecondaryTerm2GoTermTranslator`.
-Consequence for cutover: taking these from the DANRE file instead only works where GO
-still produces the mapping **and** ships it in the file — true for interpro2go/ec2go
-(though `DANRE-mod` under-covers), false for kw2go (GO retired `GO_REF:0000004`).
-
-### ⚠️ What must SURVIVE in the secondary load (scope limit for ZFIN-10344)
-
-**The secondary load is two jobs in one. Only the GO half may be retired.** An early draft
-of the background notes had this backwards — it placed the InterPro/EC/protein/keyword
-*data refresh* in the **primary** UniProt load, leaving only the external2go GO mappings in
-the secondary load. Acting on that reading would delete the non-GO refresh along with the
-GO handlers, and **`DANRE-mod` supplies none of it**. Verified against the code
-(`UniprotSecondaryTermLoadTask.calculatePipelineActions()`):
-
-| lines | handlers | cutover disposition |
-|---|---|---|
-| 333–343 | dblink refresh: `Remove`/`AddNewDBLinksFromUniProts` × `INTERPRO`, `EC`, `PFAM`, `PROSITE` | **KEEP** |
-| 346–347 | `MarkerGoTermEvidenceActionCreator(INTERPRO, ipToGoRecords)` / `(EC, ecToGoRecords)` — interpro2go + ec2go GO terms | **DROP** |
-| 349–350 | `AddNewSpKeywordTermToGo` / `RemoveSpKeywordTermToGo(UNIPROTKB, upToGoRecords)` — kw2go GO terms | **DROP** (no file successor) |
-| 352–355 | `InterproDomain`, `InterproProtein`, `InterproMarkerToProtein`, `ProteinToInterpro` | **KEEP** |
-| 356 | `PDBActionCreator` | **KEEP** |
-
-So ZFIN-10344 removes **four handler registrations (lines 346–350) covering the three
-`*2go` streams** — nothing else. The **primary** load (`UniProtLoadTask`, handlers at
-213–220) does *only* protein→gene matching (UniProtKB dblinks); its pipeline is entirely
-match / ignore / delete / obsolete handlers, with no dblink, domain, or GO work to inherit
-the refresh. Whichever DANRE file we adopt, the dblink/domain/PDB refresh has no
-replacement source and the secondary load must keep running for it.
+For what the UniProt-Secondary load itself does (and what of it is being retired by this
+consolidation), see the `UniProt-Secondary-Term-Load` Jenkins job description.
 
 ---
 
@@ -367,32 +311,32 @@ nothing), so the backfill can only ever fill rows that predate the column fallin
    as **`cutover-purge-uniprot-2go.sql`** in this directory — deliberately not a liquibase
    migration, so a routine `liquibasePostBuild` cannot fire it. It refuses to run unless the
    GOA-org replacement is already present, and it covers interpro2go + ec2go **only**; kw2go is
-   excluded pending decision 3. Note it is a **net reduction**: −24,604 interpro2go and −299
-   ec2go, because the GPAD file under-covers both (finding 2). Not yet run anywhere.
-3. **kw2go (UniProtKB-Keyword, 41,027 rows)** — no file successor (GO retired
-   `GO_REF:0000004`), and **the `uniprotkb_kw2go` mapping file itself is slated for
-   retirement** (still served as of 2026-08-14: HTTP 200, 70 KB, modified 2026-08-08). So
-   "keep loading them" is not on the table — the choice is **freeze or delete**:
-   **(a)** `LOAD_KW2GO=false`, leaving the 41,027 existing rows in place, unrefreshed and
-   progressively stale; or **(b)** the same plus deleting them.
+   handled separately (see "kw2go" below). Note it is a **net reduction**: −24,604 interpro2go
+   and −299 ec2go, because the GPAD file under-covers both (finding 2). Not yet run anywhere.
+3. **kw2go (UniProtKB-Keyword, 41,027 rows)** — ✅ **DECIDED: drop.** No file successor (GO
+   retired `GO_REF:0000004`), and `DANRE-uniprot` carries the same content (§2a) so no
+   source-file swap rescues these either; the `uniprotkb_kw2go` mapping file itself is also
+   slated for retirement upstream. `LOAD_KW2GO=false` plus `cutover-purge-uniprot-kw2go.sql` at
+   cutover. Revisiting this to preserve the existing rows, if ever needed, is a separate future
+   ticket, not a cutover blocker.
 
    Scale (finding 2, measured against the loaded end state): of **40,408** distinct
    `(gene, GO)` pairs, 15,030 are reproduced by the new load and a further **14,471** are
-   subsumed by a more-specific term the gene keeps, leaving **10,907** that genuinely disappear
-   under (b).
+   subsumed by a more-specific term the gene keeps, leaving **10,907** that genuinely disappear.
 
    Subsumption is computed on a strict `is_a` + `part of` closure, deliberately *not*
    `all_term_contains` — that table also encodes `regulates` and `positively regulates`
    (verified), which would overstate it. The closure is implemented in **`mgte_subsumption.sh` /
    `.sql`**; re-derive these figures with it rather than quoting them, as they move with the
-   input file. ⚠️ **Do not
-   simply leave the flag on.** When the file stops being served the secondary load *fails on
-   the download*, taking the dblink/domain/PDB half with it: `createTempFile` leaves a 0-byte
-   destination, so `downloadFileViaWget` size-checks against the server, a missing file returns
-   no `Content-Length` (`-1`), and `-1` is neither `==` nor `>` 0 → `IOException("Server file
-   is smaller than local file")`, rethrown as a `RuntimeException`. The message points at the
-   wrong thing and the timing is GO's, not ours. ⚠️ **No longer entangled with #2** —
-   `DANRE-uniprot` carries the same content (§2a), so no source-file change rescues these.
+   input file.
+
+   ⚠️ **Don't leave `LOAD_KW2GO=true` indefinitely while waiting to purge.** When the file
+   stops being served the secondary load *fails on the download*, taking the dblink/domain/PDB
+   half with it: `createTempFile` leaves a 0-byte destination, so `downloadFileViaWget`
+   size-checks against the server, a missing file returns no `Content-Length` (`-1`), and `-1`
+   is neither `==` nor `>` 0 → `IOException("Server file is smaller than local file")`,
+   rethrown as a `RuntimeException`. The message points at the wrong thing and the timing is
+   GO's, not ours.
 4. **`GO_REF:0000115` (RNAcentral, 45)** — map or leave. Still open.
 
 5. **Phylo IBA org** — `GO_REF:0000033` → **`PAINT`**, keyed on the reference rather than
