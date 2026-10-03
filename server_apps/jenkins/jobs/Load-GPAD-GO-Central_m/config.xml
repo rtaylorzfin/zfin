@@ -9,7 +9,7 @@
 
     Exit code 2 from the load means "completed with errors" and is mapped to UNSTABLE, not FAILURE — a run with errors is normal, not an abort.
 
-    *** THIS JOB IS DISABLED UNTIL CUTOVER. *** Enabling it is HALF of a two-part switch and must not be done on its own. The other half is turning the UniProt-Secondary load's *2go GO streams OFF (LOAD_INTERPRO2GO_EC2GO=false, LOAD_KW2GO=false on UniProt-Secondary-Term-Load) and purging the pre-existing UniProt-org interpro2go + ec2go rows (70,062). Note the purge deliberately does NOT include kw2go (41,027) -- that's RUN_KW2GO_PURGE below, kept separately gated since it's a one-way delete with no successor to guard against. Enable this job while those streams are still on and the same InterPro2GO/EC2GO content exists twice, under two different organizations — the secondary load owns its copies as gafOrganization='UniProt' and this load writes its own as 'GOA', so neither prunes the other. Enable it, flip those flags and run the purge together. See server_apps/DB_maintenance/gafLoad/README-danre-mod-consolidation.md ("kw2go", decided: drop, and open decision 4, GO_REF:0000115, still open).</description>
+    *** THIS JOB IS DISABLED UNTIL CUTOVER. *** Enabling it is HALF of a two-part switch and must not be done on its own. The other half is turning the UniProt-Secondary load's *2go GO streams OFF (LOAD_INTERPRO2GO_EC2GO=false, LOAD_KW2GO=false on UniProt-Secondary-Term-Load) and purging the pre-existing UniProt-org interpro2go + ec2go rows (70,062). Note the purge deliberately does NOT include kw2go (41,027) -- that's RUN_KW2GO_PURGE below, kept separately gated since it's a one-way delete with no successor to guard against. Enable this job while those streams are still on and the same InterPro2GO/EC2GO content exists twice, under two different organizations — the secondary load owns its copies as gafOrganization='UniProt' and this load writes its own as 'GOA', so neither prunes the other. Enable it, flip those flags and run the purge together. See server_apps/DB_maintenance/gafLoad/README-danre-mod-consolidation.md ("kw2go", decided: drop).</description>
   <keepDependencies>false</keepDependencies>
   <properties>
     <hudson.model.ParametersDefinitionProperty>
@@ -97,7 +97,7 @@ echo "DANRE_MOD_GPAD_URL   = $DANRE_MOD_GPAD_URL"
 echo "GAF_LOAD_REPORT_ONLY = $GAF_LOAD_REPORT_ONLY"
 echo "RUN_MGTE_CLEANUP     = $RUN_MGTE_CLEANUP"
 
-bash $SQL/mgte_snapshot.sh before "$OUT" --others --all GOA Noctua PAINT "FP Inferences" UniProt
+bash $SQL/mgte_snapshot.sh before "$OUT" --all GOA Noctua PAINT "FP Inferences" UniProt
 ]]></command>
         </hudson.tasks.Shell>
         <hudson.tasks.Shell>
@@ -190,8 +190,8 @@ set -e
 SQL=$SOURCEROOT/server_apps/DB_maintenance/gafLoad
 OUT=$TARGETROOT/server_apps/DB_maintenance/gafLoad/Load-GPAD-GO-Central_m-dbdiff
 
-bash $SQL/mgte_snapshot.sh after "$OUT" --others --all GOA Noctua PAINT "FP Inferences" UniProt
-bash $SQL/mgte_csvdiff.sh        "$OUT" --others --all GOA Noctua PAINT "FP Inferences" UniProt
+bash $SQL/mgte_snapshot.sh after "$OUT" --all GOA Noctua PAINT "FP Inferences" UniProt
+bash $SQL/mgte_csvdiff.sh        "$OUT" --all GOA Noctua PAINT "FP Inferences" UniProt
 
 # Splits the pairs the diff says disappeared into subsumed / specificity_lost / true_loss. Needs
 # the --all snapshots, hence its position. Non-fatal: a reporting refinement must not mask the

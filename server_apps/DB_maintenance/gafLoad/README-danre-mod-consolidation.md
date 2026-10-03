@@ -16,11 +16,12 @@ Related code: `DanreModGpadParser`, `DanreModSourceOrganization`, `GafLoadJob`
 `snapshot_mgte.sql`, and `mgte_csvdiff.sh` (wrapping `gradle csvDiff`).
 Jenkins: `Load-GPAD-GO-Central_m`.
 
-Both scripts take **`--others`**, which adds one extra snapshot/diff pair holding every row whose
+Both scripts always also produce an `OTHER` snapshot/diff pair, holding every row whose
 organization is *not* among those named. It should always be empty; a non-empty
 `mgte_dbdiff_OTHER.xlsx` means rows are being written somewhere nobody is watching. Naming
 organizations explicitly is precisely what hid `PAINT` from every artifact until it was added by
-hand, so the jobs pass `--others` as standing insurance against the next such gap.
+hand, so this isn't a flag a caller can forget — it's standing insurance against the next such
+gap.
 
 Status: **pre-cutover.** The `load-gpad-danre-mod` Ant target still *defaults* to
 `GAF_LOAD_REPORT_ONLY=true` (no DB writes), but it is now resolved from the environment rather
@@ -337,7 +338,10 @@ nothing), so the backfill can only ever fill rows that predate the column fallin
    is neither `==` nor `>` 0 → `IOException("Server file is smaller than local file")`,
    rethrown as a `RuntimeException`. The message points at the wrong thing and the timing is
    GO's, not ours.
-4. **`GO_REF:0000115` (RNAcentral, 45)** — map or leave. Still open.
+4. **`GO_REF:0000115` (RNAcentral, 45)** — ✅ **DECIDED: leave in GOA.** Kept simple — no new
+   org, same place these rows already land by default. Listed explicitly in
+   `DanreModSourceOrganization.BY_REFERENCE` so the mapping records a reviewed decision rather
+   than an unmapped source falling through silently.
 
 5. **Phylo IBA org** — `GO_REF:0000033` → **`PAINT`**, keyed on the reference rather than
    `assigned_by` (the latter is only nearly a proxy, and the few rows that differ would be
@@ -506,10 +510,10 @@ invocation is how numbers stop being comparable:
 ```bash
 # per-org snapshot + diff (inside a container with $PGHOST/$DBNAME/$SOURCEROOT)
 G=$SOURCEROOT/server_apps/DB_maintenance/gafLoad
-$G/mgte_snapshot.sh before "$OUT" --others GOA Noctua PAINT "FP Inferences" UniProt
+$G/mgte_snapshot.sh before "$OUT" GOA Noctua PAINT "FP Inferences" UniProt
 # ... run the load ...
-$G/mgte_snapshot.sh after  "$OUT" --others GOA Noctua PAINT "FP Inferences" UniProt
-$G/mgte_csvdiff.sh         "$OUT" --others GOA Noctua PAINT "FP Inferences" UniProt
+$G/mgte_snapshot.sh after  "$OUT" GOA Noctua PAINT "FP Inferences" UniProt
+$G/mgte_csvdiff.sh         "$OUT" GOA Noctua PAINT "FP Inferences" UniProt
 
 # is <gene> a SUBJECT of <GO> in a source file? (upstream-loss check)
 zcat DANRE-mod.gpad.gz | grep -P '^ZFIN:<gene-zdb-id>\t' | awk -F'\t' '$4=="<GO id>"'
