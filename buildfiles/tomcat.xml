@@ -25,26 +25,77 @@
         <echo message=":ZFISHWEB TOMCAT STOP SUCCESSFUL:"/>
     </target>
 
-    <target name="docker-tomcat-start" if="isdocker" description="Starts tomcat if docker">
-        <exec executable="/usr/bin/docker" failifexecutionfails="true">
-            <arg value="compose"/>
-	    <arg value="-f"/>
-	    <arg value="/opt/zfin/source_roots/zfin.org/docker/docker-compose.yml"/>
-            <arg value="start"/>
-            <arg value="tomcat"/>
-        </exec>
-        <echo message=":TOMCAT START SUCCESSFUL:"/>
+    <!-- Docker: restart through Tomcat's own shutdown port, not the Docker daemon. Driving
+         `docker compose` from here needs /var/run/docker.sock in the compile container, and
+         control of the host daemon is root on the host for anything that compromises a
+         container: so compile does not mount it.
+
+         tomcat-stop sends the stack's shutdown word to tomcat:${SHUTDOWNPORT} (a port on the
+         compose network, never published to the host) and waits until the HTTP connector stops
+         answering. The tomcat service's restart policy (DOCKER_TOMCAT_RESTART, default
+         unless-stopped) starts it again, and tomcat-start waits for it to answer. The word is
+         generated per stack by deploy-catalina-base (see shutdown-word below). -->
+    <property name="tomcat.host" value="tomcat"/>
+    <property name="tomcat.start.timeout" value="600"/>
+
+    <target name="docker-tomcat-stop" if="isdocker" description="Stops tomcat via its shutdown port">
+        <groovy>
+            import org.apache.tools.ant.BuildException
+            def host = properties['tomcat.host']
+            def http = properties.NON_SECUREPORT as int
+            def port = properties.SHUTDOWNPORT as int
+            def answers = { int p ->
+                try { new Socket().withCloseable { it.connect(new InetSocketAddress(host, p), 1000) }; true }
+                catch (IOException ignored) { false }
+            }
+            def wordFile = new File(properties.CATALINA_BASE, 'conf/shutdown.word')
+            if (!wordFile.isFile())
+                throw new BuildException("no ${wordFile} -- run `ant deploy-catalina-base` first, then restart tomcat from the host once " +
+                                         "(docker compose restart tomcat) so it reads the server.xml that names the word.")
+            try {
+                new Socket().withCloseable { s ->
+                    s.connect(new InetSocketAddress(host, port), 2000)
+                    s.outputStream.write(wordFile.text.trim().getBytes('US-ASCII'))
+                    s.outputStream.flush()
+                }
+            } catch (IOException e) {
+                if (!answers(http)) { println "tomcat is not running -- nothing to stop"; return }
+                throw new BuildException("tomcat is up but not accepting a shutdown on ${host}:${port} (${e.message}). " +
+                                         "It is running a server.xml without the network shutdown listener; restart it from " +
+                                         "the host once (docker compose restart tomcat) so it reads the one deploy-catalina-base wrote.")
+            }
+            def deadline = System.currentTimeMillis() + 120_000
+            while (answers(http)) {
+                if (System.currentTimeMillis() > deadline)
+                    throw new BuildException("tomcat still answering on ${host}:${http} 120s after the shutdown was sent")
+                Thread.sleep(500)
+            }
+            println ":TOMCAT STOP SUCCESSFUL:"
+        </groovy>
     </target>
 
-    <target name="docker-tomcat-stop" if="isdocker" description="Stops tomcat if docker">
-        <exec executable="/usr/bin/docker" failifexecutionfails="true">
-            <arg value="compose"/>
-	        <arg value="-f"/>
-	        <arg value="/opt/zfin/source_roots/zfin.org/docker/docker-compose.yml"/>
-            <arg value="stop"/>
-            <arg value="tomcat"/>
-        </exec>
-        <echo message=":TOMCAT STOP SUCCESSFUL:"/>
+    <target name="docker-tomcat-start" if="isdocker" description="Waits for tomcat to come back">
+        <groovy>
+            import org.apache.tools.ant.BuildException
+            def host = properties['tomcat.host']
+            def http = properties.NON_SECUREPORT as int
+            def timeout = properties['tomcat.start.timeout'] as int
+            def answers = {
+                try { new Socket().withCloseable { it.connect(new InetSocketAddress(host, http), 1000) }; true }
+                catch (IOException ignored) { false }
+            }
+            println "waiting up to ${timeout}s for tomcat on ${host}:${http}"
+            def deadline = System.currentTimeMillis() + timeout * 1000L
+            while (!answers()) {
+                if (System.currentTimeMillis() > deadline)
+                    throw new BuildException("tomcat did not answer on ${host}:${http} within ${timeout}s. Its restart policy " +
+                                             "(DOCKER_TOMCAT_RESTART, default unless-stopped) brings it back after a shutdown, but " +
+                                             "not after a `docker compose stop`; then start it from the host: docker compose up -d tomcat. " +
+                                             "Startup errors are in \${CATALINA_BASE}/logs/catalina.out.")
+                Thread.sleep(2000)
+            }
+            println ":TOMCAT START SUCCESSFUL:"
+        </groovy>
     </target>
 
     <target name="mutant-tomcat-start" if="ismutant" description="Starts tomcat if mutant">
@@ -136,7 +187,24 @@
     <!-- an alias to create-mutant-instance with a more explanatory name -->
     <target name="deploy-catalina-base" depends="create-mutant-instance" description="Creates a tomcat"/>
 
-    <target name="create-mutant-instance" depends="create-tomcat-dirs"
+    <!-- The word that stops tomcat through its shutdown port. Generated once per CATALINA_BASE and
+         reused, so a running tomcat and a later deploy-catalina-base agree on it. Owner-only:
+         anything that can read it can stop tomcat. -->
+    <target name="shutdown-word" depends="create-tomcat-dirs">
+        <groovy>
+            def f = new File(properties.CATALINA_BASE, 'conf/shutdown.word')
+            if (!f.isFile()) {
+                def bytes = new byte[24]
+                new java.security.SecureRandom().nextBytes(bytes)
+                f.text = bytes.encodeHex().toString() + '\n'
+                f.setReadable(false, false); f.setWritable(false, false)
+                f.setReadable(true, true);   f.setWritable(true, true)
+            }
+            project.setProperty('SHUTDOWN_WORD', f.text.trim())
+        </groovy>
+    </target>
+
+    <target name="create-mutant-instance" depends="create-tomcat-dirs,shutdown-word"
             description="Target to create a Tomcat tree for a given mutant">
         <copy todir="${tomcat-lib}">
             <fileset dir="${template-dir}/lib"/>
@@ -150,6 +218,7 @@
                 <filter token="TARGETROOT" value="${TARGETROOT}"/>
                 <filter token="DBNAME" value="${DBNAME}"/>
                 <filter token="SERVER-SHUTDOWN-PORT" value="${SHUTDOWNPORT}"/>
+                <filter token="SERVER-SHUTDOWN-WORD" value="${SHUTDOWN_WORD}"/>
                 <filter token="Non-SECUREPORT" value="${NON_SECUREPORT}"/>
                 <filter token="SECUREPORT" value="${SECUREPORT}"/>
                 <filter token="DOMAIN-NAME" value="${DOMAIN_NAME}"/>

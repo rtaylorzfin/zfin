@@ -56,7 +56,6 @@ Named volumes are managed by Docker. Bind mounts (prefixed with `$DOCKER_*`) are
 | `$DOCKER_ABBLAST_PATH` | `/opt/ab-blast` | compile, tomcat, tomcatdebug, blast, jenkins |
 | `$DOCKER_HHATLAS_PATH` | `/opt/zfin/hh_atlas` | httpd |
 | `$DOCKER_SSH_AUTH_SOCK` | `/run/host-services/ssh-auth.sock` | compile |
-| `/var/run/docker.sock` | `/var/run/docker.sock` | compile |
 | `~/.ssh/known_hosts` | `/home/gradle/.ssh/known_hosts` | compile |
 
 ### Service Environment Variables (from `.env`)
@@ -64,10 +63,12 @@ Named volumes are managed by Docker. Bind mounts (prefixed with `$DOCKER_*`) are
 | Variable | Default | Used By | Purpose |
 |----------|---------|---------|---------|
 | `DISABLE_OIDC` | `false` | httpd | Set to `true` to bypass OpenID Connect authentication on `/cgi-bin`, `/jobs`, `/solr`, `/logs`, and `/mailpit` for local development. Requires rebuilding the httpd container (`docker compose up -d httpd`). |
+| `DOCKER_TOMCAT_RESTART` | `unless-stopped` | tomcat | Restart policy. `ant restart` in compile stops Tomcat through its shutdown port and relies on this to start it again; set `no` and restart from the host instead. |
 
 ### Key Observations
 
-- The **compile** container has the most volume mounts — it needs access to source code, all output directories, build caches, Docker socket, and SSH for the full build pipeline.
+- The **compile** container has the most volume mounts — it needs access to source code, all output directories, build caches, and SSH for the full build pipeline.
+- The **compile** container does **not** mount the Docker socket: control of the host daemon is root on the host for anything that compromises a container. `ant restart` (and `tomcat-stop`/`tomcat-start`) restart Tomcat through its shutdown port, which listens on the compose network only and takes a per-stack word that `ant deploy-catalina-base` generates into `$CATALINA_BASE/conf/shutdown.word`. Every other service is started, stopped or restarted from the host with `docker compose`.
 - **TARGETROOT** (`www_data`) is shared across compile, httpd, tomcat, and jenkins so they all see the same deployed files.
 - **CATALINA_BASE** is shared between compile (which writes the Tomcat config) and tomcat (which runs from it).
 - **SOURCEROOT** is a bind mount (not a named volume) so it maps directly to the host filesystem for live editing.

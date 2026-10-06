@@ -70,7 +70,9 @@ services:
       - ${DOCKER_GFF3_PATH}:/opt/zfin/gff3
       - ${DOCKER_SSH_AUTH_SOCK}:/run/host-services/ssh-auth.sock
       - ~/.ssh/known_hosts:/home/gradle/.ssh/known_hosts
-      - /var/run/docker.sock:/var/run/docker.sock
+      # NO /var/run/docker.sock, on purpose: control of the host Docker daemon is root on the
+      # host for anything that compromises this container. Tomcat restarts through its own
+      # shutdown port instead (buildfiles/tomcat.xml); other services restart from the host.
       - maven_cache:/home/gradle/.m2
       - gradle_cache:/home/gradle/.gradle
   db:
@@ -174,6 +176,10 @@ services:
   tomcat:
     build: ./tomcat/
     image: ghcr.io/zfin/zfin-tomcat:${ZFIN_RELEASE}${DOCKER_ARCH:-}
+    # `ant restart` in compile stops tomcat through its shutdown port and relies on this to
+    # start it again. unless-stopped rather than always: a deliberate `docker compose stop`
+    # stays stopped. Note it also brings tomcat back when the Docker daemon restarts.
+    restart: ${DOCKER_TOMCAT_RESTART:-unless-stopped}
     environment:
       CATALINA_BASE: /opt/zfin/catalina_bases/zfin.org
       INSTANCE: docker

@@ -129,14 +129,9 @@
     </target>
     <target name="solr-start" description="Alias for start-solr" depends="start-solr"></target>
 
-    <target name="start-solr-docker" description="Start up Solr " if="isdocker">
-        <exec executable="/usr/bin/docker">
-            <arg value="compose"/>
-            <arg value="-f"/>
-            <arg value="/opt/zfin/source_roots/zfin.org/docker/docker-compose.yml"/>
-            <arg value="start"/>
-            <arg value="solr"/>
-        </exec>
+    <target name="start-solr-docker" description="Start Solr" if="isdocker">
+        <fail>Solr is started from the HOST, not the compile container (which has no Docker socket):
+  docker compose start solr      (run in the checkout's docker/ directory)</fail>
     </target>
 
     <target name="start-solr-systemctl" description="Start up Solr " unless="isdocker">
@@ -152,14 +147,9 @@
     </target>
     <target name="solr-stop" description="Alias for stop-solr" depends="stop-solr"></target>
 
-    <target name="stop-solr-docker" description="Stop Solr " if="isdocker">
-        <exec executable="/usr/bin/docker">
-            <arg value="compose"/>
-            <arg value="-f"/>
-            <arg value="/opt/zfin/source_roots/zfin.org/docker/docker-compose.yml"/>
-            <arg value="stop"/>
-            <arg value="solr"/>
-        </exec>
+    <target name="stop-solr-docker" description="Stop Solr" if="isdocker">
+        <fail>Solr is stopped from the HOST, not the compile container (which has no Docker socket):
+  docker compose stop solr      (run in the checkout's docker/ directory)</fail>
     </target>
 
     <target name="stop-solr-systemctl" description="Stop Solr " unless="isdocker">
@@ -176,13 +166,8 @@
     <target name="solr-restart" description="Alias for restart-solr" depends="restart-solr"></target>
 
     <target name="restart-solr-docker" description="Restart Solr" if="isdocker">
-        <exec executable="/usr/bin/docker">
-            <arg value="compose"/>
-            <arg value="-f"/>
-            <arg value="/opt/zfin/source_roots/zfin.org/docker/docker-compose.yml"/>
-            <arg value="restart"/>
-            <arg value="solr"/>
-        </exec>
+        <fail>Solr is restarted from the HOST, not the compile container (which has no Docker socket):
+  docker compose restart solr      (run in the checkout's docker/ directory)</fail>
     </target>
 
     <target name="restart-solr-systemctl" description="Restart Solr" unless="isdocker">

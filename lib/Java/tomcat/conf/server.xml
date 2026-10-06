@@ -1,6 +1,8 @@
 <?xml version="1.0" encoding="UTF-8"?>
 
-<Server port="@SERVER-SHUTDOWN-PORT@" shutdown="SHUTDOWN">
+<!-- address: the compose network, so the compile container can restart tomcat (buildfiles/tomcat.xml).
+     The port is never published to the host, and the word is a per-stack secret. -->
+<Server port="@SERVER-SHUTDOWN-PORT@" address="0.0.0.0" shutdown="@SERVER-SHUTDOWN-WORD@">
   <Listener className="org.apache.catalina.startup.VersionLoggerListener" />
   <Listener className="org.apache.catalina.core.AprLifecycleListener" SSLEngine="on" />
   <Listener className="org.apache.catalina.core.JreMemoryLeakPreventionListener" />
