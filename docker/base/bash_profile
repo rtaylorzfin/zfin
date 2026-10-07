@@ -2,8 +2,11 @@ source /opt/zfin/source_roots/zfin.org/commons/env/load-properties.bash
 
 cd /opt/zfin/source_roots/zfin.org
 alias nano='nano -Ynone'
-alias restarttomcat='cd /opt/zfin/source_roots/zfin.org/docker && docker compose down tomcat && docker compose up -d tomcat && cd -'
-alias restarttomcatd='cd /opt/zfin/source_roots/zfin.org/docker && docker compose down tomcatdebug && docker compose up -d tomcatdebug && cd -'
+# No Docker socket in these containers, so tomcat restarts through its own shutdown port
+# (buildfiles/tomcat.xml). tomcatdebug has no restart policy to bring it back, so it restarts
+# from the host.
+alias restarttomcat='(cd /opt/zfin/source_roots/zfin.org && ant restart)'
+alias restarttomcatd='echo "tomcatdebug restarts from the host: in the checkout docker/ directory, docker compose restart tomcatdebug"'
 
 
 export PATH=/opt/misc/groovy/bin:$PATH
