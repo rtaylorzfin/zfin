@@ -26,6 +26,12 @@
 -- Pairs reproduced under a different organization or source never reach this script: at the
 -- ALL_KEY level they are not lost in the first place. So these three buckets partition the loss.
 --
+-- POLARITY IS PART OF THE PAIR. A "pair" is (gene, GO term, NOT-or-not): a surviving NOT
+-- annotation says the opposite of a lost positive one, so it neither keeps the pair nor covers it.
+-- Coverage also inverts for NOT pairs, since a negative statement about a term implies the same
+-- about its descendants: a lost NOT X is subsumed by a kept NOT ancestor of X, and only partly
+-- covered (specificity_lost) by a kept NOT descendant.
+--
 -- ⚠️ THE CLOSURE IS BUILT FROM term_relationship, DELIBERATELY NOT all_term_contains.
 -- all_term_contains is prebuilt and ~6.7M rows, which makes it the obvious thing to reach for,
 -- and it is WRONG here: it also encodes `regulates` and `positively regulates`. Treating
@@ -53,12 +59,14 @@ create temp table mgte_after_all (like mgte_before_all);
 
 -- Keyed on ZDB ids, not the readable gene/go_id: an abbreviation change between snapshots would
 -- otherwise read as a loss plus an addition.
-create temp table pair_before as select distinct marker, term from mgte_before_all;
-create temp table pair_after  as select distinct marker, term from mgte_after_all;
+create temp table pair_before as
+select distinct marker, term, lower(qualifier_flag) = 'not' as is_not from mgte_before_all;
+create temp table pair_after  as
+select distinct marker, term, lower(qualifier_flag) = 'not' as is_not from mgte_after_all;
 
 create temp table pair_lost as
-select b.marker, b.term from pair_before b
- left join pair_after a on a.marker = b.marker and a.term = b.term
+select b.marker, b.term, b.is_not from pair_before b
+ left join pair_after a on a.marker = b.marker and a.term = b.term and a.is_not = b.is_not
  where a.marker is null;
 create index on pair_lost (marker);
 create index on pair_lost (term);
@@ -66,7 +74,7 @@ create index on pair_lost (term);
 -- Only terms still held by a gene that lost something; closing over all of GO would be wasted
 -- work.
 create temp table kept_term as
-select distinct a.marker, a.term
+select distinct a.marker, a.term, a.is_not
   from pair_after a
  where exists (select 1 from pair_lost l where l.marker = a.marker);
 create index on kept_term (marker);
@@ -102,15 +110,32 @@ with recursive u(root, node) as (
 select root, node from u where root <> node;
 create index on ancestor (root, node);
 
--- Subsumed wins when both hold: keeping a child is the stronger statement.
+-- Every kept term of the same polarity that covers a lost pair, and how: a kept descendant
+-- subsumes a positive pair, a kept ancestor subsumes a NOT pair; the other direction only
+-- leaves specificity_lost (see POLARITY above).
+create temp table covering as
+select l.marker, l.term, l.is_not, k.term as covering_term,
+       case when l.is_not then 'specificity_lost' else 'subsumed' end as kind
+  from pair_lost l
+  join descendant d on d.root = l.term
+  join kept_term k on k.marker = l.marker and k.is_not = l.is_not and k.term = d.node
+union
+select l.marker, l.term, l.is_not, k.term,
+       case when l.is_not then 'subsumed' else 'specificity_lost' end
+  from pair_lost l
+  join ancestor a on a.root = l.term
+  join kept_term k on k.marker = l.marker and k.is_not = l.is_not and k.term = a.node;
+create index on covering (marker, term, is_not);
+
+-- Subsumed wins when both hold: it is the stronger statement.
 create temp table classified as
-select l.marker, l.term,
-       case when exists (select 1 from kept_term k join descendant d on d.node = k.term
-                          where k.marker = l.marker and d.root = l.term) then 'subsumed'
-            when exists (select 1 from kept_term k join ancestor a on a.node = k.term
-                          where k.marker = l.marker and a.root = l.term) then 'specificity_lost'
+select l.marker, l.term, l.is_not,
+       case when bool_or(c.kind = 'subsumed')         then 'subsumed'
+            when bool_or(c.kind = 'specificity_lost') then 'specificity_lost'
             else 'true_loss' end as bucket
-  from pair_lost l;
+  from pair_lost l
+  left join covering c on c.marker = l.marker and c.term = l.term and c.is_not = l.is_not
+ group by l.marker, l.term, l.is_not;
 
 -- Summary tables, so the "how many did we lose, broken down how" numbers are a workbook sheet
 -- rather than console output that only exists in whoever's terminal happened to run this. That
@@ -124,8 +149,9 @@ select bucket, count(*) as pairs,
 -- removal-scoping unit, so one org is one coherent bucket regardless of how many source
 -- publications feed it.
 create temp table true_loss_by_org as
-select b.org, count(distinct (c.marker, c.term)) as pairs
-  from classified c join mgte_before_all b on b.marker = c.marker and b.term = c.term
+select b.org, count(distinct (c.marker, c.term, c.is_not)) as pairs
+  from classified c join mgte_before_all b
+    on b.marker = c.marker and b.term = c.term and (lower(b.qualifier_flag) = 'not') = c.is_not
  where c.bucket = 'true_loss' group by 1 order by 2 desc;
 
 -- Org+source publication answers "how much of ORG's loss is which stream" -- e.g. how much of
@@ -136,9 +162,10 @@ select b.org, count(distinct (c.marker, c.term)) as pairs
 -- actually readable.
 create temp table true_loss_by_org_source as
 select b.org, b.source, p.title as source_title, p.pub_goref_id,
-       count(distinct (b.marker, b.term)) as pairs
+       count(distinct (c.marker, c.term, c.is_not)) as pairs
   from classified c
-  join mgte_before_all b on b.marker = c.marker and b.term = c.term
+  join mgte_before_all b
+    on b.marker = c.marker and b.term = c.term and (lower(b.qualifier_flag) = 'not') = c.is_not
   left join publication p on p.zdb_id = b.source
  where c.bucket = 'true_loss' group by 1, 2, 3, 4 order by 1, 5 desc;
 
@@ -156,29 +183,42 @@ select * from true_loss_by_org_source limit 15;
 
 -- One row per lost pair, with an example of the covering term where one exists, so a curator can
 -- check the verdict rather than trust it.
+-- (Every covering term, with the annotations holding it, is in mgte_subsumption_covering.csv.)
 create temp table detail as
-select c.bucket, b.org, b.gene, b.go_id, b.go_term, b.go_aspect, b.source, b.evidence,
+select c.bucket, b.org, b.gene, b.go_id, b.go_term, b.go_aspect, c.is_not, b.source, b.evidence,
        kt.term_ont_id as covering_go_id, kt.term_name as covering_go_term
   from classified c
   join lateral (select * from mgte_before_all m
-                 where m.marker = c.marker and m.term = c.term limit 1) b on true
+                 where m.marker = c.marker and m.term = c.term
+                   and (lower(m.qualifier_flag) = 'not') = c.is_not limit 1) b on true
   left join lateral (
         select t.term_ont_id, t.term_name
-          from kept_term k
-          join descendant d on d.node = k.term and d.root = c.term
-          join term t on t.term_zdb_id = k.term
-         where k.marker = c.marker and c.bucket = 'subsumed'
-      union all
-        select t.term_ont_id, t.term_name
-          from kept_term k
-          join ancestor a on a.node = k.term and a.root = c.term
-          join term t on t.term_zdb_id = k.term
-         where k.marker = c.marker and c.bucket = 'specificity_lost'
+          from covering cv
+          join term t on t.term_zdb_id = cv.covering_term
+         where cv.marker = c.marker and cv.term = c.term and cv.is_not = c.is_not
+           and cv.kind = c.bucket
+         order by t.term_ont_id
          limit 1) kt on true;
+
+-- One row per (lost pair, covering term, after-snapshot annotation holding that term), so the
+-- load report can point from a subsumed / specificity_lost removal to the exact annotations that
+-- cover it.
+create temp table covering_annotation as
+select c.bucket, a.gene, lt.term_ont_id as go_id, c.is_not,
+       ct.term_ont_id as covering_go_id, ct.term_name as covering_go_term,
+       a.org, a.source, a.evidence, a.zdb_id as covering_zdb_id
+  from classified c
+  join covering cv on cv.marker = c.marker and cv.term = c.term and cv.is_not = c.is_not
+                  and cv.kind = c.bucket
+  join mgte_after_all a on a.marker = c.marker and a.term = cv.covering_term
+                       and (lower(a.qualifier_flag) = 'not') = c.is_not
+  join term lt on lt.term_zdb_id = c.term
+  join term ct on ct.term_zdb_id = cv.covering_term;
 
 \copy (select * from detail where bucket = 'true_loss'        order by org, gene, go_id) to 'mgte_subsumption_true_loss.csv'        with (format csv, header true)
 \copy (select * from detail where bucket = 'subsumed'         order by org, gene, go_id) to 'mgte_subsumption_subsumed.csv'         with (format csv, header true)
 \copy (select * from detail where bucket = 'specificity_lost' order by org, gene, go_id) to 'mgte_subsumption_specificity_lost.csv' with (format csv, header true)
+\copy (select * from covering_annotation order by gene, go_id, is_not, covering_go_id, org, covering_zdb_id) to 'mgte_subsumption_covering.csv' with (format csv, header true)
 
 -- The three summary sheets: bucket totals, true loss by org, true loss by org+source publication
 -- (unrestricted -- the console echo above truncates to 15 for readability, the sheet does not).
