@@ -11,6 +11,7 @@ import org.zfin.antibody.presentation.AntibodySearchCriteriaTest;
 import org.zfin.database.DatabaseServiceTest;
 import org.zfin.datatransfer.go.GafErrorSummaryTest;
 import org.zfin.datatransfer.go.GafJobEntryFormattersTest;
+import org.zfin.datatransfer.go.service.GafCutoverImpactSummaryTest;
 import org.zfin.datatransfer.go.service.GafReportBuilderTest;
 import org.zfin.database.presentation.TableTest;
 import org.zfin.datatransfer.microarray.MicroarrayParseTest;
@@ -88,6 +89,7 @@ import org.zfin.util.*;
         GafErrorSummaryTest.class,
         GafJobEntryFormattersTest.class,
         GafReportBuilderTest.class,
+        GafCutoverImpactSummaryTest.class,
         DbScriptFileParserTest.class,
         DiseaseDisplayComparatorTest.class,
         EntityPresentationTest.class,

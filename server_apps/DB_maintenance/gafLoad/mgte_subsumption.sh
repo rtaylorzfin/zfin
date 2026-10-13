@@ -6,7 +6,10 @@
 #
 # Reads  <outdir>/mgte_{before,after}_ALL.csv   -- written by mgte_snapshot.sh --all
 # Writes <outdir>/mgte_subsumption.xlsx         -- sheets: true_loss / subsumed / specificity_lost /
-#                                                  by_bucket / by_org / by_org_source
+#                                                  covering / by_bucket / by_org / by_org_source
+#
+# "covering" lists, per subsumed / specificity_lost pair, every covering term and the annotations
+# that hold it -- GafCutoverImpactSummary reads it to fill the load report's Removed table.
 #
 # The last three are the top-line numbers for a loss report -- pairs by bucket, true-loss pairs
 # by owning organization (Noctua, FP Inferences, ...), and true-loss pairs by organization AND
@@ -43,6 +46,7 @@ gradle csv2xlsx --args="$OUT/mgte_subsumption.xlsx \
     $OUT/mgte_subsumption_true_loss.csv \
     $OUT/mgte_subsumption_subsumed.csv \
     $OUT/mgte_subsumption_specificity_lost.csv \
+    $OUT/mgte_subsumption_covering.csv \
     $OUT/mgte_subsumption_by_bucket.csv \
     $OUT/mgte_subsumption_by_org.csv \
     $OUT/mgte_subsumption_by_org_source.csv"
@@ -57,6 +61,7 @@ gradle csv2xlsx --args="$OUT/mgte_subsumption.xlsx \
 rm -f "$OUT"/mgte_subsumption_true_loss.csv \
       "$OUT"/mgte_subsumption_subsumed.csv \
       "$OUT"/mgte_subsumption_specificity_lost.csv \
+      "$OUT"/mgte_subsumption_covering.csv \
       "$OUT"/mgte_subsumption_by_bucket.csv \
       "$OUT"/mgte_subsumption_by_org.csv \
       "$OUT"/mgte_subsumption_by_org_source.csv

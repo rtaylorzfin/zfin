@@ -19,10 +19,13 @@ import java.io.FileReader;
 import java.io.IOException;
 import java.io.Reader;
 import java.util.ArrayList;
+import java.util.HashMap;
+import java.util.HashSet;
 import java.util.LinkedHashMap;
 import java.util.LinkedHashSet;
 import java.util.List;
 import java.util.Map;
+import java.util.Set;
 
 /**
  * Adds a "Cutover Impact Summary" node to an already-generated GafLoadJob HTML report --
@@ -97,7 +100,9 @@ public class GafCutoverImpactSummary {
         any |= addOrgCountsTable(impactNode, dbdiffDir);
         any |= addSheetTable(impactNode, dbdiffDir, "mgte_subsumption_by_bucket.csv",
             "Lost (gene, GO) pairs by bucket",
-            "subsumed = the gene retains a more specific descendant term (not a loss). "
+            "Pairs are (gene, GO term, NOT-or-not); a surviving NOT annotation never covers a "
+            + "lost positive one or vice versa. "
+            + "subsumed = the gene retains a more specific descendant term (not a loss). "
             + "specificity_lost = only a broader ancestor remains (partial loss). "
             + "true_loss = nothing in that lineage survives on that gene.");
         any |= addSheetTable(impactNode, dbdiffDir, "mgte_subsumption_by_org.csv",
@@ -152,18 +157,23 @@ public class GafCutoverImpactSummary {
     }
 
     /**
-     * Adds a "Loss type" column to the Removed table (GafReportBuilder's {@code cat-removed}
-     * node), populated from the subsumption detail sheets, keyed on (gene, GO id) -- the same
-     * join key mgte_subsumption.sql itself uses. A removed row whose pair isn't in any bucket
-     * simply isn't lost at the (gene, GO) level (e.g. the phylo GOA -> PAINT re-home: the GOA row
-     * is "removed" but the same pair exists again under PAINT), so it's left blank rather than
-     * guessed at.
+     * Adds "Loss type" and "Covering annotation(s)" columns to the Removed table (GafReportBuilder's
+     * {@code cat-removed} node). Each removed row is keyed on (gene, GO id, NOT-or-not) -- the same
+     * pair mgte_subsumption.sql classifies -- with its polarity read from the BEFORE snapshot by
+     * the row's annotation zdb id, since the Removed table itself doesn't carry the NOT flag:
+     * <ul>
+     *   <li>pair in a subsumption detail sheet: that bucket (true_loss / subsumed /
+     *       specificity_lost), with the covering terms and annotations from the covering sheet;</li>
+     *   <li>pair still present in the AFTER snapshot: {@code replaced}, with the annotations that
+     *       now hold it (e.g. the phylo GOA -> PAINT re-home);</li>
+     *   <li>neither: left blank rather than guessed at.</li>
+     * </ul>
      *
-     * <p>Requires the SAME dbdiffDir the impact tables above read from, so if those are missing
-     * (no subsumption workbook) this silently leaves the Removed table exactly as
-     * GafReportBuilder wrote it -- adding a column of blanks would be worse than not adding one.
+     * <p>Requires the subsumption workbook and the before/after snapshots from the same dbdiffDir
+     * the impact tables above read; if any is missing this leaves the Removed table exactly as
+     * GafReportBuilder wrote it -- adding columns of blanks would be worse than not adding them.
      */
-    private void enrichRemovedWithLossType(Report report, File dbdiffDir) {
+    void enrichRemovedWithLossType(Report report, File dbdiffDir) {
         ReportNode removedNode = findChild(report.getRoot(), "cat-removed");
         if (removedNode == null || removedNode.getTables() == null || removedNode.getTables().isEmpty()) {
             return;
@@ -172,9 +182,32 @@ public class GafCutoverImpactSummary {
         if (removedTable.getRows() == null || removedTable.getRows().isEmpty()) {
             return;
         }
+        File beforeFile = new File(dbdiffDir, "mgte_before_ALL.csv");
+        File afterFile = new File(dbdiffDir, "mgte_after_ALL.csv");
+        if (!new File(dbdiffDir, "mgte_subsumption.xlsx").isFile()
+            || !beforeFile.isFile() || !afterFile.isFile()) {
+            return;
+        }
 
-        Map<String, String> lossTypeByKey = loadLossTypeLookup(dbdiffDir);
-        if (lossTypeByKey.isEmpty()) {
+        Set<String> removedZdbIds = new HashSet<>();
+        Set<String> removedPairs = new HashSet<>();
+        for (Map<String, Object> row : removedTable.getRows()) {
+            removedZdbIds.add(String.valueOf(row.get("zdbID")));
+            removedPairs.add(pairKey(String.valueOf(row.get("marker")), String.valueOf(row.get("goTermID"))));
+        }
+
+        Map<String, String> lossTypeByKey;
+        Map<String, List<String>> coveringByKey;
+        Set<String> negatedRemoved;
+        Map<String, List<String>> survivorsByKey;
+        try {
+            lossTypeByKey = loadLossTypeLookup(dbdiffDir);
+            coveringByKey = loadCoveringLookup(dbdiffDir);
+            negatedRemoved = loadNegatedZdbIds(beforeFile, removedZdbIds);
+            survivorsByKey = loadSurvivors(afterFile, removedPairs);
+        } catch (Exception e) {
+            System.err.println("GafCutoverImpactSummary: could not load loss-type inputs from "
+                + dbdiffDir + ", leaving the Removed table as is: " + e);
             return;
         }
 
@@ -186,34 +219,67 @@ public class GafCutoverImpactSummary {
         // table.columns is still null, and one addColumn() call ends that. The visible symptom
         // was every other column (zdbID, marker, goTerm, ...) silently vanishing the moment this
         // ran -- caught before this shipped, not after.
-        List<ReportTable.Column> existingColumns = effectiveColumns(report, removedTable);
+        List<ReportTable.Column> existingColumns = new ArrayList<>(effectiveColumns(report, removedTable));
         boolean hasLossTypeColumn = existingColumns.stream().anyMatch(c -> "lossType".equals(c.getKey()));
-        if (!hasLossTypeColumn) {
+        boolean hasCoveringColumn = existingColumns.stream().anyMatch(c -> "covering".equals(c.getKey()));
+        if (!hasLossTypeColumn || !hasCoveringColumn) {
             // Same reasoning as the columns above: the table has no inline description of its
             // own (falls back to the schema's), so setting one here without first carrying the
             // schema's across would silently replace it rather than extend it. Gated on the same
-            // hasLossTypeColumn check as the columns, so a re-run (idempotency) doesn't
-            // re-append this note to itself.
-            String schemaDescription = effectiveDescription(report, removedTable);
-            String note = "\"Loss type\" (from this run's subsumption analysis): blank means "
-                + "this (gene, GO term) pair is still asserted some other way after this run -- a "
-                + "different organization/source now supplies it, so it was never actually lost "
-                + "at the (gene, GO) level (e.g. the phylo GOA -> PAINT re-home). Otherwise: "
-                + "true_loss (nothing in that lineage survives on the gene), subsumed (a more "
-                + "specific descendant term does -- not a real loss), or specificity_lost (only a "
-                + "broader ancestor does). See the Cutover Impact Summary for the totals.";
-            removedTable.description(schemaDescription == null || schemaDescription.isBlank()
-                ? note : schemaDescription + " " + note);
+            // checks as the columns, so a re-run (idempotency) doesn't re-append this note.
+            String description = effectiveDescription(report, removedTable);
+            if (!hasLossTypeColumn) {
+                String note = "\"Loss type\" (from this run's subsumption analysis), per (gene, GO "
+                    + "term, NOT-or-not): replaced (an annotation with the same gene, GO term and "
+                    + "polarity is still present -- not a loss), subsumed (a more specific term "
+                    + "still covers it -- not a loss), specificity_lost (only a broader term "
+                    + "does), or true_loss (nothing in that lineage survives on the gene). A "
+                    + "surviving NOT annotation never counts as covering a positive one, or vice "
+                    + "versa. \"Covering annotation(s)\" lists what replaces or covers it as "
+                    + "organization · evidence · source publication; search the Added or Existing "
+                    + "sections, or mgte_after_ALL.csv / mgte_subsumption.xlsx (sheet "
+                    + "mgte_subsumption_covering), for the full rows. See the Cutover Impact "
+                    + "Summary for the totals.";
+                removedTable.description(description == null || description.isBlank()
+                    ? note : description + " " + note);
+            }
 
-            for (ReportTable.Column c : existingColumns) {
+            List<ReportTable.Column> columns = new ArrayList<>(existingColumns);
+            if (!hasLossTypeColumn) {
+                columns.add(ReportTable.Column.of("lossType", "Loss type"));
+            }
+            if (!hasCoveringColumn) {
+                columns.add(ReportTable.Column.of("covering", "Covering annotation(s)"));
+            }
+            if (removedTable.getColumns() != null) {
+                removedTable.getColumns().clear();
+            }
+            for (ReportTable.Column c : columns) {
                 removedTable.addColumn(c);
             }
-            removedTable.addColumn(ReportTable.Column.of("lossType", "Loss type"));
         }
         for (Map<String, Object> row : removedTable.getRows()) {
-            String key = lossTypeKey(String.valueOf(row.get("marker")), String.valueOf(row.get("goTermID")));
-            row.put("lossType", lossTypeByKey.getOrDefault(key, ""));
+            boolean negated = negatedRemoved.contains(String.valueOf(row.get("zdbID")));
+            String key = lossTypeKey(String.valueOf(row.get("marker")), String.valueOf(row.get("goTermID")), negated);
+            String lossType = lossTypeByKey.get(key);
+            List<String> covering = coveringByKey.getOrDefault(key, List.of());
+            if (lossType == null && survivorsByKey.containsKey(key)) {
+                lossType = "replaced";
+                covering = survivorsByKey.get(key);
+            }
+            row.put("lossType", lossType == null ? "" : lossType);
+            row.put("covering", joinCapped(covering));
         }
+    }
+
+    private static final int MAX_COVERING_SHOWN = 5;
+
+    private static String joinCapped(List<String> items) {
+        if (items.size() <= MAX_COVERING_SHOWN) {
+            return String.join("; ", items);
+        }
+        return String.join("; ", items.subList(0, MAX_COVERING_SHOWN))
+            + "; (+" + (items.size() - MAX_COVERING_SHOWN) + " more)";
     }
 
     /** A table's own columns if it has any, else its schemaRef's columns, else empty. */
@@ -255,15 +321,114 @@ public class GafCutoverImpactSummary {
         return null;
     }
 
-    private static String lossTypeKey(String gene, String goId) {
+    private static String pairKey(String gene, String goId) {
         return gene + "\u0001" + goId;
+    }
+
+    private static String lossTypeKey(String gene, String goId, boolean negated) {
+        return pairKey(gene, goId) + "\u0001" + negated;
+    }
+
+    /** "not" in the snapshots' qualifier_flag column; "t"/"true" in mgte_subsumption.sql's is_not. */
+    private static boolean isNot(String qualifierFlag) {
+        return "not".equalsIgnoreCase(qualifierFlag);
+    }
+
+    private static boolean isTrue(String value) {
+        return "t".equalsIgnoreCase(value) || "true".equalsIgnoreCase(value);
+    }
+
+    private static String describeAnnotation(String org, String evidence, String source) {
+        return org + " · " + evidence + " · " + source;
+    }
+
+    /** The removed annotations (by zdb id) that were NOT annotations, from the BEFORE snapshot. */
+    private static Set<String> loadNegatedZdbIds(File beforeFile, Set<String> zdbIds) throws IOException {
+        Set<String> negated = new HashSet<>();
+        try (Reader reader = new FileReader(beforeFile);
+             CSVParser parser = CSVFormat.DEFAULT.withFirstRecordAsHeader().parse(reader)) {
+            for (CSVRecord record : parser) {
+                if (zdbIds.contains(record.get("zdb_id")) && isNot(record.get("qualifier_flag"))) {
+                    negated.add(record.get("zdb_id"));
+                }
+            }
+        }
+        return negated;
+    }
+
+    /**
+     * (gene, GO id, NOT-or-not) -> the AFTER-snapshot annotations holding it, restricted to the
+     * (gene, GO id) pairs of removed rows so a full snapshot isn't held in memory.
+     */
+    private static Map<String, List<String>> loadSurvivors(File afterFile, Set<String> pairs) throws IOException {
+        Map<String, List<String>> survivors = new HashMap<>();
+        try (Reader reader = new FileReader(afterFile);
+             CSVParser parser = CSVFormat.DEFAULT.withFirstRecordAsHeader().parse(reader)) {
+            for (CSVRecord record : parser) {
+                String gene = record.get("gene");
+                String goId = record.get("go_id");
+                if (!pairs.contains(pairKey(gene, goId))) {
+                    continue;
+                }
+                survivors.computeIfAbsent(lossTypeKey(gene, goId, isNot(record.get("qualifier_flag"))),
+                        k -> new ArrayList<>())
+                    .add(describeAnnotation(record.get("org"), record.get("evidence"), record.get("source")));
+            }
+        }
+        return survivors;
+    }
+
+    /**
+     * (gene, GO id, NOT-or-not) -> "covering GO id + name (annotations holding it)" for every
+     * subsumed / specificity_lost pair, from mgte_subsumption.sql's covering sheet. Empty when
+     * the sheet is absent (a workbook from before that sheet existed).
+     */
+    private Map<String, List<String>> loadCoveringLookup(File dbdiffDir) throws IOException {
+        Map<String, Map<String, List<String>>> byKeyThenTerm = new LinkedHashMap<>();
+        File workbookFile = new File(dbdiffDir, "mgte_subsumption.xlsx");
+        try (var in = java.nio.file.Files.newInputStream(workbookFile.toPath())) {
+            Workbook workbook = WorkbookFactory.create(in);
+            Sheet sheet = workbook.getSheet("mgte_subsumption_covering");
+            if (sheet == null || sheet.getRow(0) == null) {
+                return Map.of();
+            }
+            List<String> headers = new ArrayList<>();
+            for (Cell cell : sheet.getRow(0)) headers.add(cellText(cell));
+            if (!headers.containsAll(List.of("gene", "go_id", "is_not", "covering_go_id",
+                    "covering_go_term", "org", "evidence", "source"))) {
+                System.err.println("GafCutoverImpactSummary: covering sheet is missing an expected "
+                    + "column, leaving Covering annotation(s) blank: " + headers);
+                return Map.of();
+            }
+            for (int r = 1; r <= sheet.getLastRowNum(); r++) {
+                Row row = sheet.getRow(r);
+                if (row == null) continue;
+                String key = lossTypeKey(cellText(row.getCell(headers.indexOf("gene"))),
+                    cellText(row.getCell(headers.indexOf("go_id"))),
+                    isTrue(cellText(row.getCell(headers.indexOf("is_not")))));
+                String term = cellText(row.getCell(headers.indexOf("covering_go_id"))) + " "
+                    + cellText(row.getCell(headers.indexOf("covering_go_term")));
+                byKeyThenTerm.computeIfAbsent(key, k -> new LinkedHashMap<>())
+                    .computeIfAbsent(term, t -> new ArrayList<>())
+                    .add(describeAnnotation(cellText(row.getCell(headers.indexOf("org"))),
+                        cellText(row.getCell(headers.indexOf("evidence"))),
+                        cellText(row.getCell(headers.indexOf("source")))));
+            }
+        }
+        Map<String, List<String>> lookup = new HashMap<>();
+        byKeyThenTerm.forEach((key, terms) -> {
+            List<String> items = new ArrayList<>();
+            terms.forEach((term, annotations) -> items.add(term + " (" + String.join(", ", annotations) + ")"));
+            lookup.put(key, items);
+        });
+        return lookup;
     }
 
     /**
      * Reads mgte_subsumption.sql's three per-pair detail sheets (true_loss / subsumed /
      * specificity_lost) out of the workbook -- these are the ONE row per (gene, GO term) pair
      * detail sheets, not the by_bucket/by_org/by_org_source summaries the tables above use -- and
-     * returns a (gene, GO id) -> bucket lookup covering every pair this run lost.
+     * returns a (gene, GO id, NOT-or-not) -> bucket lookup covering every pair this run lost.
      */
     private Map<String, String> loadLossTypeLookup(File dbdiffDir) {
         Map<String, String> lookup = new LinkedHashMap<>();
@@ -293,6 +458,8 @@ public class GafCutoverImpactSummary {
                 int bucketIdx = headers.indexOf("bucket");
                 int geneIdx = headers.indexOf("gene");
                 int goIdIdx = headers.indexOf("go_id");
+                // Absent from workbooks written before polarity was part of the pair.
+                int isNotIdx = headers.indexOf("is_not");
                 if (bucketIdx < 0 || geneIdx < 0 || goIdIdx < 0) {
                     System.err.println("GafCutoverImpactSummary: sheet " + sheetName
                         + " is missing an expected column (bucket/gene/go_id), skipping");
@@ -304,7 +471,8 @@ public class GafCutoverImpactSummary {
                     String bucket = cellText(row.getCell(bucketIdx));
                     String gene = cellText(row.getCell(geneIdx));
                     String goId = cellText(row.getCell(goIdIdx));
-                    lookup.put(lossTypeKey(gene, goId), bucket);
+                    boolean negated = isNotIdx >= 0 && isTrue(cellText(row.getCell(isNotIdx)));
+                    lookup.put(lossTypeKey(gene, goId, negated), bucket);
                 }
             }
         } catch (Exception e) {
