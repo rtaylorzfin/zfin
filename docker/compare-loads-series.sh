@@ -201,12 +201,16 @@ ctr "rm -rf $OUTREL/hashes/$prev"              # last remaining hash dir
 
 # ---- index of all reports (built in-container, where the files live) --------
 ctr "
-echo 'report,changed,added,removed,rows_added_total,rows_removed_total' > $OUTREL/index.csv
+# real totals: per-table real churn, falling back to raw where real is n/a;
+# blank for reports made before real churn existed.
+echo 'report,changed,added,removed,rows_added_total,rows_removed_total,real_rows_added_total,real_rows_removed_total' > $OUTREL/index.csv
 for r in $OUTREL/reports/*.csv; do
     [ -e \"\$r\" ] || continue
     awk -F, -v name=\"\$(basename \"\$r\" .csv)\" '
-        NR>1 { st[\$NF]++; if (NF>=8) { add+=\$6; rem+=\$7 } }
-        END { printf \"%s,%d,%d,%d,%d,%d\n\", name, st[\"changed\"], st[\"added\"], st[\"removed\"], add, rem }
+        NR>1 { st[\$NF]++; if (NF>=8) { add+=\$6; rem+=\$7 }
+               if (NF>=11) { real=1; radd+=(\$8==\"\" ? \$6 : \$8); rrem+=(\$9==\"\" ? \$7 : \$9) } }
+        END { printf \"%s,%d,%d,%d,%d,%d,%s,%s\n\", name, st[\"changed\"], st[\"added\"], st[\"removed\"], add, rem,
+                     real ? radd : \"\", real ? rrem : \"\" }
     ' \"\$r\" >> $OUTREL/index.csv
 done
 "

@@ -2,7 +2,7 @@
 #
 # Post-run analysis over the accumulated per-date snapshot CSVs (from
 # snapshot_table_summary.sh, one file per date: schema,table,row_count,
-# content_hash): for each table, how far back has it been byte-for-byte
+# content_hash[,excluded_cols,real_hash]): for each table, how far back has it been byte-for-byte
 # unchanged?
 #
 # Walking the snapshots newest -> oldest, a table's content_hash matches the
@@ -49,7 +49,7 @@ oldest_date=""
 # Seed from the newest snapshot: every current table starts "unchanged since"
 # the newest date, matching itself.
 newest_date=$(date_of "${files[0]}")
-while IFS=, read -r schema table rc hash; do
+while IFS=, read -r schema table rc hash _; do
     key="$schema,$table"
     NEWHASH["$key"]="$hash"; LATEST["$key"]="$rc"; SINCE["$key"]="$newest_date"
 done < <(tail -n +2 "${files[0]}")
@@ -60,7 +60,7 @@ for ((i = 1; i < ${#files[@]}; i++)); do
     d=$(date_of "${files[$i]}")
     oldest_date="$d"
     declare -A THIS=()
-    while IFS=, read -r schema table rc hash; do
+    while IFS=, read -r schema table rc hash _; do
         THIS["$schema,$table"]="$hash"
     done < <(tail -n +2 "${files[$i]}")
 

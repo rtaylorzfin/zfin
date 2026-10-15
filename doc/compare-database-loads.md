@@ -10,7 +10,8 @@ changes still surface.
 
 | File | Role |
 |------|------|
-| `server_apps/DB_maintenance/postgres/snapshot_table_summary.sh` | Snapshot one live DB: writes `schema,table,row_count,content_hash` CSV (one row per table). |
+| `server_apps/DB_maintenance/postgres/snapshot_table_summary.sh` | Snapshot one live DB: writes `schema,table,row_count,content_hash,excluded_cols,real_hash` CSV (one row per table). |
+| `server_apps/DB_maintenance/postgres/churn_columns.sh` + `churn_columns.tsv` | Decides which columns are churn (surrogate ids, timestamps) vs meaningful, per table. Shared by the snapshot's `real_hash` and `drill-table-churn.sh`. |
 | `server_apps/DB_maintenance/postgres/compare_table_summaries.sh` | Join a before + after snapshot into the comparison CSV and print a summary. |
 | `build.gradle` → `compareLoads` | Orchestrates: load before → snapshot → load after → snapshot → compare. |
 | `server_apps/jenkins/jobs/Compare-Database-Loads/config.xml` | Jenkins job; selects the two backup files the same way `Load-Database` does. |
@@ -154,13 +155,14 @@ history deepens, with nothing rewritten.
 
 ### Drilling into one table: real churn vs surrogate/metadata churn
 
-The sweep counts churn over the whole row, so a table rebuilt each load with a
+The sweep reports carry real churn per table (see below). Before that existed,
+the sweep counted churn over the whole row only, so a table rebuilt each load with a
 regenerated surrogate serial key and/or a load timestamp shows ~100% churn even
 when its meaningful content barely moved. `drill-table-churn.sh` recomputes the
-churn for a single table over its **meaningful columns only** — dropping
-date/time-typed columns and integer/bigint surrogate keys (`id` / `*_id`; ZFIN's
-real identifiers are stable text ZDB IDs, which are kept), plus any `--exclude`
-you add.
+churn for a single table over its **meaningful columns only**, using the same
+rules as the sweep's real hash (`churn_columns.sh`, see "Real churn" below), plus
+any `--exclude` you add. Use it for a pair of dumps outside the sweep, or to try
+out an exclusion before putting it in `churn_columns.tsv`.
 
 ```bash
 docker/drill-table-churn.sh --table ui.publication_expression_display \
@@ -181,19 +183,46 @@ starkly — a fast-search/warehouse table whose entire daily churn is noise:
 
 Give a dated unload dir (resolved on the mount) or a direct `.bak` path for
 `--before`/`--after`. The table's column layout and PK are read from the live DB,
-so the table must exist there.
+so the table must exist there. Each run copies both dumps again (~4 min per table).
 
-## Known limitation: ID-churning loads (sweep reports)
+## Real (meaningful-content) churn
 
-The sweep's per-pair reports hash the full row (`md5(row::text)`), which includes
-surrogate keys and date/audit columns, so a rebuilt-with-fresh-IDs table shows as
-`changed` with large churn there. Use `drill-table-churn.sh` (above) to see the
-real content churn for any table flagged that way.
+Many tables are rebuilt each load with fresh serial ids and load timestamps, so
+whole-row hashing shows them as ~100% churn even when their content is the same.
+Every snapshot therefore also records a **real hash** over the table's meaningful
+columns, and every report carries real churn next to the raw churn:
 
-**Possible future improvement:** fold meaningful-column hashing into the sweep
-itself (a second per-row hash over meaningful columns) so every report carries a
-`real_rows_added`/`real_rows_removed` alongside the raw churn, instead of drilling
-in table by table — at the cost of more per-row hash storage.
+- **Which columns are left out** is decided by `churn_columns.sh` (one set of rules,
+  shared with `drill-table-churn.sh`): date/time-typed columns; integer columns
+  named `id` / `*_id` (ZFIN's real identifiers are text ZDB IDs); a sole integer
+  primary key; plus per-table overrides in `churn_columns.tsv`. Add an `include`
+  line there for an integer `*_id` that is meaningful (e.g. an FK into a table
+  whose ids are stable), or an `exclude` line for churn the rules miss:
+  ```
+  public.genotype_figure_fast_search  include  gffs_psg_id,gffs_pg_id
+  ```
+  Check what a table resolves to with
+  `DBNAME=zfindb server_apps/DB_maintenance/postgres/churn_columns.sh <schema.table>`.
+- **Snapshot:** `excluded_cols` (`;`-separated) and `real_hash` columns. The real
+  hash (and, in `HASHDIR` mode, a `<schema>.<table>.real.md5` per-row file) is
+  computed only for tables with at least one excluded column; for the rest,
+  `real_hash` equals `content_hash` at no extra cost.
+- **Churn report** columns: `…, rows_added, rows_removed, real_rows_added,
+  real_rows_removed, excluded_cols, status`, ordered by real churn. The sweep's
+  `index.csv` gains `real_rows_added_total` / `real_rows_removed_total`.
+- **Counts-only report** (`compareLoads`) gains `real_status`
+  (`changed` / `unchanged` / `n/a`).
+- **When real churn is blank / `n/a`:** one snapshot predates `real_hash` (the
+  August 2026 series), or the two snapshots left out different columns because the
+  rules or `churn_columns.tsv` changed in between. It is not guessed in either case.
+
+Example (`ui.term_phenotype_display`, 2026.08.12.1 → 08.13.1): raw
++227,096 / −226,915, real **+217 / −36**, excluded `tpd_id;created_at`. It matches
+`drill-table-churn.sh` on the same pair.
+
+Real churn still drops integer FK columns into tables whose ids churn, so a row
+re-pointed to a different parent is not detected; see `TODO.txt` ("re-pointed
+links").
 
 ## Future TODO
 

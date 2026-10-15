@@ -5,7 +5,7 @@
 # This is the lightweight sibling of dump_tables_deterministic.sh: instead of
 # dumping full table contents, it records one row per table:
 #
-#   schema_name,table_name,row_count,content_hash
+#   schema_name,table_name,row_count,content_hash,excluded_cols,real_hash
 #
 # content_hash is md5 of the per-row hashes (md5(row::text)) concatenated in
 # hash order. It is stable across runs against the same data and changes if any
@@ -15,6 +15,14 @@
 # which fails for types with no btree ordering operator, e.g. json/xml, in a
 # PK-less table). Ordering is forced to COLLATE "C" (byte order) so it matches a
 # plain `comm` / `LC_ALL=C sort` on the per-row hash files (see HASHDIR below).
+#
+# real_hash is the same hash computed over the table's MEANINGFUL columns only,
+# leaving out the churn columns that churn_columns.sh resolves (date/time columns,
+# integer surrogate ids, plus churn_columns.tsv overrides). excluded_cols lists
+# them (';'-separated). It is computed only for tables with at least one excluded
+# column; for every other table it equals content_hash at no extra cost. A table
+# rebuilt with fresh serial ids and load timestamps changes content_hash but keeps
+# real_hash when its meaningful content is the same.
 #
 # Take one snapshot before a load and one after, then diff / join the two CSVs
 # (see compare_table_summaries.sh) for a per-table before/after summary.
@@ -26,6 +34,8 @@
 # content_hash and row_count are derived from that file, so they are identical to
 # what the lean (HASHDIR-unset) path would produce -- the two modes are
 # cross-consistent. Cost: ~33 bytes per row on disk (~3 GB for a full ZFIN DB).
+# Tables with excluded columns also get <schema>.<table>.real.md5 (the per-row
+# real hashes), used for real_rows_added / real_rows_removed.
 #
 # Env:
 #   DBNAME    target database (required)
@@ -48,6 +58,8 @@ OUTFILE="${OUTFILE:-./table_summary.csv}"
 HASHDIR="${HASHDIR:-}"
 SCHEMAS="${SCHEMAS:-}"
 EXCLUDE="${EXCLUDE:-}"
+
+SCRIPT_DIR="$(cd "$(dirname "${BASH_SOURCE[0]}")" && pwd)"
 
 mkdir -p "$(dirname "$OUTFILE")"
 [[ -n "$HASHDIR" ]] && mkdir -p "$HASHDIR"
@@ -76,8 +88,21 @@ ORDER BY 1, 2;
 SQL
 )
 
+# Excluded / meaningful columns per table (shared rules with drill-table-churn.sh).
+declare -A EXCL MEAN
+while IFS='|' read -r s t ex me; do
+    EXCL["$s.$t"]="$ex"; MEAN["$s.$t"]="$me"
+done < <(DBNAME="$DBNAME" SCHEMAS="$SCHEMAS" bash "$SCRIPT_DIR/churn_columns.sh")
+
+# ';'-separated column names -> a quoted SQL ROW(...) expression.
+row_expr() {
+    local IFS=';' c out=""
+    for c in $1; do out+="\"${c//\"/\"\"}\","; done
+    echo "ROW(${out%,})"
+}
+
 echo "Snapshotting ${#tables[@]} tables to $OUTFILE"
-echo "schema_name,table_name,row_count,content_hash" > "$OUTFILE"
+echo "schema_name,table_name,row_count,content_hash,excluded_cols,real_hash" > "$OUTFILE"
 
 for row in "${tables[@]}"; do
     schema="${row%%$'\t'*}"
@@ -88,6 +113,10 @@ for row in "${tables[@]}"; do
         echo "skip   $fqn"
         continue
     fi
+
+    excl="${EXCL[$fqn]:-}"
+    real_expr=""
+    [[ -n "$excl" ]] && real_expr="md5($(row_expr "${MEAN[$fqn]}")::text)"
 
     if [[ -n "$HASHDIR" ]]; then
         # Dump the sorted per-row hashes to a file (enables exact churn), then
@@ -103,19 +132,34 @@ for row in "${tables[@]}"; do
         else
             hash=$(tr -d '\n' < "$hf" | md5sum | cut -d' ' -f1)
         fi
+        real_hash="$hash"
+        if [[ -n "$real_expr" ]]; then
+            rf="$HASHDIR/${schema}.${table}.real.md5"
+            "$PSQL" -d "$DBNAME" -v ON_ERROR_STOP=1 -c \
+                "\copy (SELECT $real_expr FROM ${schema}.${table} ORDER BY $real_expr COLLATE \"C\") TO '${rf}'"
+            if [[ "$count" -eq 0 ]]; then
+                real_hash=""
+            else
+                real_hash=$(tr -d '\n' < "$rf" | md5sum | cut -d' ' -f1)
+            fi
+        fi
     else
         # count + content hash in one pass. Each row is hashed, then the per-row
         # hashes are concatenated in hash order (deterministic, key-agnostic,
         # works for any column type) and hashed again. string_agg over zero rows
         # is NULL, coalesced to '' so empty tables get a stable empty hash.
-        IFS=$'\t' read -r count hash < <(
+        # The real hash rides along in the same pass when the table has one.
+        IFS=$'\t' read -r count hash real_hash < <(
             "$PSQL" -d "$DBNAME" -At -F$'\t' -v ON_ERROR_STOP=1 -c \
-                "SELECT count(*), coalesce(md5(string_agg(h, '' ORDER BY h COLLATE \"C\")), '') FROM (SELECT md5(t::text) AS h FROM ${schema}.${table} t) s"
+                "SELECT count(*), coalesce(md5(string_agg(h, '' ORDER BY h COLLATE \"C\")), ''),
+                        coalesce(md5(string_agg(r, '' ORDER BY r COLLATE \"C\")), '')
+                 FROM (SELECT md5(t::text) AS h, ${real_expr:-NULL::text} AS r FROM ${schema}.${table} t) s"
         )
+        [[ -n "$real_expr" ]] || real_hash="$hash"
     fi
 
     echo "snap   $fqn  (rows=$count)"
-    echo "${schema},${table},${count},${hash}" >> "$OUTFILE"
+    echo "${schema},${table},${count},${hash},${excl},${real_hash}" >> "$OUTFILE"
 done
 
 echo "done. ${#tables[@]} tables in $OUTFILE"

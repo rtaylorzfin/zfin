@@ -95,52 +95,27 @@ stage() {   # $1 = spec, $2 = name(before|after) -> echoes container path
     echo "$CTR_UNLOADS/_drill/$name.bak"
 }
 
-# ---- introspect columns / types / PK from the live zfindb -------------------
-log "introspecting $schema.$table from \$DBNAME..."
-declare -A COLTYPE; allcols=()
-while IFS='|' read -r name typ; do
-    [[ -z "$name" ]] && continue
-    allcols+=("$name"); COLTYPE["$name"]="$typ"
-done < <(ctr_sql "\$DBNAME" <<SQL
-SELECT a.attname, format_type(a.atttypid, a.atttypmod)
-FROM pg_attribute a
-WHERE a.attrelid = '$schema.$table'::regclass AND a.attnum > 0 AND NOT a.attisdropped
-ORDER BY a.attnum;
-SQL
-)
-[[ "${#allcols[@]}" -gt 0 ]] || die "table $schema.$table not found in the live DB (needed for its column layout)"
+# ---- resolve churn vs meaningful columns (shared rules, see churn_columns.sh) -
+# Resolved against the live zfindb's layout for the table, with the same rules
+# and churn_columns.tsv overrides the sweep's real_hash uses; --exclude adds more.
+log "resolving churn columns for $schema.$table from \$DBNAME..."
+resolved=$(ctr "DBNAME=\$DBNAME bash server_apps/DB_maintenance/postgres/churn_columns.sh $schema.$table" 2>/dev/null \
+    | grep -v 'Loading properties' || true)
+[[ -n "$resolved" ]] || die "table $schema.$table not found in the live DB (needed for its column layout)"
+IFS='|' read -r _ _ rexcl rmean <<< "$resolved"
 
-pkcols=()
-while IFS= read -r name; do [[ -n "$name" ]] && pkcols+=("$name"); done < <(ctr_sql "\$DBNAME" <<SQL
-SELECT a.attname
-FROM pg_index i JOIN pg_attribute a ON a.attrelid = i.indrelid AND a.attnum = ANY(i.indkey)
-WHERE i.indrelid = '$schema.$table'::regclass AND i.indisprimary
-ORDER BY a.attnum;
-SQL
-)
-
-# ---- decide the churn (excluded) columns ------------------------------------
-# Auto-exclude: date/time-typed columns, and integer/bigint surrogate keys. In
-# ZFIN real identifiers are text ZDB IDs, so a bigint column named `id` / `*_id`
-# is a regenerated surrogate serial (whether or not it is the PK) -- exclude it;
-# keep the *_zdb_id (text) columns, which are stable.
 declare -A EXSET
-for name in "${allcols[@]}"; do
-    t="${COLTYPE[$name]}"
-    if [[ "$t" =~ ^(date|time|timestamp) ]]; then EXSET["$name"]=1; continue; fi
-    if [[ "$t" =~ ^(integer|bigint|smallint) && "$name" =~ (^id$|_id$) ]]; then EXSET["$name"]=1; continue; fi
-done
-if [[ "${#pkcols[@]}" -eq 1 ]]; then                                          # sole integer PK, any name
-    pk="${pkcols[0]}"
-    [[ "${COLTYPE[$pk]}" =~ ^(integer|bigint|smallint) ]] && EXSET["$pk"]=1
-fi
+IFS=';' read -ra excluded <<< "$rexcl"
+for u in "${excluded[@]}"; do [[ -n "$u" ]] && EXSET["$u"]=1; done
 if [[ -n "$EXCLUDE" ]]; then
     IFS=',' read -ra ux <<< "$EXCLUDE"
     for u in "${ux[@]}"; do u="${u// /}"; [[ -n "$u" ]] && EXSET["$u"]=1; done
 fi
 
+IFS=';' read -ra mcols <<< "$rmean"
 meaningful=()
-for name in "${allcols[@]}"; do [[ -n "${EXSET[$name]:-}" ]] || meaningful+=("$name"); done
+for name in "${mcols[@]}"; do [[ -n "${EXSET[$name]:-}" ]] || meaningful+=("$name"); done
+allcols=("${excluded[@]}" "${mcols[@]}")
 [[ "${#meaningful[@]}" -gt 0 ]] || die "every column was excluded; nothing meaningful to compare"
 
 mlist=""; for c in "${meaningful[@]}"; do mlist+="\"$c\","; done; mlist="${mlist%,}"
