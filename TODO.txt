@@ -5,7 +5,7 @@ table (row count + content hash), and emit a per-table before/after comparison s
 Driven automatically by a Jenkins job that mirrors Load-Database's file selection.
 
 ================================================================================
-NEXT STEPS (as of 2026-09-16) — current state: mount ~/remotes/cell is back;
+NEXT STEPS (as of 2026-10-14; was 2026-09-16) — current state: mount ~/remotes/cell is back;
 11 daily snapshots on disk (08.06..08.16); DB idle. Core tooling all built,
 tested, committed (7 commits, unpushed). Context docs: workbench/
 surrogate-id-churn-audit.md + db-load-comparison-session-notes.md.
@@ -24,13 +24,59 @@ surrogate-id-churn-audit.md + db-load-comparison-session-notes.md.
       (c) then internal fast_search tables (pheno_term_fast_search first; TODO already
           filed in its regen header), expression_term_fast_search, genotype_figure_fast_search,
           sequence_feature_chromosome_location_generated
+      Acceptance check per converted table: daily-sweep raw churn should collapse to
+      ~= real churn (and stay there -- a heatmap regression = regen broke). Each
+      converted parent also retires the need for the "re-pointed links" FK mapping
+      for its children.
 [ ] Confirm whether ui.publication_expression_display.ped_id actually reaches a client
     (serving path may build rows fresh); locate the missing fish_components base-table DDL.
 [ ] Add a fail-fast mount check to compare-loads-series.sh (error clearly instead of
     dying mid-run when ~/remotes/cell has dropped).
 [ ] Move compareLoads out of build.gradle into the zfin-utils command.
-[ ] (maybe) fold meaningful-column hashing into the sweep so reports carry
-    real_rows_added/removed directly (costs more per-row hash storage).
+[x] DONE 2026-10-14 (uncommitted): meaningful-column hashing in the sweep, steps 1-4.
+    churn_columns.sh/.tsv resolver; snapshot excluded_cols + real_hash (+ .real.md5 only
+    for tables with exclusions: 419 of 1095 live tables); compare real_rows_added/removed
+    + real_status, n/a on old snapshots or changed excluded set; index real totals;
+    drill uses the resolver. Tested on a scratch DB (rebuild/edit/plain/include/empty/
+    added/removed, lean == hash mode, old-format compat) and on real data:
+    term_phenotype_display 08.12->08.13 real +217/-36 == drill. Also fixed: counts-only
+    compare exited 1 on success (would have failed gradle compareLoads).
+    Step 5 replaced by: 30-day run 2026.09.13 -> 10.13 (August snapshots stay raw-only).
+[~] (was NOW) meaningful-column hashing in the sweep (2026-10-14 plan):
+      1. churn_columns.tsv registry (server_apps/DB_maintenance/postgres/): per-table
+         exclude/include overrides on top of the auto rules (date/time types; int
+         id/*_id; sole int PK). include= rescues a meaningful int *_id column.
+      2. shared resolver (one script/SQL fn) used by snapshot + drill-table-churn so
+         both always agree on the excluded set.
+      3. snapshot: second sorted hash file <t>.real.md5 ONLY for tables with >=1
+         excluded column (else real == raw, no extra disk). CSV gains
+         excluded_cols + real_hash columns.
+      4. compare: real_rows_added/real_rows_removed alongside raw; index.csv gains
+         real totals. If before/after excluded_cols differ (registry changed), mark
+         real churn n/a for that table instead of reporting a bogus number.
+      5. re-run the 08.06..08.16 sweep for real numbers; check against the two
+         drill results (marker +125/-107, term_phenotype_display +217/-36).
+[ ] LATER: forward / daily mode for compare-loads-series.sh.
+      - --forward (catch-up): start at the newest snapshot on disk, process every
+        newer dump oldest->newest, comparing each to the day before.
+      - keep the newest day's hash dir (currently pruned at the end) so tomorrow's
+        run only loads ONE dump.
+      - Jenkins: run daily after the nightly unload lands; fail-fast mount check;
+        no-op if no new dump. Backward mode stays for backfilling history.
+      - option: snapshot the post-load DB directly rather than re-restoring the dump.
+[ ] LATER: glanceable churn dashboard (static HTML generated from reports/*.csv,
+    archived by Jenkins each run).
+      - heatmap: rows = tables, cols = days (7/30-day toggle), cell = real churn
+        (% of rows, log color scale); daily totals strip on top.
+      - "large" = unusual for THAT table (vs its trailing median), so tables that
+        rebuild daily don't drown out a real spike; sort/flag by that.
+      - show raw vs real, added/removed tables, row-count delta; click-through to the
+        per-table report row.
+[ ] LATER: re-pointed links. Real hash still drops int FK columns, so a child row
+    re-pointed to a different parent is invisible. Fix: map FK surrogate ids to the
+    parent's ZDB ID (via pg_constraint) before hashing.
+[ ] LATER: drill-table-churn speed: take several --table per run and reuse staged
+    dumps (currently re-copies 2 x 1.3 GB per table, ~4 of 4.5 min).
 [ ] Before merge: git rm the temporary committed scratch (TODO.txt + the 3 workbench
     files, each in its own commit); then push (manual - git-push-manual).
 ================================================================================
