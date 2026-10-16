@@ -6,6 +6,8 @@
 -- 2) RefSeq accessioons (including RefSeq RNA, RefPept, RefSeq DNA)
 -- 3) GenBank accessions (including GenBank RNA, GenPept, GenBank DNA)
 -- The script also attribute the manually curated GenBank accessions to 1 of the load publications, if the accession is found with the load.
+-- Links that come back unchanged keep their existing ZDB ID (see REUSE EXISTING LINKS); only links that are
+-- gone are deleted and only links that are new get a new ID.
 
 begin work;
 
@@ -54,10 +56,11 @@ update ncbi_gene_load
  set sequence_length = null
  where sequence_length = '';
 
-alter table ncbi_gene_load 
+alter table ncbi_gene_load
   alter column sequence_length type integer USING sequence_length::integer;
 
-update ncbi_gene_load set zdb_id = get_id_and_insert_active_data('DBLINK');
+-- toLoad.unl carries no ZDB IDs (the column arrives as ''); they are reused or assigned below.
+update ncbi_gene_load set zdb_id = null;
 
 -- If there are any duplicates in the load file but with different load_pub_zdb_id, we want to keep the one with the highest priority load pub
 -- Priority order is: ZDB-PUB-020723-3 > ZDB-PUB-230516-87
@@ -158,24 +161,6 @@ DELETE FROM ncbi_gene_delete
 -- ▙▖▛▖▌▌▌  ▙▌▙▘▙▖▚ ▙▖▙▘▌▌▙▖
 -- ▙▖▌▝▌▙▘  ▌ ▌▌▙▖▄▌▙▖▌▌▚▘▙▖
 
-
-\echo 'Deleting from reference_protein';
-\copy (select * from reference_protein where rp_dblink_zdb_id in (select * from ncbi_gene_delete)) to 'referenceProteinDeletes.unl' (delimiter '|');
-delete from reference_protein where rp_dblink_zdb_id in (select * from ncbi_gene_delete);
---!echo 'Delete from zdb_active_data table and cause delete cascades on db_link records'
-delete from zdb_active_data where zactvd_zdb_id in (select * from ncbi_gene_delete);
-
---!echo 'Delete from record_attribution table for those manually curated records but attributed to load publication'
-
-delete from record_attribution
- where recattrib_source_zdb_id in ('ZDB-PUB-020723-3')
-   and exists (select 'x' from db_link
-                where recattrib_data_zdb_id = dblink_zdb_id 
-                  and (dblink_linked_recid like 'ZDB-GENE%' or dblink_linked_recid like '%RNAG%')
-                  and dblink_fdbcont_zdb_id in ('ZDB-FDBCONT-040412-37','ZDB-FDBCONT-040412-42','ZDB-FDBCONT-040412-36')
-              )
-   and not exists (select 'x' from ncbi_dblink_to_preserve where prsv_dblink_zdb_id = recattrib_data_zdb_id);
-
 --
 -- ▄▖▄▖▖ ▖▄▖▖ ▄▖▄▖▄▖▄▖
 -- ▌ ▌▌▛▖▌▙▖▌ ▐ ▌ ▐ ▚
@@ -188,6 +173,9 @@ delete from record_attribution
 --    a. same gene, different ncbi id
 --    b. different gene, same ncbi id
 -- 3. These conflicts must be such that the existing db_link is under a manually curated pub (not a load pub)
+
+-- This runs before the deletes and before any ZDB ID is assigned, so rows it drops never get a DBLINK ID. It
+-- ignores links on the delete list, so it sees db_link exactly as it would after the deletes below.
 
 -- To resolve these conflicts, we will delete the records from ncbi_gene_load table (the load list) . They eventually get
 -- dumped out for review in the many_to_many_conflicts table (logged to 'post_run_n_to_1_zdb_to_ncbi.csv')
@@ -211,6 +199,7 @@ FROM
          (mapped_zdb_gene_id <> dblink_linked_recid AND ncbi_accession = dblink_acc_num)) -- different gene, same ncbi id
         AND fdbcont_zdb_id = 'ZDB-FDBCONT-040412-1'
         AND dblink_fdbcont_zdb_id = 'ZDB-FDBCONT-040412-1'
+        AND dblink_zdb_id NOT IN (SELECT delete_dblink_zdb_id FROM ncbi_gene_delete)
 WHERE
     EXISTS (
         SELECT 'x' FROM record_attribution
@@ -227,7 +216,7 @@ SELECT mapped_zdb_gene_id as gene_id, ncbi_accession as ncbi_id, zdb_id as dblin
 UNION
 SELECT dblink_linked_recid, dblink_acc_num, dblink_zdb_id, '' as pub, TRUE as existing, 'manual curation' as source FROM tmp_conflicts;
 
--- Now delete the records from the load list and zdb_active_data table if they conflict
+-- Now delete the records from the load list if they conflict (no ZDB ID has been assigned to them yet)
 DELETE FROM ncbi_gene_load WHERE fdbcont_zdb_id = 'ZDB-FDBCONT-040412-1'
     AND (
         (mapped_zdb_gene_id IN (SELECT gene_id FROM many_to_many_conflicts)) OR
@@ -239,6 +228,74 @@ DELETE FROM ncbi_gene_load WHERE fdbcont_zdb_id = 'ZDB-FDBCONT-040412-1'
 --     zactvd_zdb_id IN (SELECT dblink_zdb_id FROM many_to_many_conflicts);
 
 -- END CONFLICT RESOLUTION FOR NCBI GENE IDS
+
+-- ▄▖▄▖▖▖▄▖▄▖  ▄▖▖▖▄▖▄▖▄▖▄▖▄▖▖ ▖▄▖  ▖ ▄▖▖ ▖▖▖▄▖
+-- ▙▘▙▖▌▌▚ ▙▖  ▙▖▚▘▐ ▚ ▐ ▐ ▐ ▛▖▌▌   ▌ ▐ ▛▖▌▙▘▚
+-- ▌▌▙▖▙▌▄▌▙▖  ▙▖▌▌▟▖▄▌▐ ▟▖▐ ▌▝▌▙▌  ▙▖▟▖▌▝▌▌▌▄▌
+--
+-- A load row whose (gene, accession, fdbcont) matches a link that is on the delete list is the same link coming
+-- back. Keep that link and its ZDB ID instead of deleting it and minting a new one, so an unchanged link keeps a
+-- stable dblink_zdb_id -- and with it its zdb_active_data and record_attribution rows -- from one load to the next.
+-- Its dblink_info is left as is, so it records when the link was first loaded.
+-- Only links attributed solely to the load pubs are kept. The delete list can also hold links with a curator
+-- attribution (seen in the characterization data: curated GenPept links); those still go through the old
+-- delete-and-reinsert, so this change does not alter what happens to curated data.
+
+CREATE TEMP TABLE ncbi_gene_keep AS
+SELECT d.dblink_zdb_id, l.mapped_zdb_gene_id, l.ncbi_accession, l.fdbcont_zdb_id
+  FROM ncbi_gene_load l
+  JOIN db_link d ON d.dblink_linked_recid   = l.mapped_zdb_gene_id
+                AND d.dblink_acc_num        = l.ncbi_accession
+                AND d.dblink_fdbcont_zdb_id = l.fdbcont_zdb_id
+ WHERE d.dblink_zdb_id IN (SELECT delete_dblink_zdb_id FROM ncbi_gene_delete)
+   AND NOT EXISTS (SELECT 1 FROM record_attribution ra
+                    WHERE ra.recattrib_data_zdb_id = d.dblink_zdb_id
+                      AND ra.recattrib_source_zdb_id NOT IN ('ZDB-PUB-020723-3', 'ZDB-PUB-230516-87'));
+create index keep_id_index on ncbi_gene_keep (dblink_zdb_id);
+
+UPDATE ncbi_gene_load l
+   SET zdb_id = k.dblink_zdb_id
+  FROM ncbi_gene_keep k
+ WHERE l.mapped_zdb_gene_id = k.mapped_zdb_gene_id
+   AND l.ncbi_accession     = k.ncbi_accession
+   AND l.fdbcont_zdb_id     = k.fdbcont_zdb_id;
+
+DELETE FROM ncbi_gene_delete
+ WHERE delete_dblink_zdb_id IN (SELECT dblink_zdb_id FROM ncbi_gene_keep);
+
+select count(*) as keptLinks from ncbi_gene_keep;
+
+-- Mint new IDs only for links that will actually be inserted. A row whose (gene, accession, fdbcont) already
+-- exists and is not being deleted (a preserved or curated link) would be skipped by the insert's ON CONFLICT
+-- anyway; it gets no ID, so it no longer leaves an orphan zdb_active_data / record_attribution row behind.
+UPDATE ncbi_gene_load l
+   SET zdb_id = get_id_and_insert_active_data('DBLINK')
+ WHERE l.zdb_id IS NULL
+   AND NOT EXISTS (SELECT 1 FROM db_link d
+                    WHERE d.dblink_linked_recid   = l.mapped_zdb_gene_id
+                      AND d.dblink_acc_num        = l.ncbi_accession
+                      AND d.dblink_fdbcont_zdb_id = l.fdbcont_zdb_id
+                      AND d.dblink_zdb_id NOT IN (SELECT delete_dblink_zdb_id FROM ncbi_gene_delete));
+
+\echo 'Deleting from reference_protein';
+\copy (select * from reference_protein where rp_dblink_zdb_id in (select * from ncbi_gene_delete)) to 'referenceProteinDeletes.unl' (delimiter '|');
+delete from reference_protein where rp_dblink_zdb_id in (select * from ncbi_gene_delete);
+--!echo 'Delete from zdb_active_data table and cause delete cascades on db_link records'
+delete from zdb_active_data where zactvd_zdb_id in (select * from ncbi_gene_delete);
+
+--!echo 'Delete from record_attribution table for those manually curated records but attributed to load publication'
+
+delete from record_attribution
+ where recattrib_source_zdb_id in ('ZDB-PUB-020723-3')
+   and exists (select 'x' from db_link
+                where recattrib_data_zdb_id = dblink_zdb_id 
+                  and (dblink_linked_recid like 'ZDB-GENE%' or dblink_linked_recid like '%RNAG%')
+                  and dblink_fdbcont_zdb_id in ('ZDB-FDBCONT-040412-37','ZDB-FDBCONT-040412-42','ZDB-FDBCONT-040412-36')
+              )
+   and not exists (select 'x' from ncbi_dblink_to_preserve where prsv_dblink_zdb_id = recattrib_data_zdb_id)
+   -- kept links are load links, not curated ones; their attribution is reconciled below
+   and not exists (select 'x' from ncbi_gene_keep where dblink_zdb_id = recattrib_data_zdb_id);
+
 --
 -- ▄▖▖ ▖▄   ▄▖▄▖▖ ▖▄▖▖ ▄▖▄▖▄▖▄▖
 -- ▙▖▛▖▌▌▌  ▌ ▌▌▛▖▌▙▖▌ ▐ ▌ ▐ ▚
@@ -251,13 +308,42 @@ DELETE FROM ncbi_gene_load WHERE fdbcont_zdb_id = 'ZDB-FDBCONT-040412-1'
 insert into db_link (dblink_linked_recid, dblink_acc_num, dblink_acc_num_display, dblink_info, dblink_zdb_id, dblink_length, dblink_fdbcont_zdb_id) 
 select mapped_zdb_gene_id, ncbi_accession, ncbi_accession, 'uncurated: NCBI gene load ' || now(), zdb_id, sequence_length, fdbcont_zdb_id 
   from ncbi_gene_load
+ where zdb_id is not null
+   and zdb_id not in (select dblink_zdb_id from ncbi_gene_keep)
     ON CONFLICT (dblink_linked_recid, dblink_acc_num, dblink_fdbcont_zdb_id) DO NOTHING;
+
+\echo 'Update kept db_link records whose length or display accession changed';
+update db_link d
+   set dblink_length = l.sequence_length,
+       dblink_acc_num_display = l.ncbi_accession
+  from ncbi_gene_load l
+  join ncbi_gene_keep k on k.dblink_zdb_id = l.zdb_id
+ where d.dblink_zdb_id = l.zdb_id
+   and (d.dblink_length is distinct from l.sequence_length
+        or d.dblink_acc_num_display is distinct from l.ncbi_accession);
 
 --! echo "Attribute the new db_link records to one of the 2 load publications, depending on what kind of mapping"
 
 insert into record_attribution (recattrib_data_zdb_id, recattrib_source_zdb_id)
 select zdb_id, load_pub_zdb_id 
-  from ncbi_gene_load;
+  from ncbi_gene_load
+ where zdb_id is not null
+   and zdb_id not in (select dblink_zdb_id from ncbi_gene_keep);
+
+-- Kept links: make the load-pub attribution match this load's mapping (it can move between the two load pubs),
+-- leaving each kept link attributed to exactly its current load pub, as a freshly inserted link would be.
+insert into record_attribution (recattrib_data_zdb_id, recattrib_source_zdb_id)
+select l.zdb_id, l.load_pub_zdb_id
+  from ncbi_gene_load l
+  join ncbi_gene_keep k on k.dblink_zdb_id = l.zdb_id
+    ON CONFLICT DO NOTHING;
+
+delete from record_attribution r
+ using ncbi_gene_load l
+  join ncbi_gene_keep k on k.dblink_zdb_id = l.zdb_id
+ where r.recattrib_data_zdb_id = l.zdb_id
+   and r.recattrib_source_zdb_id in ('ZDB-PUB-020723-3', 'ZDB-PUB-230516-87')
+   and r.recattrib_source_zdb_id <> l.load_pub_zdb_id;
 
 --! echo "Dump all the GenPept accession associated with genes at ZFIN that are still attributed to a non-load pub"
 
