@@ -95,10 +95,11 @@ These tables use the rename-and-recreate concept but with a fixed `_old` suffix.
 
 | Live Table | Staging Table | Old Name | Regen Function | Source File |
 |------------|---------------|----------|----------------|-------------|
-| `expression_term_fast_search` | `xpatfs_temp` | `xpatfs_old` | `regen_expression_term_fast_search()` | `lib/DB_functions/regen_expression_term_fast_search.sql` |
 | `feature_stats` | `feature_stats_temp` | `feature_stats_old` | `regen_feature_term_fast_search()` | `lib/DB_functions/regen_feature_term_fast_search.sql` |
 
 **Purpose**: `expression_term_fast_search` stores expression results with transitive term ancestry for search indexing. `feature_stats` holds antibody/probe expression annotations for anatomy ontology detail pages.
+
+`expression_term_fast_search` (`regen_expression_term_fast_search()`) is no longer in this group: it is now updated incrementally (a count-per-key diff of the wanted rows, like `pheno_term_fast_search`), and the function drops any leftover `xpatfs_temp` / `xpatfs_working` / `xpatfs_old`.
 
 **Note**: These do not use the `regen_cleanup_renamed_tables()` function. Old tables are dropped at the beginning of the next regen cycle.
 
