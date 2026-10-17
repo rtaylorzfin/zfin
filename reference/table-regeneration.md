@@ -48,6 +48,8 @@ Called from `regen.sh`. Uses timestamped `_old_` naming with cleanup support.
 | `mutant_fast_search` | `mutant_fast_search_new` | `regen_genox_finish_marker()` | `lib/DB_functions/Regen_genox/regen_genox_finish_marker.sql` |
 | `genotype_figure_fast_search` | `genotype_figure_fast_search_new` | `regen_genofig_finish()` | `lib/DB_functions/Regen_genox/regen_genofig_finish.sql` |
 
+**Note**: `genotype_figure_fast_search_new` is still built the same way, but `regen_genofig_finish()` no longer swaps it in: it applies it to the live table as a set diff (whole-tuple md5), so unchanged rows keep `gffs_serial_id` and no `genotype_figure_fast_search_old_*` table is created.
+
 **Purpose**: `mutant_fast_search` maps markers/MOs to fish experiments for phenotype queries. `genotype_figure_fast_search` links genotypes to figures for genotype-based phenotype queries. Together they power the genotype/phenotype search and detail pages.
 
 ### Managed by `regen_term()`

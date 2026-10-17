@@ -1,6 +1,5 @@
 create or replace function regen_genofig_finish(vUpdate boolean, pgId int8)
 returns text as $regen_genofig_finish$
- declare genotype_figure_fast_search_rename_to text;
  begin 
    if (vUpdate != 't') then
 
@@ -46,101 +45,40 @@ returns text as $regen_genofig_finish$
 	   rgf_genox_zdb_id
       from regen_genofig_temp;
 
-    --let errorHint = "genotype_figure_fast_search_new create geno index";
-    create index genotype_figure_fast_search_geno_foreign_key_index_transient
-      on genotype_figure_fast_search_new (gffs_geno_zdb_id);
+    -- Apply genotype_figure_fast_search_new to the live table as a diff instead of
+    -- swapping it in: rows are compared as whole tuples (a NULL-safe md5 of the
+    -- seven columns), rows no longer wanted and repeated tuples are deleted, new
+    -- tuples inserted. Unchanged rows keep gffs_serial_id and gffs_date_created,
+    -- no genotype_figure_fast_search_old_* table is left behind, and the live
+    -- table keeps its indexes and FKs. Plain DELETE/INSERT does not block readers.
+    drop table if exists gffs_want;
+    create temp table gffs_want on commit drop as
+      select distinct md5(row(gffs_geno_zdb_id, gffs_fig_zdb_id, gffs_morph_zdb_id, gffs_pg_id, gffs_fish_zdb_id, gffs_psg_id, gffs_genox_zdb_id)::text) as h, gffs_geno_zdb_id, gffs_fig_zdb_id, gffs_morph_zdb_id, gffs_pg_id, gffs_fish_zdb_id, gffs_psg_id, gffs_genox_zdb_id
+        from genotype_figure_fast_search_new;
+    create index on gffs_want (h);
 
-   --let errorHint = "genotype_figure_fast_search_new create fish index";
-    create index genotype_figure_fast_search_fish_foreign_key_index_transient
-      on genotype_figure_fast_search_new (gffs_fish_zdb_id);
+    drop table if exists gffs_have;
+    create temp table gffs_have on commit drop as
+      select gffs_serial_id, md5(row(gffs_geno_zdb_id, gffs_fig_zdb_id, gffs_morph_zdb_id, gffs_pg_id, gffs_fish_zdb_id, gffs_psg_id, gffs_genox_zdb_id)::text) as h
+        from genotype_figure_fast_search;
+    create index on gffs_have (h);
+    analyze gffs_want;
+    analyze gffs_have;
 
-    --let errorHint = "genotype_figure_fast_search_new create fig index";
-    create index genotype_figure_fast_search_fig_foreign_key_index_transient
-      on genotype_figure_fast_search_new (gffs_fig_zdb_id);
+    delete from genotype_figure_fast_search
+     where gffs_serial_id in (
+       select x.gffs_serial_id
+         from (select gffs_serial_id, h, row_number() over (partition by h order by gffs_serial_id) as rn
+                 from gffs_have) x
+        where x.rn > 1
+           or not exists (select 1 from gffs_want w where w.h = x.h));
 
-   -- let errorHint = "genotype_figure_fast_search_new create morph index";
-    create index genotype_figure_fast_search_morph_foreign_key_index_transient
-      on genotype_figure_fast_search_new (gffs_morph_zdb_id);
+    insert into genotype_figure_fast_search (gffs_geno_zdb_id, gffs_fig_zdb_id, gffs_morph_zdb_id, gffs_pg_id, gffs_fish_zdb_id, gffs_psg_id, gffs_genox_zdb_id)
+    select gffs_geno_zdb_id, gffs_fig_zdb_id, gffs_morph_zdb_id, gffs_pg_id, gffs_fish_zdb_id, gffs_psg_id, gffs_genox_zdb_id
+      from gffs_want w
+     where not exists (select 1 from gffs_have hv where hv.h = w.h);
 
-  
-    create index genotype_figure_fast_search_pg_foreign_key_index_transient
-      on genotype_figure_fast_search_new (gffs_pg_id);
-
-    create index genotype_figure_fast_search_psg_foreign_key_index_transient
-      on genotype_figure_fast_search_new (gffs_psg_id);
-        
-
-        -- Make changes public for genotype_figure_fast_search_new
-      --let errorHint = "drop genotype_figure_fast_search table ";
-
-    -- if table exists, do the following
-
-
-    IF EXISTS (SELECT 1 FROM information_schema.tables WHERE table_name = 'genotype_figure_fast_search' AND table_schema = 'public') THEN
-        -- Set the new table name with the current timestamp
-        genotype_figure_fast_search_rename_to := 'genotype_figure_fast_search_old_'  || to_char(now(), 'YYMMDDHH24MI');
-
-        -- append 4 random characters
-        genotype_figure_fast_search_rename_to := genotype_figure_fast_search_rename_to || '_' || substring(md5(random()::text), 1, 4);
-
-
-        -- Use EXECUTE to run dynamic SQL
-        EXECUTE 'ALTER TABLE genotype_figure_fast_search RENAME TO ' || genotype_figure_fast_search_rename_to;
-        EXECUTE 'TRUNCATE ' || genotype_figure_fast_search_rename_to;
---         EXECUTE 'DROP TABLE ' || genotype_figure_fast_search_rename_to;
-
-        execute 'alter index genotype_figure_fast_search_geno_zdb_id_foreign_key_index
-            rename to ' || genotype_figure_fast_search_rename_to || '_geno_zdb_id_foreign_key_index';
-        execute 'alter index genotype_figure_fast_search_fig_zdb_id_foreign_key_index
-            rename to ' || genotype_figure_fast_search_rename_to || '_fig_zdb_id_foreign_key_index';
-        execute 'alter index genotype_figure_fast_search_morph_zdb_id_foreign_key_index
-            rename to ' || genotype_figure_fast_search_rename_to || '_morph_zdb_id_foreign_key_index';
-        execute 'alter index genotype_figure_fast_search_fish_zdb_id_foreign_key_index
-            rename to ' || genotype_figure_fast_search_rename_to || '_fish_zdb_id_foreign_key_index';
-        execute 'alter index genotype_figure_fast_search_pg_id_foreign_key_index
-            rename to ' || genotype_figure_fast_search_rename_to || '_pg_id_foreign_key_index';
-        execute 'alter index genotype_figure_fast_search_psg_id_foreign_key_index
-            rename to ' || genotype_figure_fast_search_rename_to || '_psg_id_foreign_key_index';
-
-    END IF;
-
-
-      --let errorHint = "rename table gffs";
-     alter table  genotype_figure_fast_search_new rename to genotype_figure_fast_search;
-      
-      --let errorHint = "rename gffs indexes";
-    
-      alter index genotype_figure_fast_search_geno_foreign_key_index_transient
-        rename to genotype_figure_fast_search_geno_zdb_id_foreign_key_index;
-      alter index genotype_figure_fast_search_fig_foreign_key_index_transient 
-        rename to genotype_figure_fast_search_fig_zdb_id_foreign_key_index;
-      alter index genotype_figure_fast_search_morph_foreign_key_index_transient 
-        rename to genotype_figure_fast_search_morph_zdb_id_foreign_key_index;
-      alter index genotype_figure_fast_search_fish_foreign_key_index_transient 
-        rename to genotype_figure_fast_search_fish_zdb_id_foreign_key_index;
-      alter index genotype_figure_fast_search_pg_foreign_key_index_transient 
-        rename to genotype_figure_fast_search_pg_id_foreign_key_index;
-
-      alter index genotype_figure_fast_search_psg_foreign_key_index_transient 
-        rename to genotype_figure_fast_search_psg_id_foreign_key_index;
-
-
-      --let errorHint = "genotype_figure_fast_search add foreign key to reference genotype";
-      alter table genotype_figure_fast_search add constraint gffs_geno_zdb_id_foreign_key  
-      	    foreign key (gffs_geno_zdb_id) references genotype (geno_Zdb_id) on delete cascade;
- 
-     --let errorHint = "genotype_figure_fast_search add foreign key to reference fish";
-      alter table genotype_figure_fast_search add constraint gffs_fish_zdb_id_foreign_key
-      	    foreign key (gffs_fish_zdb_id) references fish (fish_zdb_id) on delete cascade;
-    
-      --let errorHint = "genotype_figure_fast_search add foreign key to reference figure";
-      alter table genotype_figure_fast_search add constraint gffs_fig_zdb_id_foreign_key
-      	    foreign key (gffs_fig_zdb_id) references figure (fig_zdb_id) on delete cascade ;
-    
-      --let errorHint = "genotype_figure_fast_search add foreign key to reference marker";
-      alter table genotype_figure_fast_search add constraint gffs_morph_zdb_id_foreign_key
-      	    foreign key (gffs_morph_zdb_id) references marker on delete cascade;
-
+    drop table genotype_figure_fast_search_new;
 
    else 
    	delete from genotype_figure_fast_search where gffs_pg_id = pgId;
