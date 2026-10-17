@@ -38,13 +38,16 @@ public class NCBILoadCharacterizationTest extends AbstractDangerousDatabaseTest 
     private NCBILoadIntegrationTestHelper helper;
 
     /**
-     * Test the characterization of the NCBI load using 2025-10-15 data
-     * Given the input files from 2025-10-15 and the database state as of 2025-10-15
+     * Test the characterization of the NCBI load using the 2026-01-09 input files
+     * (NCBI-gene-load-archive/2026-01-09) against the database unloaded on 2026-01-14.
      * When we run the NCBI load, we expect the changes to match those documented in
      * after_load.csv.gz
      *
      * Can be run like so:
-     * docker compose run --rm  compile bash -lc 'gradle -DB=/opt/zfin/unloads/db/2025.10.15.1/2025.10.15.1.bak loaddb; SKIP_DANGER_WARNING=1 gradle -PincludeNcbiCharacterizationTest test --info  --tests org.zfin.datatransfer.ncbi.NCBILoadCharacterizationTest.testPointInTimeCharacterization; exec bash'
+     * docker compose run --rm  compile bash -lc 'gradle -DB=/opt/zfin/unloads/db/2026.01.14.1/2026.01.14.1.bak loaddb; psql -v ON_ERROR_STOP=1 -f source/org/zfin/db/postGmakePostloaddb/1179/ZFIN-10082.sql; SKIP_DANGER_WARNING=1 gradle -PincludeNcbiCharacterizationTest test --info  --tests org.zfin.datatransfer.ncbi.NCBILoadCharacterizationTest.testPointInTimeCharacterization; exec bash'
+     *
+     * The input files are read from the NCBI load archive: NCBI_ARCHIVE_DIR if set, else /research/zarchive/...,
+     * else /mnt/research/zarchive/... (where the compile container mounts /research).
      *
      * (The SKIP_DANGER_WARNING environment variable is required to actually run the test as a precaution against running against a production database.
      * The `exec bash` at the end is just to keep the container open so you can explore the generated artifacts in /tmp/ncbi_...)
@@ -54,7 +57,7 @@ public class NCBILoadCharacterizationTest extends AbstractDangerousDatabaseTest 
     @Test
     public void testPointInTimeCharacterization() throws IOException {
 
-        // Sanity check to make sure we are running against the unload from 2025-10-15
+        // Sanity check to make sure we are running against the unload from 2026-01-14
         assertDatabaseDate(2026,1,14);
 
         // Create database state before the load
@@ -86,8 +89,26 @@ public class NCBILoadCharacterizationTest extends AbstractDangerousDatabaseTest 
         assertEquals("Database unload date should be " + expectedDate, expectedDate, date);
     }
 
+    /**
+     * The NCBI load archive: NCBI_ARCHIVE_DIR if set, else /research/zarchive/..., else
+     * /mnt/research/zarchive/..., which is where the compile container mounts /research.
+     */
+    private String archiveDir() {
+        String fromEnv = System.getenv("NCBI_ARCHIVE_DIR");
+        if (fromEnv != null && !fromEnv.isBlank()) {
+            return fromEnv;
+        }
+        for (String candidate : List.of("/research/zarchive/load_files/NCBI-gene-load-archive",
+                                        "/mnt/research/zarchive/load_files/NCBI-gene-load-archive")) {
+            if (new File(candidate).isDirectory()) {
+                return candidate;
+            }
+        }
+        return "/research/zarchive/load_files/NCBI-gene-load-archive";
+    }
+
     private void copyCharacterizationTestData() {
-        String sourceDir = "/research/zarchive/load_files/NCBI-gene-load-archive/2026-01-09";
+        String sourceDir = archiveDir() + "/2026-01-09";
         List<String> filesToCopy = List.of(
             "gene2accession.gz",
             "gene2vega.gz",
