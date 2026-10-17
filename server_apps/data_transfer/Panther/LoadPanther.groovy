@@ -77,6 +77,12 @@ new File(OUTFILE).withWriter { outFile ->
 
 }
 dbname = System.getenv("DBNAME")
+// Update the PANTHER links in place instead of deleting and re-inserting all of them,
+// so an unchanged (gene, PANTHER ID) link keeps its ZDB ID from month to month:
+// links no longer in the file are deleted through zdb_active_data (which cascades to
+// db_link and record_attribution, rather than leaving orphan IDs behind), only new
+// pairs get new IDs, and every PANTHER link ends up attributed to the load pub.
+// No -- comments inside the SQL below: dbaccess() joins it onto one line.
 println("Loading terms into $dbname")
 
 
@@ -97,18 +103,32 @@ psql dbname, """
 update tmp_terms set fdbcontid = (select fdbcont_zdb_id from foreign_db_contains where fdbcont_fdb_db_id=65);
 
 delete from tmp_terms where id not in (select mrkr_zdb_id from marker where mrkr_type='GENE');
-delete from db_link where dblink_fdbcont_zdb_id=(select fdbcont_zdb_id from foreign_db_contains where fdbcont_fdb_db_id=65);
 
-update tmp_terms set dblinkid = get_id('DBLINK');
+CREATE TEMP TABLE tmp_new AS SELECT DISTINCT id, name, fdbcontid FROM tmp_terms;
 
-insert into zdb_active_data select dblinkid from tmp_terms;
+delete from zdb_active_data where zactvd_zdb_id in (
+  select dblink_zdb_id from db_link
+   where dblink_fdbcont_zdb_id=(select fdbcont_zdb_id from foreign_db_contains where fdbcont_fdb_db_id=65)
+     and not exists (select 1 from tmp_new where id = dblink_linked_recid and name = dblink_acc_num));
+
+delete from tmp_new where exists (
+  select 1 from db_link
+   where dblink_linked_recid = id and dblink_acc_num = name and dblink_fdbcont_zdb_id = fdbcontid);
+
+ALTER TABLE tmp_new ADD COLUMN dblinkid text;
+update tmp_new set dblinkid = get_id('DBLINK');
+
+insert into zdb_active_data select dblinkid from tmp_new;
 
 insert into db_link (dblink_linked_recid,dblink_acc_num, dblink_zdb_id ,dblink_acc_num_display,dblink_fdbcont_zdb_id)
-  select distinct id,name,dblinkid,name, fdbcontid
-    from tmp_terms ;
+  select id,name,dblinkid,name, fdbcontid
+    from tmp_new ;
 
 insert into record_attribution (recattrib_data_zdb_id, recattrib_source_zdb_id)
-  select dblinkid,'ZDB-PUB-170810-14' from tmp_terms;
+  select dblink_zdb_id,'ZDB-PUB-170810-14' from db_link
+   where dblink_fdbcont_zdb_id=(select fdbcont_zdb_id from foreign_db_contains where fdbcont_fdb_db_id=65)
+     and not exists (select 1 from record_attribution
+                      where recattrib_data_zdb_id = dblink_zdb_id and recattrib_source_zdb_id = 'ZDB-PUB-170810-14');
 
 
 \\copy (SELECT dblink_linked_recid,dblink_acc_num FROM db_link where dblink_fdbcont_zdb_id=(select fdbcont_zdb_id from foreign_db_contains where fdbcont_fdb_db_id=65)) TO $POST_FILE;
