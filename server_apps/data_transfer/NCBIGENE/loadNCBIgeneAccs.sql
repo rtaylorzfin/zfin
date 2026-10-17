@@ -295,6 +295,14 @@ UPDATE ncbi_gene_load l
                       AND d.dblink_fdbcont_zdb_id = l.fdbcont_zdb_id
                       AND d.dblink_zdb_id NOT IN (SELECT delete_dblink_zdb_id FROM ncbi_gene_delete));
 
+-- Genes whose NCBI Gene ID link this load deletes, captured before the delete: the GRCz12tu marker_assembly
+-- cleanup near the end of this script needs them, and by then the db_link rows are gone.
+CREATE TEMP TABLE ncbi_gene_id_deleted_genes AS
+SELECT DISTINCT d.dblink_linked_recid AS gene_zdb_id
+  FROM db_link d
+  JOIN ncbi_gene_delete x ON x.delete_dblink_zdb_id = d.dblink_zdb_id
+ WHERE d.dblink_fdbcont_zdb_id = 'ZDB-FDBCONT-040412-1';
+
 \echo 'Deleting from reference_protein';
 \copy (select * from reference_protein where rp_dblink_zdb_id in (select * from ncbi_gene_delete)) to 'referenceProteinDeletes.unl' (delimiter '|');
 delete from reference_protein where rp_dblink_zdb_id in (select * from ncbi_gene_delete);
@@ -549,10 +557,16 @@ SELECT dblink_linked_recid, annotation_status
 FROM eligible_records
 WHERE annotation_status IS NOT NULL;
 
+-- A gene that lost its NCBI Gene ID in this load and has none left loses its GRCz12tu assembly association
+-- (ZFIN-9952). The gene list is captured before the deletes (ncbi_gene_id_deleted_genes): joining
+-- ncbi_gene_delete to db_link here found nothing, as those links are already gone, so this never deleted
+-- anything. A gene that only swapped one NCBI Gene ID for another keeps its association.
 DELETE FROM marker_assembly
 WHERE ma_a_pk_id = (SELECT a_pk_id FROM assembly WHERE a_name = 'GRCz12tu')
-AND ma_mrkr_zdb_id IN ( SELECT dblink_linked_recid FROM ncbi_gene_delete JOIN db_link
-            ON delete_dblink_zdb_id = dblink_zdb_id AND dblink_fdbcont_zdb_id = 'ZDB-FDBCONT-040412-1');
+AND ma_mrkr_zdb_id IN (SELECT gene_zdb_id FROM ncbi_gene_id_deleted_genes)
+AND NOT EXISTS (SELECT 1 FROM db_link d
+                 WHERE d.dblink_linked_recid = ma_mrkr_zdb_id
+                   AND d.dblink_fdbcont_zdb_id = 'ZDB-FDBCONT-040412-1');
 
 \echo 'Marker annotation status update complete';
 -- ▄▖▖ ▖▄   ▄▖▖ ▖▖ ▖▄▖▄▖▄▖▄▖▄▖▄▖▖ ▖  ▄▖▄▖▄▖▄▖▖▖▄▖
