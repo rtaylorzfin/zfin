@@ -102,13 +102,18 @@ These tables use the rename-and-recreate concept but with a fixed `_old` suffix.
 
 **Note**: These do not use the `regen_cleanup_renamed_tables()` function. Old tables are dropped at the beginning of the next regen cycle.
 
-### Managed by `pheno_term_regen.sql`
+### Managed by `pheno_term_regen.sql` (incremental, not rename-and-recreate)
 
-Called from `regen.sh`. Uses timestamped `_old_` naming with cleanup support. Wrapped in a `DO $$` block.
+Called from `regen.sh` and `regenPhenotypeMart.sh`. No longer uses the rename pattern: the wanted
+rows are computed into a temp table and applied as a diff (delete surplus rows, insert missing ones,
+counted per `(psg_id, term, tag, is_direct_annotation)` because a key can legitimately repeat) in one
+transaction. DELETE/INSERT take ROW EXCLUSIVE locks, which do not block readers, so the deadlock
+concern above does not apply; unchanged rows keep `ptfs_pk_id`, and no `pheno_term_fast_search_old_*`
+tables are created (the cleanup prefix stays for any left from earlier runs).
 
-| Live Table | Staging Table | Source File |
-|------------|---------------|-------------|
-| `pheno_term_fast_search` | `pheno_term_fast_search_tmp` | `server_apps/DB_maintenance/pheno/pheno_term_regen.sql` |
+| Live Table | Source File |
+|------------|-------------|
+| `pheno_term_fast_search` | `server_apps/DB_maintenance/pheno/pheno_term_regen.sql` |
 
 **Purpose**: Stores phenotype observation IDs paired with ontology term IDs (both direct annotations and transitive ancestors via `all_term_contains`). Powers phenotype-by-term queries through Hibernate (`PhenotypeTermFastSearch` entity). Has FKs to `phenotype_observation_generated` and `term`.
 
