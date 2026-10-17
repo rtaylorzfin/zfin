@@ -265,6 +265,24 @@ DELETE FROM ncbi_gene_delete
 
 select count(*) as keptLinks from ncbi_gene_keep;
 
+-- Curated GenBank / GenPept links this load confirms: a load row whose (gene, accession, fdbcont) matches a link
+-- that is not on the delete list and carries a curator (non-load-pub) attribution. As the header says, the link is
+-- attributed to the load pub: it stays as it is -- ZDB ID, curator attribution, dblink_info -- and gets the row's
+-- load pub as an extra attribution below. It is not inserted again (the ID step below gives the row no ID).
+CREATE TEMP TABLE ncbi_gene_curated_confirmed AS
+SELECT DISTINCT d.dblink_zdb_id, l.load_pub_zdb_id
+  FROM ncbi_gene_load l
+  JOIN db_link d ON d.dblink_linked_recid   = l.mapped_zdb_gene_id
+                AND d.dblink_acc_num        = l.ncbi_accession
+                AND d.dblink_fdbcont_zdb_id = l.fdbcont_zdb_id
+ WHERE l.fdbcont_zdb_id IN ('ZDB-FDBCONT-040412-37','ZDB-FDBCONT-040412-42','ZDB-FDBCONT-040412-36')
+   AND d.dblink_zdb_id NOT IN (SELECT delete_dblink_zdb_id FROM ncbi_gene_delete)
+   AND EXISTS (SELECT 1 FROM record_attribution ra
+                WHERE ra.recattrib_data_zdb_id = d.dblink_zdb_id
+                  AND ra.recattrib_source_zdb_id NOT IN ('ZDB-PUB-020723-3', 'ZDB-PUB-230516-87'));
+
+select count(*) as curatedLinksConfirmed from ncbi_gene_curated_confirmed;
+
 -- Mint new IDs only for links that will actually be inserted. A row whose (gene, accession, fdbcont) already
 -- exists and is not being deleted (a preserved or curated link) would be skipped by the insert's ON CONFLICT
 -- anyway; it gets no ID, so it no longer leaves an orphan zdb_active_data / record_attribution row behind.
@@ -284,17 +302,28 @@ delete from reference_protein where rp_dblink_zdb_id in (select * from ncbi_gene
 delete from zdb_active_data where zactvd_zdb_id in (select * from ncbi_gene_delete);
 
 --!echo 'Delete from record_attribution table for those manually curated records but attributed to load publication'
+-- Load-pub attributions on surviving GenBank / GenPept links that this load did not confirm are stale. Ones it did
+-- confirm (ncbi_gene_curated_confirmed) are left alone, so they are not deleted and re-added every week.
+-- ZDB-PUB-230516-87, which the confirm step can also add, is only removed from links that carry a curator
+-- attribution, so a load-only link never loses its only attribution.
 
-delete from record_attribution
- where recattrib_source_zdb_id in ('ZDB-PUB-020723-3')
+delete from record_attribution ra
+ where (ra.recattrib_source_zdb_id = 'ZDB-PUB-020723-3'
+        or (ra.recattrib_source_zdb_id = 'ZDB-PUB-230516-87'
+            and exists (select 'x' from record_attribution cur
+                         where cur.recattrib_data_zdb_id = ra.recattrib_data_zdb_id
+                           and cur.recattrib_source_zdb_id not in ('ZDB-PUB-020723-3', 'ZDB-PUB-230516-87'))))
    and exists (select 'x' from db_link
-                where recattrib_data_zdb_id = dblink_zdb_id 
+                where ra.recattrib_data_zdb_id = dblink_zdb_id 
                   and (dblink_linked_recid like 'ZDB-GENE%' or dblink_linked_recid like '%RNAG%')
                   and dblink_fdbcont_zdb_id in ('ZDB-FDBCONT-040412-37','ZDB-FDBCONT-040412-42','ZDB-FDBCONT-040412-36')
               )
-   and not exists (select 'x' from ncbi_dblink_to_preserve where prsv_dblink_zdb_id = recattrib_data_zdb_id)
+   and not exists (select 'x' from ncbi_dblink_to_preserve where prsv_dblink_zdb_id = ra.recattrib_data_zdb_id)
    -- kept links are load links, not curated ones; their attribution is reconciled below
-   and not exists (select 'x' from ncbi_gene_keep where dblink_zdb_id = recattrib_data_zdb_id);
+   and not exists (select 'x' from ncbi_gene_keep where dblink_zdb_id = ra.recattrib_data_zdb_id)
+   and not exists (select 'x' from ncbi_gene_curated_confirmed c
+                    where c.dblink_zdb_id = ra.recattrib_data_zdb_id
+                      and c.load_pub_zdb_id = ra.recattrib_source_zdb_id);
 
 --
 -- ▄▖▖ ▖▄   ▄▖▄▖▖ ▖▄▖▖ ▄▖▄▖▄▖▄▖
@@ -344,6 +373,12 @@ delete from record_attribution r
  where r.recattrib_data_zdb_id = l.zdb_id
    and r.recattrib_source_zdb_id in ('ZDB-PUB-020723-3', 'ZDB-PUB-230516-87')
    and r.recattrib_source_zdb_id <> l.load_pub_zdb_id;
+
+-- Curated links this load confirms: add the load pub, keeping the curator attribution.
+insert into record_attribution (recattrib_data_zdb_id, recattrib_source_zdb_id)
+select dblink_zdb_id, load_pub_zdb_id
+  from ncbi_gene_curated_confirmed
+    ON CONFLICT DO NOTHING;
 
 --! echo "Dump all the GenPept accession associated with genes at ZFIN that are still attributed to a non-load pub"
 
