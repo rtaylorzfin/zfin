@@ -18,12 +18,11 @@ Create or replace function regen_expression_term_fast_search()
    drop table if exists xpatfs_working;
    drop table if exists xpatfs_old;
 
-   -- The swap left the live table without indexes (they stayed on xpatfs_old);
-   -- their names are free once xpatfs_old is gone.
+   -- The swap left the live table without its xpatres index (it stayed on
+   -- xpatfs_old); the name is free once xpatfs_old is gone. The term column is
+   -- already covered by etfs_term_zdb_id_index.
    create index if not exists expression_term_fast_search_xpatres_id_index
        on expression_term_fast_search (etfs_xpatres_pk_id);
-   create index if not exists expression_term_fast_search_term_id_index
-       on expression_term_fast_search (etfs_term_zdb_id);
 
    drop table if exists etfs_want;
    create temp table etfs_want (xpatres_pk_id int8, term text) on commit drop;
