@@ -234,6 +234,142 @@ Score 4-5 (unreferenced or migrations-only one-off load tables; most have no scr
   script. A daily-dashboard flag for new tables with scratch-like names would catch the ones that slip through.
   The dashboard already lists added tables.
 
+## Removal tiers (2026-10-22)
+
+These tiers combine the scratch score with the database dependency check. Every table listed below has no code
+references outside old migrations and nothing in the database depends on it: no views, no incoming FKs, no
+triggers, and no function that names it. Outgoing FKs to live tables do not block a drop.
+
+The `_old_<timestamp>` leftovers (813 in the 10.21 snapshot, 2.1M rows) are not listed. The regen cleanup
+drops them through `regen_cleanup_renamed_tables()` once the solr-snapshot-retention fix lands.
+
+| Tier | Tables | Rows | Confidence |
+|---|---|---|---|
+| A: scratch-like name, no code refs, no DB deps (score 6-7) | 19 | 1,932,066 | high |
+| B: one-off load or import data, unreferenced or migrations-only, no DB deps (score 4-5) | 51 | 841,183 | likely, after archiving |
+| C: no code refs or DB deps, but weaker signals (score < 4) | 19 | 491,247 | needs review |
+| **A + B (likely removable)** | **70** | **2,773,249** | |
+
+Suggested migration: archive each table (`pg_dump -t ... > /research/zarchive/...`), then `drop table if exists ...`, as in
+ZFIN-10185.
+
+### Tier A: high confidence (19)
+
+| Table | Rows | Code refs | Identical since | Signals | FK parents (outgoing) |
+|---|---|---|---|---|---|
+| `public.expression_pattern_figure_bkup` | 503,867 | none | 2025.11.08.1 | name,no code ref,no PK,no FK/view |  |
+| `public.expression_result_bkup` | 503,867 | none | 2025.11.08.1 | name,no code ref,no PK,no FK/view |  |
+| `public.xpat_results_generated_bkup` | 308,334 | none | >= 2025.10.14.1 | name,no code ref,no PK,no FK/view,frozen 1y |  |
+| `public.expression_experiment_bkup` | 200,506 | none | 2025.11.08.1 | name,no code ref,no PK,no FK/view |  |
+| `public.xpat_exp_details_generated_bkup` | 142,551 | none | >= 2025.10.14.1 | name,no code ref,no PK,no FK/view,frozen 1y |  |
+| `public.sanger_location_post` | 111,476 | migrations-only | >= 2025.10.14.1 | name,migrations only,no PK,no FK/view,frozen 1y |  |
+| `public.pheno_term_old` | 75,042 | none | >= 2025.10.14.1 | name,no code ref,no PK,no FK/view,frozen 1y |  |
+| `public.sanger_flanking_sequence_post_proc` | 35,210 | migrations-only | >= 2025.10.14.1 | name,migrations only,no PK,no FK/view,frozen 1y |  |
+| `public.genox_fish_annotation_search_bkup` | 17,185 | none | >= 2025.10.14.1 | name,no code ref,no FK/view,frozen 1y |  |
+| `thisse.screen_april17` | 15,890 | migrations-only | >= 2025.10.14.1 | name,migrations only,no PK,no FK/view,frozen 1y |  |
+| `thisse.zebrafish_ish17` | 11,453 | migrations-only | >= 2025.10.14.1 | name,migrations only,no PK,no FK/view,frozen 1y |  |
+| `public.ensdarg_tt_no_dups` | 2,760 | migrations-only | >= 2025.10.14.1 | name,migrations only,no PK,no FK/view,frozen 1y |  |
+| `thisse.clon_class14` | 2,661 | migrations-only | >= 2025.10.14.1 | name,migrations only,no PK,no FK/view,frozen 1y |  |
+| `public.linkages_copy` | 454 | none | >= 2025.10.14.1 | name,no code ref,no PK,no FK/view,frozen 1y |  |
+| `thisse.excel_import_zfish_ish_dbase_avril_2017` | 379 | migrations-only | >= 2025.10.14.1 | name,migrations only,no PK,no FK/view,frozen 1y |  |
+| `public.missing_varseq` | 301 | migrations-only | >= 2025.10.14.1 | name,migrations only,no PK,no FK/view,frozen 1y |  |
+| `public.burgess_location_post` | 70 | migrations-only | >= 2025.10.14.1 | name,migrations only,no PK,no FK/view,frozen 1y |  |
+| `public.missing_xpatfig` | 33 | none | >= 2025.10.14.1 | name,no code ref,no PK,no FK/view,frozen 1y |  |
+| `public.remove_phenos_ids` | 27 | none | >= 2025.10.14.1 | name,no code ref,no PK,no FK/view,frozen 1y |  |
+
+### Tier B: likely, after archiving (51)
+
+| Table | Rows | Code refs | Identical since | Signals | FK parents (outgoing) |
+|---|---|---|---|---|---|
+| `public.fishmisfortune` | 197,137 | migrations-only | >= 2025.10.14.1 | migrations only,no PK,no FK/view,frozen 1y |  |
+| `public.pheno_term` | 123,066 | migrations-only | >= 2025.10.14.1 | migrations only,no PK,no FK/view,frozen 1y |  |
+| `public.sanger_location` | 112,614 | migrations-only | >= 2025.10.14.1 | migrations only,no PK,no FK/view,frozen 1y |  |
+| `public.ftrconsequencenew` | 73,564 | migrations-only | >= 2025.10.14.1 | migrations only,no PK,no FK/view,frozen 1y |  |
+| `public.affected_gene_group_member` | 41,682 | none | >= 2025.10.14.1 | no code ref,no FK/view,frozen 1y |  |
+| `public.ftrmutdetssanger` | 39,862 | migrations-only | >= 2025.10.14.1 | migrations only,no PK,no FK/view,frozen 1y |  |
+| `public.sanger_flanking_sequence` | 37,613 | migrations-only | >= 2025.10.14.1 | migrations only,no PK,no FK/view,frozen 1y |  |
+| `public.pmflankseq` | 36,815 | migrations-only | >= 2025.10.14.1 | migrations only,no PK,no FK/view,frozen 1y |  |
+| `public.all_anatomy_contains` | 34,597 | none | >= 2025.10.14.1 | no code ref,no FK/view,frozen 1y |  |
+| `public.environment_group` | 29,250 | none | >= 2025.10.14.1 | no code ref,no FK/view,frozen 1y |  |
+| `public.fish_genox` | 29,250 | none | >= 2025.10.14.1 | no code ref,no PK,no FK/view,frozen 1y |  |
+| `public.xpat_figure_group_member` | 27,885 | none | >= 2025.10.14.1 | no code ref,no PK,no FK/view,frozen 1y |  |
+| `public.xpat_figure_group` | 15,859 | none | >= 2025.10.14.1 | no code ref,no PK,no FK/view,frozen 1y |  |
+| `public.genotype_group` | 13,773 | none | >= 2025.10.14.1 | no code ref,no FK/view,frozen 1y |  |
+| `public.featmkr` | 12,381 | migrations-only | >= 2025.10.14.1 | migrations only,no PK,no FK/view,frozen 1y |  |
+| `public.ensdarg_tt` | 3,212 | migrations-only | >= 2025.10.14.1 | migrations only,no PK,no FK/view,frozen 1y |  |
+| `public.bl_plate_tracking` | 2,712 | none | >= 2025.10.14.1 | no code ref,no FK/view,frozen 1y |  |
+| `public.seqvar` | 1,620 | migrations-only | >= 2025.10.14.1 | migrations only,no PK,no FK/view,frozen 1y |  |
+| `public.tscriptens1` | 1,518 | migrations-only | >= 2025.10.14.1 | migrations only,no PK,no FK/view,frozen 1y |  |
+| `public.fgmdnote` | 1,513 | migrations-only | >= 2025.10.14.1 | migrations only,no PK,no FK/view,frozen 1y |  |
+| `public.ftrconsequence` | 1,509 | migrations-only | >= 2025.10.14.1 | migrations only,no PK,no FK/view,frozen 1y |  |
+| `public.tscriptens` | 1,039 | migrations-only | >= 2025.10.14.1 | migrations only,no PK,no FK/view,frozen 1y |  |
+| `public.ftrmutdets` | 811 | migrations-only | >= 2025.10.14.1 | migrations only,no PK,no FK/view,frozen 1y |  |
+| `public.featuredata` | 638 | migrations-only | >= 2025.10.14.1 | migrations only,no PK,no FK/view,frozen 1y |  |
+| `public.editconstruct` | 202 | none | >= 2025.10.14.1 | no code ref,no PK,no FK/view,frozen 1y |  |
+| `public.expressed_gene_fish_mirna` | 143 | migrations-only | >= 2025.10.14.1 | migrations only,no PK,no FK/view,frozen 1y |  |
+| `public.temp_existing_crispr_fmrel` | 141 | migrations-only | 2026.02.23.1 | name,migrations only,no PK,no FK/view |  |
+| `public.cnechr` | 113 | migrations-only | >= 2025.10.14.1 | migrations only,no PK,no FK/view,frozen 1y |  |
+| `public.cnechr1` | 113 | migrations-only | >= 2025.10.14.1 | migrations only,no PK,no FK/view,frozen 1y |  |
+| `public.cnedata` | 113 | migrations-only | >= 2025.10.14.1 | migrations only,no PK,no FK/view,frozen 1y |  |
+| `thisse.excel_import_nuclear_receptors` | 101 | migrations-only | >= 2025.10.14.1 | migrations only,no PK,no FK/view,frozen 1y |  |
+| `public.constructrel` | 71 | migrations-only | >= 2025.10.14.1 | migrations only,no PK,no FK/view,frozen 1y |  |
+| `public.newfeaturedata` | 64 | migrations-only | >= 2025.10.14.1 | migrations only,no PK,no FK/view,frozen 1y |  |
+| `public.state_code` | 59 | none | >= 2025.10.14.1 | no code ref,no FK/view,frozen 1y |  |
+| `public.sangerfeatures` | 54 | none | >= 2025.10.14.1 | no code ref,no PK,no FK/view,frozen 1y |  |
+| `public.constructreln` | 24 | migrations-only | >= 2025.10.14.1 | migrations only,no PK,no FK/view,frozen 1y |  |
+| `public.featuregenedata` | 20 | migrations-only | >= 2025.10.14.1 | migrations only,no PK,no FK/view,frozen 1y |  |
+| `public.dupcrispr` | 19 | migrations-only | >= 2025.10.14.1 | migrations only,no PK,no FK/view,frozen 1y |  |
+| `public.expression_phenotype_term_controlled_vocab` | 8 | none | >= 2025.10.14.1 | no code ref,no PK,no FK/view,frozen 1y |  |
+| `public.featurenogenedata` | 7 | migrations-only | >= 2025.10.14.1 | migrations only,no PK,no FK/view,frozen 1y |  |
+| `public.featurezmp` | 6 | migrations-only | >= 2025.10.14.1 | migrations only,no PK,no FK/view,frozen 1y |  |
+| `public.featurezmpdata` | 5 | migrations-only | >= 2025.10.14.1 | migrations only,no PK,no FK/view,frozen 1y |  |
+| `public.average_time_per_person` | 0 | migrations-only | >= 2025.10.14.1 | migrations only,no PK,no FK/view,frozen 1y |  |
+| `public.feature_audit` | 0 | migrations-only | >= 2025.10.14.1 | migrations only,no PK,no FK/view,frozen 1y |  |
+| `public.genotype_group_member` | 0 | none | >= 2025.10.14.1 | no code ref,no FK/view,frozen 1y |  |
+| `public.genox_fish_annotation_search` | 0 | none | >= 2025.10.14.1 | no code ref,no FK/view,frozen 1y |  |
+| `public.genox_group` | 0 | none | >= 2025.10.14.1 | no code ref,no PK,no FK/view,frozen 1y |  |
+| `public.genox_group_member` | 0 | none | >= 2025.10.14.1 | no code ref,no PK,no FK/view,frozen 1y |  |
+| `public.post_aud` | 0 | migrations-only | >= 2025.10.14.1 | name,migrations only,frozen 1y | public.revinfo |
+| `public.temp_existing_crispr_replaced_gene` | 0 | migrations-only | 2026.02.23.1 | name,migrations only,no PK,no FK/view |  |
+| `public.temp_existing_talen_fmrel` | 0 | migrations-only | 2026.02.23.1 | name,migrations only,no PK,no FK/view |  |
+
+### Tier C: needs review (19)
+
+These may be used in ways a text search cannot see:
+- `zirc.*` is a newer schema;
+- `all_alias_tokens` sounds like search;
+- the ChebiFishModel indexer's tables are empty rather than dead;
+- the `*_name_index*` tables may be used by sequences or IDs.
+
+Check each one with its owner.
+
+| Table | Rows | Code refs | Identical since | Signals | FK parents (outgoing) |
+|---|---|---|---|---|---|
+| `public.feature_group_member` | 391,336 | migrations-only | 2026.01.28.1 | migrations only,no FK/view |  |
+| `public.all_alias_tokens` | 54,248 | none | 2026.04.03.1 | no code ref | public.zdb_active_data |
+| `public.feature_group` | 37,050 | migrations-only | >= 2025.10.14.1 | migrations only,no FK/view,frozen 1y |  |
+| `public.submission_log` | 2,507 | none | 2026.10.19.1 | no code ref,no FK/view,has comment |  |
+| `public.crispr_name_index` | 2,199 | migrations-only | 2026.02.23.1 | migrations only,no PK,no FK/view |  |
+| `public.crispr_detail` | 1,416 | migrations-only | 2026.02.23.1 | migrations only,no PK,no FK/view |  |
+| `public.feature_dna_mutation_detail_id` | 1,416 | migrations-only | 2026.02.23.1 | migrations only,no PK,no FK/view |  |
+| `public.publication_correspondence` | 651 | migrations-only | >= 2025.10.14.1 | migrations only,frozen 1y | public.person public.publication |
+| `public.crispr_name_index_max` | 397 | migrations-only | 2026.02.23.1 | migrations only,no PK,no FK/view |  |
+| `public.int_vegatype_tscripttype` | 20 | migrations-only | >= 2025.10.14.1 | migrations only,frozen 1y | public.transcript_type |
+| `public.talen_name_index` | 5 | migrations-only | 2026.02.23.1 | migrations only,no PK,no FK/view |  |
+| `public.talen_name_index_max` | 2 | migrations-only | 2026.02.23.1 | migrations only,no PK,no FK/view |  |
+| `public.author_publication` | 0 | none | >= 2025.10.14.1 | no code ref,frozen 1y | public.author public.publication |
+| `public.experiment_condition_restricted` | 0 | migrations-only | >= 2025.10.14.1 | migrations only,frozen 1y | public.condition_data_type public.experiment public.term |
+| `public.person_author` | 0 | none | >= 2025.10.14.1 | no code ref,frozen 1y | public.author public.person |
+| `public.pub_correspondence_sent_email_contains_subject` | 0 | migrations-only | >= 2025.10.14.1 | migrations only,no FK/view,frozen 1y |  |
+| `public.publication_contact_tracking` | 0 | none | >= 2025.10.14.1 | no code ref,frozen 1y | public.person public.publication |
+| `ui.chebi_zebrafish_models_evidence_association` | 0 | migrations-only | >= 2025.10.14.1 | migrations only,no PK,frozen 1y | public.term ui.chebi_zebrafish_models_display |
+| `zirc.phenotype_file` | 0 | none | 2026.09.29.1 | no code ref | public.person zirc.phenotype |
+
+### Blocked (11): keep
+
+See "Database dependency check" above. Each is used by a view, an incoming FK, a trigger or a function, or is the
+Liquibase lock table.
+
 ## Database dependency check (2026-10-22)
 
 I checked the 100 candidates (everything scored 4 or higher, plus every table with no code reference or only
