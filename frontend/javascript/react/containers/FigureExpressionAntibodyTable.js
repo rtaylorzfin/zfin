@@ -64,7 +64,7 @@ const FigureExpressionAntibodyTable = ({figureId}) => {
         <DataTable
             columns={columns}
             dataUrl={`/action/api/figure/${figureId}/antibody-labeling`}
-            rowKey={() => Math.random()}
+            rowKey='rowKey'
             //sortOptions={sortOptions}
         />
     );

@@ -58,7 +58,7 @@ const FigurePhenotypeTable = ({url, hideFigureColumn = false, navigationCounter,
         <DataTable
             columns={columns}
             dataUrl={url}
-            rowKey={() => Math.random()}
+            rowKey='rowKey'
             onDataLoaded={handleDataLoadedCount}
             //sortOptions={sortOptions}
         />
