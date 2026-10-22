@@ -265,9 +265,9 @@ if (reports) {
 
 String CSS = '''
 :root{--bg:#fff;--fg:#1d2330;--muted:#5d6675;--line:#d9dde4;--card:#f6f7f9;--accent:#2457c5;
---h0:#f1f3f6;--h1:#dbe7fb;--h2:#a9c6f3;--h3:#6f9ee6;--h4:#3c72cf;--h5:#1b469a;--flag:#c2410c;--raw:#c9cfd8}
+--h0:#f1f3f6;--h1:#dbe7fb;--h2:#a9c6f3;--h3:#6f9ee6;--h4:#3c72cf;--h5:#1b469a;--flag:#c2410c;--raw:#c9cfd8;--gone:#c81e1e}
 @media (prefers-color-scheme:dark){:root{--bg:#14171c;--fg:#e4e7ec;--muted:#9aa3b2;--line:#2c323c;--card:#1b1f26;
---accent:#7aa5f5;--h0:#1f242c;--h1:#1f3354;--h2:#25467a;--h3:#2f5fa8;--h4:#4d82d6;--h5:#8db4f2;--flag:#fb923c;--raw:#3a414d}}
+--accent:#7aa5f5;--h0:#1f242c;--h1:#1f3354;--h2:#25467a;--h3:#2f5fa8;--h4:#4d82d6;--h5:#8db4f2;--flag:#fb923c;--raw:#3a414d;--gone:#f87171}}
 *{box-sizing:border-box}body{margin:0;background:var(--bg);color:var(--fg);
 font:14px/1.45 system-ui,-apple-system,"Segoe UI",sans-serif}
 main{max-width:1280px;margin:0 auto;padding:24px 16px 48px}
@@ -304,6 +304,7 @@ td.c.flag{outline:2px solid var(--flag);outline-offset:-2px;font-weight:700}
 .grid thead th.corner{left:0;z-index:3}
 .grid td.chg{background:var(--h2);font-weight:600}
 .nowrap,.heat td.num{white-space:nowrap}
+.heat th.t.gone{color:var(--gone)}
 '''
 
 /** [snapshot days from start on, tables seen in them] for the row-count grid. */
@@ -323,8 +324,9 @@ Set<String> flagged = anomalies.collect { "${it.table}\u0000${it.day}".toString(
 Map<String, Map> stats = [:]
 window.each { w -> w[1].each { String t, Map c ->
     if (IGNORE.matcher(t).find()) return
-    Map s = stats.computeIfAbsent(t) { [days: 0, changed: 0, real: 0L, last: null] }
+    Map s = stats.computeIfAbsent(t) { [days: 0, changed: 0, real: 0L, last: null, removed: null] }
     s.days++
+    if (c.status == 'removed') s.removed = w[0]
     s.real += c.real as long
     if ((c.real as long) > 0) { s.changed++; s.last = w[0] }
 } }
@@ -413,6 +415,7 @@ out << ('<h2>Real churn by table and day</h2>' +
         '<span><i class="nd"></i>no report</span><span><i class="c raw b3"></i>raw only (real n/a)</span>' +
         '<span><b style="border-left:3px solid var(--fg);padding-left:4px">|</b> days missing</span>' +
         '<span><b style="color:var(--flag)">!</b> unusual</span>' +
+        '<span><b style="color:var(--gone)">name</b> table removed in the period</span>' +
         '<span>Hover a coloured cell for the numbers.</span></div>')
 // The period's snapshots: from the one before the first report day (or FROM) to the newest.
 String start = FROM ?: ((days ? (counts.keySet() as List<String>).findAll { it < days[0] } : []).with { it ? it.max() : '' })
@@ -439,7 +442,8 @@ for (String t in tableOrder) {
     String since = identical[t]
     String lastCell = s.last ? e(s.last) : ('<span class=muted>no change' + (since ? '; identical since ' + since : '') + '</span>')
     StringBuilder row = new StringBuilder()
-    row << '<tr><th scope="row" class="t">' << e(t) << '</th>' <<
+    row << (s.removed ? '<tr><th scope="row" class="t gone" title="' + e('removed ' + s.removed + (rowsNow != null ? ', re-created later' : '')) + '">'
+                      : '<tr><th scope="row" class="t">') << e(t) << '</th>' <<
            '<td class="num">' << (rowsStart != null ? fmt(rowsStart) : '') << '</td>' <<
            '<td class="num">' << (rowsNow != null ? fmt(rowsNow) : '') << '</td>' <<
            '<td class="num">' << fmt(Math.rint(s.perDay as double) as long) << '</td>' <<

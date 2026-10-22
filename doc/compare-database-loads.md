@@ -312,7 +312,8 @@ of the ignored `*_old_*` leftovers).
 Each heatmap row shows the table's **starting rows** and **rows now** (first and last
 snapshot of the period), its **average real churn per day**, how many days it changed,
 and the last day it changed. For a table with no change in the period, "last changed"
-shows how long the whole table has been identical (from `unchanged_since.csv`). Rows are
+shows how long the whole table has been identical (from `unchanged_since.csv`). A table removed during the period has its name in red (hover: the removal day, and
+"re-created later" if it exists again at the end). Rows are
 sorted with tables flagged today first, then by real churn per day. Cells with no change
 carry no tooltip, which keeps a full-year page (~530 tables x 371 days) to about 8 MB.
 For a full-year page: `FROM=<first day> churn_dashboard.groovy <data_dir> <data_dir>/dashboard-year`.
