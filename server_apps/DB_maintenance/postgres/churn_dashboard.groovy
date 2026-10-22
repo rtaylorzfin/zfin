@@ -46,7 +46,6 @@ long MIN_ROWS = (env.MIN_ROWS ?: '1000') as long
 Pattern IGNORE = Pattern.compile(env.IGNORE_TABLES ?: '_old_[0-9]')
 String TO = env.TO ?: (env.AS_OF ?: '')
 String FROM = env.FROM ?: ''
-int HEATMAP_ROWS = 40
 int GRID_MAX_CELLS = 40000   // above this the row-count grid is CSV-only (too large for the page)
 String GRID_CSV = 'row_counts.csv'
 Pattern DAY = ~/^20\d\d\.\d\d\.\d\d\.\d+$/
@@ -304,6 +303,7 @@ td.c.flag{outline:2px solid var(--flag);outline-offset:-2px;font-weight:700}
 .grid tbody th{position:sticky;left:0;background:var(--bg);z-index:1}
 .grid thead th.corner{left:0;z-index:3}
 .grid td.chg{background:var(--h2);font-weight:600}
+.nowrap,.heat td.num{white-space:nowrap}
 '''
 
 /** [snapshot days from start on, tables seen in them] for the row-count grid. */
@@ -319,16 +319,21 @@ List<String> days = window.collect { it[0] as String }
 String period = days ? "${days[0]} to ${days[-1]}".toString() : 'no reports'
 Set<String> flagged = anomalies.collect { "${it.table}\u0000${it.day}".toString() } as Set
 
-// Heatmap rows: tables with the most real churn in the window, plus anything flagged today.
-Map<String, Long> total = [:]
-window.each { w -> w[1].each { String t, Map c -> if (!IGNORE.matcher(t).find()) total[t] = (total[t] ?: 0L) + (c.real as long) } }
-List<String> picked = (total.keySet() as List<String>).findAll { total[it] > 0 }.sort { -total[it] }   // stable, as in Python
-picked = picked.take(HEATMAP_ROWS)
-anomalies.each { a -> if (!picked.contains(a.table)) picked.add(0, a.table as String) }
+// Per-table stats over the window (every table, including ones that never changed).
+Map<String, Map> stats = [:]
+window.each { w -> w[1].each { String t, Map c ->
+    if (IGNORE.matcher(t).find()) return
+    Map s = stats.computeIfAbsent(t) { [days: 0, changed: 0, real: 0L, last: null] }
+    s.days++
+    s.real += c.real as long
+    if ((c.real as long) > 0) { s.changed++; s.last = w[0] }
+} }
+stats.values().each { it.perDay = it.days ? (it.real as long) / (double) it.days : 0d }
+// Heatmap order: tables flagged today first, then real churn per day (highest first), then name.
 Set<String> anomalyTables = anomalies.collect { it.table as String } as Set
-picked = picked.sort(false) { a, b ->
+List<String> tableOrder = (stats.keySet() as List<String>).sort(false) { a, b ->
     int fa = anomalyTables.contains(a) ? 0 : 1, fb = anomalyTables.contains(b) ? 0 : 1
-    fa <=> fb ?: (-(total[a] ?: 0L)) <=> (-(total[b] ?: 0L))
+    fa <=> fb ?: (stats[b].perDay as double) <=> (stats[a].perDay as double) ?: a <=> b
 }
 
 String newest = days ? days[-1] : 'n/a'
@@ -396,8 +401,11 @@ if (ignoredChanges)
     out << ('<p class="muted">Not listed: ' + fmt(ignoredChanges) + ' added/removed tables matching ' +
             '<code>' + e(IGNORE.pattern()) + '</code> (leftovers of rename-swap rebuilds).</p>')
 
-// Heatmap
+// Heatmap: every table, one row each, with its numbers for the period.
+int unchanged = stats.values().count { it.changed == 0 } as int
 out << ('<h2>Real churn by table and day</h2>' +
+        '<p class="muted">' + fmt(stats.size()) + ' tables: ' + fmt(stats.size() - unchanged) + ' changed in the period, ' +
+        fmt(unchanged) + ' did not.</p>' +
         '<div class="legend">Share of the table that changed:' +
         '<span><i class="b0"></i>none</span><span><i class="b1"></i>&lt;0.01%</span>' +
         '<span><i class="b2"></i>&lt;0.1%</span><span><i class="b3"></i>&lt;1%</span>' +
@@ -405,60 +413,11 @@ out << ('<h2>Real churn by table and day</h2>' +
         '<span><i class="nd"></i>no report</span><span><i class="c raw b3"></i>raw only (real n/a)</span>' +
         '<span><b style="border-left:3px solid var(--fg);padding-left:4px">|</b> days missing</span>' +
         '<span><b style="color:var(--flag)">!</b> unusual</span>' +
-        '<span>Hover a cell for the numbers.</span></div>')
-Set<Integer> gaps = gapBefore(days)
-out << ('<div class="scroll"><table class="heat"><thead><tr><th scope="col" class="t">Table</th>' +
-        '<th scope="col" class="num">Rows now</th><th scope="col" class="num">Real churn / day</th>' +
-        '<th scope="col">Table size over time</th>')
-days.eachWithIndex { String d, int i -> out << ('<th scope="col" class="d' + (i in gaps ? ' gap' : '') + '">' + e(shortDay(d)) + '</th>') }
-out << '</tr></thead><tbody>'
-List<String> snapDays = (counts.keySet() as List<String>).findAll { !FROM || it >= FROM }
-for (String t in picked) {
-    int reported = window.count { it[1].containsKey(t) } as int
-    double perDay = reported ? (total[t] ?: 0L) / (double) reported : 0d
-    List<Long> series = snapDays.collect { counts[it][t] }
-    Long last = series.reverse().find { it != null }
-    out << ('<tr><th scope="row" class="t">' + e(t) + '</th>' +
-            '<td class="num">' + (last != null ? fmt(last) : '') + '</td>' +
-            '<td class="num">' + fmt(Math.rint(perDay) as long) + '</td><td>' + sparkline(series) + '</td>')
-    window.eachWithIndex { w, int i ->
-        String g = i in gaps ? ' gap' : ''
-        Map c = w[1][t]
-        if (c == null) { out << ('<td class="c nd' + g + '" title="no data"></td>'); return }
-        int b = bucket(c.real as long, c.rows as long)
-        boolean fl = flagged.contains("${t}\u0000${w[0]}".toString())
-        String tip = t + ' on ' + w[0] + ': real +' + fmt(c.added as long) + ' / -' + fmt(c.removed as long) +
-                (c.real_known ? '' : ' (raw; real n/a)') + '; raw ' + fmt(c.raw as long) + '; ' + fmt(c.rows as long) + ' rows' +
-                (fl ? '; UNUSUAL' : '')
-        String cls = 'c b' + b + (c.real_known ? '' : ' raw') + (fl ? ' flag' : '') + g
-        out << ('<td class="' + cls + '" title="' + e(tip) + '">' + (fl ? '!' : '') + '</td>')
-    }
-    out << '</tr>'
-}
-out << '</tbody></table></div>'
-out << ('<p class="muted">Top ' + HEATMAP_ROWS + ' tables by real churn over the period, flagged tables first. ' +
-        '"Real churn / day" is the table\'s average real churn per reported day in the period. ' +
-        '"Table size over time" is the table\'s total row count at each of the ' + snapDays.size() + ' snapshots, not churn (' +
-        (snapDays ? e(snapDays[0]) : '') + ' ' +
-        'to ' + (snapDays ? e(snapDays[-1]) : '') + ').</p>')
-
-// Every table, including the ones that never changed: one compact row each (a
-// per-day heatmap of all ~1,200 tables would be far too large for long periods).
-Map<String, Map> stats = [:]
-window.each { w -> w[1].each { String t, Map c ->
-    if (IGNORE.matcher(t).find()) return
-    Map s = stats.computeIfAbsent(t) { [days: 0, changed: 0, real: 0L, last: null] }
-    s.days++
-    s.real += c.real as long
-    if ((c.real as long) > 0) { s.changed++; s.last = w[0] }
-} }
-int unchanged = stats.values().count { it.changed == 0 } as int
-out << ('<details><summary><h2 style="display:inline">All ' + fmt(stats.size()) + ' tables</h2> ' +
-        '<span class="muted">(' + fmt(stats.size() - unchanged) + ' changed in the period, ' + fmt(unchanged) + ' did not)</span>' +
-        '</summary>')
-out << ('<div class="scroll"><table><thead><tr><th scope="col">Table</th><th scope="col" class="num">Rows now</th>' +
-        '<th scope="col" class="num">Days changed</th><th scope="col" class="num">Real churn, total</th>' +
-        '<th scope="col">Last changed</th></tr></thead><tbody>')
+        '<span>Hover a coloured cell for the numbers.</span></div>')
+// The period's snapshots: from the one before the first report day (or FROM) to the newest.
+String start = FROM ?: ((days ? (counts.keySet() as List<String>).findAll { it < days[0] } : []).with { it ? it.max() : '' })
+List<String> snapDays = (counts.keySet() as List<String>).findAll { it >= start }
+Map<String, Long> firstCounts = snapDays ? counts[snapDays[0]] : [:]
 Map<String, Long> lastCounts = snapDays ? counts[snapDays[-1]] : [:]
 // How long each table's whole content has been identical (unchanged_since.sh, over all
 // snapshots up to now), for the tables with no change in the period. Skipped for a TO
@@ -467,25 +426,55 @@ Map<String, String> identical = [:]
 File us = new File(dataDir, 'unchanged_since.csv')
 if (!TO && us.exists())
     readCsv(us).each { r -> identical[r.schema_name + '.' + r.table_name] = (r.bound == 'at_least' ? '&ge; ' : '') + e(r.unchanged_since) }
-stats.keySet().sort(false) { a, b -> (stats[b].real as long) <=> (stats[a].real as long) ?: a <=> b }.each { String t ->
+Set<Integer> gaps = gapBefore(days)
+out << ('<div class="scroll"><table class="heat"><thead><tr><th scope="col" class="t">Table</th>' +
+        '<th scope="col" class="num">Starting rows</th><th scope="col" class="num">Rows now</th>' +
+        '<th scope="col" class="num">Real churn / day</th><th scope="col" class="num">Days changed</th>' +
+        '<th scope="col">Last changed</th><th scope="col">Table size over time</th>')
+days.eachWithIndex { String d, int i -> out << ('<th scope="col" class="d' + (i in gaps ? ' gap' : '') + '">' + e(shortDay(d)) + '</th>') }
+out << '</tr></thead><tbody>'
+for (String t in tableOrder) {
     Map s = stats[t]
-    Long rowsNow = lastCounts[t]
+    Long rowsStart = firstCounts[t], rowsNow = lastCounts[t]
     String since = identical[t]
     String lastCell = s.last ? e(s.last) : ('<span class=muted>no change' + (since ? '; identical since ' + since : '') + '</span>')
-    out << ('<tr><th scope="row">' + e(t) + '</th><td class="num">' + (rowsNow != null ? fmt(rowsNow) : '') + '</td>' +
-            '<td class="num">' + s.changed + ' of ' + s.days + '</td><td class="num">' + fmt(s.real as long) + '</td>' +
-            '<td>' + lastCell + '</td></tr>')
+    StringBuilder row = new StringBuilder()
+    row << '<tr><th scope="row" class="t">' << e(t) << '</th>' <<
+           '<td class="num">' << (rowsStart != null ? fmt(rowsStart) : '') << '</td>' <<
+           '<td class="num">' << (rowsNow != null ? fmt(rowsNow) : '') << '</td>' <<
+           '<td class="num">' << fmt(Math.rint(s.perDay as double) as long) << '</td>' <<
+           '<td class="num">' << s.changed << ' of ' << s.days << '</td>' <<
+           '<td class="nowrap">' << lastCell << '</td>' <<
+           '<td>' << sparkline(snapDays.collect { counts[it][t] }) << '</td>'
+    // Cells are kept small (the full-year page has ~200k): no tooltip where nothing happened.
+    window.eachWithIndex { w, int i ->
+        String g = i in gaps ? ' gap' : ''
+        Map c = w[1][t]
+        if (c == null) { row << '<td class="c nd' << g << '"></td>'; return }
+        int b = bucket(c.real as long, c.rows as long)
+        boolean fl = flagged.contains("${t}\u0000${w[0]}".toString())
+        String cls = 'c b' + b + (c.real_known ? '' : ' raw') + (fl ? ' flag' : '') + g
+        if ((c.real as long) == 0 && (c.raw as long) == 0 && !fl) { row << '<td class="' << cls << '"></td>'; return }
+        String tip = w[0] + ': real +' + fmt(c.added as long) + ' / -' + fmt(c.removed as long) +
+                (c.real_known ? '' : ' (raw; real n/a)') + '; raw ' + fmt(c.raw as long) + '; ' + fmt(c.rows as long) + ' rows' +
+                (fl ? '; UNUSUAL' : '')
+        row << '<td class="' << cls << '" title="' << e(tip) << '">' << (fl ? '!' : '') << '</td>'
+    }
+    row << '</tr>'
+    out << row.toString()
 }
 out << '</tbody></table></div>'
-out << ('<p class="muted">Most real churn first; tables that did not change in the period are last, by name. ' +
-        '"Days changed" counts reported days with any real change (raw where real is n/a). ' +
-        '"Identical since" is the first snapshot from which the whole table (every column) stayed the same; ' +
-        '&ge; means since the first snapshot on disk.</p></details>')
+out << ('<p class="muted">Tables flagged today first, then by real churn per day, highest first. ' +
+        '"Starting rows" and "Rows now" are the row counts at the first and last snapshot of the period (' +
+        (snapDays ? e(snapDays[0]) : '') + ' and ' + (snapDays ? e(snapDays[-1]) : '') + '; blank: the table did not exist then). ' +
+        '"Real churn / day" is the average real churn per reported day; "Days changed" counts reported days with any real ' +
+        'change (raw where real is n/a). For a table with no change in the period, "identical since" is the first snapshot ' +
+        'from which the whole table (every column) stayed the same; &ge; means since the first snapshot on disk. ' +
+        '"Table size over time" is the row count at each of the ' + snapDays.size() + ' snapshots, not churn.</p>')
 
 // Row counts: tables down, snapshot dates across. Always downloadable as CSV; shown on
 // the page too when it is small enough. The page's period starts at the snapshot before
 // its first report day.
-String start = FROM ?: ((days ? (counts.keySet() as List<String>).findAll { it < days[0] } : []).with { it ? it.max() : '' })
 def (List<String> gdays, List<String> gtables) = countGrid(counts, start, IGNORE)
 long cells = (long) gdays.size() * gtables.size()
 out << ('<h2>Row counts by date</h2><p>Every table\'s row count at each snapshot. ' +

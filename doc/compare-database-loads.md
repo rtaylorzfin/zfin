@@ -294,9 +294,9 @@ checks for `MIN_FREE_GB` (12) free in `CHURN_HASH_DIR` first.
 
 `churn_dashboard.groovy` (Groovy/JDK only, no classpath; runs via `/opt/misc/groovy`
 like the other server_apps Groovy scripts; no JavaScript or external resources) writes `dashboard/index.html`: daily real vs raw totals, a heatmap of real
-churn by table and day (share of the table that changed; hover for numbers; raw-only
-days hatched; a bar marks missing days), and a row-count trend per table over every
-snapshot kept.
+churn by table and day for **every** table (share of the table that changed; hover a
+coloured cell for numbers; raw-only days hatched; a bar marks missing days), and a
+row-count trend per table over the period's snapshots.
 
 A change is **unusual** when a table's real churn is at least `FACTOR` (5) times its
 own median over the previous `BASELINE` (28) days and at least `MIN_ROWS` (1,000)
@@ -307,14 +307,15 @@ Friday NCBI load, the 09.29 `db_link` swap and the `term_phenotype_display`
 array-order days.
 
 The page also lists every table **added or removed** during the period (with a count
-of the ignored `*_old_*` leftovers), and gives each heatmap table its **average real
-churn per day** over the period.
+of the ignored `*_old_*` leftovers).
 
-Below the heatmap (which shows the top 40), a collapsed **All tables** section lists
-every table with its row count, how many days it changed, its total real churn and the
-last day it changed; tables with no change in the period come last, with how long the
-whole table has been identical (from `unchanged_since.csv`). For a full-year page:
-`FROM=<first day> churn_dashboard.groovy <data_dir> <data_dir>/dashboard-year`.
+Each heatmap row shows the table's **starting rows** and **rows now** (first and last
+snapshot of the period), its **average real churn per day**, how many days it changed,
+and the last day it changed. For a table with no change in the period, "last changed"
+shows how long the whole table has been identical (from `unchanged_since.csv`). Rows are
+sorted with tables flagged today first, then by real churn per day. Cells with no change
+carry no tooltip, which keeps a full-year page (~530 tables x 371 days) to about 8 MB.
+For a full-year page: `FROM=<first day> churn_dashboard.groovy <data_dir> <data_dir>/dashboard-year`.
 
 A **Row counts by date** section links `row_counts.csv` (written next to `index.html`):
 every table's row count at every snapshot on disk, tables down, snapshot dates across
