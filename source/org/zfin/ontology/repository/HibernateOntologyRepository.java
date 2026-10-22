@@ -590,20 +590,28 @@ public class HibernateOntologyRepository implements OntologyRepository {
 
     @Override
     public String[] getAncestorTermIds(String termZdbId) {
-        String sql = "select alltermcon_container_zdb_id from all_term_contains where alltermcon_contained_zdb_id = :termId";
+        // Ordered so the array is the same from run to run (see getAncestorTermIdsBulk).
+        String sql = "select alltermcon_container_zdb_id from all_term_contains where alltermcon_contained_zdb_id = :termId" +
+                     " order by alltermcon_container_zdb_id";
         List<String> ids = HibernateUtil.currentSession().createNativeQuery(sql, String.class)
             .setParameter("termId", termZdbId)
             .list();
         return ids.toArray(new String[0]);
     }
 
+    /**
+     * Ancestor term IDs per term, for the *_ancestor_term_ids columns of the ui display tables. The array is
+     * sorted: without an ORDER BY its order followed all_term_contains' physical row order, which shifts whenever
+     * that table is rebuilt, so the regens rewrote ~95% of term_phenotype_display rows with only the order changed.
+     * Readers search these columns by containment (GIN), so order never mattered to them.
+     */
     @Override
     public Map<String, String[]> getAncestorTermIdsBulk(Collection<String> termZdbIds) {
         if (termZdbIds == null || termZdbIds.isEmpty()) {
             return Map.of();
         }
         String sql = """
-            select alltermcon_contained_zdb_id, array_agg(alltermcon_container_zdb_id)
+            select alltermcon_contained_zdb_id, array_agg(alltermcon_container_zdb_id order by alltermcon_container_zdb_id)
             from all_term_contains
             where alltermcon_contained_zdb_id in (:termIds)
             group by alltermcon_contained_zdb_id
