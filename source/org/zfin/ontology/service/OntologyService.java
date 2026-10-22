@@ -391,13 +391,19 @@ public class OntologyService {
 
                             FishModelDisplay display = new FishModelDisplay(fish);
                             display.setDisease(diseaseEntrySet.getKey());
-                            display.setFishModel(diseaseEntrySet.getValue().iterator().next().getFishExperiment());
+                            // The group can hold several fish experiments with the same conditions;
+                            // pick the same one every time (lowest ID) rather than whichever a HashSet
+                            // yields first, so the indexed row does not flip between runs.
+                            DiseaseAnnotationModel representative = diseaseEntrySet.getValue().stream()
+                                .min(Comparator.comparing(model -> model.getFishExperiment().getZdbID()))
+                                .orElseThrow();
+                            display.setFishModel(representative.getFishExperiment());
                             Set<Publication> publications = diseaseEntrySet.getValue().stream().map(diseaseAnnotationModel -> diseaseAnnotationModel.getDiseaseAnnotation().getPublication()).collect(toSet());
                             if (publications.size() == 1) {
                                 display.setSinglePublication(publications.iterator().next());
                             }
                             display.setNumberOfPublications(publications.size());
-                            display.setExperiment(diseaseEntrySet.getValue().iterator().next().getFishExperiment().getExperiment());
+                            display.setExperiment(representative.getFishExperiment().getExperiment());
                             return display;
                         }).collect(toList())).flatMap(Collection::stream)
                     .collect(toList());
