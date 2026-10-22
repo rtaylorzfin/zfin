@@ -1,0 +1,2627 @@
+ ▐▛███▜▌   Claude Code v2.1.202
+▝▜█████▛▘  Opus 4.8 · Claude Team
+  ▘▘ ▝▝    /opt/zfin/source_roots/macdev/zfin
+
+ ▎ Fable 5 is back.
+ ▎ Until July 7, you can use up to 50% of your plan's weekly usage limit on Fable 5. If you hit your limit, you can continue on Fable 5 with usage credits. Fable 5 draws down usage faster than Opus 4.8. Learn more
+
+❯ I want to use the before/after capture we've added in this branch to make a   
+  comparison. Let's see what is different between a zfindb that has gone        
+  through the legacy loads of noctua gpad + gaf-goa load vs. a zfindb that has  
+  gone through the new job that was added in this PR. The starting point for    
+  each should be our app DB after running `gradle loaddb` to load a recent DB   
+  snapshot 7/5/26 is available.                                                 
+
+● I'll start by understanding what's in this branch — the before/after capture
+  mechanism, the new unified load job, and the legacy loads. Let me explore.
+
+  Ran 2 shell commands (ctrl+o to expand)
+
+● Let me look at the before/after diff tooling and the Jenkins job that uses it.
+
+  Ran 1 shell command (ctrl+o to expand)
+
+● Now let me look at the Jenkins job configs — the new unified job and the two
+  legacy jobs.
+
+  Ran 1 shell command (ctrl+o to expand)
+
+● This gives me a clear picture of the mechanism. Now let me check the Ant
+  targets, the report-only flag on the DANRE-mod load, and the plan docs.
+
+  Searched for 1 pattern, ran 1 shell command (ctrl+o to expand)
+
+● Let me read the plan/progress docs and the new source-scoping Java to
+  understand exactly what the unified load writes.
+
+  Read 1 file (ctrl+o to expand)
+
+● I now understand the mechanism and the branch thoroughly. Before I design the
+  comparison run, let me check the ground truth of the environment (stack up? DB
+  reachable? loaddb snapshot present? how loaddb works?).
+
+  Searched for 1 pattern, read 1 file, ran 2 shell commands (ctrl+o to expand)
+
+● DB name isn't zfin. Let me find the actual DB name and the loadDatabase task
+  details.
+
+  Searched for 1 pattern, read 1 file, ran 2 shell commands (ctrl+o to expand)
+
+● The current zfindb lacks the expected schema — confirming we need a fresh
+  gradle loaddb baseline. These gradle/ant tasks run inside the container with
+  env vars from a login shell. Let me check the DB unloads path and whether the
+  7/5/26 snapshot is present.
+
+  Ran 1 shell command (ctrl+o to expand)
+
+● The 7/5/26 snapshot (2026.07.05.1) is present. Note the Jenkins container's
+  SOURCEROOT points at /opt/zfin/source_roots/zfin.org, not our macdev branch
+  checkout. Let me understand how our branch code gets deployed/run and check
+  the compile container.
+
+  Searched for 1 pattern, ran 1 shell command (ctrl+o to expand)
+
+● DOCKER_SOURCE_ROOTS_PATH="../" (relative to docker/) = our macdev checkout. So
+  inside the containers, $SOURCEROOT (/opt/zfin/source_roots/zfin.org) is
+  bind-mounted from our branch. Let me confirm and view the compile service.
+
+  Read 1 file, ran 1 shell command (ctrl+o to expand)
+
+● I now have the full picture. Here's what I've confirmed:
+
+  - The capture tooling (snapshot_mgte.sh + gradle csvDiff) snapshots
+  marker_go_term_evidence per organization (GOA, Noctua) into flattened CSVs and
+  diffs two snapshots keyed on every column except zdb_id.
+  - The containers' $SOURCEROOT is bind-mounted from this branch checkout, so
+  the new load-gpad-danre-mod Ant target, the DanreModGpadParser, and the
+  ECO/GO_REF migrations are all available inside the running stack. The
+  2026.07.05.1 snapshot is present at $DB_UNLOADS_PATH.
+
+  The comparison you're describing is a two-divergent-paths-from-one-baseline
+  diff, which the in-job before/after tooling doesn't do by itself — I'll drive
+  it manually using the same snapshot/csvDiff pieces:
+
+  gradle loaddb (2026.07.05.1)  ──►  BASELINE  (identical start for both paths)
+          │
+     ┌────┴─────────────────────────────┐
+     ▼ PATH A (legacy)                   ▼ PATH B (new)  [after resetting DB to
+  baseline]
+   ant load-gaf-goa                    ant load-gpad-danre-mod
+   ant load-noctua-gpad                 (GAF_LOAD_REPORT_ONLY=false)
+     │                                   │
+   snapshot GOA + Noctua               snapshot GOA + Noctua
+     └──────────────► csvDiff(legacy_after, new_after) per org ◄─────┘
+
+  Two things I've already resolved from intent: I'll run the DANRE-mod load with
+  GAF_LOAD_REPORT_ONLY=false (otherwise the "new-job DB" would be
+  byte-identical to baseline and there'd be nothing to compare), and I'll loaddb
+  the dev zfindb twice to guarantee both paths start from an identical baseline
+  (destroys current dev DB state — which is expected given you asked to start
+  from gradle loaddb).
+
+  Two choices genuinely change the result and aren't derivable, so let me
+  confirm before kicking off a multi-hour run:
+
+● User answered Claude's questions:
+  ⎿  · The DANRE-mod load is designed to replace THREE legacy loads (GAF-GOA, 
+     Noctua GPAD, AND FP-Inference). You named only GAF-GOA + Noctua GPAD for 
+     the legacy side. Which legacy set should Path A run? → Add FP-Inference too
+     (Recommended)
+     · The legacy GAF-GOA job has an optional post-load dedup step 
+     (cleanMarkerGoTermEvidenceDuplicatesTask, default off). Run it on the 
+     legacy side before snapshotting? → Run cleanup
+● Decisions locked in: Path A = GAF-GOA + Noctua GPAD + FP-Inference, then run 
+  the MGTE dedup cleanup; Path B = DANRE-mod with report-only off; compare per
+  org. Let me set up task tracking and verify the deploy state (the new Java
+  must be compiled into the running classpath for the loads to work).
+
+  Ran 1 shell command (ctrl+o to expand)
+
+● The new DanreModGpadParser.class is not deployed to the running instance — I
+  must compile/deploy the branch Java before any load will work. Let me check
+  the deploy layout and classpath.
+
+  Searched for 1 pattern, ran 1 shell command (ctrl+o to expand)
+
+● Classpath points at the deployed Tomcat webapp
+  ($CATALINA_BASE/webapps/ROOT/WEB-INF), not $TARGETROOT/home. Let me check
+  what's actually deployed in Tomcat.
+
+  Ran 1 shell command (ctrl+o to expand)
+
+● GafLoadJob.class is deployed but DanreModGpadParser.class is not, and the
+  deploy is from Jun 30 — stale, predating the ECO-mapping and per-source-org
+  commits. I must recompile/redeploy the branch first. Let me look at the deploy
+  tasks and set up task tracking.
+
+  Ran 1 shell command (ctrl+o to expand)
+
+  Searched for 1 pattern, read 1 file (ctrl+o to expand)
+
+● dirtycopy is exactly what I need — it runs compileJava and syncs classes to
+  the deployed webapp, with no npm/GWT (so it sidesteps the known npm-build
+  failure). Our branch changed no dependencies, so the existing lib jars are
+  fine. Let me verify the compile container is available and check the DB-load
+  prerequisites (PGUSER for dropdb/createdb).
+
+  Ran 1 shell command (ctrl+o to expand)
+
+● Jenkins container has javac (JDK 21), pg_restore/dropdb/createdb, and correct
+  CATALINA_BASE — it can potentially do the whole pipeline. But the compile
+  container has the warmed Gradle cache. Let me check the compile container's
+  mounts to confirm it shares the same deployed webapp volume.
+
+  Ran 1 shell command (ctrl+o to expand)
+
+● The catalina_base volume is shared across compile/tomcat/jenkins, so a
+  dirtycopy from the compile container deploys to the same webapp the loads use.
+  Plan: compile/deploy in the compile container (warm Gradle cache), run 
+  loads/loaddb/snapshots/diffs in the jenkins container (proven env). Let me
+  start the compile container and kick off the compile+deploy.
+
+  Ran 1 shell command (ctrl+o to expand)
+
+● Compile container is up. Let me confirm it sees our branch and run dirtycopy
+  (compile + deploy). This compiles the whole codebase, so I'll give it time.
+
+  Ran 1 shell command (ctrl+o to expand)
+
+● The compile container exited immediately — it's designed for one-off compose 
+  run, not a persistent service. Since the jenkins container already runs gradle
+  tasks (it runs the load jobs), it has a working Gradle setup. I'll run
+  everything there. Let me start dirtycopy in the background with logging.
+
+  Ran 1 shell command (ctrl+o to expand)
+
+❯ please continue                                                               
+
+● Continuing. Let me run the compile+deploy (dirtycopy) in the jenkins
+  container, logging to a container-visible working dir under $TARGETROOT.
+
+  Ran 1 shell command (ctrl+o to expand)
+
+● dirtycopy is compiling in the background inside the container. Let me poll the
+  log until it finishes.
+  Ran 1 shell command (ctrl+o to expand)
+
+● I'll use Monitor to wait for the compile to finish.
+
+  Ran 1 shell command (ctrl+o to expand)
+
+● While that runs, let me reconsider the wait condition — the Gradle daemon can
+  linger after the build, so a process check may not settle. Let me check the
+  log directly for the terminal marker instead.
+
+  Ran 1 shell command (ctrl+o to expand)
+
+● Build is progressing. Let me replace the process-based wait with a log-marker
+  wait (robust against the lingering Gradle daemon).
+
+● Stop Task
+  ⎿  until ! docker exec dazed-jenkins-1 bash -lc 'pgrep -f
+     "GradleWrapperMain|org.gradle" >/dev/null'; do sleep 10; done; echo
+     "=== dirtycopy finished ==="; docker… · stopped
+
+  Ran 1 shell command (ctrl+o to expand)
+
+● While dirtycopy compiles, let me nail down the remaining details: the download
+  mechanism of each load target, how to override report-only for DANRE-mod, and
+  the branch migration to apply. Let me read them.
+
+  Read 1 file, ran 1 shell command (ctrl+o to expand)
+
+● Background command "Wait for dirtycopy BUILD marker in log" completed (exit
+code 0)
+
+● dirtycopy finished. Let me check the result and confirm the new class
+  deployed.
+
+  Read 1 file (ctrl+o to expand)
+
+● BUILD SUCCESSFUL. Let me verify the new classes deployed and test network
+  access to the load sources (EBI FTP + GO) before committing to the long run.
+
+  Ran 2 shell commands (ctrl+o to expand)
+
+● All prerequisites are green: branch classes deployed (recompiled 16:00), GO
+  HTTPS reachable, EBI FTP reachable. Let me mark the deploy task done, find the
+  exact snapshot dump to pin loaddb, and set up the remaining task list.
+
+  Ran 1 shell command (ctrl+o to expand)
+
+● Snapshot dump is 2026.07.05.1.bak (1.3 GB). Now let me set up the pipeline
+  task list and write the driver script.
+
+● Now the driver script:
+
+  Made 1 scratchpad edit +118 (ctrl+o to expand)
+● Before launching, let me verify two things that affect correctness: (1) which
+  organizations the DANRE-mod load actually writes to (so I snapshot the right
+  set), and (2) that loadDatabase honors the pinned dump. Let me read the
+  source-org mapping.
+
+  Read 1 file (ctrl+o to expand)
+
+● Confirmed: DANRE-mod writes only to GOA (non-ZFIN) and Noctua (ZFIN); it does
+  not write the "FP Inferences" org. Since Path A includes the FP-inference
+  load, I need to snapshot GOA, Noctua, and FP Inferences to capture the full
+  3→1 consolidation story (the new load folds phylo/GO_Central rows into GOA
+  that legacy kept under FP Inferences). Let me rewrite the driver to cover all
+  three orgs and pin loadDatabase directly (so -DB is honored in-process).
+
+  Made 1 scratchpad edit +121 (ctrl+o to expand)
+
+● Now let me copy the driver into the container and launch it in the background.
+
+  Ran 1 shell command (ctrl+o to expand)
+
+● bash script.sh doesn't need the exec bit. One risk: the script patches
+  build.xml in the host-mounted repo — let me verify the container user can
+  write there (the earlier chmod failure suggests uid friction).
+
+  Ran 1 shell command (ctrl+o to expand)
+
+● The container's gradle user can't write the host-owned build.xml, so the
+  in-script sed would fail. I'll instead patch the report-only flag on the host
+  (I have write access here), simplify the driver to drop its patch logic, and
+  revert build.xml myself after the run. Path A targets don't reference that
+  line, so patching it upfront is safe. Let me confirm the flag is unique and
+  flip it.
+
+  Searched for 1 pattern (ctrl+o to expand)
+
+● Update(server_apps/DB_maintenance/build.xml)
+  ⎿  Added 1 line, removed 1 line
+      224                fork="yes"
+      225                classpathref="combined.classpath"
+      226                failonerror="true">
+      227 -            <env key="GAF_LOAD_REPORT_ONLY" value="true"/>    
+      227 +            <env key="GAF_LOAD_REPORT_ONLY" value="false"/><!-
+          +- TEMP: flipped for ZFIN-10025 legacy-vs-new DB comparison; RE
+          +VERT to true -->                                              
+      228              <arg value="${web-inf.dir}/zfin.properties"/><!-- 
+           propertyFilePath -->
+      229              <arg value="${validateData}/gafLoad"/><!-- baseDir
+            -->
+      230              <arg value="${jobName}"/><!-- jobName -->
+
+● Now simplify the driver — remove the in-script build.xml patch logic (patched
+  on host instead):
+
+  Made 2 scratchpad edits +16 -20 (ctrl+o to expand)
+
+● Now re-copy the updated driver and launch it in the background.
+
+  Ran 1 shell command (ctrl+o to expand)
+
+● Pipeline launched. Let me give it a moment to confirm the first phase (loaddb)
+  started cleanly, then set a background watch for the next milestone.
+
+  Ran 1 shell command (ctrl+o to expand)
+
+● The full comparison pipeline is now running autonomously in the jenkins
+  container. Here's the status and what's happening:
+
+  Setup complete:
+  - ✅ Branch Java recompiled & deployed (DanreModGpadParser, per-source-org
+  logic, GafService — the deployed webapp was stale from Jun 30).
+  - ✅ Verified network access to EBI FTP (GOA GAF) and GO (Noctua/FP/DANRE-mod
+  files).
+  - ✅ Patched build.xml on the host to run DANRE-mod with
+  GAF_LOAD_REPORT_ONLY=false (I'll revert this after the run).
+
+  Pipeline running ($TARGETROOT/danre-compare/, logging to MASTER.log):
+  1. Baseline — loadDatabase restoring 2026.07.05.1 + ECO:0007322 migration →
+  snapshot GOA/Noctua/FP Inferences
+  2. Path A (legacy) — load-gaf-goa + load-noctua-gpad + load-gaf-fpinference +
+  dedup cleanup → snapshot
+  3. Reset — loadDatabase again (+ verifies both baselines are byte-identical)
+  4. Path B (new) — load-gpad-danre-mod (report-only off) → snapshot
+  5. Diffs — csvDiff legacy→new per org, producing diff_{GOA,Noctua,FP}.xlsx
+
+  I added FP Inferences as a third snapshot org beyond the GOA/Noctua you asked
+  about: since the unified load folds phylo/GO_Central rows into GOA that the
+  legacy FP-Inference load kept under its own org, that org is where the 3→1
+  consolidation shows up.
+
+  This is a multi-hour run (two full loadDatabase cycles + four loads). I'm
+  watching MASTER.log for the first milestone (baseline restore) and for any
+  early failure, and will report as phases complete.
+
+✻ Crunched for 8m 32s
+
+● Background command "Wait for loaddb-A to finish (baseline restore) or an early
+error" completed (exit code 0)
+
+  Read 1 file (ctrl+o to expand)
+
+● Baseline restored cleanly — GOA 109,656 / Noctua 36,025 / FP Inferences 1,623
+  rows (matches the plan's expected counts), ECO migration applied (INSERT 0 1,
+  so it wasn't already present). Path A legacy loads are now running. Let me
+  wait for Path A to complete (or fail).
+
+  Ran 1 shell command (ctrl+o to expand)
+
+● The baseline checkpoint is solid. I'll wait for Path A (the three legacy loads
+  + dedup cleanup + snapshots) to finish and report back with the results and
+  any load failures.
+
+✻ Worked for 23s
+❯ ping me when the diffs are ready                                              
+
+● Got it — I'll ping you when the diffs are ready. Let me set a watch on the
+  end-of-run marker so I'm re-triggered the moment the diffs land.
+
+  Ran 1 shell command (ctrl+o to expand)
+
+● Watch is set. I'll ping you as soon as the diffs are ready (that's the final
+  phase, so completion = diffs done). The Path A checkpoint will also surface
+  along the way; I'll keep an eye on it for any load failures but won't
+  interrupt you unless something needs a decision.
+
+✻ Sautéed for 16s
+
+● Background command "Wait for Path A legacy loads + snapshots to complete"
+completed (exit code 0)
+
+  Read 1 file (ctrl+o to expand)
+
+● Path A finished, but load-noctua-gpad FAILED (rc=1, in only 6 seconds — too
+  fast to be a real load). Consequently legacy_Noctua.csv is still 36,025 rows =
+  unchanged from baseline, so the legacy Noctua load didn't actually happen.
+  The GOA and FP loads succeeded (GOA 109,656→107,843). Let me read the Noctua
+  failure log while Path B continues in the background.
+
+  Ran 1 shell command (ctrl+o to expand)
+
+● Found the root cause — and it's a genuine branch regression, not an
+  environment issue:
+
+  NoUniqueBeanDefinitionException: No qualifying bean of type
+  'org.zfin.datatransfer.go.GpadParser'
+  available: expected single matching bean but found 2: danreModGpadParser,
+  gpadParser
+
+  The legacy Noctua load asks Spring for a bean of type GpadParser. Because this
+  branch adds DanreModGpadParser extends GpadParser as a @Component, there are
+  now two beans of that type, so the by-type lookup is ambiguous and the legacy
+  Noctua load crashes on startup. (GOA uses GoaGafParser and DANRE-mod uses
+  DanreModGpadParser — both unique — which is why only Noctua broke.) Let me
+  confirm the lookup path.
+
+  Ran 1 shell command (ctrl+o to expand)
+
+● Confirmed the mechanism: getBean(Class.forName("...GpadParser")) →
+  getBean(GpadParser.class), now ambiguous. Interestingly the FP load (which
+  resolves FpInferenceGafParser, a superclass of both) succeeded — let me check
+  the full parser hierarchy and annotations to design the correct fix.
+
+  Ran 1 shell command (ctrl+o to expand)
+
+● The full picture now makes sense:
+  - FpInferenceGafParser is @Component @Primary →
+  getBean(FpInferenceGafParser.class) resolves to it (FP load worked).
+  - GoaGafParser / DanreModGpadParser are unique exact types → their loads work.
+  - GpadParser is @Component (not primary), and DanreModGpadParser extends 
+  GpadParser, so getBean(GpadParser.class) has two candidates and no primary → 
+  the legacy Noctua load crashes.
+
+  Marking GpadParser @Primary would break the FP load (two primaries under
+  FpInferenceGafParser). The correct, minimal fix is to resolve the parser by 
+  its conventional bean name instead of by type. This is a genuine branch bug
+  worth fixing regardless. Let me apply it, redeploy, then redo the legacy
+  Noctua load and re-diff. First, the exact code:
+
+  Read 1 file (ctrl+o to expand)
+
+● Update(source/org/zfin/datatransfer/go/service/GafLoadJob.java)
+  ⎿  Added 8 lines, removed 1 line
+      542          job.reportOnly = envTrue("GAF_LOAD_REPORT_ONLY");
+      543  
+      544          try {
+      545 -            job.gafParser = (FpInferenceGafParser) context.get
+          -Bean(Class.forName(parserClassName));                         
+      545 +            // Resolve the parser by its conventional bean nam
+          +e rather than by type: since                                  
+      546 +            // DanreModGpadParser extends GpadParser (ZFIN-100
+          +25), a by-type lookup for the                                 
+      547 +            // legacy Noctua load's GpadParser matches two bea
+          +ns (gpadParser, danreModGpadParser)                           
+      548 +            // and throws NoUniqueBeanDefinitionException. The
+          + by-name lookup selects the exact                             
+      549 +            // parser each load asked for. (FpInferenceGafPars
+          +er stays @Primary for its own load.)                          
+      550 +            Class<?> parserClass = Class.forName(parserClassNa
+          +me);                                                          
+      551 +            String parserBeanName = java.beans.Introspector.de
+          +capitalize(parserClass.getSimpleName());                      
+      552 +            job.gafParser = (FpInferenceGafParser) context.get
+          +Bean(parserBeanName, parserClass);                            
+      553  
+      554              //if load-noctua-gpad job, then make sure to valid
+           ate all ZDB IDs in inferences.
+      555              if (job.gafParser instanceof GpadParser) {
+
+● Fix staged. To avoid any concurrency risk with the currently-running Path B
+  (which uses gradle for loaddb/diffs), I'll not redeploy mid-run — the
+  DANRE-mod load works fine with the old by-type resolution anyway. I'll let the
+  current pipeline finish (producing valid GOA/FP/new data; the Noctua diff
+  will be wrong), then deploy the fix and redo the legacy path cleanly. Let me
+  prepare the redo script now so it's ready.
+
+  Made 1 scratchpad edit +59 (ctrl+o to expand)
+
+● The redo script is ready. Current status and plan:
+
+  Path A results (first run):
+  - ✅ load-gaf-goa: succeeded (GOA 109,656 → 107,843 after load + dedup)
+  - ❌ load-noctua-gpad: crashed on the parser bean ambiguity — legacy_Noctua is
+  still baseline (36,025), invalid
+  - ✅ load-gaf-fpinference: succeeded (FP 1,623)
+
+  Fix staged: GafLoadJob now resolves the parser by bean name (gpadParser)
+  instead of by type, so the legacy Noctua load and the DANRE-mod load each get
+  their exact parser. This is a real branch bug — as-is, deploying this branch
+  would break the still-in-use Load-GPAD-Noctua_w job during the coexistence
+  window.
+
+  Remaining plan (won't disturb the running Path B):
+  1. Let the current pipeline finish (GOA/FP/new snapshots + GOA/FP diffs are
+  valid; the Noctua diff will be wrong).
+  2. Deploy the fix (dirtycopy).
+  3. Run redo_legacy.sh → correct legacy_* + recompute all three diffs.
+  4. Then ping you with the complete, correct diffs.
+
+  The completion watch is already armed. Let me record the fix so it isn't lost,
+  then wait.
+
+  Wrote 2 memories (ctrl+o to expand)
+
+● The fix is recorded. Everything's set — the completion watch will re-trigger
+  me when the current pipeline's diffs land, and I'll then deploy the fix, redo
+  the legacy path for a correct Noctua result, and ping you with the full
+  comparison.
+
+✻ Baked for 4m 17s
+
+● Background command "Wait for full pipeline completion (diffs ready)" completed
+(exit code 0)
+
+  Read 1 file (ctrl+o to expand)
+
+● Full pipeline completed. Key outcome:
+
+  - Baseline verified byte-identical across both paths (GOA/Noctua/FP) — clean
+  comparison foundation. ✅
+  - Path B DANRE-mod load exited rc=2 (the "completed with QC error rows" code —
+  expected per the plan's ~3,317 error rows, not a crash) and did write to the 
+  DB: GOA 109,656 → 116,297 (+6,641), Noctua 36,025 → 20,425 (−15,600), FP
+  untouched.
+  - GOA and FP diffs are valid; Noctua diff is invalid (legacy_Noctua still =
+  baseline 36,025 from the crashed load).
+
+  Let me confirm the DANRE-mod load actually committed (vs rolled back on the
+  rc=2), then deploy the parser fix and redo the legacy path.
+
+  Ran 1 shell command (ctrl+o to expand)
+
+● Confirmed: DANRE-mod load committed — "Removed entries: 60265, updated
+  Annotations: 23", exit code 2 = completed-with-QC-errors (matches the plan's
+  Run 5). So new_* snapshots are valid. Now let me deploy the parser fix and
+  redo the legacy path. First, compile + deploy the fix:
+
+  Ran 2 shell commands (ctrl+o to expand)
+● While the fix compiles, let me stage the redo script into the container.
+
+  Read 1 file, ran 1 shell command (ctrl+o to expand)
+
+● Background command "Wait for fix deploy to finish" completed (exit code 0)
+
+● Fix deployed (BUILD SUCCESSFUL). Now launch the legacy redo with the fix in
+  place.
+
+  Ran 2 shell commands (ctrl+o to expand)
+
+● The legacy redo is running with the parser fix deployed (loaddb + 3 loads +
+  cleanup + snapshots + re-diff, ~40 min). The completion watch will re-trigger
+  me. I'll verify the Noctua load now succeeds and then bring you the full,
+  correct comparison across all three orgs.
+
+  For reference while it runs, the picture so far (GOA/FP valid, Noctua pending
+  redo):
+
+  ┌───────────────┬──────────┬──────────────────────────┬───────────────────┐
+  │      Org      │ Baseline │ Legacy (3 loads+cleanup) │  New (DANRE-mod)  │
+  ├───────────────┼──────────┼──────────────────────────┼───────────────────┤
+  │ GOA           │  109,656 │                  107,843 │           116,297 │
+  ├───────────────┼──────────┼──────────────────────────┼───────────────────┤
+  │ Noctua        │   36,025 │                (pending) │            20,425 │
+  ├───────────────┼──────────┼──────────────────────────┼───────────────────┤
+  │ FP Inferences │    1,623 │                    1,623 │ 1,623 (untouched) │
+  └───────────────┴──────────┴──────────────────────────┴───────────────────┘
+
+  I'll ping you with the diff breakdowns (adds/deletes/updates per org) once the
+  corrected Noctua leg lands.
+
+✻ Brewed for 1m 43s
+
+❯ ping me when the corrected diffs are ready                                    
+
+● Will do — I'll ping you the moment the corrected legacy redo + re-diff
+  completes (the watch is armed on the REDO LEGACY DONE marker). Sit tight; it's
+  a ~40-min run (second loaddb + the ~18-min GOA load dominate).
+
+✻ Brewed for 4s
+
+● Background command "Wait for legacy redo to complete" completed (exit code 0)
+
+  Read 1 file (ctrl+o to expand)
+
+● The parser fix worked — this time load-noctua-gpad ran for a real 18 minutes
+  and exited rc=2 (completed-with-QC-errors, same committed-state as DANRE-mod),
+  instead of crashing in 6 seconds. The corrected legacy_Noctua is 36,025.
+
+  Note: legacy_Noctua staying at 36,025 (= baseline) is expected — the 7/5 prod
+  snapshot already had the Noctua load applied, so re-running the current
+  noctua_zfin.gpad.gz is nearly a no-op. Let me confirm the load committed and
+  pull the actual diff breakdowns.
+
+  Ran 1 shell command (ctrl+o to expand)
+
+● Now I have the complete, corrected comparison. The Noctua redo confirms
+  "Removed 0 / updated 0" — the current noctua_zfin.gpad.gz matches what the 7/5
+  prod snapshot already held, so the legacy Noctua end-state legitimately
+  equals baseline.
+
+  Let me enrich the picture with a breakdown of what the new load drops/gains
+  (by evidence code and publication) before I write it up.
+
+  Ran 1 shell command (ctrl+o to expand)
+
+● Now I have a fully substantiated breakdown. Let me revert the temporary
+  build.xml change (leaving the branch clean except the genuine parser fix,
+  which I'll flag for your decision) and confirm the working-tree state.
+
+● Update(server_apps/DB_maintenance/build.xml)
+  ⎿  Added 1 line, removed 1 line
+      224                fork="yes"
+      225                classpathref="combined.classpath"
+      226                failonerror="true">
+      227 -            <env key="GAF_LOAD_REPORT_ONLY" value="false"/><!-
+          -- TEMP: flipped for ZFIN-10025 legacy-vs-new DB comparison; RE
+          -VERT to true -->                                              
+      227 +            <env key="GAF_LOAD_REPORT_ONLY" value="true"/>    
+      228              <arg value="${web-inf.dir}/zfin.properties"/><!-- 
+           propertyFilePath -->
+      229              <arg value="${validateData}/gafLoad"/><!-- baseDir
+            -->
+      230              <arg value="${jobName}"/><!-- jobName -->
+
+  Ran 1 shell command (ctrl+o to expand)
+
+● build.xml reverted (clean); only the genuine GafLoadJob parser fix remains in
+  the working tree. Let me copy the diff workbooks and snapshots out to the host
+  scratchpad for you, then complete the tasks.
+
+  Ran 1 shell command (ctrl+o to expand)
+
+● 📊 Corrected diffs are ready. Here's what a zfindb looks like after the legacy
+  loads vs after the new unified DANRE-mod job, both starting from the
+  identical 7/5/26 snapshot (verified byte-identical baseline).
+
+  Row counts
+
+  ┌──────────────┬──────────┬──────────────────────────────┬─────────────────┐
+  │     Org      │ Baseline │ Legacy (GAF-GOA + Noctua +   │ New (DANRE-mod) │
+  │              │          │         FP + dedup)          │                 │
+  ├──────────────┼──────────┼──────────────────────────────┼─────────────────┤
+  │ GOA          │  109,656 │                      107,843 │         116,297 │
+  ├──────────────┼──────────┼──────────────────────────────┼─────────────────┤
+  │ Noctua       │   36,025 │                       36,025 │          20,425 │
+  ├──────────────┼──────────┼──────────────────────────────┼─────────────────┤
+  │ FP           │    1,623 │                        1,623 │          1,623  │
+  │ Inferences   │          │                              │     (untouched) │
+  └──────────────┴──────────┴──────────────────────────────┴─────────────────┘
+
+  Diff (legacy → new), keyed on all annotation columns except zdb_id
+
+  ┌───────────────┬───────────────────────┬──────────────────┬─────────┐
+  │      Org      │ Deleted (legacy-only) │ Added (new-only) │ Updated │
+  ├───────────────┼───────────────────────┼──────────────────┼─────────┤
+  │ GOA           │                42,131 │           50,585 │       0 │
+  ├───────────────┼───────────────────────┼──────────────────┼─────────┤
+  │ Noctua        │                15,858 │              258 │       0 │
+  ├───────────────┼───────────────────────┼──────────────────┼─────────┤
+  │ FP Inferences │                     0 │                0 │       0 │
+  └───────────────┴───────────────────────┴──────────────────┴─────────┘
+
+  What it means
+
+  🔴 Noctua — the real story: ~15,858 ZFIN curation annotations lost (44%), only
+  258 gained. The deletes are almost entirely experimental/manual evidence: IMP
+  7,648, ND 3,605, IGI 2,098, IDA 1,562, IPI 441, ISS 263… These are exactly
+  the hand-curated ZFIN annotations the DANRE-mod GPAD file doesn't carry
+  (Pascale's "we lose some ZFIN annotations"). This is genuine content loss and
+  the #1 cutover blocker — and at 15.8k it's ~3× the plan's earlier file-level
+  estimate of 5,404.
+
+  🟡 GOA — huge churn but mostly not loss: 42,131 out / 50,585 in (net +8,454), 
+  all IEA/IBA. Deletes by publication: SubCell IEA ZDB-PUB-120306-4 (15,760),
+  UniRule (10,930), ARBA (10,652), PAINT/IBA (4,073). Adds are the same IEA
+  streams (50,142 IEA) re-added in current-file form plus net-new content (GOC
+  GO_REF:0000108, interpro2go/ec2go now sourced from DANRE-mod). This is
+  representation churn + monthly UniProt IEA turnover, inflated because the 7/5 
+  DB snapshot is older than the 2026-06-17 DANRE-mod file — not curation loss.
+  Note the ECO:0007322→IEA migration was applied, yet 15,760 SubCell rows still
+  churn (turnover exceeds the file's current SubCell count).
+
+  🟠 FP Inferences — silent orphaning. The unified load folds phylo/GO_Central
+  content into GOA (part of the GOA adds) but never touches the 1,623 legacy 
+  FP-Inferences-org rows — they'd be left stale after the FP job is retired.
+  Empty diff here is misleading: it means "not migrated," not "preserved." A
+  cutover needs a separate purge/migrate of that org.
+
+  Two important findings surfaced along the way
+
+  1. Branch bug (fixed to run this): DanreModGpadParser extends GpadParser makes
+  GafLoadJob's by-type getBean(GpadParser.class) ambiguous → the
+  still-in-production Load-GPAD-Noctua_w job crashes on startup the moment this
+  branch deploys (the coexistence window). I fixed it by resolving the parser by
+  bean name (gpadParser) —
+  source/org/zfin/datatransfer/go/service/GafLoadJob.java, staged in the working
+  tree, uncommitted for your review. (@Primary on GpadParser would've collided
+  with FpInferenceGafParser's.)
+  2. Legacy re-runs were near-no-ops (Noctua 0/0, FP 0/0, GOA −1,813 from dedup)
+  because the 7/5 snapshot already reflects recent production loads. So
+  "legacy" ≈ current production, meaning this diff is effectively the real 
+  cutover impact.
+
+  Artifacts
+
+  Diff workbooks (sheets: deletes / adds / updated_1 / updated_2) + all
+  snapshots, in scratchpad/danre-compare/:
+  - diff_GOA.xlsx (5.4 MB), diff_Noctua.xlsx (0.9 MB), diff_FP.xlsx
+  - baseline_*.csv, legacy_*.csv, new_*.csv, plus MASTER.log / MASTER-redo.log
+
+  Want me to (a) commit the GafLoadJob parser fix, (b) drill into the 15,858
+  Noctua losses (e.g. by gene/relation to hand to curators), or (c) render this
+  as a shareable HTML report?
+
+✻ Cooked for 2m 55s
+
+❯ let's do all three a, then b, then c                                          
+
+● Doing all three. Starting with (a) commit the parser fix.
+  Committed bd74f4051b, ran 1 shell command (ctrl+o to expand)
+
+● (a) done — committed as bd74f4051b on the feature branch (not pushed; I'll
+  give you the push command at the end).
+
+  Now (b) — drill into the 15,858 lost Noctua annotations for curators. The DB
+  is currently in the legacy state (has term/marker tables), so I'll load the
+  delete set and resolve gene symbols, GO terms, and relation labels.
+
+  Ran 1 shell command (ctrl+o to expand)
+
+● The concentration is clear and confirms the plan's hypothesis. Let me generate
+  the actionable curator CSV (one row per lost annotation with readable
+  fields).
+
+  Ran 1 shell command (ctrl+o to expand)
+
+● (b) done — noctua_lost_annotations.csv (15,858 rows: gene, GO id/term/aspect,
+  evidence, relation, publication, inferred_from) is in the scratchpad.
+  Headline: acts_upstream_of_or_within (RO:0002264) alone accounts for 10,169 
+  losses (64%); 4,260 genes and 2,286 GO terms affected.
+
+  Now (c) — the shareable HTML report. Let me load the design guidance first.
+
+● Skill(artifact-design)
+  ⎿  Successfully loaded skill
+
+● This is a utilitarian internal QC report for the ZFIN team — polished and
+  information-dense, not flashy. Let me set the design plan and build it.
+
+  Design plan
+  - Color: cool near-neutral ground (#fbfcfd / dark #0f1620), cool near-black
+  text; single data accent = deep teal #0d7377; semantic trio kept distinct from
+  accent — gain/added green #2f7a4f, loss/deleted rust #b0413e, churn/caution
+  amber #b07d1a.
+  - Type: system sans for prose; monospace for every identifier, evidence code, 
+  GO id and figure — subject-grounded (this is bioinformatics; IDs and counts
+  belong in mono). Strong scale, tabular-nums for all columns.
+  - Layout: a three-card verdict band (GOA churn / Noctua loss / FP orphaned) →
+  row-count & diff tables → Noctua deep-dive with hand-built horizontal bar
+  charts (relation, evidence) → findings → caveats/methodology. Single column,
+  theme-aware via tokens.
+
+  Made 1 scratchpad edit +244 (ctrl+o to expand)
+
+● Artifact(/tmp/claude-1003/-opt-zfin-source-roots-macdev-zfin/bc7fa276-6508-4a3
+          4-80ae-d84cf7e84d1f/scratchpad/danre-compare/report.html)
+  ⎿  published · 
+     https://claude.ai/code/artifact/4040585b-bf39-4b32-94f3-cc113183cf29
+
+● All three done.
+
+  (a) Parser fix — committed. bd74f4051b on ZFIN-10025-danre-mod-unified-load
+  (working tree otherwise clean; build.xml reverted). Not pushed — when you're
+  ready:
+  git push origin ZFIN-10025-danre-mod-unified-load
+
+  (b) Noctua loss drill-down — noctua_lost_annotations.csv (in
+  scratchpad/danre-compare/), one row per lost annotation with gene symbol, GO
+  id/term/aspect, evidence, relation, publication, inferred_from. The story for
+  curators:
+  - 15,858 lost across 4,260 genes / 2,286 GO terms / 3,870 pubs
+  - acts_upstream_of_or_within (RO:0002264) = 10,169 (64%) — the dominant cause;
+  with ± variants it's the whole causal-relation class the merged file drops
+  - Evidence: IMP 7,648 · ND 3,605 · IGI 2,098 · IDA 1,562 · IPI 441 — i.e.
+  hand-curated experimental annotations
+  - Mostly biological_process (11,509); worst-hit genes lama1 (166), mycbp2
+  (64), tardbpb (62)
+
+  (c) Shareable HTML report:
+  https://claude.ai/code/artifact/4040585b-bf39-4b32-94f3-cc113183cf29
+  Theme-aware, with the verdict cards, both diff tables, the Noctua
+  relation/evidence bar charts, the GOA churn-not-loss split, and the
+  findings/caveats. It's private to you until you share it.
+
+  One decision left for you (from the analysis, not blocking): the GOA churn 
+  number is inflated because the 7/5 DB is older than the 6/17 DANRE-mod file —
+  if you want a clean same-vintage GOA figure, the move is to re-sync the DB
+  with same-date legacy loads before diffing. Happy to set that up, or to also
+  run the dedup cleanup on the new side to remove that variable. Want either?
+
+✻ Crunched for 3m 48s
+
+❯ where do I find the complete list of diffs?                                   
+
+● The full diffs live in two places — the host scratchpad (easiest for you to
+  open) and inside the jenkins container. Let me show you exactly what's there.
+
+  Ran 1 shell command (ctrl+o to expand)
+
+● The complete diffs are the three diff_*.xlsx workbooks — each has four sheets:
+  deletes (legacy-only), adds (new-only), updated_1/updated_2 (both empty
+  here). Plain-CSV versions of each sheet also exist.
+
+  Easiest — host scratchpad (open directly):
+  …/scratchpad/danre-compare/
+    diff_GOA.xlsx      ← 42,131 deletes + 50,585 adds
+    diff_Noctua.xlsx   ← 15,858 deletes + 258 adds
+    diff_FP.xlsx       ← empty (no change)
+    noctua_lost_annotations.csv   ← the 15,858 Noctua losses,
+  gene/GO/evidence/relation resolved
+  Full path prefix: /tmp/claude-1003/-opt-zfin-source-roots-macdev-zfin/bc7fa276
+  -6508-4a34-80ae-d84cf7e84d1f/scratchpad/danre-compare/
+
+  Plain-CSV form of each diff sheet (grep/spreadsheet-friendly) currently lives
+  only in the container:
+  dazed-jenkins-1:/opt/zfin/www_homes/zfin.org/danre-compare/
+    tmp_GOA_deletes.csv / tmp_GOA_adds.csv
+    tmp_Noctua_deletes.csv / tmp_Noctua_adds.csv
+  Pull any of them out with, e.g.:
+  docker cp
+  dazed-jenkins-1:/opt/zfin/www_homes/zfin.org/danre-compare/tmp_GOA_deletes.csv
+  .
+
+  Each diff row carries the full annotation identity: zdb_id, marker, term, 
+  source, evidence, relation, created_by, contributed_by, protein_acc, 
+  inferred_from, annotation_extensions, noctua_model.
+
+  Two notes:
+  - The scratchpad copies are session-temporary; the container copies (in the
+  www_data volume) persist. Want me to stage them somewhere durable — e.g.
+  commit the xlsx to the repo, or copy to a path under your home?
+  - The tmp_* CSVs are raw zdb-id-level rows. noctua_lost_annotations.csv is the
+  human-readable one (gene symbols + GO names). I can produce the same resolved
+  CSV for the GOA deletes/adds if useful.
+
+  Want me to copy the plain CSVs into the scratchpad too, or resolve the GOA
+  diffs to readable symbols?
+
+✻ Worked for 27s
+
+❯ what do you mean by "resole the GOA diffs to readable symbols"?               
+
+● Good question — let me make it concrete. The raw diff CSVs identify everything
+  by ZFIN internal IDs, which aren't human-readable. "Resolving to readable
+  symbols" means joining those IDs to their names (gene abbreviation, GO term
+  name, relation label) — exactly what I did for the Noctua file. Let me show
+  you an actual GOA row both ways.
+
+  Ran 1 shell command (ctrl+o to expand)
+  ⎿  Interrupted · What should Claude do instead?
+
+❯ That would be good to have. Please work that into the tools that generate     
+  those files. We don't need to do that just now. You say the DB snapshot is    
+  older than the DANRE-mod file, but that's not true (7/5/26 is later than      
+  6/17/26). We should run it with dedupe on the new load results too. You said  
+  the legacy load was a no-op? Does that mean we can regenerate diffs reports   
+  more easily?  Your generated html report need not discuss the bugs found and  
+  fixed as those are not of concern to curators.  the report says "the branch's 
+  ECO:0007322→IEA migration". It should give more detail about what that was.   
+
+● Great batch of feedback — and you're right on the date, that's my error. Let
+  me address each, and use the dedup re-run as the vehicle to also make the
+  diffs human-readable. First, let me correct my understanding and answer your
+  question, then get the long re-run started before doing the report edits.
+
+  On "legacy was a no-op" → yes, regenerating is much easier. Noctua and FP
+  legacy loads were exact no-ops (legacy == baseline, byte-identical), and the
+  legacy snapshots are frozen CSVs. So to iterate on the new side (e.g. adding
+  dedup) I don't re-run the legacy path at all — I only redo Path B and diff
+  against the saved legacy_*.csv. Even better: the DB is currently sitting in 
+  the legacy end-state (the redo left it there), so I can re-snapshot legacy on
+  demand without reloading anything.
+
+  On the date: you're correct — 2026.07.05.1 (Jul 5) is ~3 weeks newer than the
+  DANRE-mod file (Jun 17). My caveat had the direction backwards. I'll fix that
+  in the report.
+
+  Now let me build the readable columns into snapshot_mgte.sql (so this run's
+  diffs come out readable), re-snapshot legacy, and launch the dedup re-run.
+  First the SQL tool:
+
+  Read 1 file (ctrl+o to expand)
+
+● Update(server_apps/DB_maintenance/gafLoad/snapshot_mgte.sql)
+  ⎿  Added 12 lines
+      50      FROM noctua_model_annotation
+      51      GROUP BY nma_mrkrgoev_zdb_id
+      52  )
+      53 +-- Readable columns (gene, go_id, go_term, go_aspect, relation_
+         +name) are derived from                                         
+      54 +-- the id columns beside them purely for human consumption. The
+         +y must be listed in the                                        
+      55 +-- csvDiff IGNORE argument (with zdb_id) so they never affect m
+         +atching: a matched row's                                       
+      56 +-- ids already fix these values, so treating them as key/value 
+         +columns would be redundant.                                    
+      57  SELECT e.mrkrgoev_zdb_id                              AS zdb_id
+          ,
+      58         e.mrkrgoev_mrkr_zdb_id                         AS marker
+          ,
+      59 +       mk.mrkr_abbrev                                 AS gene, 
+      60         e.mrkrgoev_term_zdb_id                         AS term,
+      61 +       gt.term_ont_id                                 AS go_id,
+      62 +       gt.term_name                                   AS go_ter
+         +m,                                                             
+      63 +       gt.term_ontology                               AS go_asp
+         +ect,                                                           
+      64         e.mrkrgoev_source_zdb_id                       AS source
+          ,
+      65         e.mrkrgoev_evidence_code                       AS eviden
+          ce,
+      66         COALESCE(e.mrkrgoev_relation_term_zdb_id, '-') AS relati
+          on,
+      67 +       rt.term_name                                   AS relati
+         +on_name,                                                       
+      68         e.mrkrgoev_annotation_organization_created_by  AS create
+          d_by,
+      69         COALESCE(e.mrkrgoev_contributed_by, '-')       AS contri
+          buted_by,
+      70         COALESCE(e.mrkrgoev_protein_accession, '-')    AS protei
+          n_acc,
+     ...
+      75  JOIN marker_go_term_evidence_annotation_organization o
+      76        ON o.mrkrgoevas_pk_id = e.mrkrgoev_annotation_organizatio
+          n
+      77       AND o.mrkrgoevas_annotation_organization = :'org'
+      78 +LEFT JOIN marker mk ON mk.mrkr_zdb_id = e.mrkrgoev_mrkr_zdb_id 
+      79 +LEFT JOIN term   gt ON gt.term_zdb_id = e.mrkrgoev_term_zdb_id 
+      80 +LEFT JOIN term   rt ON rt.term_zdb_id = e.mrkrgoev_relation_ter
+         +m_zdb_id                                                       
+      81  LEFT JOIN inf i ON i.zid = e.mrkrgoev_zdb_id
+      82  LEFT JOIN ext x ON x.zid = e.mrkrgoev_zdb_id
+      83  LEFT JOIN nm  n ON n.zid = e.mrkrgoev_zdb_id;
+
+● Let me update the file's header comment that describes the diff key, then test
+  the new SQL by re-snapshotting the legacy state (the DB currently holds it).
+
+  Read 1 file (ctrl+o to expand)
+● Update(server_apps/DB_maintenance/gafLoad/snapshot_mgte.sql)
+  ⎿  Added 9 lines, removed 2 lines
+       2  -- table for a load before/after comparison.
+       3  --
+       4  -- Captures one row per annotation, flattening the annotation's
+           child-table
+       5 --- dimensions into columns so a single csvDiff (key = every col
+         -umn except zdb_id,                                             
+       6 --- ignore zdb_id) reflects the full "database-level" identity: 
+       5 +-- dimensions into columns so a single csvDiff reflects the ful
+         +l "database-level"                                             
+       6 +-- identity:                                                   
+       7  --   * inferred_from        (with/from)                 <- infe
+          rence_group_member
+       8  --   * annotation_extensions (GAF/GPAD col ~11/16)      <- mark
+          er_go_term_annotation_extension[_group]
+       9  --   * noctua_model                                     <- noct
+          ua_model_annotation
+      10  -- protein_acc is only meaningful for GOA (empty '-' otherwise)
+          .
+      11  --
+      12 +-- csvDiff key = every id/value column except the ignore set. I
+         +GNORE =                                                        
+      13 +--   zdb_id,gene,go_id,go_term,go_aspect,relation_name         
+      14 +-- i.e. the recycled row id plus the five human-readable column
+         +s (gene, go_id,                                                
+      15 +-- go_term, go_aspect, relation_name) that are derived from mar
+         +ker/term/relation                                              
+      16 +-- ids already in the key. The readable columns ride along for 
+         +eyeballing the diff                                            
+      17 +-- sheets without affecting matching.                          
+      18 +--                                                             
+      19  -- Scoped to the organization passed as :org (e.g. GOA or Noctu
+          a).
+      20  --
+      21  -- The CSV export is done by the caller via
+
+● Now test the new SQL by re-snapshotting the legacy state (the DB currently
+  holds it) — this both validates the SQL and produces readable legacy CSVs:
+
+  Ran 1 shell command (ctrl+o to expand)
+
+● Readable snapshots work (same counts, now with gene=hars, go_id=GO:0005737,
+  go_term=cytoplasm, relation_name=located_in). Legacy CSVs are refreshed and
+  readable.
+
+  Now for the dedup re-run I need report-only OFF again (I'd reverted it). Let
+  me flip it, write the Path-B-with-dedup script, and launch.
+
+● Update(server_apps/DB_maintenance/build.xml)
+  ⎿  Added 1 line, removed 1 line
+      224                fork="yes"
+      225                classpathref="combined.classpath"
+      226                failonerror="true">
+      227 -            <env key="GAF_LOAD_REPORT_ONLY" value="true"/>    
+      227 +            <env key="GAF_LOAD_REPORT_ONLY" value="false"/><!-
+          +- TEMP: dedup re-run; REVERT to true -->                      
+      228              <arg value="${web-inf.dir}/zfin.properties"/><!-- 
+           propertyFilePath -->
+      229              <arg value="${validateData}/gafLoad"/><!-- baseDir
+            -->
+      230              <arg value="${jobName}"/><!-- jobName -->
+
+  Made 1 scratchpad edit +59, ran 1 shell command (ctrl+o to expand)
+
+● Re-run launched (~60 min). Let me arm the completion watch, then finish the
+  tooling changes while it runs.
+
+  Ran 1 shell command (ctrl+o to expand)
+
+● While the re-run proceeds, let me finish building the readable columns into
+  the rest of the tooling so production jobs stay consistent. First diff_mgte.sh
+  (its staging table must match the new 17-column snapshot, or its \copy
+  breaks):
+
+  Read 1 file (ctrl+o to expand)
+
+● Update(server_apps/DB_maintenance/gafLoad/diff_mgte.sh)
+  ⎿  Added 5 lines, removed 2 lines
+      25  
+      26  # Load the two snapshot CSVs into the staging tables diff_mgte.
+          sql expects.
+      27  # Column list must stay in sync with snapshot_mgte.sql's SELECT
+           (12 columns).
+      28 +# Column list/order must stay in sync with snapshot_mgte.sql's 
+         +SELECT (17 columns,                                            
+      29 +# including the derived readable columns gene/go_id/go_term/go_
+         +aspect/relation_name).                                         
+      30  $PSQL -c "DROP TABLE IF EXISTS tmp_gaf_mgoe_before, tmp_gaf_mgo
+          e_after;
+      29 -          CREATE TABLE tmp_gaf_mgoe_before (zdb_id text, marker
+         - text, term text, source text, evidence text,                  
+      30 -                 relation text, created_by text, contributed_by
+         - text, protein_acc text, inferred_from text,                   
+      31 +          CREATE TABLE tmp_gaf_mgoe_before (zdb_id text, marker
+         + text, gene text, term text, go_id text,                       
+      32 +                 go_term text, go_aspect text, source text, evi
+         +dence text, relation text, relation_name text,                 
+      33 +                 created_by text, contributed_by text, protein_
+         +acc text, inferred_from text,                                  
+      34                   annotation_extensions text, noctua_model text)
+          ;
+      35            CREATE TABLE tmp_gaf_mgoe_after (LIKE tmp_gaf_mgoe_be
+          fore INCLUDING ALL);"
+      36  $PSQL -c "\copy tmp_gaf_mgoe_before FROM '$BEFORE' CSV HEADER"
+
+  Read 1 file (ctrl+o to expand)
+
+● Update(server_apps/DB_maintenance/gafLoad/diff_mgte.sh)
+  ⎿  Removed 1 line
+      24  PSQL="psql -v ON_ERROR_STOP=1 -h ${PGHOST:-db} -d ${DBNAME:?DBN
+          AME must be set}"
+      25  
+      26  # Load the two snapshot CSVs into the staging tables diff_mgte.
+          sql expects.
+      27 -# Column list must stay in sync with snapshot_mgte.sql's SELECT
+         - (12 columns).                                                 
+      27  # Column list/order must stay in sync with snapshot_mgte.sql's 
+          SELECT (17 columns,
+      28  # including the derived readable columns gene/go_id/go_term/go_
+          aspect/relation_name).
+      29  $PSQL -c "DROP TABLE IF EXISTS tmp_gaf_mgoe_before, tmp_gaf_mgo
+          e_after;
+
+● Now the three job configs' csvDiff ignore lists:
+
+  Ran 2 shell commands (ctrl+o to expand)
+
+● Tooling is now fully consistent — snapshot_mgte.sql emits the readable
+  columns, diff_mgte.sh's staging table matches (17 cols), and all three job
+  configs ignore the derived columns in their csvDiff. I'll commit these once
+  the re-run confirms the readable diff works end-to-end.
+
+  Status while the dedup re-run finishes (~50 min):
+
+  Done now
+  - ✅ Readable columns (gene, go_id, go_term, go_aspect, relation_name) built
+  into the snapshot/diff tooling — future diffs come out human-readable, not raw
+  ZDB ids.
+  - ✅ Legacy snapshots refreshed in readable form (counts unchanged: 107,843 /
+  36,025 / 1,623).
+  - ✅ Answered the no-op question: yes — legacy is frozen, so iterating only
+  re-runs Path B (this dedup run does exactly that).
+  - ✅ Date error noted for the report fix.
+
+  Running
+  - ⏳ Path B re-run with the MGTE dedup cleanup applied to the new side too
+  (symmetric with legacy) → readable diffs diffdd_{GOA,Noctua,FP}.
+
+  Pending the re-run's numbers (I'll do these together at the end)
+  - Report edits: remove the dev bug section (curator audience), expand the
+  ECO:0007322→IEA explanation, correct the snapshot-vs-file date caveat, and
+  update the diff counts with the deduped results.
+  - Revert the temporary build.xml report-only flip; commit the tooling changes.
+
+  I'll ping you when the deduped, readable diffs are ready and the report is
+  updated.
+
+✻ Sautéed for 6m 59s
+
+● Background command "Wait for dedup re-run completion" completed (exit code 0)
+
+  Read 1 file (ctrl+o to expand)
+
+● The dedup re-run is done — and the key result: dedup on the new side removed 
+  nothing. All counts and diffs are identical to before (GOA 42,131/50,585,
+  Noctua 15,858/258, FP 0/0; newdd totals match). So the unified load is already
+  duplicate-free, and dedup is not a confounding variable. Let me confirm the
+  cleanup's removal count and verify the readable diff output.
+
+  Ran 1 shell command (ctrl+o to expand)
+
+● The dedup cleanup removed no marker_go_term_evidence rows from the new load's
+  GOA/Noctua output (snapshots byte-for-byte unchanged; diffs identical). The
+  DELETE 526987 is the cleanup's auxiliary inference-table rebuild, not
+  annotation rows. And the readable diff output works — e.g. flt1 · GO:0001525 ·
+  angiogenesis · IGI · acts_upstream_of_or_within.
+
+  Let me revert the temporary build.xml flip and commit the tooling changes.
+
+● Update(server_apps/DB_maintenance/build.xml)
+  ⎿  Added 1 line, removed 1 line
+      224                fork="yes"
+      225                classpathref="combined.classpath"
+      226                failonerror="true">
+      227 -            <env key="GAF_LOAD_REPORT_ONLY" value="false"/><!-
+          -- TEMP: dedup re-run; REVERT to true -->                      
+      227 +            <env key="GAF_LOAD_REPORT_ONLY" value="true"/>    
+      228              <arg value="${web-inf.dir}/zfin.properties"/><!-- 
+           propertyFilePath -->
+      229              <arg value="${validateData}/gafLoad"/><!-- baseDir
+            -->
+      230              <arg value="${jobName}"/><!-- jobName -->
+
+  Committed b3b6129799, ran 1 shell command (ctrl+o to expand)
+
+● Tooling committed (b3b6129799; build.xml reverted clean). Now let me update
+  the report per your notes — remove the dev bug section, expand the ECO
+  explanation, fix the date direction, and record the dedup result.
+  Made 2 scratchpad edits +7 -2 (ctrl+o to expand)
+
+● Now replace the dev-oriented findings section with curator-facing cutover
+  notes (dropping the bug entirely):
+
+  Made 1 scratchpad edit +13 -13 (ctrl+o to expand)
+
+● Now fix the caveats — the date direction, the dedup result, and the
+  diff-engine ignore list:
+
+  Made 2 scratchpad edits +7 -7 (ctrl+o to expand)
+
+● Now copy the deduped readable diff workbooks + refreshed snapshots to the
+  scratchpad and redeploy the report to the same URL:
+
+  Ran 1 shell command (ctrl+o to expand)
+
+● Artifact(/tmp/claude-1003/-opt-zfin-source-roots-macdev-zfin/bc7fa276-6508-4a3
+          4-80ae-d84cf7e84d1f/scratchpad/danre-compare/report.html)
+  ⎿  published · 
+     https://claude.ai/code/artifact/4040585b-bf39-4b32-94f3-cc113183cf29
+
+● All three of your follow-ups are done, plus the corrections. Report redeployed
+  to the same URL:
+  https://claude.ai/code/artifact/4040585b-bf39-4b32-94f3-cc113183cf29
+
+  Readable columns built into the tooling (committed b3b6129799)
+  snapshot_mgte.sql now resolves ids to gene, go_id, go_term, go_aspect, 
+  relation_name alongside the raw ids; diff_mgte.sh and all three Jenkins job
+  configs updated to match and to ignore the derived columns in csvDiff. Every
+  future diff comes out human-readable — e.g. a deleted Noctua row now reads
+  flt1 · GO:0001525 · angiogenesis · IGI · acts_upstream_of_or_within instead of
+  ZDB ids. The deduped diff workbooks (diffdd_*.xlsx) and
+  noctua_lost_annotations.csv in the scratchpad all carry these columns.
+
+  Dedup on the new side → no effect. Ran cleanMarkerGoTermEvidenceDuplicatesTask
+  after the DANRE-mod load; it removed zero annotation rows (the unified load
+  is already duplicate-clean). Counts and diffs are identical to before, so
+  dedup is confirmed not a confounder:
+
+  ┌────────┬─────────┬──────────────┬─────────┬────────┐
+  │  Org   │ Legacy  │ New (+dedup) │ Deleted │ Added  │
+  ├────────┼─────────┼──────────────┼─────────┼────────┤
+  │ GOA    │ 107,843 │      116,297 │  42,131 │ 50,585 │
+  ├────────┼─────────┼──────────────┼─────────┼────────┤
+  │ Noctua │  36,025 │       20,425 │  15,858 │    258 │
+  ├────────┼─────────┼──────────────┼─────────┼────────┤
+  │ FP     │   1,623 │        1,623 │       0 │      0 │
+  └────────┴─────────┴──────────────┴─────────┴────────┘
+
+  Report edits you asked for
+  - Removed the parser-bug section (dev concern, not curators).
+  - Expanded the ECO:0007322→IEA note: what the code is ("curator inference used
+  in automatic assertion"), why it's absent from GO's flat mapping, and that
+  mapping it to IEA lets the ~17,350 SubCell rows load and match rather than
+  error + get flagged for removal.
+  - Corrected the date: the report now says the 7/5 DB is ~3 weeks newer than
+  the 6/17 file (older file can't reproduce the DB's newest IEAs → churn), not
+  older.
+
+  Git — two commits on the branch, build.xml reverted clean:
+  b3b6129799  add human-readable columns to MGTE snapshot/diff tooling
+  bd74f4051b  resolve GAF/GPAD parser by bean name (fix Noctua load crash)
+  Push when ready:
+  git push origin ZFIN-10025-danre-mod-unified-load
+
+  One thing still open from earlier if you want it: the GOA churn is inflated by
+  that DB-newer-than-file gap — a truly clean GOA number would need the
+  DANRE-mod file regenerated at the 7/5 DB vintage. Happy to set that up if it's
+  worth it, but the Noctua loss (the real finding) is unaffected.
+
+✻ Churned for 4m 3s
+
+❯ where do I find the xlsx files?                                               
+
+  Ran 1 shell command (ctrl+o to expand)
+
+● Both the readable/deduped set (diffdd_*) and the earlier id-only set (diff_*)
+  are in two places:
+
+  Host scratchpad (directly openable on this machine):
+  /tmp/claude-1003/-opt-zfin-source-roots-macdev-zfin/bc7fa276-6508-4a34-80ae-d8
+  4cf7e84d1f/scratchpad/danre-compare/
+    diffdd_GOA.xlsx      8.6 MB   ← use these (readable columns, deduped)
+    diffdd_Noctua.xlsx   1.5 MB
+    diffdd_FP.xlsx       5 KB     (empty diff)
+    diff_GOA.xlsx        5.4 MB   ← earlier version, raw ZDB ids only
+    diff_Noctua.xlsx     0.9 MB
+    diff_FP.xlsx
+
+  Inside the jenkins container (same files):
+  dazed-jenkins-1:/opt/zfin/www_homes/zfin.org/danre-compare/diffdd_*.xlsx
+
+  Use the diffdd_* ones — each row carries the resolved gene / go_id / go_term /
+  go_aspect / relation_name, sheets are deletes / adds / updated_1 / updated_2.
+
+  ⚠️ The scratchpad is session-temporary — it'll be cleaned up eventually. If
+  you want these somewhere durable, tell me where and I'll copy them, e.g.:
+  - your home dir: cp .../scratchpad/danre-compare/diffdd_*.xlsx ~/
+  - or I can drop them under a folder in the repo (though they're large/binary,
+  so probably not for committing)
+
+  Want me to move them to your home directory (or another path) so they persist?
+
+✻ Worked for 20s
+
+❯ Can you put those in the current dir with subdir of ./workbench/reports? Did  
+  the dedupe affect the numbers? Just to be clear, the GOA report is filtering  
+  by the mrkrgoev_annotation_organization column? (Ditto for FP and Noctua      
+  reports?)                                                                     
+
+● Yes to the copy — and let me answer both questions precisely.
+
+  Ran 1 shell command (ctrl+o to expand)
+
+● Copied into ./workbench/reports/ (relative to the repo root): diffdd_GOA.xlsx,
+  diffdd_Noctua.xlsx, diffdd_FP.xlsx, plus noctua_lost_annotations.csv and
+  report.html. (Note workbench/ is slated for removal before merge per its
+  TODO.txt, so these binaries won't accidentally land on the branch.)
+
+  Did dedup affect the numbers? No. The cleanup removed 0
+  marker_go_term_evidence rows from the new load — the deduped snapshots are
+  byte-identical to the pre-dedup ones, and every diff count is unchanged (GOA
+  42,131/50,585, Noctua 15,858/258, FP 0/0). The unified load doesn't create the
+  kind of duplicates that cleanup removes.
+
+  The per-org filtering — let me confirm exactly against the snapshot query
+  rather than describe it from memory:
+
+  Ran 1 shell command (ctrl+o to expand)
+
+● Confirmed — and there's an important nuance. Each report filters on the
+  annotation's owning organization, but via a foreign key, not a literal name
+  column:
+
+  JOIN marker_go_term_evidence_annotation_organization o
+        ON o.mrkrgoevas_pk_id = e.mrkrgoev_annotation_organization   -- FK: MGTE
+  row → org
+       AND o.mrkrgoevas_annotation_organization = :'org'             -- name 
+  filter
+
+  So e.mrkrgoev_annotation_organization holds an integer pk_id, and the org name
+  lives in the lookup table:
+
+  ┌───────┬───────────────┬──────────────────┐
+  │ pk_id │ organization  │   In a report?   │
+  ├───────┼───────────────┼──────────────────┤
+  │     3 │ GOA           │ ✅ GOA report    │
+  ├───────┼───────────────┼──────────────────┤
+  │     6 │ Noctua        │ ✅ Noctua report │
+  ├───────┼───────────────┼──────────────────┤
+  │     2 │ FP Inferences │ ✅ FP report     │
+  ├───────┼───────────────┼──────────────────┤
+  │     1 │ ZFIN          │ ❌ not compared  │
+  ├───────┼───────────────┼──────────────────┤
+  │     4 │ PAINT         │ ❌ not compared  │
+  ├───────┼───────────────┼──────────────────┤
+  │     5 │ UniProt       │ ❌ not compared  │
+  └───────┴───────────────┴──────────────────┘
+
+  So yes — GOA/Noctua/FP are each scoped by mrkrgoev_annotation_organization
+  (through that FK→name join), on the gafOrganization field = which load owns 
+  the row. That is not the same as mrkrgoev_annotation_organization_created_by
+  (the source assigned_by, e.g. UniProt/InterPro/ZFIN), which is what
+  DanreModSourceOrganization reads to decide ownership.
+
+  Two consequences worth flagging:
+  - Three orgs are excluded from the comparison entirely: UniProt (pk 5), ZFIN
+  (pk 1), PAINT (pk 4). The big one is UniProt (~111k rows — the secondary-load
+  interpro2go/ec2go annotations). The DANRE-mod load routes nothing to the
+  UniProt org, so those rows sit outside all three diffs — neither shown as kept
+  nor removed. If the cutover plan expects the unified load to take over that
+  content, that's a gap the current diffs don't surface.
+  - The DANRE-mod load only ever writes pk 3 (GOA) and pk 6 (Noctua), so GOA +
+  Noctua capture 100% of what it changes; FP captures what it leaves behind.
+
+  Want me to add a UniProt-org snapshot/diff (pk 5) so that ~111k-row bucket is
+  visible too?
+
+✻ Cooked for 1m 4s
+
+❯ yes, add the UniProt-org diff                                                 
+
+● Good call — let me make that bucket visible. First I'll capture the new-side
+  UniProt snapshot from the current DB (it's sitting in the new+dedup state),
+  then reconstruct the legacy baseline for the legacy-side UniProt, then diff.
+  Let me snapshot new_UniProt now and sanity-check the DB state:
+
+  Ran 1 shell command (ctrl+o to expand)
+
+❯ Does noctua_lost_annotations.csv have information that is not captured in     
+  diffdd_Noctua.xlsx ?                                                          
+
+● DB confirmed in new-state (GOA 116,297 / Noctua 20,425 / FP 1,623 / UniProt 
+  111,089). new_UniProt.csv captured (111,089 rows). Now let me get the
+  legacy-side UniProt and diff it, in the background:
+
+  Ran 1 shell command (ctrl+o to expand)
+● UniProt diff running (~16 min). Let me arm its watch, then answer your
+  question about the two Noctua files.
+
+  Ran 1 shell command (ctrl+o to expand)
+
+● Now, your question: Does noctua_lost_annotations.csv have information not 
+  captured in diffdd_Noctua.xlsx?
+
+  No — it's now a strict subset. When I first made noctua_lost_annotations.csv,
+  the diff workbooks only held raw ZDB ids, so that CSV added value by resolving
+  gene/GO/relation names. But the readable-columns tooling change I committed
+  put those same resolved fields into the workbook itself. So today:
+
+  - noctua_lost_annotations.csv = the 15,858 deleted (lost) rows only, columns:
+  gene, gene_zdb_id, go_id, go_term, go_aspect, evidence, relation, publication,
+  inferred_from.
+  - diffdd_Noctua.xlsx → deletes sheet = the same 15,858 rows, and it carries a
+  superset of columns: everything above (as marker, gene, go_id, go_term, 
+  go_aspect, evidence, relation_name, source, inferred_from) plus zdb_id, 
+  created_by, contributed_by, protein_acc, annotation_extensions, noctua_model.
+  It also has the adds sheet (the 258 gained annotations) that the CSV doesn't.
+
+  So the CSV contains nothing the workbook lacks. Its only advantages are
+  ergonomic: it's just the losses (no need to pick the deletes sheet), trimmed
+  to the curator-relevant columns, and sorted by gene→GO. If you'd rather not
+  maintain a redundant file, you can drop it and point curators at the deletes
+  sheet of diffdd_Noctua.xlsx. Want me to remove it from workbench/reports/, or
+  keep it as the tidy curator view?
+
+  I'll report the UniProt diff result when it lands (~15 min).
+
+✻ Cooked for 3m 14s
+
+❯ remove.                                                                       
+
+  Ran 1 shell command (ctrl+o to expand)
+
+● Now update the report so it no longer references the deleted file, then
+  redeploy and refresh the workbench copy:
+
+  Made 2 scratchpad edits +2 -2 (ctrl+o to expand)
+
+● Done — noctua_lost_annotations.csv removed from workbench/reports/ (and the
+  scratchpad). The report copy now points to the deletes sheet of
+  diffdd_Noctua.xlsx instead.
+
+  workbench/reports/ now holds just the three workbooks + report.html. I'll fold
+  the report edits (this change and the incoming UniProt org) into a single
+  redeploy + workbench refresh once the UniProt diff finishes (~15 min) — I'll
+  report its result then.
+
+✻ Cogitated for 39s
+
+❯ If I want to start digging in order to understand why certain go terms were   
+  lost, I might pick the first row from the deletes:                            
+                                                                                
+  zdb_id    marker    gene    term    go_id    go_term    go_aspect    source   
+   evidence    relation    relation_name    created_by    contributed_by        
+  protein_acc    inferred_from    annotation_extensions    noctua_model         
+  ZDB-MRKRGOEV-240522-7547    ZDB-GENE-050407-1    flt1    ZDB-TERM-091209-733  
+    GO:0001525    angiogenesis    biological_process    ZDB-PUB-170115-4        
+  IGI    ZDB-TERM-181002-287    acts_upstream_of_or_within    ZFIN    -    -    
+  ZFIN:ZDB-GENE-040303-4|ZFIN:ZDB-GENE-070810-6                                 
+  gomodel:ZFIN_ZDB-GENE-050407-1                                                
+                                                                                
+  How can we find what supported that row coming in through the legacy load,    
+  and what is missing from the new load that prevents us from loading it? Is it 
+  good not to load it?                                                          
+
+● Excellent forensic question — let me trace that exact annotation through both
+  source files and the load. This is file-based, so it runs independently of the
+  UniProt diff still going in the background.
+
+  The row is a ZFIN/Noctua GO-CAM annotation: flt1 → GO:0001525 (angiogenesis), 
+  IGI, acts_upstream_of_or_within (RO:0002264), with 
+  ZDB-GENE-040303-4|ZDB-GENE-070810-6, model gomodel:ZFIN_ZDB-GENE-050407-1. Let
+  me pull both GPAD source files and look for it.
+
+  Ran 1 shell command (ctrl+o to expand)
+
+● This is definitive. Let me confirm the pattern with a few counts
+  (subject-anchored) so the conclusion is airtight:
+
+  Ran 1 shell command (ctrl+o to expand)
+
+❯ The secondary uniprot load does some mappings to go (exactly the              
+  functionality we are planning to remove and rely on this new load for). What  
+  is the "creating organization" for those rows in the mgte table? Is it ZFIN?  
+
+● Counts confirm it. Let me answer both — the flt1 finding first, then
+  investigate your UniProt "creating organization" question (I have
+  new_UniProt.csv to check it directly):
+
+  Ran 1 shell command (ctrl+o to expand)
+
+● Both answers are ready. Let me do one clean DB verification of the created_by
+  field (the CSV split is comma-fragile on enzyme term names), checking the
+  background job state first:
+
+  Ran 1 shell command (ctrl+o to expand)
+
+● Clean confirmation: all 111,089 UniProt-org rows are gafOrganization=UniProt, 
+  organizationCreatedBy=ZFIN, evidence IEA. One more check — whether
+  created_by=ZFIN also covers the real Noctua curation (which would make it an
+  unsafe discriminator):
+
+  Ran 1 shell command (ctrl+o to expand)
+
+● Both questions answered, with the data behind them.
+
+  1. Tracing the lost flt1 → angiogenesis annotation
+
+  What supported it in the legacy load — this exact line in noctua_zfin.gpad.gz:
+  ZFIN:ZDB-GENE-050407-1 · RO:0002264 · GO:0001525 · PMID:28087639 ·
+  ECO:0000316(IGI)
+     with= ZFIN:ZDB-GENE-040303-4,ZFIN:ZDB-GENE-070810-6 · assigned_by ZFIN
+     noctua-model-id= gomodel:ZFIN_ZDB-GENE-050407-1
+  The legacy Noctua load reads that file directly, so the annotation loaded
+  verbatim.
+
+  What's missing in the new load — nothing to load: flt1 is entirely absent as a
+  subject in DANRE-mod.gpad.gz.
+
+  ┌───────────────────────────────────┬────────────────────┬───────────────┐
+  │   flt1 (ZDB-GENE-050407-1) as     │    Noctua file     │  DANRE-mod    │
+  │              subject              │                    │     file      │
+  ├───────────────────────────────────┼────────────────────┼───────────────┤
+  │ of GO:0001525 (angiogenesis)      │                 11 │             0 │
+  ├───────────────────────────────────┼────────────────────┼───────────────┤
+  │ of any GO term                    │           22 (all  │             0 │
+  │                                   │        RO:0002264) │               │
+  └───────────────────────────────────┴────────────────────┴───────────────┘
+
+  flt1 shows up in DANRE-mod only inside the with/from column of other genes'
+  rows — never as the annotated gene. And it's systemic:
+  acts_upstream_of_or_within (RO:0002264) annotations drop from 26,746 → 16,621
+  file-wide (~10k lost), which is the bulk of the 15,858 Noctua losses.
+
+  So this is genuine upstream loss in GO's DANRE-mod export pipeline, not a ZFIN
+  parse/match failure — the loader never sees the row. (The recipe to check any
+  other lost row: zcat <file> | grep -P '^ZFIN:<geneid>\t' | awk -F'\t' 
+  '$4=="<GO id>"' on both files.)
+
+  Is it good not to load it? For this one — no, it's a real regression. flt1 is
+  VEGFR1; these are experimentally-supported, curator-made GO-CAM annotations
+  (PMID:28087639/28071661, IGI from genetic interactions) to core angiogenesis
+  biology that users expect on the gene page. This is exactly Pascale's "we lose
+  ZFIN annotations" concern, and it's a GO-pipeline/curation-policy decision, 
+  not something ZFIN can fix in the loader: either GO restores subject-level
+  acts_upstream_of_or_within annotations in the DANRE-mod export, or ZFIN keeps
+  the Noctua load as a supplementary source for them, or GO gives a rationale
+  for demoting them. It shouldn't be dropped silently.
+
+  2. "Creating organization" of the secondary-UniProt GO-mapping rows
+
+  All 111,089 of those rows resolve identically:
+
+  ┌────────────────────────────┬────────────────────────────────────────────┐
+  │           Field            │                   Value                    │
+  ├────────────────────────────┼────────────────────────────────────────────┤
+  │ gafOrganization (owning    │ UniProt                                    │
+  │ load)                      │                                            │
+  ├────────────────────────────┼────────────────────────────────────────────┤
+  │ organizationCreatedBy      │ ZFIN                                       │
+  │ (assigned_by)              │                                            │
+  ├────────────────────────────┼────────────────────────────────────────────┤
+  │                            │ IEA (InterPro2GO / EC2GO, pubs             │
+  │ evidence                   │ ZDB-PUB-020724-1, ZDB-PUB-020723-1,        │
+  │                            │ ZDB-PUB-031118-3)                          │
+  └────────────────────────────┴────────────────────────────────────────────┘
+
+  So: if "creating organization" means the created_by/assigned_by field, yes — 
+  it's ZFIN (100%). If it means the owning gafOrganization, it's UniProt.
+
+  ⚠️ created_by=ZFIN is not a safe way to identify these rows — it also tags all
+  the genuine Noctua curation:
+
+  gaf_org   created_by   count
+  UniProt   ZFIN        111,089   ← secondary-load IEA mappings
+  Noctua    ZFIN         36,011   ← real ZFIN GO-CAM curation
+
+  The clean discriminator for the secondary-load GO-mapping rows is
+  gafOrganization = 'UniProt' (pk 5), not the assigned_by.
+
+  Cutover implication (important): the DANRE-mod load's removal is scoped to GOA
+  + Noctua only — it never touches the UniProt org. Meanwhile DANRE-mod re-adds
+  the same InterPro2GO/EC2GO content under GOA (its assigned_by there is
+  InterPro/UniProt → mapped to GOA, not ZFIN). So when you drop the secondary
+  load's *2go handlers, these 111,089 UniProt-org rows won't be removed
+  automatically and you'll get duplicate annotations (UniProt-org copy + new
+  GOA-org copy) unless the cutover explicitly purges the UniProt organization.
+  That's the gap the earlier diffs didn't show — which is why adding the UniProt
+  diff was worth doing.
+
+  The UniProt legacy snapshot is still restoring in the background; I'll confirm
+  the diff count (expected 0/0, since neither path modifies that org) when it
+  lands, and fold the UniProt org into the report.
+
+✻ Churned for 5m 7s
+
+● Background command "Wait for UniProt diff completion" completed (exit code 0)
+
+  Read 1 file (ctrl+o to expand)
+
+● UniProt diff confirmed: legacy 111,089 → new 111,089, diff = 0/0. Both paths
+  leave the UniProt org completely untouched — exactly the cutover duplication
+  gap. Let me fold this into the report (tables, a 4th verdict card, and a
+  specific cutover-gap finding), redeploy, and refresh workbench/reports/.
+
+  Made 4 scratchpad edits +29 -18, ran 1 shell command (ctrl+o to expand)
+● Artifact(/tmp/claude-1003/-opt-zfin-source-roots-macdev-zfin/bc7fa276-6508-4a3
+          4-80ae-d84cf7e84d1f/scratchpad/danre-compare/report.html)
+  ⎿  published · 
+     https://claude.ai/code/artifact/4040585b-bf39-4b32-94f3-cc113183cf29
+
+● Done — the report now includes the UniProt org. Same URL:
+  https://claude.ai/code/artifact/4040585b-bf39-4b32-94f3-cc113183cf29
+
+  Let me record the two durable cutover findings so they're not lost:
+
+  Wrote 2 memories (ctrl+o to expand)
+
+● Everything's wrapped up. Final state of the comparison:
+
+  Complete per-org picture (legacy → new, from the identical 7/5 baseline):
+
+  ┌─────────────┬─────────┬─────────┬─────────┬────────┬────────────────────┐
+  │     Org     │ Legacy  │   New   │ Deleted │ Added  │   Interpretation   │
+  ├─────────────┼─────────┼─────────┼─────────┼────────┼────────────────────┤
+  │             │         │         │         │        │ Real curation loss │
+  │ Noctua      │  36,025 │  20,425 │  15,858 │    258 │  (RO:0002264       │
+  │             │         │         │         │        │ dropped upstream)  │
+  ├─────────────┼─────────┼─────────┼─────────┼────────┼────────────────────┤
+  │             │         │         │         │        │ IEA representation │
+  │ GOA         │ 107,843 │ 116,297 │  42,131 │ 50,585 │  churn + turnover, │
+  │             │         │         │         │        │  not loss          │
+  ├─────────────┼─────────┼─────────┼─────────┼────────┼────────────────────┤
+  │ FP          │         │         │         │        │ Orphaned           │
+  │ Inferences  │   1,623 │   1,623 │       0 │      0 │ (untouched, not    │
+  │             │         │         │         │        │ migrated)          │
+  ├─────────────┼─────────┼─────────┼─────────┼────────┼────────────────────┤
+  │ UniProt (2° │         │         │         │        │ Untouched →        │
+  │  load)      │ 111,089 │ 111,089 │       0 │      0 │ duplicates at      │
+  │             │         │         │         │        │ cutover            │
+  └─────────────┴─────────┴─────────┴─────────┴────────┴────────────────────┘
+
+  Deliverables in ./workbench/reports/: diffdd_{GOA,Noctua,FP,UniProt}.xlsx
+  (readable columns, deletes/adds sheets) + report.html. Live report (all four
+  orgs, curator-facing):
+  https://claude.ai/code/artifact/4040585b-bf39-4b32-94f3-cc113183cf29
+
+  Branch — two commits ready to push, build.xml clean:
+  b3b6129799  add human-readable columns to MGTE snapshot/diff tooling
+  bd74f4051b  resolve GAF/GPAD parser by bean name (fix Noctua load crash)
+  git push origin ZFIN-10025-danre-mod-unified-load
+
+  Net findings for the cutover conversation:
+  1. Noctua: ~15,858 experimentally-curated annotations genuinely lost upstream
+  (GO's export drops subject-level acts_upstream_of_or_within) — a GO/curator
+  decision, not a code fix.
+  2. UniProt: 111,089 secondary-load IEA rows will duplicate unless the cutover
+  purges the UniProt org (scope by gafOrganization, not created_by=ZFIN which
+  also hits Noctua).
+  3. GOA churn is mostly IEA turnover (DB is ~3 wks newer than the file), not
+  loss.
+  4. Parser bean-ambiguity bug fixed (would've crashed the legacy Noctua job on
+  deploy).
+
+  The dev DB is currently sitting in the 7/5 baseline state (the UniProt run's
+  last loaddb). Want me to leave it there, or is there anything else to dig
+  into?
+
+✻ Cogitated for 1m 59s
+
+❯ Can you write your findings about flt1 to a workbench markdown file? Can you  
+  spot check some of the other deleted noctua annotations to see if they fit    
+  the same pattern?                                                             
+
+● Let me do a thorough spot-check — I'll quantify how many of the 15,858 deleted
+  Noctua annotations fit the flt1 pattern (subject entirely absent from
+  DANRE-mod = upstream loss) vs. present-but-unmatched, broken down by relation.
+
+  Ran 1 shell command (ctrl+o to expand)
+
+● The temp tables loaded fine; my SQL just had a quoting bug (double-quotes
+  became identifiers). The tables persist, so let me re-run the queries cleanly:
+
+  Ran 1 shell command (ctrl+o to expand)
+
+● Decisive result — the flt1 pattern generalizes: 11,751 of 12,045 distinct 
+  (gene, GO) losses (97.6%) are entirely absent as a subject from the DANRE-mod 
+  file, and that absence dominates every relation type, not just
+  acts_upstream_of_or_within. Only 294 are present-but-unmatched. Let me pull
+  concrete examples for both buckets before writing it up:
+
+  Ran 1 shell command (ctrl+o to expand)
+
+● Let me look at one "present-but-deleted" case (robo1 → axon guidance) to
+  characterize why those 294 didn't match:
+
+  Ran 1 shell command (ctrl+o to expand)
+
+● That's the clincher for the "present" bucket too: robo1→axon guidance exists
+  in DANRE-mod only as an InterPro IEA prediction (RO:0002331 involved_in,
+  ECO:0000256, GO_REF:0000002) — the two experimental Noctua annotations
+  (RO:0002264, IMP/IGI, morpholino-inferred, PMID:18061159) are still gone. So
+  even the 294 "present" pairs are mostly the same loss, just coincidentally
+  covered by an unrelated electronic annotation.
+
+  Now I have everything. Let me write the investigation up:
+
+● Write(workbench/noctua-loss-flt1-investigation.md)
+  ⎿  Wrote 129 lines to workbench/noctua-loss-flt1-investigation.md
+       1 # Noctua annotation loss under the unified DANRE-mod load — flt1
+       2 
+       3 _ZFIN-10025. Investigation 2026-07-07, against the 2026.07.05.1 
+       4 2026-06-17 `DANRE-mod.gpad.gz` / `noctua_zfin.gpad.gz` source fi
+         les. Companion to
+         rison report in
+       6 `workbench/reports/`._
+       8 ## Question
+       9 
+          drops **15,858 of
+     … +166 lines (ctrl+o to expand)
+
+● Both done.
+
+  Investigation written to workbench/noctua-loss-flt1-investigation.md — the
+  full flt1 trace (legacy source line → absent as subject in DANRE-mod), the
+  generalization, the "present-but-unmatched" analysis, the conclusion, and
+  reproduction commands.
+
+  The spot-check confirmed flt1 is the rule, not an outlier:
+
+  - 97.6% (11,751 of 12,045) of distinct (gene, GO) losses are entirely absent 
+  as a subject in DANRE-mod.gpad.gz — genuine upstream loss, exactly the flt1
+  pattern. Only 294 are present-but-deleted.
+  - It holds across every relation, not just the causal one: enables 2,518/2,625
+  absent, involved_in 1,242/1,253, is_active_in 1,213/1,217, located_in
+  371/401.
+  - Even the 294 "present" cases aren't real matches. robo1 → axon guidance is
+  the exemplar: legacy had two experimental Noctua annotations (RO:0002264,
+  IMP/IGI, morpholino, PMID:18061159); DANRE-mod has only an InterPro IEA
+  prediction (involved_in, ECO:0000256, GO_REF:0000002) to the same gene+GO. The
+  curated annotation is still gone — an unrelated electronic one just happens
+  to cover the pair.
+
+  Bottom line: the Noctua loss is overwhelmingly (~98%) genuine loss of
+  experimentally-supported ZFIN curation dropped by GO Central's DANRE-mod
+  export — essentially none of it is a ZFIN loader/matching bug. It's a
+  GO-pipeline/curation-policy issue to raise with GO, not something the load
+  code can recover.
+
+  One note: this investigation left some scratch tables (tmp_del, tmp_danre_sg)
+  and a decompressed DANRE-mod.gpad in the dev DB/workdir — harmless, and
+  they'll clear on the next loaddb. Want me to add this loss investigation as a
+  section/link in the HTML report, or keep the report curator-summary-level and
+  leave the deep dive in the markdown?
+
+✻ Sautéed for 4m 4s
+
+❯ We expect the mappings that are currently coming through the secondary        
+  uniprot load mapping2go stages to be available in the DANRE-mod.gpad file.    
+  Are they not there? Am I mistaken to think they should be there? I don't      
+  think the appear in                                                           
+  http://current.geneontology.org/annotations/gpad/DANRE-uniprot.gpad.gz        
+
+● Let me check this empirically — where the InterPro2GO / EC2GO (mapping2go)
+  content actually lives. I'll look at both the DANRE-mod file we have and
+  download DANRE-uniprot to compare their sources.
+
+  Ran 1 shell command (ctrl+o to expand)
+
+● Let me confirm the DANRE-uniprot situation (167 bytes = not a real file) and
+  check https + the keyword2go case:
+
+  Ran 1 shell command (ctrl+o to expand)
+
+● Correction — that 167 bytes was just an http→https 301 redirect (I didn't
+  follow it); DANRE-uniprot.gpad.gz does exist on https (200, gzip). Let me
+  actually fetch it and see what's in it vs DANRE-mod:
+
+  Ran 1 shell command (ctrl+o to expand)
+
+● Now it's clear — and I need to correct myself. The mapping2go content is 
+  present, and DANRE-uniprot does exist. Let me verify one more thing (whether
+  DANRE-uniprot also lacks the Noctua experimental annotations) so the answer is
+  complete:
+  Ran 1 shell command (ctrl+o to expand)
+
+● Complete answer now — and I need to correct something I said a moment ago.
+
+  You're right that they should be there — and they are. You were looking at the
+  right idea, wrong file access.
+
+  First, my correction: I earlier implied DANRE-uniprot.gpad.gz might not exist
+  (I got a 167-byte response). That was wrong — 167 bytes was a Cloudflare
+  http→https 301 redirect page, not the file. Over https it's a real 3.6 MB /
+  191,821-row file. I suspect you hit the same trap: your URL was http://…, and
+  a plain download that doesn't follow the redirect saves the empty redirect
+  HTML, which looks like "the mappings aren't there." Use https:// (or curl -L).
+
+  The InterPro2GO / EC2GO (mapping2go) content is present in both files:
+
+  ┌────────────────┬─────────────┬───────────────────┬──────────────────────┐
+  │     GO_REF     │             │    DANRE-mod      │    DANRE-uniprot     │
+  │                │             │  (142,612 rows)   │    (191,821 rows)    │
+  ├────────────────┼─────────────┼───────────────────┼──────────────────────┤
+  │ GO_REF:0000002 │ InterPro2GO │            28,691 │               43,882 │
+  ├────────────────┼─────────────┼───────────────────┼──────────────────────┤
+  │ GO_REF:0000003 │ EC2GO       │             3,173 │                5,400 │
+  ├────────────────┼─────────────┼───────────────────┼──────────────────────┤
+  │ GO_REF:0000004 │ kw2go       │      0 (retired,  │                    — │
+  │                │             │       ZFIN-10135) │                      │
+  └────────────────┴─────────────┴───────────────────┴──────────────────────┘
+
+  So the mappings the secondary UniProt load currently produces are available —
+  you're not mistaken.
+
+  But this surfaces a real design point for the cutover
+
+  The branch consumes DANRE-mod, which is the smaller source for exactly this 
+  content. DANRE-uniprot — the UniProt/EBI pipeline's file — carries ~50% more
+  InterPro2GO (43,882 vs 28,691), more EC2GO, and much more of the other UniProt
+  IEA streams (UniProt 71,243 vs 52,732, RNAcentral 8,969 vs 55, GOC 6,477 vs
+  2,125). Given the file names, that fits: DANRE-uniprot is the authoritative
+  UniProt-derived IEA set — i.e., the natural replacement for the mapping2go
+  stages — while DANRE-mod is the MOD-submission view.
+
+  So the open question is which file (or both) the unified load should consume.
+  If the goal is to fully replace the secondary UniProt mapping2go load,
+  DANRE-uniprot looks like the more complete source for it; DANRE-mod alone
+  would under-cover it.
+
+  One thing DANRE-uniprot does not fix: the Noctua loss. flt1 is absent as a
+  subject from both files (0/0), and ZFIN-assigned rows are essentially equal
+  (21,689 vs 21,656). So the experimental-curation loss is upstream in both —
+  switching files wouldn't recover it.
+
+  Both files are cached in $TARGETROOT/danre-compare/ (and I can copy to the
+  scratchpad). Want me to (a) do a full side-by-side source/GO_REF breakdown of
+  DANRE-mod vs DANRE-uniprot and write it to workbench/, and/or (b) note this
+  file-choice question in the plan doc? It seems worth flagging before cutover.
+
+✻ Sautéed for 3m 18s
+
+❯ Is the zero diffs report row for *2go rows due to the fact that the uniprot   
+  secondary load used a different organization than this new unified load?      
+
+● Yes — that's exactly it, and let me confirm the mechanism with data. The
+  reasoning: the per-org diff only compares rows within the same organization.
+  The secondary load's *2go rows are owned by gafOrganization=UniProt; the
+  unified load writes its *2go equivalents under gafOrganization=GOA. So they
+  can't net against each other — let me verify the new *2go rows land in the GOA
+  add column:
+
+  Ran 1 shell command (ctrl+o to expand)
+
+● Confirmed with data — yes, exactly. The *2go content is duplicated across two
+  organizations, and the per-org diff can't net it:
+
+  ┌────────────────┬──────────────────────────────┬─────────────────────────┐
+  │    snapshot    │         InterPro2GO          │         EC2GO           │
+  │                │      (ZDB-PUB-020724-1)      │   (ZDB-PUB-031118-3)    │
+  ├────────────────┼──────────────────────────────┼─────────────────────────┤
+  │ legacy_UniProt │                       65,327 │                   4,735 │
+  ├────────────────┼──────────────────────────────┼─────────────────────────┤
+  │ new_UniProt    │                       65,327 │                   4,735 │
+  ├────────────────┼──────────────────────────────┼─────────────────────────┤
+  │ legacy_GOA     │                            0 │                       0 │
+  ├────────────────┼──────────────────────────────┼─────────────────────────┤
+  │ new_GOA        │                       28,509 │                   3,161 │
+  └────────────────┴──────────────────────────────┴─────────────────────────┘
+
+  (and created_by=InterPro in GOA: legacy 0 → new 28,509)
+
+  The mechanism: csvDiff runs per organization — it only ever compares
+  UniProt-rows to UniProt-rows and GOA-rows to GOA-rows. So:
+
+  1. UniProt org — the secondary load's *2go rows (65,327 InterPro2GO + 4,735
+  EC2GO) sit unchanged on both sides, because neither path touches the UniProt
+  org (the unified load's removal scope is GOA+Noctua only). → 0 deletes, 0
+  adds. That's your zero row.
+  2. GOA org — the unified load writes its *2go equivalents under GOA
+  (assigned_by=InterPro/UniProt → GOA), so they appear as GOA adds (28,509 +
+  3,161), absent from legacy GOA.
+
+  Because the old copies are in UniProt and the new copies are in GOA, they
+  never meet in a diff — so instead of "moved/matched," you get "0 change in
+  UniProt" + "new adds in GOA." At cutover that's duplication: 65,327
+  UniProt-org InterPro2GO rows and 28,509 GOA-org copies coexisting, unless the
+  UniProt org is explicitly purged.
+
+  One extra thing this exposes: the counts don't even match — DANRE-mod supplies
+  only 28,509 InterPro2GO vs the secondary load's 65,327 (and EC2GO 3,161 vs
+  4,735). So DANRE-mod alone both duplicates and under-covers this content by
+  more than half. (DANRE-uniprot's 43,882 is closer but still short of 65,327 —
+  reinforcing the earlier file-choice question: DANRE-mod may be the
+  wrong/insufficient source for the mapping2go replacement.)
+
+  So to net these out properly at cutover you'd need both: (a) the unified load
+  to own this content under the same org the secondary load used (or a
+  deliberate migration), and (b) a source file that actually covers the full
+  *2go volume.
+
+✻ Cooked for 1m 22s
+
+❯ Note the org-mismatch duplication in the plan doc.                            
+
+● I'll add a note to the plan doc. Let me read the relevant sections to place it
+  well and match the style.
+
+  Searched for 1 pattern, read 1 file (ctrl+o to expand)
+
+● Update(workbench/danre-mod-unified-load-plan.md)
+  ⎿  Added 23 lines
+      167  
+      168  ---
+      169  
+      170 +## 4c. Org-mismatch DUPLICATION of the *2go content (2026-07-0
+          +7, legacy-vs-new DB comparison)                               
+      171 +                                                              
+      172 +Full legacy-vs-new end-state comparison (real writes, per-org 
+          +`csvDiff` on `marker_go_term_evidence`, 2026.07.05.1 snapshot)
+          +. The `UniProt`-org diff is **0 deletes / 0 adds** — but that 
+          +zero is misleading. The secondary UniProt load and the unified
+          + load **own the same InterPro2GO/EC2GO content under different
+          + organizations**, so a per-org diff can never net them:       
+      173 +                                                              
+      174 +| snapshot (org) | InterPro2GO `ZDB-PUB-020724-1` | EC2GO `ZDB
+          +-PUB-031118-3` |                                              
+      175 +|---|--:|--:|                                                 
+      176 +| legacy `UniProt` | 65,327 | 4,735 |                         
+      177 +| new `UniProt`    | 65,327 | 4,735 |                         
+      178 +| legacy `GOA`     | 0 | 0 |                                  
+      179 +| new `GOA`        | **28,509** | **3,161** |                 
+      180 +                                                              
+      181 +(`created_by=InterPro` in `GOA`: legacy 0 → new 28,509.)      
+      182 +                                                              
+      183 +**Mechanism.** `csvDiff` compares only within an org. The seco
+          +ndary load stores `*2go` rows as `gafOrganization=UniProt` (`o
+          +rganizationCreatedBy=ZFIN`); the unified load resolves the sam
+          +e rows to `GOA` (`assigned_by=InterPro`/`UniProt` → GOA, per `
+          +DanreModSourceOrganization`). So the old copies sit **untouche
+          +d in the `UniProt` org** (0 diff — the unified load's removal 
+          +scope is GOA+Noctua only) while the new copies land as **`GOA`
+          + adds**. They never meet → at cutover both coexist: **duplicat
+          +ion** (65,327 UniProt + 28,509 GOA InterPro2GO rows).         
+      184 +                                                              
+      185 +**Two consequences for the *2go handover (D6):**              
+      186 +1. **Duplication** unless cutover explicitly purges the `UniPr
+          +ot` org. Identify those rows by **`gafOrganization='UniProt'` 
+          +(pk 5)** — NOT by `created_by=ZFIN`, which also tags the 36,01
+          +1 genuine Noctua curated rows.                                
+      187 +2. **Under-coverage.** `DANRE-mod` supplies only **28,509** In
+          +terPro2GO (and 3,161 EC2GO) vs the secondary load's **65,327 /
+          + 4,735** — less than half. `DANRE-uniprot.gpad.gz` carries **4
+          +3,882 / 5,400** (closer, still short). So `DANRE-mod` alone is
+          + an insufficient source for the mapping2go replacement — see t
+          +he file-choice question in §7.                                
+      188 +                                                              
+      189 +**Fix direction:** to make the handover a clean swap rather th
+          +an a duplicate-and-shrink, the unified load must (a) own the `
+          +*2go` content under the **same org the secondary load uses** (
+          +or run an explicit `UniProt`-org migration/purge at cutover), 
+          +and (b) consume a source file that covers the full `*2go` volu
+          +me (likely `DANRE-uniprot`, or `DANRE-mod` + `DANRE-uniprot`).
+      190 +                                                              
+      191 +---                                                           
+      192 +                                                              
+      193  ## 5. Pre-adoption blockers (from status doc §2, still gating)
+      194  0. **⭐ MATCHING & OWNERSHIP CHURN (from run 4; root-caused in
+            §4b — the #1 cutover blocker).** With per-source removal acti
+           ve, a cutover would churn ~69,838 removes + ~43,608 adds. Per 
+           §4b this splits three ways: **(1)** ~24,283 GOA removals from 
+           the `ECO:0007322` gap — **fixed by part (b)**; **(2)** ~11,751
+            genuine Noctua losses (`RO:0002264`/`ND`) — a GO/curator conv
+           ersation; **(3)** ~23k GOA IEA (UniRule/ARBA) mostly monthly u
+           pstream turnover, confounded by the DB being an older snapshot
+           . Also unaddressed: the 111,089 `UniProt`-owned secondary-load
+            rows sit outside the removal scope (map needs `GO_REF` granul
+           arity + the ownership transition). Until this is resolved, kee
+           p report-only.
+      195  1. **ECO gap:** 4 of 22 ECO codes unmapped — **confirmed live 
+           as 17,406 erroring rows** (`ECO:0007322` SubCell 17,350 + `ECO
+           :0005547` 56); needs `eco_go_mapping` rows (curator/GO call).
+
+● Now add the blocker to §5 and the source-file decision to §7:
+
+● Update(workbench/danre-mod-unified-load-plan.md)
+  ⎿  Added 1 line
+      197  2. **Relation→qualifier mapping:** confirm every col-3 RO/BFO 
+           relation resolves to a ZFIN `qualifier_relation`.
+      198  3. **ZFIN round-trip QC** (§4 above).
+      199  4. **Removal-scope safety:** the per-source partition + reject
+           -unmapped rule (§2) is the mitigation for the mass-delete risk
+           .
+      200 +5. **⭐ *2go ORG-MISMATCH DUPLICATION (from §4c, 2026-07-07).*
+          +* The secondary load owns InterPro2GO/EC2GO under `gafOrganiza
+          +tion=UniProt`; the unified load writes the same content under 
+          +`GOA`, so cutover **duplicates** it (65,327 UniProt + 28,509 G
+          +OA InterPro2GO) rather than replacing it — and `DANRE-mod` und
+          +er-covers the volume (28,509 vs 65,327). Blocks the D6 handove
+          +r until we settle (a) same-org ownership or an explicit `UniPr
+          +ot`-org purge, and (b) the source file (§7).                  
+      201  
+      202  ---
+      203  
+
+  Read 1 file (ctrl+o to expand)
+
+● The §7 D6 decision ("*2go come from DANRE-mod") is now partly contradicted by
+  §4c, so let me flag it there and add the source-file decision:
+
+● Update(workbench/danre-mod-unified-load-plan.md)
+  ⎿  Added 3 lines
+      215      - `GO_REF:0000003` → EC2GO (UniProt / ECO:0000501, **3,173
+            rows**) — reuse existing EC2GO pub `ZDB-PUB-031118-3`.
+      216      - Clears **31,864 of the 34,044** GO_REF errors. kw2go (`G
+           O_REF:0000004`) is absent from the file (retired, ZFIN-10135) 
+           — nothing to take over.
+      217      - Implementation: add `GoDefaultPublication` entries whose
+            `title()` is the GO_REF string (so they land in `goRefPubMap`
+           ) → the pub ZDB IDs above; ensure `getGoRefPubs()` returns the
+           m. Reconfirms §1 Correction: drop ONLY the secondary load's GO
+           -mapping handlers, keep its dblink/domain/PDB refresh.
+      218 +    - ⚠️ **REVISIT (2026-07-07, §4c):** the *mapping* is done,
+          + but the handover isn't clean: `DANRE-mod` supplies only **28,
+          +509** InterPro2GO vs the secondary load's **65,327** (under-co
+          +verage), and the unified load writes them to `GOA` while the s
+          +econdary load owns them under `UniProt` (duplication). Resolve
+          + the source-file and org questions below before treating D6 as
+          + complete.                                                    
+      219 +- **Source file: `DANRE-mod` vs `DANRE-uniprot` vs both (NEW, 
+          +2026-07-07, §4c).** Both exist at `https://current.geneontolog
+          +y.org/annotations/gpad/` — note `http://` **301-redirects**, s
+          +o fetch via `https`/`curl -L` or you get an empty 167-byte red
+          +irect page. `DANRE-uniprot` carries far more of the UniProt-de
+          +rived IEA the secondary load replaces (InterPro2GO **43,882** 
+          +vs 28,691; EC2GO 5,400 vs 3,173; UniProt 71,243 vs 52,732; RNA
+          +central 8,969 vs 55; GOC 6,477 vs 2,125). The branch consumes 
+          +`DANRE-mod` only → under-covers mapping2go. Decide: switch to 
+          +`DANRE-uniprot`, or consume both. (Neither file recovers the N
+          +octua experimental loss — flt1 absent as subject from both; se
+          +e §4b.)                                                       
+      220 +- **`*2go` ownership org (NEW, 2026-07-07, §4c).** Route the `
+          +*2go` GO_REFs to the **same organization the secondary load us
+          +es (`UniProt`)** instead of `GOA`, or add an explicit `UniProt
+          +`-org purge/migration at cutover — otherwise the old (UniProt)
+          + and new (GOA) copies coexist. Identify the existing rows by `
+          +gafOrganization='UniProt'`, NOT `created_by=ZFIN` (which also 
+          +tags the 36,011 Noctua rows).                                 
+      221  - **`GO_REF:0000115` RNAcentral InterPro-family (55 rows):** m
+           ap alongside `0000002` or leave? Tiny; likely map for consiste
+           ncy.
+      222  - **GOC / `GO_REF:0000108` (~2,125 rows):** adopt (new org or 
+           fold into GOA) or keep rejecting? Currently net-new.
+      223  - **Phylo IBA org:** keep under GOA, or a dedicated org to pre
+           serve the FP-Inference identity in reporting?
+
+● Done — the org-mismatch duplication is now documented in
+  workbench/danre-mod-unified-load-plan.md in three places:
+
+  1. New §4c ("Org-mismatch DUPLICATION of the *2go content") — the full finding
+  with the data table (UniProt 65,327 unchanged both sides; GOA 0 → 28,509),
+  the csvDiff-is-per-org mechanism, and the two consequences (duplication +
+  under-coverage), plus the fix direction (same-org ownership or explicit
+  UniProt purge + a fuller source file).
+  2. §5 blocker #5 — added as a ⭐ pre-adoption blocker gating the D6 handover.
+  3. §7 open decisions — flagged the existing "✅ DECIDED — *2go come from
+  DANRE-mod" entry with a ⚠️ REVISIT note, and added two new decisions: the
+  source-file choice (DANRE-mod vs DANRE-uniprot vs both, incl. the
+  http-redirect gotcha and the coverage numbers) and the *2go ownership org
+  (route to UniProt or purge at cutover; identify by gafOrganization, not
+  created_by=ZFIN).
+
+  Note this lives in workbench/, which the branch's TODO.txt says to delete
+  before merge — so if these decisions should outlive the workbench notes, they
+  may belong in the Jira issue or a committed doc. Want me to also drop a short
+  summary into the ZFIN-10025 Jira issue, or leave it in the plan doc for now?
+
+✻ Cooked for 2m 7s
+
+❯ You suggested to "add a summary to the ZFIN-10025 Jira issue" is there        
+  anything that would go in that summary that's not covered by the              
+  workbench/danre-mod-unified-load-plan.md file                                 
+
+● Honestly — no, essentially nothing content-wise. The plan doc now carries all
+  the substantive findings: the per-org comparison numbers, the Noctua loss
+  (§4b) and flt1 generalization, the ECO:0007322 fix, the org-mismatch
+  duplication + under-coverage (§4c), the blockers (§5), and the open decisions
+  (§7). A Jira summary would just be a condensation and pointer to those.
+
+  The difference is kind, not content — two things that are about durability and
+  audience, not new information:
+
+  1. The plan doc is ephemeral. workbench/TODO.txt says to git rm -r workbench/
+  before merge. So everything I've written — the plan, the flt1 investigation,
+  the comparison report — disappears when this branch merges. Jira (or a
+  committed doc) is the only place these findings persist past merge. That's the
+  real reason to consider it.
+  2. Two items need non-engineering people, who won't read a feature-branch 
+  markdown:
+    - The Noctua experimental loss (~15.8k, ~98% genuine upstream loss) → a
+  GO/Pascale conversation.
+    - The source-file + org-mismatch decisions → affect how/when the secondary
+  UniProt load is retired.
+
+  These are the natural Jira content because they're cross-person action items,
+  not because they're undocumented.
+
+  So my earlier suggestion was really "make this survive merge and reach the
+  right people," not "there's missing information." Given that, the cleaner
+  options are probably:
+
+  - Relocate, don't duplicate: before merge, move the durable findings (§4b/§4c,
+  the flt1 note, the blockers/decisions) out of workbench/ into a committed doc
+  (e.g. docs/ or alongside the loader), so they live with the code — then Jira
+  just links to it. Avoids maintaining the same content in two places.
+  - Or a short Jira comment with the headline numbers + links, treating the
+  (soon-deleted) plan doc as scratch.
+
+  I'd lean toward relocating the keepers into a committed doc rather than
+  writing a parallel Jira summary. Want me to do that — carve the durable
+  sections into a committed file — instead of a Jira write-up?
+
+✻ Churned for 35s
+
+❯ Yes, carve the durable sections into a committed doc                          
+
+● Good call. Let me first find where committed docs live in this repo so the doc
+  lands somewhere conventional and close to the loader code.
+
+  Ran 1 shell command (ctrl+o to expand)
+● Repo convention is README files next to the tooling (no central docs/). The
+  comparison/QC tooling lives in server_apps/DB_maintenance/gafLoad/, so I'll
+  put the durable doc there. Let me write it, condensing the keeper findings
+  (dropping the run-by-run process history).
+
+● Write(server_apps/DB_maintenance/gafLoad/README-danre-mod-consolidation.md)
+  ⎿  Wrote 167 lines to
+     server_apps/DB_maintenance/gafLoad/README-danre-mod-consolidation.md
+       1 # Unified DANRE-mod GO load — consolidation findings & open deci
+       2 
+         ion loads
+       4 (**GAF-GOA**, **Noctua GPAD**, **FP-Inference**) — plus the UniP
+       5 `*2go` GO-mapping stages — with **one** load consuming GO Centra
+       6 file(s). It captures the findings and unresolved decisions that 
+       7 feature branch; the moment-to-moment development log lived in `w
+         orkbench/` (scratch, not
+       9 
+         , `GafLoadJob`
+     … +238 lines (ctrl+o to expand)
+
+● Now commit the durable doc on the feature branch:
+
+  Ran 1 shell command (ctrl+o to expand)
+
+● Committed as 6d81dfd8c8. The durable findings now live at
+  server_apps/DB_maintenance/gafLoad/README-danre-mod-consolidation.md — a
+  committed reference next to the QC tooling that survives the workbench/
+  deletion at merge.
+
+  What it carries (condensed from the scratch notes, run-by-run history 
+  dropped):
+  - The two org fields and how DanreModSourceOrganization maps ownership (+ the
+  created_by=ZFIN discriminator trap)
+  - QC method + the per-org legacy-vs-unified comparison table
+  - Finding 1: the ~15,858 Noctua loss (~98% genuine upstream, flt1 + robo1
+  examples) — GO/curator decision
+  - Finding 2: the *2go org-mismatch duplication + DANRE-mod under-coverage
+  - Findings 3–5: ECO:0007322→IEA (done), parser-by-name fix (done),
+  GOA-churn-not-loss
+  - Open decisions gating cutover + reproduce commands
+
+  Branch now has three commits, build.xml clean:
+  6d81dfd8c8  commit consolidation findings & open decisions (durable doc)
+  b3b6129799  add human-readable columns to MGTE snapshot/diff tooling
+  bd74f4051b  resolve GAF/GPAD parser by bean name (fix Noctua load crash)
+
+  One loose end: workbench/danre-mod-unified-load-plan.md has uncommitted edits
+  (the §4c/§5/§7 notes I added earlier). Since workbench/ is git rm'd before
+  merge and the durable version is now committed, those edits are redundant
+  scratch. I'd suggest just leaving them (they vanish with workbench/ at merge)
+  or reverting for a clean tree — your call. Want me to git checkout that file
+  to tidy the working tree, or leave the scratch notes intact for now?
+
+✻ Sautéed for 2m 36s
+
+❯ leave them. in fact commit them for now                                       
+
+  Ran 1 shell command (ctrl+o to expand)
+
+● Committed as 678bd3a981. Working tree is clean of tracked changes now.
+
+  Four commits on ZFIN-10025-danre-mod-unified-load:
+  678bd3a981  workbench plan notes — org-mismatch duplication (§4c) + decisions
+  6d81dfd8c8  commit consolidation findings & open decisions (durable doc)
+  b3b6129799  add human-readable columns to MGTE snapshot/diff tooling
+  bd74f4051b  resolve GAF/GPAD parser by bean name (fix Noctua load crash)
+
+  Note the tradeoff you've accepted: the workbench notes are committed now for
+  visibility, but workbench/TODO.txt still says to git rm -r workbench/ before
+  merge — so when you squash/clean up for the PR, 678bd3a981's content goes away
+  and the durable version in README-danre-mod-consolidation.md (6d81dfd8c8)
+  remains. That's the intended split.
+
+  Push when ready (I don't push):
+  git push origin ZFIN-10025-danre-mod-unified-load
+
+  Anything else — e.g., the DANRE-mod vs DANRE-uniprot source-file side-by-side
+  breakdown, or setting up the same-vintage GOA comparison to pin down the real
+  GOA churn?
+
+✻ Worked for 14s
+
+❯ I wonder... There is a large drop in the number of go entries loaded through  
+  this unified load versus what gets loaded through the legacy                  
+  uniprot-secondary-load. Can we tell which entries are dropped and look for a  
+  pattern. secondary load does a few different *2go mappings. ec2go, kw2gp,     
+  sp2go,... Is there a specific _2go type of record that specifically gets      
+  dropped?                                                                      
+
+● Good instinct — the *2go streams each have their own ZFIN publication, so I
+  can break the 111,089 UniProt-org rows down by mapping type and check each
+  against the file. Let me start with the DB breakdown + publication titles (DB
+  is in the 7/5 baseline state, which has all these rows):
+
+  Ran 2 shell commands (ctrl+o to expand)
+
+● There's a pub_goref_id column — that directly links each ZFIN pub to its
+  GO_REF. Let me use it:
+
+  Ran 1 shell command (ctrl+o to expand)
+
+● The single-quotes are colliding with bash -lc '...'. Let me write the query to
+  a file and pipe it into psql's stdin:
+
+  Ran 1 shell command (ctrl+o to expand)
+
+● All three are ZFIN's own "Electronic Annotation" pubs (no GO_REF on the pub
+  record), so I need to map each pub to its *2go handler from the loader code.
+  The unknown is ZDB-PUB-020723-1 (41,027 rows) — interpro2go and ec2go are
+  already identified. Let me find which handler uses each pub:
+
+  Ran 1 shell command (ctrl+o to expand)
+
+● Now it's clear. The three secondary-load *2go streams:
+
+  ┌──────────────────┬─────────────────────────────┬────────┬────────────────┐
+  │       pub        │           stream            │  rows  │     GO_REF     │
+  ├──────────────────┼─────────────────────────────┼────────┼────────────────┤
+  │ ZDB-PUB-020724-1 │ InterPro2GO                 │ 65,327 │ GO_REF:0000002 │
+  ├──────────────────┼─────────────────────────────┼────────┼────────────────┤
+  │ ZDB-PUB-020723-1 │ UniProtKB-Keyword (spkw2go  │ 41,027 │ GO_REF:0000004 │
+  │                  │ / kw2go)                    │        │                │
+  ├──────────────────┼─────────────────────────────┼────────┼────────────────┤
+  │ ZDB-PUB-031118-3 │ EC2GO                       │  4,735 │ GO_REF:0000003 │
+  └──────────────────┴─────────────────────────────┴────────┴────────────────┘
+
+  InterPro2GO and EC2GO are present in the file (under-covered); the keyword
+  stream's GO_REF is 0000004, which we already saw is 0 in DANRE-mod. Let me
+  confirm it's absent from DANRE-uniprot too, and that the branch has no
+  file-source mapping for it:
+
+  Ran 1 shell command (ctrl+o to expand)
+
+● Confirmed on all counts: GO_REF:0000004 (keyword2go) is absent from both files
+  (0/0), it's not even in either file's GO_REF list, and the branch's
+  GoDefaultPublication adds file-sources for InterPro2GO and EC2GO but none for 
+  keyword2go — there's nothing to map.
+
+  So the answer to your question is yes, and it's the keyword mapping. Let me do
+  one more check — whether those 41,027 keyword annotations are at least
+  redundantly covered by other IEA streams in the file, or genuinely lost:
+
+  Ran 1 shell command (ctrl+o to expand)
+
+● The DANRE-uniprot subject set came back as 0 — that's a real signal, not a
+  bug: it suggests DANRE-uniprot isn't keyed by ZFIN gene ids. Let me check how
+  each file keys its subject column:
+
+  Ran 1 shell command (ctrl+o to expand)
+
+● That reveals something important beyond the kw2go question. Here's the
+  complete picture:
+
+  Yes — the dropped *2go type is UniProtKB-Keyword (spkw2go / kw2go)
+
+  The secondary load's three streams, and how the unified load (DANRE-mod)
+  reproduces each:
+
+  ┌─────────────────┬────────────────┬───────┬──────────────┬───────────────┐
+  │   *2go stream   │      pub       │ rows  │    GO_REF    │ in DANRE-mod  │
+  ├─────────────────┼────────────────┼───────┼──────────────┼───────────────┤
+  │ InterPro2GO     │ ZDB-PUB-020724 │ 65,32 │ GO_REF:00000 │ 28,691 (under │
+  │                 │ -1             │     7 │ 02           │     -covered) │
+  ├─────────────────┼────────────────┼───────┼──────────────┼───────────────┤
+  │ UniProtKB-Keywo │ ZDB-PUB-020723 │ 41,02 │ GO_REF:00000 │ 0 — entirely  │
+  │ rd (kw2go)      │ -1             │     7 │ 04           │       dropped │
+  ├─────────────────┼────────────────┼───────┼──────────────┼───────────────┤
+  │ EC2GO           │ ZDB-PUB-031118 │ 4,735 │ GO_REF:00000 │         3,173 │
+  │                 │ -3             │       │ 03           │               │
+  └─────────────────┴────────────────┴───────┴──────────────┴───────────────┘
+
+  GO Central retired keyword→GO mapping (GO_REF:0000004) upstream, so it's in
+  neither DANRE-mod nor DANRE-uniprot (0 in both, not even in their GO_REF
+  lists). The branch reflects this — GoDefaultPublication adds file-sources for
+  GO_REF:0000002 and :0000003 but none for keyword2go. So this whole stream has
+  no successor in the file.
+
+  And it's mostly a genuine loss, not redundant: of the 40,409 distinct keyword
+  gene→GO pairs, 28,973 (72%) are covered by no other source in DANRE-mod; only
+  11,436 (28%) are picked up by another stream (InterPro/UniRule/etc.).
+
+  The bigger wrinkle: DANRE-uniprot is keyed by UniProt accession, not gene
+
+  This tempers my earlier "DANRE-uniprot is the richer source, consider
+  switching":
+
+  ┌───────────────┬─────────────────────────┬───────────────────────────────┐
+  │     file      │     subject column      │            keying             │
+  ├───────────────┼─────────────────────────┼───────────────────────────────┤
+  │ DANRE-mod     │ 142,589 ZFIN: + 23      │ gene-centric — loads directly │
+  │               │ ComplexPortal           │  against ZFIN genes           │
+  ├───────────────┼─────────────────────────┼───────────────────────────────┤
+  │ DANRE-uniprot │ 179,542 UniProtKB: +    │ protein-centric — needs       │
+  │               │ 12,256 RNAcentral       │ UniProt→ZFIN db_link mapping  │
+  └───────────────┴─────────────────────────┴───────────────────────────────┘
+
+  Even DANRE-uniprot's ZFIN-assigned rows are keyed by UniProtKB accession. So
+  it's not a drop-in richer source — consuming it would require the
+  UniProt-accession→gene mapping layer the legacy GAF-GOA path uses (with its
+  own "gene not found" losses), and it still lacks keyword2go. So neither file
+  recovers the keyword stream.
+
+  Cutover implication
+
+  The plan's D6 note — "kw2go retired, nothing to take over" — understates this.
+  ZFIN's secondary load still actively produces those 41,027 keyword
+  annotations (they're in the 7/5 DB), ~29k of which have no file successor.
+  Dropping the secondary load's kw2go handler = losing them. So the real
+  decision is: keep the spkw2go handler in the secondary load (GO no longer
+  supplies it), or accept the ~41k-annotation loss.
+
+  Want me to (a) correct the D6 note + add this kw2go finding to the committed
+  README-danre-mod-consolidation.md, and (b) quantify how many of the 28,973
+  uncovered keyword pairs are on genes that have any GO annotation otherwise (to
+  gauge whether it's real coverage loss vs. genes already well-annotated)?
+
+✻ Baked for 4m 52s
+
+❯ do both a and b. Also, for real losses, can we spot check some of them and    
+  see if they simply do not exist, or perhaps just exist in a manner we aren't  
+  expecting and thus failing to load?                                           
+● Let me do the analysis first — (b) coverage of the uncovered keyword genes,
+  and (c) spot-check whether the "real losses" truly don't exist or exist in an
+  unexpected form (e.g. protein-keyed in DANRE-uniprot). Starting with (b) and
+  setting up (c):
+
+  Ran 1 shell command (ctrl+o to expand)
+
+● (b) result: of the 28,973 uncovered keyword pairs (on 12,335 genes), 4,048 
+  genes would lose all GO annotation under DANRE-mod (10,871 pairs), while 8,287
+  genes keep some GO (lose specific terms). So ~4k genes going dark is a real
+  regression, not just term-thinning.
+
+  Now (c) the spot-check — are these real losses truly absent, or present in an
+  unexpected form (most likely protein-keyed in DANRE-uniprot)? Let me sample
+  uncovered pairs, resolve each gene's UniProt accession, and check:
+
+  Ran 1 shell command (ctrl+o to expand)
+
+● Now resolve those genes to UniProt accessions and symbols:
+
+  Ran 1 shell command (ctrl+o to expand)
+
+● Now check each sample gene's uncovered GO against DANRE-uniprot, keyed by its
+  UniProt accession:
+
+  Ran 1 shell command (ctrl+o to expand)
+
+● The spot-check is revealing — the "real losses" mostly aren't missing biology.
+  Let me verify the key pattern (broad keyword terms superseded by specific
+  descendants) against the GO hierarchy in the DB rather than asserting it, and
+  check the go-dark accessions for other links:
+
+  Ran 1 shell command (ctrl+o to expand)
+
+● No closure table, but term_relationship has the direct edges. Let me verify
+  the subsumption claims with a recursive ancestor walk for the clearest
+  examples:
+
+  Ran 2 shell commands (ctrl+o to expand)
+
+● Direction/type mismatch — let me check the edge direction:
+
+  Ran 1 shell command (ctrl+o to expand)
+
+● Direction is term_1 = parent, term_2 = child. The last edge already confirms
+  it: GO:0019838 (growth factor binding) is_a-parent of GO:0005520 (insulin-like
+  growth factor binding) — so igfbp2a's "lost" term is an ancestor of a term it
+  keeps. Let me confirm the other two examples with the corrected walk:
+
+  Ran 1 shell command (ctrl+o to expand)
+
+● Verified against the GO hierarchy: all three sampled "lost" keyword terms are
+  ancestors of more-specific terms the protein still has — growth factor binding
+  ⊃ insulin-like growth factor binding (igfbp2a); lyase/carboxy-lyase ⊃
+  uroporphyrinogen decarboxylase activity (urod); cell differentiation ⊃
+  epithelial cell differentiation (dlc). So by the GO true-path rule these
+  aren't lost knowledge.
+
+  Let me capture all this — the *2go breakdown, the kw2go drop, and the
+  spot-check nuance — in the committed README and fix the plan's D6 note. First,
+  expand finding #2 in the README:
+
+  Read 1 file (ctrl+o to expand)
+
+● Update(server_apps/DB_maintenance/gafLoad/README-danre-mod-consolidation.md)
+  ⎿  Added 40 lines, removed 15 lines
+       89  GPAD load as a supplementary source until then, or (c) accept 
+           the loss with a rationale.
+       90  It must not be dropped silently at cutover.
+       91  
+       92 -### 2. `*2go` handover: org-mismatch duplication + under-cover
+          -age                                                           
+       93 -The UniProt-Secondary load's InterPro2GO / EC2GO IEA mappings 
+          -are stored under                                              
+       94 -`gafOrganization=UniProt`; the unified load resolves the same 
+          -content to `GOA`. A per-org                                   
+       95 -diff never compares across orgs, so the old copies show as "un
+          -changed in UniProt" (0/0)                                     
+       96 -and the new copies as "GOA adds":                             
+       92 +### 2. `*2go` handover: org-mismatch duplication, under-covera
+          +ge, and a fully-dropped stream                                
+       93 +The UniProt-Secondary load produces **three** `*2go` IEA strea
+          +ms, all stored under                                          
+       94 +`gafOrganization=UniProt` (`organizationCreatedBy=ZFIN`). The 
+          +unified load resolves the                                     
+       95 +equivalent content to `GOA` (`assigned_by=InterPro`/`UniProt` 
+          +→ GOA). A per-org `csvDiff`                                   
+       96 +never compares across orgs, so the old copies read "unchanged 
+          +in UniProt" (0/0) while the                                   
+       97 +new copies land as "GOA adds":                                
+       98  
+       98 -| org | InterPro2GO `ZDB-PUB-020724-1` | EC2GO `ZDB-PUB-031118
+          --3` |                                                         
+       99 -|---|--:|--:|                                                 
+      100 -| legacy UniProt | 65,327 | 4,735 |                           
+      101 -| unified UniProt | 65,327 | 4,735 |                          
+      102 -| legacy GOA | 0 | 0 |                                        
+      103 -| unified GOA | 28,509 | 3,161 |                              
+       99 +| `*2go` stream | pub | legacy `UniProt` | GO_REF | in `DANRE-
+          +mod` (→GOA) | in `DANRE-uniprot` |                            
+      100 +|---|---|--:|---|--:|--:|                                     
+      101 +| InterPro2GO | ZDB-PUB-020724-1 | 65,327 | GO_REF:0000002 | 2
+          +8,509 | 43,882 |                                              
+      102 +| **UniProtKB-Keyword (kw2go/spkw2go)** | ZDB-PUB-020723-1 | *
+          +*41,027** | GO_REF:0000004 | **0** | **0** |                  
+      103 +| EC2GO | ZDB-PUB-031118-3 | 4,735 | GO_REF:0000003 | 3,161 | 
+          +5,400 |                                                       
+      104  
+      105 -Two problems at cutover:                                      
+      105 +Three problems at cutover:                                    
+      106  - **Duplication.** The unified load's removal scope is GOA+Noc
+           tua only, so it never
+      107    touches the 111,089 UniProt-org rows — dropping the secondar
+           y `*2go` handlers leaves
+      108    those *and* the new GOA copies, storing each mapping twice. 
+           Purge by
+      109 -  `gafOrganization='UniProt'`, **not** `created_by=ZFIN`.     
+      109 +  `gafOrganization='UniProt'`, **not** `created_by=ZFIN` (whic
+          +h also tags Noctua).                                          
+      110  - **Under-coverage.** `DANRE-mod` supplies only **28,509** Int
+           erPro2GO vs the secondary
+      111 -  load's **65,327** (< half); `DANRE-uniprot.gpad.gz` carries 
+          -**43,882** (closer, still                                     
+      112 -  short). See the source-file decision below.                 
+      111 +  load's **65,327** (< half); `DANRE-uniprot` has **43,882** (
+          +closer, still short).                                         
+      112 +- **kw2go is dropped entirely.** GO Central retired keyword→GO
+          + mapping (`GO_REF:0000004`);                                  
+      113 +  it is absent from *both* files. So the 41,027 UniProtKB-Keyw
+          +ord annotations have **no                                     
+      114 +  file successor** — the branch's `GoDefaultPublication` maps 
+          +GO_REF:0000002/0000003 but                                    
+      115 +  nothing for keyword2go, because there is nothing to map.    
+      116  
+      117 +**How bad is the kw2go loss? — mostly not real biological loss
+          + (spot-checked).** Of the                                     
+      118 +41,027 keyword rows (40,409 distinct gene→GO), 11,436 are cove
+          +red by another source in                                      
+      119 +`DANRE-mod`; 28,973 are not (10,871 of those on 4,048 genes th
+          +at would keep *no* GO in                                      
+      120 +`DANRE-mod` at all). But sampling the uncovered pairs shows th
+          +e lost terms are **broad                                      
+      121 +molecular-function terms that are GO ancestors of more-specifi
+          +c terms the protein still                                     
+      122 +carries** (verified against `term_relationship`):             
+      123 +                                                              
+      124 +| gene | keyword term lost | more-specific term retained (DANR
+          +E-uniprot) |                                                  
+      125 +|---|---|---|                                                 
+      126 +| igfbp2a | GO:0019838 growth factor binding | GO:0005520 insu
+          +lin-like growth factor binding |                              
+      127 +| urod | GO:0016829 lyase / GO:0016831 carboxy-lyase | GO:0004
+          +853 uroporphyrinogen decarboxylase activity |                 
+      128 +| dlc | GO:0030154 cell differentiation | GO:0030855 epithelia
+          +l cell differentiation |                                      
+      129 +                                                              
+      130 +By the GO true-path rule the specific term entails the general
+          + one, so these keyword                                        
+      131 +annotations are largely **redundant broad terms**, not lost kn
+          +owledge. Two caveats: (i)                                     
+      132 +the specific survivors are in `DANRE-uniprot` (protein-keyed) 
+          +— with `DANRE-mod` even the                                   
+      133 +specific term is often missing, so the loss is partly a *sourc
+          +e-file* artifact (see below);                                 
+      134 +(ii) some accessions (e.g. ppardb/A9C4A5, pbx4, calr3a) have *
+          +*zero** rows in either file,                                  
+      135 +a gene↔protein `db_link` mapping gap. Recommended before treat
+          +ing kw2go as a hard loss:                                     
+      136 +quantify across all 28,973 uncovered pairs how many `GO_lost` 
+          +are ancestors of a surviving                                  
+      137 +term for the same gene (needs the GO ancestor closure).       
+      138 +                                                              
+      139  ### 3. `ECO:0007322 → IEA` mapping (done)
+      140  `DANRE-mod` tags ~17,350 UniProtKB-SubCell annotations with `E
+           CO:0007322` ("curator
+      141  inference used in automatic assertion"), a granular code not i
+           n GO's flat
+
+● Now add a kw2go decision to the README's open-decisions list:
+
+  Read 1 file (ctrl+o to expand)
+
+● Update(server_apps/DB_maintenance/gafLoad/README-danre-mod-consolidation.md)
+  ⎿  Added 12 lines, removed 6 lines
+      167     fetch via `https`/`curl -L`, or you get a 167-byte redirect
+            page that looks empty).
+      168     `DANRE-uniprot` carries far more of the UniProt-derived IEA
+            the secondary load replaces
+      169     (InterPro2GO 43,882 vs 28,691; UniProt 71,243 vs 52,732; RN
+           Acentral 8,969 vs 55; GOC
+      170 -   6,477 vs 2,125). `DANRE-mod` alone under-covers mapping2go.
+          - Neither file recovers the                                    
+      171 -   Noctua loss.                                               
+      170 +   6,477 vs 2,125) — **but it is keyed by UniProtKB accession,
+          + not ZFIN gene id**, so                                       
+      171 +   consuming it needs a UniProt→gene `db_link` mapping layer (
+          +like the legacy GAF-GOA path,                                 
+      172 +   with its own protein↔gene gaps). `DANRE-mod` (gene-keyed) i
+          +s a drop-in but under-covers                                  
+      173 +   mapping2go. Neither file recovers the Noctua loss or carrie
+          +s keyword2go.                                                 
+      174  3. **`*2go` ownership org** — route the `*2go` GO_REFs to the 
+           same org the secondary load
+      175     uses (`UniProt`) or add an explicit `UniProt`-org purge/mig
+           ration at cutover, so old and
+      176     new copies don't coexist.
+      175 -4. **`GO_REF:0000108` (GOC, ~2,125)** — adopt (net-new content
+          -) or keep rejecting?                                          
+      176 -5. **`GO_REF:0000115` (RNAcentral, 55)** and **`ECO:0005547` (
+          -manual, ~21)** — map or leave.                                
+      177 -6. **`EXP` evidence (~105)** — ZFIN-10258 says allow; currentl
+          -y surfaced as errors.                                         
+      178 -7. **Relation → `qualifier_relation`** — confirm every col-3 R
+          -O/BFO relation resolves.                                      
+      177 +4. **kw2go (UniProtKB-Keyword, 41,027 rows)** — no file succes
+          +sor (GO retired                                               
+      178 +   `GO_REF:0000004`). Keep the secondary load's `spkw2go` hand
+          +ler, or accept the loss? The                                  
+      179 +   loss is largely broad ancestor terms subsumed by more-speci
+          +fic surviving terms (spot-                                    
+      180 +   checked); quantify the ancestor-subsumption before deciding
+          +.                                                             
+      181 +5. **`GO_REF:0000108` (GOC, ~2,125)** — adopt (net-new content
+          +) or keep rejecting?                                          
+      182 +6. **`GO_REF:0000115` (RNAcentral, 55)** and **`ECO:0005547` (
+          +manual, ~21)** — map or leave.                                
+      183 +7. **`EXP` evidence (~105)** — ZFIN-10258 says allow; currentl
+          +y surfaced as errors.                                         
+      184 +8. **Relation → `qualifier_relation`** — confirm every col-3 R
+          +O/BFO relation resolves.                                      
+      185  
+      186  ## Reproduce
+      187  
+
+● Now correct the plan's D6 note that understated kw2go ("nothing to take
+  over"):
+
+● Update(workbench/danre-mod-unified-load-plan.md)  ⎿  Added 1 line, removed 1 line
+      213  - **✅ DECIDED (2026-06-25) — *2go GO_REFs come from DANRE-mod
+           .** The UniProt-Secondary load will **drop all the *2go GO-map
+           ping handlers** (interpro2go / ec2go / kw2go), so their annota
+           tions must now come from the DANRE-mod file. **Map** these GO_
+           REFs to ZFIN pubs (do NOT exclude):
+      214      - `GO_REF:0000002` → InterPro2GO (InterPro / ECO:0000256, 
+           **28,691 rows**) — reuse existing InterPro2GO pub `ZDB-PUB-020
+           724-1`.
+      215      - `GO_REF:0000003` → EC2GO (UniProt / ECO:0000501, **3,173
+            rows**) — reuse existing EC2GO pub `ZDB-PUB-031118-3`.
+      216 -    - Clears **31,864 of the 34,044** GO_REF errors. kw2go (`G
+          -O_REF:0000004`) is absent from the file (retired, ZFIN-10135) 
+          -— nothing to take over.                                       
+      216 +    - Clears **31,864 of the 34,044** GO_REF errors. ⚠️ **CORR
+          +ECTION (2026-07-08, see committed README §2):** the earlier "k
+          +w2go — nothing to take over" was wrong. `GO_REF:0000004` (UniP
+          +rotKB-Keyword) *is* absent from both DANRE files (GO retired i
+          +t), but ZFIN's secondary load **still actively produces 41,027
+          + kw2go annotations** (`ZDB-PUB-020723-1`, in the current DB) —
+          + so there is no successor and dropping the handler loses them.
+          + The loss is largely broad ancestor terms subsumed by more-spe
+          +cific surviving terms (spot-checked), but must be quantified/d
+          +ecided, not assumed empty. Also: `DANRE-mod` under-covers Inte
+          +rPro2GO (28,509 vs the secondary load's 65,327) and the `*2go`
+          + rows land in `GOA` while the secondary load owns them under `
+          +UniProt` (duplication) — see §4c and the committed `README-dan
+          +re-mod-consolidation.md`.                                     
+      217      - Implementation: add `GoDefaultPublication` entries whose
+            `title()` is the GO_REF string (so they land in `goRefPubMap`
+           ) → the pub ZDB IDs above; ensure `getGoRefPubs()` returns the
+           m. Reconfirms §1 Correction: drop ONLY the secondary load's GO
+           -mapping handlers, keep its dblink/domain/PDB refresh.
+      218      - ⚠️ **REVISIT (2026-07-07, §4c):** the *mapping* is done,
+            but the handover isn't clean: `DANRE-mod` supplies only **28,
+           509** InterPro2GO vs the secondary load's **65,327** (under-co
+           verage), and the unified load writes them to `GOA` while the s
+           econdary load owns them under `UniProt` (duplication). Resolve
+            the source-file and org questions below before treating D6 as
+            complete.
+      219  - **Source file: `DANRE-mod` vs `DANRE-uniprot` vs both (NEW, 
+           2026-07-07, §4c).** Both exist at `https://current.geneontolog
+           y.org/annotations/gpad/` — note `http://` **301-redirects**, s
+           o fetch via `https`/`curl -L` or you get an empty 167-byte red
+           irect page. `DANRE-uniprot` carries far more of the UniProt-de
+           rived IEA the secondary load replaces (InterPro2GO **43,882** 
+           vs 28,691; EC2GO 5,400 vs 3,173; UniProt 71,243 vs 52,732; RNA
+           central 8,969 vs 55; GOC 6,477 vs 2,125). The branch consumes 
+           `DANRE-mod` only → under-covers mapping2go. Decide: switch to 
+           `DANRE-uniprot`, or consume both. (Neither file recovers the N
+           octua experimental loss — flt1 absent as subject from both; se
+           e §4b.)
+
+● Now commit the doc updates:
+
+  Ran 1 shell command (ctrl+o to expand)
+
+● All three done and committed (8fb8a09ab4).
+
+  (c) Spot-check: the "real losses" mostly exist — just not the way we're 
+  looking
+
+  Sampling uncovered keyword pairs and resolving each gene to its UniProt
+  accession showed the lost terms are broad GO terms that are ancestors of 
+  more-specific terms the protein still carries (verified against
+  term_relationship, not assumed):
+
+  ┌─────────┬────────────────────────────┬──────────────────────────────────┐
+  │  gene   │    keyword term "lost"     │    specific term it still has    │
+  ├─────────┼────────────────────────────┼──────────────────────────────────┤
+  │ igfbp2a │ growth factor binding      │ insulin-like growth factor       │
+  │         │                            │ binding                          │
+  ├─────────┼────────────────────────────┼──────────────────────────────────┤
+  │ urod    │ lyase / carboxy-lyase      │ uroporphyrinogen decarboxylase   │
+  │         │ activity                   │ activity                         │
+  ├─────────┼────────────────────────────┼──────────────────────────────────┤
+  │ dlc     │ cell differentiation       │ epithelial cell differentiation  │
+  └─────────┴────────────────────────────┴──────────────────────────────────┘
+
+  By the GO true-path rule, the specific term entails the broad one — so these
+  are redundant broad terms, not lost knowledge. Two caveats the spot-check also
+  exposed:
+  - The specific survivors live in DANRE-uniprot (protein-keyed), which the
+  branch's DANRE-mod doesn't carry — so with the current source file even the
+  specific term is often missing. Part of the "loss" is a source-file artifact,
+  not upstream absence.
+  - A few accessions (ppardb/A9C4A5, pbx4, calr3a) have zero rows in either file
+  — a gene↔protein db_link mapping gap (the ZFIN-linked accession isn't the one
+  UniProt annotates).
+
+  (b) Coverage of the drop
+
+  28,973 of the 40,409 keyword gene→GO pairs aren't in DANRE-mod; 4,048 genes 
+  would keep no GO at all (10,871 pairs), 8,287 keep some. But per (c), much of
+  that is broad-term/source-file, so raw counts overstate real loss.
+
+  The reframe
+
+  kw2go (UniProtKB-Keyword, ZDB-PUB-020723-1, 41,027 rows) is the *2go type 
+  dropped entirely — GO retired GO_REF:0000004, so it's in neither file. But
+  it's largely redundant broad terms + a symptom of using the sparse gene-keyed
+  DANRE-mod. The genuine decisions are the source-file choice and whether to
+  keep the spkw2go handler — both now in the doc.
+
+  Committed: README finding #2 rewritten with the 3-stream table + kw2go +
+  spot-check; open decisions #2/#4 (source-file keying, kw2go); plan D6 note
+  corrected. Five commits on the branch now.
+
+  The one rigorous piece I flagged but didn't run (it needs the full GO ancestor
+  closure, not just spot samples): quantify across all 28,973 uncovered pairs 
+  how many GO_lost are ancestors of a surviving term for the same gene — that
+  would turn "mostly redundant (spot-checked)" into a hard percentage. Want me
+  to run that closure analysis?
+
+✻ Cogitated for 7m 19s

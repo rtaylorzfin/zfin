@@ -1,0 +1,359 @@
+Feature: before/after table-summary across two DB loads (branch zfin-compare-db-loads)
+
+Goal: given two dated DB unload files, load each via `gradle loaddb`, snapshot every
+table (row count + content hash), and emit a per-table before/after comparison summary.
+Driven automatically by a Jenkins job that mirrors Load-Database's file selection.
+
+================================================================================
+NEXT STEPS (as of 2026-10-14; was 2026-09-16) — current state: mount ~/remotes/cell is back;
+11 daily snapshots on disk (08.06..08.16); DB idle. Core tooling all built,
+tested, committed (7 commits, unpushed). Context docs: workbench/
+surrogate-id-churn-audit.md + db-load-comparison-session-notes.md.
+================================================================================
+[x] Verify/finish the full daily sweep: docker/compare-loads-series.sh --days 10  (done: 08.06-08.16 sweep + 30-day 09.13-10.13 run)
+    (resumes from existing snapshots). Confirm reports/ + index.csv + unchanged_since.csv
+    cover the full window.
+[x] Run the deferred DB-heavy churn confirmation now that the DB is idle:
+    drill-table-churn.sh across the 15 top churners + a live pg_constraint FK-reference
+    check per surrogate id. Quantifies real-vs-surrogate churn behind the audit buckets.
+    -> 2026-10-21: drill part superseded -- the year sweep's real hash gives real-vs-raw churn for
+       every table every day. FK check done on the 10.15 DB: integer-surrogate parents with children
+       are tpd/cpd (converted), psg/pg (stable), curated lookup tables, and two more UI display
+       tables that churn fully every day and expose their id in View.API JSON:
+         ui.zebrafish_models_display (zmd_id, 2.7k rows; child zebrafish_models_evidence_association)
+         ui.omim_phenotype_display   (opd_id, 5.8k rows; child omim_zfin_association)
+       30 days: raw 162k/164k and 347k/407k rows vs real 4.6k/61 and 22.8k/52.
+       Also: the 10.15 DB has ~100 pheno_term_fast_search_old_* tables, each with an FK to
+       phenotype_observation_generated (the cleanup leak; gone once the cleanup job runs).
+[x] NEXT: same UiIndexer merge for FishModelIndexer (zmd_id) and the OMIM display indexer (opd_id).
+    -> DONE 2026-10-21: FishModelIndexer 8e755651db (key fish+condition+disease; representative
+       fishox now the lowest ID instead of a HashSet's first), GenesInvolvedIndexer bea4d70e81 (key
+       term+human gene+OMIM acc+name, NULL-safe; gene symbol search now sorted). Both insert with the
+       entity's own sequence (column-default sequences lag far behind). End-to-end on the 10.15 DB from
+       production's tables: all ids kept; repeat runs change 0 rows. Cherry-picked onto
+       ui-indexer-merge-stable-ids (push again).
+[x] Surrogate-id stabilization (see workbench/surrogate-id-churn-audit.md), in order:
+    -> CLOSED 2026-10-21: (b) + (c) done and tested end-to-end (plus zmd/opd below); sfclg left as is.
+       (a) is superseded: the _old_ tables come from the cleanup job failing since the Solr 9 upgrade;
+       the solr-snapshot-retention PR fixes it. Verify after it deploys: *_old_ count in the daily
+       snapshots should drop to ~0 after the next Tuesday cleanup.
+      (a) exclude _old / _temp / _bkup tables from the unload (cheap; also shrinks dumps)
+          Found 2026-10-14: the 10.13 dump has ~770 *_old_<timestamp> tables (Aug: ~0) --
+          521 mutant_fast_search_old_*, 96 pheno_term_/genotype_figure_fast_search_old_*,
+          46 clean_expression_fast_search_old_*: empty shells, i.e. the rename-swap regens
+          never drop the old table. Plus 4 each of phenotype_*_generated_old_* WITH data
+          (~2.1M rows, ~380 MB). Fix the regens to drop them; they also show as daily
+          added/removed tables in the sweep reports.
+      (b) [x] incremental-apply (ZFIN-10350 pattern) the URL-exposed display tables
+          ui.term_phenotype_display (tpd_id), ui.chebi_phenotype_display (cpd_id)
+          -> also stabilizes the junction tables that store those ids
+          -> DONE 8974e8b62e (term) + ed15721394 (chebi): UiIndexer merge-in-place hook; merge SQL
+             tested on 08.12 tables + 08.13 as output (equal content, ids kept, rerun = no-op).
+             END-TO-END 2026-10-20 (gradle runPhenotypeIndexer on the loaded 2026.01.26 zfindb, after
+             adding the 1181 ancestor columns that DB predates): run 1 kept all 222,757 tpd_ids +
+             created_at (association tables unchanged in size); cpd 19,482 -> 21,074 rows with 19,309
+             ids kept (newer indexer code than that January DB). Run 2: 0 changed rows in all five
+             tables. A run that failed mid-merge (missing column) left every table untouched.
+             -> branch ui-indexer-merge-stable-ids ready to push.
+      (c) [x] then internal fast_search tables (pheno_term_fast_search first; TODO already
+          filed in its regen header), expression_term_fast_search, genotype_figure_fast_search,
+          sequence_feature_chromosome_location_generated
+          -> pheno_term_fast_search DONE 98a31a9576 (incremental diff counted per key; tested on
+             08.12 table + 08.13 inputs: equal multiset, all ids kept, rerun no-op).
+          -> expression_term_fast_search DONE d194fbc72d (same pattern; tested 10.14 table + 10.15
+             inputs). Found: the live table had NO indexes (the swap left them on xpatfs_old); the
+             function now creates them. (Corrected below: only the xpatres index was missing; the slow
+             input query was a scratch-restore artifact, 5 s on a full DB.)
+          -> genotype_figure_fast_search DONE f805b17625 (full mode applies _new as a set diff; tested
+             10.14 table + 10.15 tuples: equal set, 186,149 ids kept, rerun no-op). Side finding: 99
+             leftover genotype_figure_fast_search_new_gffs_serial_id_seq* sequences, owned by the
+             undropped _old_ tables (go away with the cleanup fix).
+          -> sfclg: NOT converting (decided 2026-10-17). Its daily ~437k-row rewrite stopped after 09.08:
+             since 09.09 raw churn == real churn except two occasional reloads (09.08: 50k real;
+             10.13: 485k raw / 590 real, a source delete+reload in updateSequenceFeatureChromosome-
+             Location.sql-style loads). sfclg_pk_id is an internal Hibernate @Id (GenomeLocation, no
+             JSON). Several load scripts write it per source, so a merge there is high-risk, low-value.
+             Revisit only if the dashboard shows it rewriting regularly again.
+          (c) DONE except sfclg (above).
+          -> END-TO-END 2026-10-20 on the loaded 2026.01.26 zfindb (sweep paused on a dropped mount), each run
+             twice: pheno_term_regen.sql 42 s, 4,145,481 ids kept, rerun 0/0; regen_expression_term_
+             fast_search() 5 s (the scratch-restore slowness was an artifact), 306,962 ids kept, 0 changes;
+             regen_genox() 11 s, 180,689 gffs ids kept, rerun 0 changes, no _old_/_new left. Correction:
+             etfs already had etfs_term_zdb_id_index; only the xpatres index was missing (fixed 242f9030e8,
+             also on regen-fast-search-incremental as 04fd59f41e). That branch is now ready to push.
+      Acceptance check per converted table: daily-sweep raw churn should collapse to
+      ~= real churn (and stay there -- a heatmap regression = regen broke). Each
+      converted parent also retires the need for the "re-pointed links" FK mapping
+      for its children.
+[x] Confirm whether ui.publication_expression_display.ped_id actually reaches a client.
+    -> 2026-10-16: it is SERIALIZED but UNUSED. /action/api/publication/{pubID}/expression
+       (PublicationAPIController) loads rows from the table via HibernatePublicationPageRepository;
+       ExpressionTableRow.id (ped_id) carries @JsonView(ExpressionPublicationUI), so it is in the JSON.
+       The page component FigureExpressionTable keys rows with Math.random(), and no URL/endpoint
+       takes a ped_id. So its daily churn breaks nothing: stabilizing it is low priority (unlike
+       tpd_id/cpd_id, which are in URLs). Optional: drop @JsonView from the id (public API change).
+[x] Locate the missing fish_components base-table DDL (not in the repo).
+    -> from the 01.14 dump; fc_pk_id is unused anywhere, so its churn is harmless. See the audit doc.
+[x] Add a fail-fast mount check to compare-loads-series.sh (error clearly instead of
+    dying mid-run when ~/remotes/cell has dropped).
+    -> done: check_mount (timeout 15 ls) before date resolution and before each load; also in drill.
+[x] Move compareLoads out of build.gradle into the zfin-utils command.
+    -> No zfin-utils command exists; moved into server_apps/DB_maintenance/postgres/compare_loads.sh
+       + restore_unload.sh (gradle compareLoads/loadDatabase are thin wrappers). restore_unload.sh
+       terminates only its own DB's sessions: the old gradle closure killed EVERY backend, which
+       killed the year sweep once during testing (resumed 23:33). Later: have the sweep call it.
+[x] DONE 2026-10-14 (uncommitted): meaningful-column hashing in the sweep, steps 1-4.
+    churn_columns.sh/.tsv resolver; snapshot excluded_cols + real_hash (+ .real.md5 only
+    for tables with exclusions: 419 of 1095 live tables); compare real_rows_added/removed
+    + real_status, n/a on old snapshots or changed excluded set; index real totals;
+    drill uses the resolver. Tested on a scratch DB (rebuild/edit/plain/include/empty/
+    added/removed, lean == hash mode, old-format compat) and on real data:
+    term_phenotype_display 08.12->08.13 real +217/-36 == drill. Also fixed: counts-only
+    compare exited 1 on success (would have failed gradle compareLoads).
+    Step 5 replaced by: 30-day run 2026.09.13 -> 10.13 (August snapshots stay raw-only).
+[x] (was NOW) meaningful-column hashing in the sweep (2026-10-14 plan):  (done, see DONE entry above)
+      1. churn_columns.tsv registry (server_apps/DB_maintenance/postgres/): per-table
+         exclude/include overrides on top of the auto rules (date/time types; int
+         id/*_id; sole int PK). include= rescues a meaningful int *_id column.
+      2. shared resolver (one script/SQL fn) used by snapshot + drill-table-churn so
+         both always agree on the excluded set.
+      3. snapshot: second sorted hash file <t>.real.md5 ONLY for tables with >=1
+         excluded column (else real == raw, no extra disk). CSV gains
+         excluded_cols + real_hash columns.
+      4. compare: real_rows_added/real_rows_removed alongside raw; index.csv gains
+         real totals. If before/after excluded_cols differ (registry changed), mark
+         real churn n/a for that table instead of reporting a bogus number.
+      5. re-run the 08.06..08.16 sweep for real numbers; check against the two
+         drill results (marker +125/-107, term_phenotype_display +217/-36).
+[x] DONE 2026-10-15: 30-day run 2026.09.13 -> 10.13 (30 reports, ~23 min/day, no errors).
+    Raw ~1.4M-9M rows each way per day -> real mostly 0.5k-10k. Spikes to chase:
+[x] Weekly (Fri dumps 09.18/09.25/10.02/10.09) ~444k db_link rows deleted + reinserted
+    with NEW ZDB IDs, plus matching zdb_active_data + record_attribution (and
+    reference_protein ~6k). Smaller rounds 09.22/09.27/09.29/09.30/10.01/10.04. Identify
+    the load (Thursday-night job); re-minting persistent ZDB IDs is a real defect.
+    -> FOUND 2026-10-15: NCBI-Gene-Load-Java (Fri 19:10; dblink_info "uncurated: NCBI gene
+       load 2026-10-09 19:24"). 10.08->10.09: all 443,929 removed rows re-added with same
+       (gene, acc, fdbcont); only dblink_zdb_id + dblink_info timestamp differ; net +67.
+       fdbconts: RefSeq RNA 171k, RefPept 126k, GenBank genomic 61k, GenPept 32k, GenBank
+       RNA 31k, NCBI Gene 24k. By design: prepareNCBIgeneLoad.sql puts every NCBI-attributed
+       link in toDelete.unl; loadNCBIgeneAccs.sql deletes via zdb_active_data (cascade) +
+       reference_protein, reinserts with get_id_and_insert_active_data('DBLINK') (line 60).
+       Fix: diff toLoad vs existing on (gene, acc, fdbcont), keep matching dblink ids (only
+       delete gone / insert new / update changed length etc.). Other zdb_active_data rounds
+       (09.22/09.27/09.30/10.04) not yet traced.
+[x] ui.term_phenotype_display (~95% of rows, 12 of 30 days) and ui.chebi_phenotype_display
+    (10 days) change a MEANINGFUL column on most rows. Column-diff two days (drill
+    --keep-scratch, then per-column EXCEPT) -- suspect unordered aggregation in
+    tpd_ancestor_term_ids / *_search, or recomputed counts. Fix in the regen.
+    -> FOUND 2026-10-15 (10.08->10.09): all 211,455 changed rows differ ONLY in the ORDER of
+       tpd_ancestor_term_ids (same set). Cause: HibernateOntologyRepository
+       .getAncestorTermIdsBulk uses array_agg(...) with no ORDER BY, so order follows
+       all_term_contains' physical order. Fix: array_agg(alltermcon_container_zdb_id ORDER BY
+       alltermcon_container_zdb_id) (+ ORDER BY in getAncestorTermIds). Queried via GIN
+       containment, so order is irrelevant to readers. Same method feeds Chebi/FishModel/
+       ChebiFishModel/GenesInvolved indexers -> cpd/zmd/omca/opd ancestor columns too.
+    -> FIXED f18ab5a335 (branch ui-indexer-sorted-ancestor-ids prepared for main).
+[x] Every rebuild day adds ~7 tables and removes none: the *_old_<ts> leak (see 1a).
+    -> ROOT CAUSE 2026-10-16: the cleanup (regenPhenotypeMartCleanup.sh, in Index-Faceted-Search-Step-3-
+       Cleanup_d, Tuesdays) never runs: the job's first step is ant target cleanup-solr-backup-files,
+       removed by the Solr 9 upgrade (ZFIN-10276, main 2026-06-25), so the job fails every week.
+       Snapshots: 562 _old_ tables on 09.13 -> 771 on 10.13, +7 per regen day, never dropping.
+       FIX EXISTS, UNMERGED: branch origin/solr-snapshot-retention (e62136f7b6) replaces the ant step.
+       ACTION (Ryan): merge it. 2026-10-16: rebased onto main (daf6986847, worktree
+       ~/worktrees/zfin-solr-snapshot-retention) and force-pushed; next: PR to main. Verify after
+       deploy: the snapshots' *_old_ count should drop to ~0 after the next Tuesday cleanup. Also added here (commit after this note): the cleanup now drops the
+       12 leftover phenotype_*_generated_old_ tables (~380 MB). Item 1a ("exclude from the unload")
+       becomes unnecessary once the cleanup runs.
+[x] Applied post-run: churn_columns.tsv include etfs_xpatres_pk_id (FK -> expression_result2,
+    stable). Snapshots before this have the old excluded set -> real n/a for
+    expression_term_fast_search + xpatfs_old across that boundary only.
+[x] DONE 2026-10-16: NCBI ID-churn fix, commit 651042b20b (own commit, cherry-pickable).
+    Characterization run vs a control run of the original SQL: 0 content diffs; links keeping
+    their ID 263,880 -> 523,206, new IDs 290,342 -> 31,016. Needs a ticket + PR off main.
+[~] PRs to main prepared 2026-10-16 (branches off origin/main 2f287adc1c, worktrees in ~/worktrees,
+    cherry-picked -x, not pushed; need tickets):
+      ncbi-load-stable-dblink-ids        651042b20b b932bf9d67 3711516f1c 9c1baa7983
+      ui-indexer-sorted-ancestor-ids     f18ab5a335
+      regen-cleanup-phenotype-old-tables bf5f167749
+    Push each: git -C ~/worktrees/zfin-<branch> push -u origin <branch>
+    2026-10-17, also prepared (no worktree; branches only, clean cherry-picks onto 2f287adc1c):
+      panther-load-stable-dblink-ids     a844b9040f   (worktree ~/worktrees/zfin-panther-load-stable-dblink-ids)
+      ui-indexer-merge-stable-ids        8974e8b62e ed15721394   } run end-to-end on a loaded DB
+      regen-fast-search-incremental      98a31a9576 d194fbc72d f805b17625 } before opening PRs
+    Push a branch without a worktree: git push -u origin <branch>
+    2026-10-19: PUSHED (verified origin == local): ncbi-load-stable-dblink-ids, ui-indexer-sorted-ancestor-ids,
+      regen-cleanup-phenotype-old-tables, panther-load-stable-dblink-ids, zfin-compare-db-loads.
+      2026-10-20: also PUSHED ui-indexer-merge-stable-ids, regen-fast-search-incremental (both passed end-to-end).
+      Next: tickets + PRs for all six (drafts written).
+[ ] NCBI characterization test baseline is stale: fails with the ORIGINAL SQL too (2026.01.14 DB,
+    2026-01-09 inputs; ~2.7k rows differ incl. untouched antibody/Ensembl links). Refresh it.
+    Also its input path is hard-coded /research/... but compile mounts /mnt/research.
+[x] NCBI load REPLACES curated GenPept links (traced 2026-10-16, still on main):
+    NCBIDirectPort.processGenBankAccessionsAssociatedToNonLoadPubs() (main line 3098) appends a
+    curated GenPept link's ID to toDelete.unl (append-mode writer) when NCBI also maps that
+    accession to the gene, and adds a load row -> link deleted + recreated load-only; curator pub
+    and "curated ..." dblink_info lost. Ported 1:1 from Perl (MORETODELETE, pre-GitHub). Intent per
+    SQL header was to ATTRIBUTE curated accessions to a load pub, not replace them.
+    Evidence: prepare SQL alone does NOT list the 4 test links; 01.14 data has 2,161 curator-only
+    GenPept links, 32,432 load-only, 0 with both (conversion forbids coexistence). 4 converted in
+    the Jan characterization run. Lookup map keyed by accession only: 1 accession curated on 2
+    genes in 01.14 -> could delete the other gene's curated link.
+    -> FIXED 2026-10-16, commit b932bf9d67 (option 2: keep link + curator pub, add load pub; key by
+       gene|acc). vs original code: 4 curated links re-attributed instead of replaced, 5 no longer
+       deleted by the accession-only lookup (curated on gene A + Vega link on gene B -> A's curated
+       link was destroyed). Cherry-picks onto main cleanly after 651042b20b.
+[x] loadNCBIgeneAccs.sql's marker_assembly delete (end of file) joins ncbi_gene_delete to db_link
+    after those links are already deleted, so it never deletes anything. Pre-existing.
+    -> FIXED 3711516f1c: genes captured before the deletes; GRCz12tu dropped only if no NCBI Gene ID
+       remains. Verified in a rolled-back transaction (characterization data loses no gene IDs).
+[x] Another job swaps ~19.4k db_links directly (not via zdb_active_data) on 09.29 / 10.01, leaving
+    orphan IDs swept the next day. Identify it.
+    -> Load-Panther_m (LoadPanther.groovy, PTHR links, fdbcont 170918-1): deleted all and re-inserted
+       all with new IDs (dumps 09.28 -> 09.29: 19,412 links identical except for the ID).
+       FIXED a844b9040f (incremental update; tested in a scratch DB). Branch
+       panther-load-stable-dblink-ids prepared in ~/worktrees (not pushed).
+[x] DONE 2026-10-16: daily read-only job (Table-Churn-Report_d <- Unload-Database_d,
+    daily_table_churn.sh). Before go-live: create role zfin_churn_ro (pg_read_all_data) + .pgpass;
+    choose CHURN_HASH_DIR disk. unload_production.sh may exit 0 on a failed pg_dump (check).
+[x] NEXT: dashboard + anomaly email on top of the daily job's index/reports.  (done: churn_dashboard.py, f149229446 / f6c67fb7ce)
+[x] DONE 2026-10-21 ~15:50 (365 reports, dashboard rebuilt in dazed/dashboard): year sweep 2026.10.15 -> 2025.10.15 (365 reports, ~6 days at
+    ~23 min/day) into /research/zunloads/table_churn/dazed (log: sweep-year.log there). Re-run the
+    same command to resume. 2026-10-17 21:35: died at 07.05 (its stage dir collided with an existing
+    go-owned 2026.07.05.1 dump; it had also removed an existing 2026.07.06.1 copy, identical to the
+    mount's). Fixed 40591cbafd (stage in _sweep/), resumed 21:36. While it runs: do NOT edit docker/compare-loads-series.sh (bash reads it
+    as it runs) or the scripts it calls (snapshot/compare/index/unchanged_since/churn_columns),
+    and the local DB is busy. After: rebuild the dashboard there; fix the sweep's "output=" log line,
+    which prints REPO/<abs path> when --outrel is absolute.
+[x] PROD DATA ISSUE (found 2026-10-21 from the year sweep): reference_protein lost 3,151 of 16,916 rows
+    on 2026.10.09 and they have not come back (13,765 through 10.15). Mechanism: NCBI-Gene-Load-Java
+    (Fri 19:10) deletes the UniProt db_links it reloads plus their reference_protein rows, re-creates
+    the links with new IDs, then triggers Load-Reference-Proteome (BuildTrigger, also on failure),
+    which re-creates reference_protein. Every Friday Jul-Oct shows +~3,150/-~3,150; on 09.11 the rows
+    were gone for a day (back 09.12), on 10.09 they never came back -> the 10.09 Load-Reference-Proteome
+    run most likely failed or did nothing. ACTION (Ryan): check that Jenkins build; re-run
+    Load-Reference-Proteome. The ncbi-load-stable-dblink-ids fix removes the dependency: kept links
+    are not deleted, so their reference_protein rows stay.
+    -> RECOVERED by 2026.10.19 (16,916 again; the forward run shows it), presumably the next Friday's
+       NCBI + Load-Reference-Proteome pair. Still worth a look at why the 10.09 proteome run left it
+       empty; the ncbi-load-stable-dblink-ids fix removes the delete/re-link dependency anyway.
+    Also seen: `updates` gets +10-15k audit rows most Fridays (bursts: +230k 09.04, +46k 09.25,
+    +42k 03.28) -- append-only, real; low priority.
+[x] LATER: forward / daily mode for compare-loads-series.sh (backfill only now; daily is covered).
+    -> DONE 2026-10-21: --forward (from the newest snapshot, every newer dump; keeps the newest hashes;
+       no-op exit 0). Tested date resolution + no-op on a fake mount. FIRST REAL RUN 2026-10-22:
+       10.15 -> 10.21 (6 reports, 371 total), kept only 10.21's hashes; dashboard rebuilt. 10.16
+       (Friday) is again the NCBI load's ~444k db_link/zdb_active_data/record_attribution swap,
+       as expected until ncbi-load-stable-dblink-ids deploys. First real run reloads 10.15 once (its hashes were pruned). Jenkins wiring not
+       added: the read-only daily job (Table-Churn-Report_d) already covers production daily.
+      - --forward (catch-up): start at the newest snapshot on disk, process every
+        newer dump oldest->newest, comparing each to the day before.
+      - keep the newest day's hash dir (currently pruned at the end) so tomorrow's
+        run only loads ONE dump.
+      - Jenkins: run daily after the nightly unload lands; fail-fast mount check;
+        no-op if no new dump. Backward mode stays for backfilling history.
+      - option: snapshot the post-load DB directly rather than re-restoring the dump.
+[x] LATER: glanceable churn dashboard (static HTML generated from reports/*.csv,  (done, see above)
+    archived by Jenkins each run).
+      - heatmap: rows = tables, cols = days (7/30-day toggle), cell = real churn
+        (% of rows, log color scale); daily totals strip on top.
+      - "large" = unusual for THAT table (vs its trailing median), so tables that
+        rebuild daily don't drown out a real spike; sort/flag by that.
+      - show raw vs real, added/removed tables, row-count delta; click-through to the
+        per-table report row.
+[ ] LATER: re-pointed links. Real hash still drops int FK columns, so a child row
+    re-pointed to a different parent is invisible. Fix: map FK surrogate ids to the
+    parent's ZDB ID (via pg_constraint) before hashing.
+[x] LATER: drill-table-churn speed: take several --table per run and reuse staged
+    dumps (currently re-copies 2 x 1.3 GB per table, ~4 of 4.5 min).
+    -> done (multi-table, dumps staged once). Column layout now comes from the restored AFTER
+       table, with PK/unique constraints picked from the TOC (f5ff6114f3).
+[x] AFTER THE SWEEP: the sole-int-PK rule excludes public.entrez_gene.eg_acc_num, which is the NCBI
+    Gene ID (a natural key, not a surrogate), so real churn ignores changes to it. Add
+    `public.entrez_gene  include  eg_acc_num` to churn_columns.tsv. Not now: changing the excluded set
+    mid-sweep makes real churn n/a on the boundary day. (Scanned the 10.15 snapshot: the only other
+    column the rule alone excludes is revinfo.rev, a real surrogate.)
+[ ] FUTURE TICKET (Ryan, 2026-10-22): frozen / likely-dead tables. 234 tables never changed over the
+    whole year; first pass in workbench/frozen-tables.md: 26 with no code reference, 54 only in old
+    migration scripts (e.g. publication_correspondence, superseded by pub_correspondence_* in
+    release 1083). Next: check DB-side dependencies (views/FKs/functions), confirm data was migrated,
+    then archive/drop. Watch implicit users (Envers revinfo/post_aud, Liquibase lock table).
+    + scratch tables (2nd pass): Ryan's tmp_* list already dropped by ZFIN-10185 (ran 2026-04-13);
+      what remains is scored in the same note: big *_bkup copies (expression_result_bkup 504k, ...),
+      *_old/_copy/missing_/remove_/temp_existing_*, one-off load tables, thisse.* 2017 imports.
+[x] 2026-10-22 decisions: (1) unload fix -> branch unload-fail-cleanup (54cf43b779, bash rewrite; tested
+    in the jenkins container). (2) ped_id: CORRECTION -- it was never in the JSON. ExpressionTableRow's
+    "id" is getUniqueKey() (@JsonProperty("id") wins over Lombok getId(); verified with Jackson 2.15.2),
+    so branch expression-row-hide-ped-id is a no-op: drop it (git worktree remove + branch -D).
+    Follow-up done instead: branch frontend-stable-row-keys (e3579bf7c6) replaces rowKey={() =>
+    Math.random()} in 4 tables with stable keys. PR drafts for both in workbench/pr-drafts.md.
+[ ] Before merge: git rm the temporary committed scratch (TODO.txt + the 5 workbench
+    files, each in its own commit); then push (manual - git-push-manual).
+================================================================================
+
+Parts:
+[x] snapshot script  server_apps/DB_maintenance/postgres/snapshot_table_summary.sh
+[x] compare script    server_apps/DB_maintenance/postgres/compare_table_summaries.sh
+[x] gradle task       build.gradle: compareLoads -Dbefore=<dump> -Dafter=<dump>
+[x] jenkins job       server_apps/jenkins/jobs/Compare-Database-Loads/config.xml
+[x] doc               doc/compare-database-loads.md
+
+Known limitation (documented): content hash includes zdb_id / date columns, so ID-churning
+loads (drop + reload of equivalent data) flag as `changed`. Future TODO: per-table
+meaningful-column hashing (cf. lib/DB_functions/mgte_hash_*.sql).
+
+Future TODO: move compareLoads out of build.gradle into the zfin-utils command.
+
+[x] DONE: row churn (rows_added / rows_removed per table). snapshot HASHDIR mode writes
+    sorted per-row md5 files; compare uses comm to count exact adds/removes for changed
+    tables. Tested: t_swap 1/1 at delta0, t_rebuild 5/5, t_same 0/0. content_hash formula
+    unified across modes (COLLATE "C"). Needs ~3GB/day disk (freed 15.8GB via docker prune).
+
+[x] DONE: backward daily-sweep driver docker/compare-loads-series.sh. CLI flags
+    (--mount/--days/--start/--dates/--container/...), env fallback. Atomic snapshot/hash
+    promotion + resume (skip days with snapshot, reports already written; regen pruned
+    hashes only if a boundary report needs them). Larger --days later just extends window.
+[x] DONE: unchanged_since.sh reads accumulated snapshots (durable, cross-run) -> per table
+    latest_row_count + unchanged_since (= exact / <= lower-bound). Bounds tighten to exact
+    as history deepens; nothing rewritten. Ran as post-run hook by the driver.
+[x] DONE: 3-day trial (08.13->08.12->08.11) ran green. Reports + index + unchanged_since ok.
+    index: 08.12->08.13 = 113 changed/7 added, ~7.57M churn; 08.11->08.12 = 110 changed.
+[x] full 10-day sweep: in progress; 11 snapshots on disk (08.06..08.16) as of 2026-09-16.
+    See NEXT STEPS at top to verify completion. (superseded)
+
+Fixed along the way: two `| head` + `set -o pipefail` SIGPIPE (exit 141) bugs (compare and
+unchanged_since console summaries) -> awk-internal row limiting. Disk: freed 15.8G via
+docker prune (unused images/cache; no user files, solr volume kept) -> ~30G free.
+
+[x] DONE: meaningful-column churn drill-down docker/drill-table-churn.sh. Per table, two
+    loads: pg_restore -t just that table into a scratch DB (no full loaddb), auto-exclude
+    date/time cols + int/bigint surrogate keys (id/*_id; sole int PK), compare raw vs REAL
+    churn via EXCEPT ALL. Validated 07.05->07.06: publication_expression_display raw
+    476k/476k -> REAL 0/0 (all ped_id+created_at noise); curation +811/-9 real (net +802).
+
+[RESOLVED] sshfs mount ~/remotes/cell had dropped (stalled the sweep, blocked August
+drill-downs); remounted, sweep resumed. Note for future: drill-downs can also use local
+/research dumps via --mount /research/zunloads/databases/zfindb.
+
+Possible future: fold meaningful-column hashing into the sweep so every report carries
+real_rows_added/removed (costs more per-row hash storage) instead of per-table drilling.
+
+Design note: snapshot hashes each row then aggregates in hash order (ORDER BY the
+row's own md5), NOT by PK/all-columns. This is deterministic, key-agnostic, and
+avoids ORDER BY failures on PK-less tables with unorderable column types (json/xml).
+
+Tested (against dazed zfindb, psql 18):
+[x] snapshot script runs on 200+ real tables incl. large (1.5M rows) and empty
+[x] snapshot determinism: two runs of same data -> byte-identical CSV
+[x] hash order-independent (same rows, different insert order -> same hash)
+[x] hash change-sensitive (one changed value -> different hash); empty -> '' stable
+[x] compare script: all four statuses correct (added/removed/changed/unchanged),
+    incl. same-count-but-content-changed -> changed; CSV artifact + console summary
+[x] build.gradle parses; GradleException usage matches 8 existing sites
+[x] full gradle compareLoads dry-run with two real dumps (destructive; not yet run)
+    -> DONE 2026-10-21 on zfindb, 2026.10.14.1 -> 10.15.1: compare_loads.sh HASHES=1 (40 min) gives the
+       same 1,263 rows as the sweep's report for that pair (only diff: entrez_gene's excluded_cols, from
+       23288d35d9); gradle compareLoads (41 min, rc 0): after.csv identical to the sweep's 10.15 snapshot,
+       statuses 7 added / 83 changed / 1172 unchanged, same as the sweep. zfindb is left on 10.15.
+    -> AFTER THE SWEEP, on zfindb: a second full DB (~15 GB) does not fit next to the sweep's
+       (13 GB free on / , 2026-10-17). Run: DBNAME=zfindb HASHES=1 compare_loads.sh <a> <b>, then
+       gradle compareLoads once.
