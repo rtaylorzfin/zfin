@@ -44,9 +44,13 @@ public class AntibodyTableRow {
     //this is a key used for deciding whether to repeat the antibody in the display tag
     // (it's a "new" antibody if it's a new antibody and the same genotype...)
     private String antibodyGenoxZdbIDs;
+    // Unique, deterministic key for the React table: one row per (figure stage, expression result).
+    @JsonView(View.FigureAPI.class)
+    private String rowKey;
 
 
     public AntibodyTableRow(ExpressionFigureStage figureStage, ExpressionResult2 expressionResult) {
+        setRowKey(figureStage.getId() + "-" + expressionResult.getID());
         ExpressionExperiment2 expressionExperiment = figureStage.getExpressionExperiment();
         setAntibody(expressionExperiment.getAntibody());
         setAssay(figureStage.getExpressionExperiment().getAssay());
