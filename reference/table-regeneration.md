@@ -48,6 +48,8 @@ Called from `regen.sh`. Uses timestamped `_old_` naming with cleanup support.
 | `mutant_fast_search` | `mutant_fast_search_new` | `regen_genox_finish_marker()` | `lib/DB_functions/Regen_genox/regen_genox_finish_marker.sql` |
 | `genotype_figure_fast_search` | `genotype_figure_fast_search_new` | `regen_genofig_finish()` | `lib/DB_functions/Regen_genox/regen_genofig_finish.sql` |
 
+**Note**: `genotype_figure_fast_search_new` is still built the same way, but `regen_genofig_finish()` no longer swaps it in: it applies it to the live table as a set diff (whole-tuple md5), so unchanged rows keep `gffs_serial_id` and no `genotype_figure_fast_search_old_*` table is created.
+
 **Purpose**: `mutant_fast_search` maps markers/MOs to fish experiments for phenotype queries. `genotype_figure_fast_search` links genotypes to figures for genotype-based phenotype queries. Together they power the genotype/phenotype search and detail pages.
 
 ### Managed by `regen_term()`
@@ -95,20 +97,26 @@ These tables use the rename-and-recreate concept but with a fixed `_old` suffix.
 
 | Live Table | Staging Table | Old Name | Regen Function | Source File |
 |------------|---------------|----------|----------------|-------------|
-| `expression_term_fast_search` | `xpatfs_temp` | `xpatfs_old` | `regen_expression_term_fast_search()` | `lib/DB_functions/regen_expression_term_fast_search.sql` |
 | `feature_stats` | `feature_stats_temp` | `feature_stats_old` | `regen_feature_term_fast_search()` | `lib/DB_functions/regen_feature_term_fast_search.sql` |
 
 **Purpose**: `expression_term_fast_search` stores expression results with transitive term ancestry for search indexing. `feature_stats` holds antibody/probe expression annotations for anatomy ontology detail pages.
 
+`expression_term_fast_search` (`regen_expression_term_fast_search()`) is no longer in this group: it is now updated incrementally (a count-per-key diff of the wanted rows, like `pheno_term_fast_search`), and the function drops any leftover `xpatfs_temp` / `xpatfs_working` / `xpatfs_old`.
+
 **Note**: These do not use the `regen_cleanup_renamed_tables()` function. Old tables are dropped at the beginning of the next regen cycle.
 
-### Managed by `pheno_term_regen.sql`
+### Managed by `pheno_term_regen.sql` (incremental, not rename-and-recreate)
 
-Called from `regen.sh`. Uses timestamped `_old_` naming with cleanup support. Wrapped in a `DO $$` block.
+Called from `regen.sh` and `regenPhenotypeMart.sh`. No longer uses the rename pattern: the wanted
+rows are computed into a temp table and applied as a diff (delete surplus rows, insert missing ones,
+counted per `(psg_id, term, tag, is_direct_annotation)` because a key can legitimately repeat) in one
+transaction. DELETE/INSERT take ROW EXCLUSIVE locks, which do not block readers, so the deadlock
+concern above does not apply; unchanged rows keep `ptfs_pk_id`, and no `pheno_term_fast_search_old_*`
+tables are created (the cleanup prefix stays for any left from earlier runs).
 
-| Live Table | Staging Table | Source File |
-|------------|---------------|-------------|
-| `pheno_term_fast_search` | `pheno_term_fast_search_tmp` | `server_apps/DB_maintenance/pheno/pheno_term_regen.sql` |
+| Live Table | Source File |
+|------------|-------------|
+| `pheno_term_fast_search` | `server_apps/DB_maintenance/pheno/pheno_term_regen.sql` |
 
 **Purpose**: Stores phenotype observation IDs paired with ontology term IDs (both direct annotations and transitive ancestors via `all_term_contains`). Powers phenotype-by-term queries through Hibernate (`PhenotypeTermFastSearch` entity). Has FKs to `phenotype_observation_generated` and `term`.
 
