@@ -20,7 +20,7 @@
 #
 # Storage is split so the big files can live on cheaper disk:
 #   CHURN_DATA_DIR  small, kept forever: snapshots/ (~100 KB/day), reports/,
-#                   index.csv, unchanged_since.csv, dashboard/ (churn_dashboard.py)
+#                   index.csv, unchanged_since.csv, dashboard/ (churn_dashboard.groovy)
 #   CHURN_HASH_DIR  large, transient: per-row hash dirs (~5 GB/day); only the
 #                   newest day's dir is kept, as tomorrow's "before"
 #
@@ -135,5 +135,5 @@ for d in "$CHURN_HASH_DIR"/20??.??.??.*; do
         log "pruning hashes $(basename "$d")"; rm -rf "$d"
     fi
 done
-python3 -I "$HERE/churn_dashboard.py" "$CHURN_DATA_DIR" "$CHURN_DATA_DIR/dashboard" | sed 's/^/  /'
+"$HERE/churn_dashboard.groovy" "$CHURN_DATA_DIR" "$CHURN_DATA_DIR/dashboard" | sed 's/^/  /'
 log "done: $CHURN_DATA_DIR/index.csv, $CHURN_DATA_DIR/dashboard/index.html"

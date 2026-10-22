@@ -20,7 +20,7 @@ changes still surface.
 | `server_apps/DB_maintenance/postgres/unchanged_since.sh` | Post-run: from the accumulated snapshots, reports how far back each table has been unchanged. |
 | `docker/drill-table-churn.sh` | Drill into ONE table between two loads: real (meaningful-column) churn vs raw churn. |
 | `server_apps/DB_maintenance/postgres/daily_table_churn.sh` | Daily job: read-only snapshot of the live DB, compared with the previous day. Jenkins: `Table-Churn-Report_d`. |
-| `server_apps/DB_maintenance/postgres/churn_dashboard.py` | Builds the dashboard (`index.html`) and today's unusual changes (`anomalies.html` / `.txt`) from a reports dir. |
+| `server_apps/DB_maintenance/postgres/churn_dashboard.groovy` | Builds the dashboard (`index.html`) and today's unusual changes (`anomalies.html` / `.txt`) from a reports dir. |
 | `server_apps/DB_maintenance/postgres/build_churn_index.sh` | Summarizes a reports dir into `index.csv` (shared by the sweep and the daily job). |
 
 ## Running it
@@ -292,8 +292,8 @@ checks for `MIN_FREE_GB` (12) free in `CHURN_HASH_DIR` first.
 
 ### Dashboard and unusual changes
 
-`churn_dashboard.py` (Python 3, standard library only; no JavaScript or external
-resources) writes `dashboard/index.html`: daily real vs raw totals, a heatmap of real
+`churn_dashboard.groovy` (Groovy/JDK only, no classpath; runs via `/opt/misc/groovy`
+like the other server_apps Groovy scripts; no JavaScript or external resources) writes `dashboard/index.html`: daily real vs raw totals, a heatmap of real
 churn by table and day (share of the table that changed; hover for numbers; raw-only
 days hatched; a bar marks missing days), and a row-count trend per table over every
 snapshot kept.
@@ -314,7 +314,7 @@ Below the heatmap (which shows the top 40), a collapsed **All tables** section l
 every table with its row count, how many days it changed, its total real churn and the
 last day it changed; tables with no change in the period come last, with how long the
 whole table has been identical (from `unchanged_since.csv`). For a full-year page:
-`FROM=<first day> churn_dashboard.py <data_dir> <data_dir>/dashboard-year`.
+`FROM=<first day> churn_dashboard.groovy <data_dir> <data_dir>/dashboard-year`.
 
 A **Row counts by date** section links `row_counts.csv` (written next to `index.html`):
 every table's row count at every snapshot on disk, tables down, snapshot dates across
@@ -332,7 +332,7 @@ before `FROM` still feed each table's "usual" baseline. `TO` alone shows the pag
 looked that day (`AS_OF` is an alias).
 
 ```bash
-FROM=2026.09.14.1 TO=2026.10.13.1 python3 server_apps/DB_maintenance/postgres/churn_dashboard.py \
+FROM=2026.09.14.1 TO=2026.10.13.1 server_apps/DB_maintenance/postgres/churn_dashboard.groovy \
   build/db-load-comparison/series /tmp/churn-dashboard
 ```
 
