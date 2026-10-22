@@ -75,6 +75,13 @@ public abstract class UiIndexer<Entity> extends Thread {
         List<Entity> output = createInputOutput();
         logIndexerTask(getIndexerTask(IndexerTask.Type.INPUT_OUTPUT), false);
 
+        if (mergesInPlace()) {
+            logIndexerTask(getIndexerTask(IndexerTask.Type.SAVE), true);
+            mergeOutput(output);
+            logIndexerTask(getIndexerTask(IndexerTask.Type.SAVE), false);
+            return output.size();
+        }
+
         logIndexerTask(getIndexerTask(IndexerTask.Type.DELETE), true);
         cleanUiTables();
         logIndexerTask(getIndexerTask(IndexerTask.Type.DELETE), false);
@@ -83,6 +90,19 @@ public abstract class UiIndexer<Entity> extends Thread {
         persistOutput(output);
         logIndexerTask(getIndexerTask(IndexerTask.Type.SAVE), false);
         return output.size();
+    }
+
+    /**
+     * True for an indexer that updates its tables in place on a natural key
+     * (mergeOutput) instead of deleting every row and inserting the output, so
+     * unchanged rows keep their surrogate ids from run to run.
+     */
+    protected boolean mergesInPlace() {
+        return false;
+    }
+
+    protected void mergeOutput(List<Entity> output) {
+        throw new UnsupportedOperationException(getClass().getSimpleName() + " does not merge in place");
     }
 
     private IndexerTask getIndexerTask(IndexerTask.Type type) {
