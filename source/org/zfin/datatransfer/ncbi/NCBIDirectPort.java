@@ -232,8 +232,8 @@ public class NCBIDirectPort extends AbstractScriptWrapper {
     private Map<String, String>  geneAccFdbcont; // Concatenated Key (gene+acc+fdbcont) -> dblink_zdb_id
 
     //  used in eg. initializeGenPeptAccessionsMap
-    private Map<String, String>  GenPeptAttributedToNonLoadPub; // GenPept Acc -> Pub ZDB ID
-    private Map<String, String>  GenPeptDbLinkIdAttributedToNonLoadPub; // GenPept Acc -> DBLink ZDB ID
+    private Map<String, String>  GenPeptAttributedToNonLoadPub; // ZFIN gene|GenPept Acc -> Pub ZDB ID
+    private Map<String, String>  GenPeptDbLinkIdAttributedToNonLoadPub; // ZFIN gene|GenPept Acc -> DBLink ZDB ID
 
     //  used in eg. processGenBankAccessionsAssociatedToNonLoadPubs
     private Map<String, String>  GenPeptsToLoad; // GenPept Acc -> ZFIN Gene ID
@@ -3068,7 +3068,7 @@ public class NCBIDirectPort extends AbstractScriptWrapper {
         // *does not* include $pubMappedbasedOnNCBISupplement. I will match that.
 
         sqlGenPeptAttributedToNonLoadPub = String.format("""
-            select dblink_acc_num, dblink_zdb_id, recattrib_source_zdb_id
+            select dblink_acc_num, dblink_zdb_id, recattrib_source_zdb_id, dblink_linked_recid
             from record_attribution, db_link
             where recattrib_data_zdb_id = dblink_zdb_id
               and dblink_fdbcont_zdb_id = '%s'
@@ -3085,9 +3085,11 @@ public class NCBIDirectPort extends AbstractScriptWrapper {
             String genPeptAcc = row.get(0, String.class);
             String dbLinkId = row.get(1, String.class);
             String nonLoadPub = row.get(2, String.class);
+            String geneId = row.get(3, String.class);
 
-            GenPeptAttributedToNonLoadPub.put(genPeptAcc, nonLoadPub);
-            GenPeptDbLinkIdAttributedToNonLoadPub.put(genPeptAcc, dbLinkId);
+            // Keyed by gene and accession: one accession can be curated on more than one gene.
+            GenPeptAttributedToNonLoadPub.put(geneId + "|" + genPeptAcc, nonLoadPub);
+            GenPeptDbLinkIdAttributedToNonLoadPub.put(geneId + "|" + genPeptAcc, dbLinkId);
             ctGenPeptNonLoadPub++;
         }
         print(LOG, "\nNumber of GenPept accessions attributed to non-load pub: " + ctGenPeptNonLoadPub + "\n\n");
@@ -3095,58 +3097,52 @@ public class NCBIDirectPort extends AbstractScriptWrapper {
         print(LOG, "\nctGenPeptAttributedToNonLoadPub (map size) = " + GenPeptAttributedToNonLoadPub.size() + "\n\n");
     }
 
+    /**
+     * GenPept accessions that NCBI maps to a gene are written to the load list. When the gene already has a
+     * curated link for the accession (attributed to a non-load pub), the load row is still written, but the
+     * curated link is no longer put on the delete list: loadNCBIgeneAccs.sql keeps the link -- its ZDB ID, its
+     * curator attribution and its dblink_info -- and adds the load pub to it as an extra attribution.
+     * (The Perl original, ported here, deleted the curated link and reloaded it attributed only to the load pub,
+     * losing the curation; the stated intent was to attribute it to the load pub.)
+     */
     private void processGenBankAccessionsAssociatedToNonLoadPubs() {
         GenPeptsToLoad = new HashMap<>(); // GenPept Acc -> ZFIN Gene ID
-        File moreToDeleteFile = new File(workingDir, "toDelete.unl"); // Appending to existing file
         long ctToAttribute = 0;
 
-        print(LOG, "\nThe GenPept accessions used to attribute to non-load publication now attribute to load pub:\n\n");
+        print(LOG, "\nThe curated GenPept accessions also found by this load get the load pub as an extra attribution:\n\n");
         print(LOG, "GenPept\tZFIN gene Id\tnon-load pub\tload pub\n");
         print(LOG, "-------\t------------\t------------\t--------\n");
 
-        try (BufferedWriter moreToDeleteWriter = new BufferedWriter(new FileWriter(moreToDeleteFile, true))) { // true for append
-            List<String> sortedGenPeptKeys = GenPeptNCBIgeneIds.keySet().stream().sorted().collect(Collectors.toList());
+        List<String> sortedGenPeptKeys = GenPeptNCBIgeneIds.keySet().stream().sorted().collect(Collectors.toList());
 
-            for (String genPept : sortedGenPeptKeys) {
-                String ncbiGeneId = GenPeptNCBIgeneIds.get(genPept);
-                String[] zdbGeneAndPub = getZdbGeneIdAndAttributionByNCBIgeneId(ncbiGeneId);
-                String zdbGeneId = zdbGeneAndPub[0];
-                String attributionPub = zdbGeneAndPub[1];
+        for (String genPept : sortedGenPeptKeys) {
+            String ncbiGeneId = GenPeptNCBIgeneIds.get(genPept);
+            String[] zdbGeneAndPub = getZdbGeneIdAndAttributionByNCBIgeneId(ncbiGeneId);
+            String zdbGeneId = zdbGeneAndPub[0];
+            String attributionPub = zdbGeneAndPub[1];
 
-                if (zdbGeneId == null) continue;
+            if (zdbGeneId == null) continue;
 
-                String hashKey = zdbGeneId + genPept + FDCONT_GENPEPT;
-                Integer lengthVal = sequenceLength.get(genPept);
+            String hashKey = zdbGeneId + genPept + FDCONT_GENPEPT;
+            String curatedKey = zdbGeneId + "|" + genPept;
+            Integer lengthVal = sequenceLength.get(genPept);
 
-                if (!geneAccFdbcont.containsKey(hashKey)) {
+            if (!geneAccFdbcont.containsKey(hashKey)) {
 
-                    recordsToLoad.addRow(new NCBIOutputFileToLoad.LoadFileRow(zdbGeneId, genPept, lengthVal, FDCONT_GENPEPT, attributionPub));
-                    geneAccFdbcont.put(hashKey, "1"); // Mark as added
-                    GenPeptsToLoad.put(genPept, zdbGeneId);
-                } else if (GenPeptAttributedToNonLoadPub.containsKey(genPept) &&
-                           GenPeptDbLinkIdAttributedToNonLoadPub.containsKey(genPept)) {
-                    String moreToDeleteDblinkId = GenPeptDbLinkIdAttributedToNonLoadPub.get(genPept);
-                    moreToDeleteWriter.write(moreToDeleteDblinkId + "|" + genPept + "\n");
-                    toDelete.put(moreToDeleteDblinkId, genPept); // Add to the main toDelete map
-
-                    recordsToLoad.addRow(new NCBIOutputFileToLoad.LoadFileRow(zdbGeneId, genPept, lengthVal, FDCONT_GENPEPT, attributionPub));
-                    // geneAccFdbcont already contains this key, so we are essentially replacing its attribution
-                    // No need to increment ctToLoad again if it was already counted, but the logic here implies
-                    // it might be a new load line if the attribution changes.
-                    // The original Perl script adds to TOLOAD and increments ctToLoad regardless here.
-                    // Let's assume the old dblink is deleted and a new one is loaded.
-                     //This logic matches Perl, which would write a new line to toLoad.unl
-                    print(LOG, String.format("%s\t%s\t%s\t%s\n",
-                            genPept, zdbGeneId, GenPeptAttributedToNonLoadPub.get(genPept), attributionPub));
-                    ctToAttribute++;
-                }
+                recordsToLoad.addRow(new NCBIOutputFileToLoad.LoadFileRow(zdbGeneId, genPept, lengthVal, FDCONT_GENPEPT, attributionPub));
+                geneAccFdbcont.put(hashKey, "1"); // Mark as added
+                GenPeptsToLoad.put(genPept, zdbGeneId);
+            } else if (GenPeptAttributedToNonLoadPub.containsKey(curatedKey)) {
+                // The curated link stays; the load row lets loadNCBIgeneAccs.sql add the load pub to it.
+                recordsToLoad.addRow(new NCBIOutputFileToLoad.LoadFileRow(zdbGeneId, genPept, lengthVal, FDCONT_GENPEPT, attributionPub));
+                print(LOG, String.format("%s\t%s\t%s\t%s\n",
+                        genPept, zdbGeneId, GenPeptAttributedToNonLoadPub.get(curatedKey), attributionPub));
+                ctToAttribute++;
             }
-        } catch (IOException e) {
-            reportErrAndExit("Error in processGenBankAccessionsAssociatedToNonLoadPubs: " + e.getMessage());
         }
 
         print(LOG, "---------------------------------------------------------------\nTotal: " + ctToAttribute + "\n\n");
-        print(STATS_PRIORITY2, String.format("\nNon-load attribution for the %d manually curated GenPept db_link records get replaced by;\n 1 of the 2 load pubs (depending on mapping type).\n\n", ctToAttribute));
+        print(STATS_PRIORITY2, String.format("\nThe %d manually curated GenPept db_link records also found by this load keep their curator attribution\n and get 1 of the 2 load pubs (depending on mapping type) as an extra attribution.\n\n", ctToAttribute));
     }
 
     private void printGenPeptsAssociatedWithGeneAtZFIN() {
