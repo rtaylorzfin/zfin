@@ -286,6 +286,17 @@ surrogate-id-churn-audit.md + db-load-comparison-session-notes.md.
     so branch expression-row-hide-ped-id is a no-op: drop it (git worktree remove + branch -D).
     Follow-up done instead: branch frontend-stable-row-keys (e3579bf7c6) replaces rowKey={() =>
     Math.random()} in 4 tables with stable keys. PR drafts for both in workbench/pr-drafts.md.
+[~] HISTORY BACKFILL (Ryan, 2026-10-23):
+    1. RUNNING since 2026-10-23 07:52: weekly (Tuesday) sweep 2025.10.14 -> 2018.06.05, 383 dumps, ~6 days
+       (log dazed/sweep-weekly.log, list dazed/weekly-dates.txt). Before 2018.06 the dumps are Informix
+       per-table unloads (not restorable); Postgres .bak starts 2018.06.04. Don't edit
+       compare-loads-series.sh while it runs.
+    2. THEN, daily newest-first (Ryan's choice over Sat/Thu/rest passes, which would reload every existing day
+       per pass: ~78 days vs ~42): one backward pass over every .bak dump 2025.10.13 -> 2018.06.04 (~2,640,
+       ~42 days). First add to compare-loads-series.sh: after writing A_to_B, move any coarser X_to_B (X < A)
+       to reports/superseded/. The dashboard already keeps only the finest report per day (committed).
+    3. After each pass: rebuild dashboards (+ a full-history page FROM=2018.06.05.2), Ryan re-runs the rsync
+       backup to cell:backups/table-changes-over-time/.
 [ ] Before merge: git rm the temporary committed scratch (TODO.txt + the 5 workbench
     files, each in its own commit); then push (manual - git-push-manual).
 ================================================================================

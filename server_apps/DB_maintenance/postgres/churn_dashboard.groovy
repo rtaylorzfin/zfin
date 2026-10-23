@@ -223,12 +223,16 @@ List<List> reports = []
 new File(dataDir, 'reports').listFiles().each { File f ->
     String name = f.name
     if (!name.endsWith('.csv') || !name.contains('_to_')) return
-    String day = name[0..-5].split('_to_', -1)[1]
+    String[] ends = name[0..-5].split('_to_', -1)
+    String day = ends[1]
     if (day ==~ DAY) {
         Map data = readReport(f)
-        if (data != null) reports << [day, data]
+        if (data != null) reports << [day, data, ends[0]]
     }
 }
+// One report per day: if a coarser report (e.g. a weekly one) and a finer one end on the same
+// day, keep the finer one -- the one starting latest -- so churn is not counted twice.
+reports = reports.groupBy { it[0] }.collect { d, rs -> rs.max { it[2] } }
 reports.sort { it[0] }
 if (TO) reports = reports.findAll { it[0] <= TO }
 Map<String, Map<String, Long>> counts = new TreeMap<>()
