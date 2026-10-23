@@ -1,0 +1,25 @@
+# Per-table overrides for churn_columns.sh (meaningful-content hashing).
+#
+# The auto rules already exclude date/time columns, integer id / *_id columns and
+# a sole integer primary key, so most churning tables need no entry here
+# (e.g. ui.term_phenotype_display -> tpd_id, created_at are auto-excluded).
+# Add a line only when the auto rules get a table wrong:
+#
+#   <schema.table>  exclude  col1,col2   # churn the auto rules miss (e.g. a text load id)
+#   <schema.table>  include  col1        # a meaningful integer *_id the rules would drop
+#
+# Changing a table's entry changes its excluded set, so reports comparing a
+# snapshot taken before the change with one taken after show real churn as n/a
+# for that table until both sides use the same set.
+
+# Integer FKs into parents whose ids are stable -- a change here is a real re-pointing.
+# foreign_db is a static lookup table.
+public.sequence_feature_chromosome_location_generated  include  sfclg_fdb_db_id
+# psg_id / pg_id were stabilized by ZFIN-10350 (incremental natural-key apply).
+public.pheno_term_fast_search       include  ptfs_psg_id
+public.genotype_figure_fast_search  include  gffs_psg_id,gffs_pg_id
+# expression_result2 is curated, not regenerated, so xpatres_pk_id is stable.
+public.expression_term_fast_search  include  etfs_xpatres_pk_id
+
+# Sole integer PK that is a natural key, not a surrogate: the NCBI Gene ID.
+public.entrez_gene  include  eg_acc_num

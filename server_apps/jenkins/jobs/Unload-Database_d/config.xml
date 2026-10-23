@@ -20,6 +20,15 @@
     </hudson.tasks.Shell>
   </builders>
   <publishers>
+    <hudson.tasks.BuildTrigger>
+      <childProjects>Table-Churn-Report_d</childProjects>
+      <threshold>
+        <name>SUCCESS</name>
+        <ordinal>0</ordinal>
+        <color>BLUE</color>
+        <completeBuild>true</completeBuild>
+      </threshold>
+    </hudson.tasks.BuildTrigger>
     <hudson.plugins.emailext.ExtendedEmailPublisher plugin="email-ext@2.35.1">
       <recipientList></recipientList>
       <configuredTriggers>
