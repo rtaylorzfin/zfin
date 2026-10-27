@@ -95,8 +95,28 @@ username_hint() {
     fi
 }
 
+# A Jenkins that still has its setup-wizard password offers the quickest way in -- unless that
+# password is the credential that just failed (setup has since finished and changed it).
+print_initial_password_hint() {
+    [ -r "$SECRET_PATH" ] || return 0
+    if [ "$AUTH_SOURCE" = "initial-password" ]; then
+        cat >&2 <<EOF
+
+The initial admin password in $SECRET_PATH was rejected
+(Jenkins setup has probably completed since), so create an API token instead.
+EOF
+    else
+        cat >&2 <<EOF
+
+This Jenkins still has an initial admin password; the quickest way in is:
+       jenkins-cli login admin "\$(cat $SECRET_PATH)"
+EOF
+    fi
+}
+
 print_auth_help() {
     user="$(username_hint)"
+    print_initial_password_hint
     cat >&2 <<EOF
 
 The Jenkins CLI needs an API token to authenticate. To set one up:
@@ -165,14 +185,19 @@ extract_jar() {
 }
 
 # Resolve AUTH_ARGS from env, stored creds file, or initial admin password.
+# AUTH_SOURCE records which one, so the help text can tell when the initial password was rejected.
 resolve_auth() {
     AUTH_ARGS=""
+    AUTH_SOURCE=""
     if [ -n "$JENKINS_CLI_USER" ] && [ -n "$JENKINS_CLI_PASSWORD" ]; then
         AUTH_ARGS="-auth $JENKINS_CLI_USER:$JENKINS_CLI_PASSWORD"
+        AUTH_SOURCE="env"
     elif [ -f "$CREDS_FILE" ]; then
         AUTH_ARGS="-auth @$CREDS_FILE"
-    elif [ -f "$SECRET_PATH" ]; then
+        AUTH_SOURCE="stored"
+    elif [ -r "$SECRET_PATH" ]; then
         AUTH_ARGS="-auth admin:$(cat "$SECRET_PATH")"
+        AUTH_SOURCE="initial-password"
     fi
 }
 
